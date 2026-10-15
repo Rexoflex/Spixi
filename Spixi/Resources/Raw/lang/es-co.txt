@@ -378,6 +378,10 @@ intro-new-walletexists-title = La cuenta ya existe
 intro-new-walletexists-text = Ya existe una cuenta en este dispositivo, así que no se puede crear una nueva aquí. Reinicia Spixi para continuar con la cuenta existente.
 intro-restore-walletexists-title = La cuenta ya está en este dispositivo
 intro-restore-walletexists-text = Ya existe una cuenta en este dispositivo. Para usarla, reinicia Spixi. Para restaurar otra cuenta: reinicia Spixi, abre Cuenta › Eliminar datos… › Eliminar cuenta permanentemente y vuelve a abrir Restaurar cuenta.
+intro-restore-replace-title = Replace the contacts on this device?
+intro-restore-replace-text = This device still has contacts from an account whose wallet file is missing. Restore replaces them with the contacts in the backup. A copy of the current contacts is kept in the Spixi data folder.
+intro-restore-replace-confirm = Restore
+intro-restore-stashbusy-text = This is a Spixi account backup, but it could not be restored: a copy of earlier contacts on this device could not be moved aside. Nothing was changed. Restart Spixi, then try again.
 
 ; Intro Restore Screen
 intro-restore-title = Restaurar cuenta

@@ -23,6 +23,9 @@
  * ★ re-based by S20 R (#1403, Damir 19:54): the dark bubbles moved to the S19 B bubble at OKLCH C × 0.85, L + 0.015 and the quotes
  *   were re-derived (values + numbers in tokens.css and pins-s20/r-dark-grounds); this pin holds RELATIONS, not values — every
  *   clause still holds on the S20 values (bubble vs stop 1.35–1.65, quote 1.25–1.26, still darker + more saturated than A).
+ * ★ re-based by S20G N-1 (Damir 21:50 "even darker still, still too close to outgoing"): the bubbles moved OKLCH L −0.06 (Mist −0.04),
+ *   so the bubble-vs-stop floor drops 1.25 → 1.15 (measured 1.158–1.32; r1 NIT: 1.10 → 1.15, just under the measured min); every other
+ *   relation still holds (Mist's quote lands on #000, 1.24).
  * Deliberate breaks (S19 F10 report): the Ocean rule's bubble line deleted (canvas fails: Ocean falls back to #1E2023, darker
  * than its light stop) · hue 0's dark name lightness back to 60 % (names fails) · the dark quote rule back to
  * --surface-neutral-04 (quote fails) · the dark played voice disc back to --neutral-500 (voice fails) · #46 S19 M3: the track
@@ -110,7 +113,7 @@ export default async function (h) {
       t.vsStops = gs.map((x) => r2(cr(b, x)));
       t.lighter = gs.every((x) => lum(b) > lum(x));
       t.text = r2(cr(text, b)); t.meta = r2(cr(meta, b)); t.link = r2(cr(link, b));
-      if (!t.lighter || gs.some((x) => cr(b, x) < 1.25) || t.text < 7 || t.meta < 4.5 || t.link < 4.5) fail.canvas.push(name);   // ★ S19 option B: ≥ 1.25 unrounded (A was ≥ 1.2 rounded)
+      if (!t.lighter || gs.some((x) => cr(b, x) < 1.15) || t.text < 7 || t.meta < 4.5 || t.link < 4.5) fail.canvas.push(name);   // ★ S20G N-1 re-base: ≥ 1.15 (r1 NIT; was 1.10) (the bubbles moved OKLCH L −0.06 / Mist −0.04 toward the ground; measured 1.16–1.32). Was ≥ 1.25 (S19 option B; A was ≥ 1.2 rounded)
       t.quote = r2(cr(qFill, b)); t.quoteText = r2(cr(qText, qFill));
       const qLow = [];
       for (let i = 0; i < 12; i++) { quote.setAttribute('data-idhue', String(i)); const l = parseFloat(W.getComputedStyle(quote).getPropertyValue('--reply-label-l')); if (!(cr(hsl(hues[i], 70, l), qFill) >= 4.5)) qLow.push(i); }
@@ -165,7 +168,7 @@ export default async function (h) {
   } catch (e) { r.threw = e.message; }
   finally { try { W.close(); } catch (e) { /* */ } }
   const c = (k, m, extra) => ok(r[k] === true, m + ' — ' + JSON.stringify(r[k] === true ? (extra || { [k]: true }) : { [k]: r[k], threw: r.threw, fail, table }));
-  c('canvas', '★ S19 F10 (#1371) → option B (re-based): DARK — each of the 7 canvases has its OWN received bubble, lighter than every stop of its painted ground (Mist #07090B) and ≥ 1.25 : 1 against each (was ≥ 1.2); text ≥ 7, meta + link ≥ 4.5 (computed)', { table: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, [t.bubble, t.vsStops, t.text]])) });
+  c('canvas', '★ S19 F10 (#1371) → option B (re-based): DARK — each of the 7 canvases has its OWN received bubble, lighter than every stop of its painted ground (Mist #040607) and ≥ 1.15 : 1 against each (S20G N-1; was ≥ 1.25, ≥ 1.2); text ≥ 7, meta + link ≥ 4.5 (computed)', { table: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, [t.bubble, t.vsStops, t.text]])) });
   c('quote', '★ S19 F10 → option B: the reply quote is one step DARKER than each canvas bubble (1.2 ≤ r < 1.3; B = 1.25); its text and all 12 identity-hue quote labels ≥ 4.5 : 1', { quote: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, t.quote])) });
   c('names', '★ S19 F10: the 12 identity-hue sender names (and the no-hue fallback) hold ≥ 4.5 : 1 on every dark canvas bubble');
   c('pill', '★ S19 F10 → #46 S19 M1 (re-based): the dark composer pill stays NEUTRAL — ink-750 #1E2023 on all 7 canvases, not the canvas bubble (was "follows the bubble", #1166)');

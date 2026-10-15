@@ -1,16 +1,15 @@
-/* ==== SESSION 9 (B2 f2) — TOGGLE LAYOUT B (Damir) on every switch row with a stacked label ====
- * On the BUILT settings.html (jsdom computed style — the cascade; the pixel geometry is the Chromium render in the
- * S9 B2 f2 report, toggle-*.png):
- *   · the row is a two-column grid; the stack is `display: contents`, so the TITLE LINE (.c-settings__row-top) and
- *     the switch share grid row 1 (the switch centres on the title line, not on the card) and the description is
- *     row 2 spanning BOTH columns (it runs under the switch column)
- *   · the disc is back in the title line's flow (static, untransformed — not the N59b absolute-centred disc)
- *   · the description's start indent = the disc's width + the title line's gap (it starts under the title), in the
- *     Account context (30 + 16) — resolved from the cascade
+/* ==== SESSION 9 (B2 f2) — TOGGLE LAYOUT B (Damir) → ★ S20G R-1 RE-BASE: ONE switch-row geometry ====
+ * Was (S9 B2 f2): a switch row with a stacked label was a two-row grid (`display: contents` stack, the switch centred on
+ * the TITLE line, the description on row 2 under the switch column); S20F W-2 (#1408/#1409) took the hub rows out of it.
+ * ★ S20G R-1 (Damir "yes unify"): EVERY switch row is the base flex row — label | switch, centred on the WHOLE title +
+ * description block (the N59b stack: a flex column, the disc absolute-centred); the full geometry is
+ * pins-s20g/s-switch.mjs. What this module still owns (on the BUILT settings.html, jsdom computed style):
+ *   · every Privacy row and the hub rows: a centred flex row, the stack a flex column, the disc absolute — NOT layout B
  *   · the switch keeps its name + description (aria-label = title, aria-describedby → this row's sub)
- *   · every Privacy row gets it (★ S20F W-2 re-base, #1408/#1409 = B: the hub's App lock / Confirm payments rows are the
- *     chevron row now — asserted NOT layout B here, their geometry in pins-s20/r-account-toggle.mjs)
- * Deliberate breaks: see the S9 B2 f2 report. */
+ *   · the tap layer (S9 #46 r3 n3, re-based): the switch's ::after overhang ≤ the row's gap — the description sits BESIDE
+ *     the switch now, so the gap that guards it is the row gap (8), not a row-gap below
+ *   · a switch row WITHOUT a description stays one line — label | switch, centred, the same 8 px gap
+ * Deliberate breaks: see the S9 B2 f2 report; the S20G re-base: the layout-B block put back → the Privacy clause fails. */
 import { b2Kit } from './b2-kit.mjs';
 export default async function (h) {
   const { ok, sleep } = h;
@@ -32,18 +31,13 @@ export default async function (h) {
       const lab = r.querySelector(':scope > .c-settings__row-label--stack'), top = lab && lab.querySelector(':scope > .c-settings__row-top');
       const sub = lab && lab.querySelector(':scope > .c-settings__row-sub'), sw = r.querySelector(':scope > .c-settings__switch'), disc = top && top.querySelector('.c-disc');
       if (!lab || !top || !sub || !sw || !disc) return { ok: false, why: 'dom' };
-      const indent = px(sub, cs(sub).getPropertyValue('padding-inline-start'));
-      const want = px(disc, cs(disc).width) + px(top, cs(top).getPropertyValue('gap'));
       const res = {
-        grid: cs(r).display === 'grid' && /auto$/.test(cs(r).gridTemplateColumns) && cs(r).alignItems === 'center',
-        contents: cs(lab).display === 'contents',
-        line1: cs(top).gridRow === '1' && cs(sw).gridRow === '1' && cs(sw).gridColumn === '2' && cs(top).gridColumn === '1',
-        subRow2Full: cs(sub).gridRow === '2' && cs(sub).gridColumn.replace(/\s/g, '') === '1/-1',
-        discFlow: cs(disc).position === 'static' && cs(disc).transform === 'none',
-        indent: Number.isFinite(indent) && indent > 0 && indent === want,
+        flex: cs(r).display === 'flex' && cs(r).alignItems === 'center' && sw.parentElement === r,
+        stackCol: cs(lab).display === 'flex' && cs(lab).flexDirection === 'column',
+        discAbs: cs(disc).position === 'absolute' && cs(disc).top === '50%',
         a11y: sw.getAttribute('aria-label') === top.textContent && (!sw.hasAttribute('aria-describedby') || s.d.getElementById(sw.getAttribute('aria-describedby')) === sub),
       };
-      return { ok: Object.values(res).every(Boolean), res, indent, want };
+      return { ok: Object.values(res).every(Boolean), res };
     };
     /* the hub's App lock row (a switch with a sub) */
     const hubRows = [...s.d.querySelectorAll('.c-settings__row[data-row="switch"]')].filter((r) => r.querySelector('.c-settings__row-sub'));
@@ -52,22 +46,35 @@ export default async function (h) {
     if (pr) pr.click();
     await sleep(250);
     const priv = [...s.d.querySelectorAll('.c-settings-privacy .c-settings__row[data-row="switch"]')].map(check);
-    /* ★ #46 r3 n3: the switch's tap layer (its ::after overhang below the 28 px box, read from the BUILT sheet)
-       must end above the description — row-gap ≥ that overhang (the switch is centred on a line ≥ its box) */
-    let overhang = NaN;
+    /* ★ #46 r3 n3 → S20G R-1: the switch's tap layer (its ::after overhang, read from the BUILT sheet) must end at the
+       row gap — the description is beside the switch now, so the label | switch gap ≥ that overhang */
+    /* ★ S20G C-m6 (#46 r1): the guard reads the INLINE (left / right) overhang — the description is BESIDE the switch, so
+       the side that can reach it is the inline one (the re-base read the vertical inset: `inset: -8px -20px` passed).
+       The `inset` shorthand is expanded by the CSS rule (1–4 values: top right bottom left); a longhand or an
+       inset-inline wins over it. The larger of the two inline sides is compared (LTR + RTL). The vertical pair still
+       has to make the 44 px target (28 + top + bottom ≥ 44). */
+    let overhang = NaN, tall = NaN;
+    const neg = (v) => { const m = /^(-?[\d.]+)px$/.exec(String(v || '').trim()); return m ? Math.max(0, -Number(m[1])) : (String(v || '').trim() === '0' ? 0 : NaN); };
     for (const sh of s.d.styleSheets) { let rules; try { rules = sh.cssRules; } catch (e) { continue; } for (const ru of rules || []) {
-      if (ru.selectorText === '.c-settings__switch::after') { const v = (ru.style.getPropertyValue('bottom') || ru.style.getPropertyValue('inset') || '').trim().split(/\s+/); const b = v.length >= 3 ? v[2] : v[0]; const m = /^-([\d.]+)px$/.exec(b || ''); if (m) overhang = Number(m[1]); } } }
+      if (ru.selectorText !== '.c-settings__switch::after') continue;
+      const st = ru.style, g = (k) => (st.getPropertyValue(k) || '').trim();
+      const v = g('inset').split(/\s+/).filter(Boolean);
+      const [t, r = t, b = t, l = r] = v;
+      const ii = g('inset-inline').split(/\s+/).filter(Boolean);
+      const L = g('left') || g('inset-inline-start') || ii[0] || l, R = g('right') || g('inset-inline-end') || ii[1] || ii[0] || r;
+      const T = g('top') || g('inset-block-start') || t, B = g('bottom') || g('inset-block-end') || b;
+      overhang = Math.max(neg(L), neg(R));
+      tall = 28 + neg(T) + neg(B);
+    } }
     const sr = s.d.querySelector('.c-settings-privacy .c-settings__row[data-row="switch"]');
-    const gap = sr ? px(sr, cs(sr).rowGap || cs(sr).getPropertyValue('row-gap')) : NaN;
-    ok(Number.isFinite(overhang) && overhang > 0 && gap >= overhang,
-      '★ S9 #46 r3 n3: the switch\'s 44 px tap layer ends above the description (row-gap ' + gap + ' ≥ tap overhang ' + overhang + ')');
-    /* ★ S20F W-2 re-base (#1408 + #1409 = B): the HUB's switch rows left layout B for the chevron-row geometry (behaviour:
-       pins-s20/r-account-toggle.mjs) — here they must be NOT layout B (stack not `contents`, disc not in the title flow) and
-       keep the switch's name/description; every Privacy row keeps layout B exactly as before. */
-    const hubChevron = hub.length >= 1 && hub.every((x) => x.res && !x.res.contents && !x.res.discFlow && x.res.a11y);
-    ok(hubChevron && priv.length === 5 && priv.every((x) => x.ok),
-      '★ S9 toggle B (Privacy ' + priv.length + '; ★ S20F W-2: the hub ' + hub.length + ' row(s) are the chevron row now): every Privacy switch row puts title + switch on grid row 1, the description on row 2 across both columns, the disc in the title flow, the indent = disc + title gap, and keeps the switch name/description — '
-      + JSON.stringify((priv.find((x) => !x.ok) || (!hubChevron && hub[0]) || priv[0])));
+    const cg = (e) => { const v = cs(e).getPropertyValue('column-gap'); return v && v !== 'normal' ? v : cs(e).getPropertyValue('gap'); };   // jsdom keeps `gap` unexpanded
+    const gap = sr ? px(sr, cg(sr)) : NaN;
+    ok(Number.isFinite(overhang) && Number.isFinite(gap) && gap >= overhang && tall >= 44,
+      '★ S9 #46 r3 n3 → ★ S20G R-1 / C-m6 re-base: the switch\'s 44 px tap layer (' + tall + ' px tall) ends at the row gap, beside the description — the INLINE overhang (gap ' + gap + ' ≥ inline tap overhang ' + overhang + ')');
+    /* ★ S20G R-1: the hub rows and every Privacy row are the SAME box (the S20F W-2 hub-only override is gone) */
+    ok(hub.length >= 1 && hub.every((x) => x.ok) && priv.length === 5 && priv.every((x) => x.ok),
+      '★ S20G R-1 (Privacy ' + priv.length + ' · hub ' + hub.length + '): every switch row with a description is a centred flex row, the title + sub one flex column with the disc absolute-centred, and keeps the switch name/description — '
+      + JSON.stringify((priv.find((x) => !x.ok) || hub.find((x) => !x.ok) || priv[0])));
     s.dom.window.close();
 
     /* —— a switch row WITHOUT a description keeps today's one-line row (Notifications → Allow notifications) —— */
@@ -81,13 +88,13 @@ export default async function (h) {
     const plain = [...s2.d.querySelectorAll('.c-settings__row[data-row="switch"]')].find((r) => !r.querySelector('.c-settings__row-sub'));
     const pl = plain && plain.querySelector(':scope > .c-settings__row-label'), psw = plain && plain.querySelector(':scope > .c-settings__switch');
     const pres = plain && {
-      oneLine: cs2(pl).display === 'flex' && !pl.classList.contains('c-settings__row-label--stack') && cs2(pl).gridRow === '1' && cs2(psw).gridRow === '1' && cs2(psw).gridColumn === '2',
-      gap8: /--spacing-8\)$/.test(cs2(plain).columnGap || cs2(plain).getPropertyValue('column-gap')),
+      oneLine: cs2(pl).display === 'flex' && !pl.classList.contains('c-settings__row-label--stack') && cs2(plain).display === 'flex' && psw.parentElement === plain && !('stack' in plain.dataset),   // ★ S20G R-1 re-base: the base flex row (was grid row 1 / column 2)
+      gap8: /--spacing-8\)$/.test(cs2(plain).getPropertyValue('gap')),
       centred: cs2(plain).alignItems === 'center',
       named: psw.getAttribute('aria-label') === pl.textContent,
     };
     ok(!!plain && Object.values(pres).every(Boolean),
-      '★ S9 toggle B: a switch row WITHOUT a description stays one line — label | switch, centred, the same 8 px gap — ' + JSON.stringify(pres));
+      '★ S9 toggle B → S20G R-1: a switch row WITHOUT a description stays one line — label | switch, centred, the same 8 px gap — ' + JSON.stringify(pres));
     s2.dom.window.close();
   } catch (e) {
     ok(false, '★ S9 B2 toggle pins threw: ' + (e && e.stack || e));

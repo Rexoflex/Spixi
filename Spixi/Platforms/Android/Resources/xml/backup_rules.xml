@@ -8,7 +8,8 @@
      Excluded (plaintext or user content, or rebuildable): chat history (Chats, CORE-11 - a backup taken before a delete keeps
      the deleted text), the offline send queue (MsgQueue), received files (Downloads), my sent voice clips (Voice) and the
      durable copies of my sent photos/files (Sent, #1244 - they could pass the 25 MB quota and stop the wallet backup),
-     transfer + restore scratch (tmp, tmp_zip, tmp_restore_prev — S15 #1297), block headers and the activity DB (headers / activity + testnet-*, Config.cs),
+     transfer + restore scratch (tmp, tmp_zip, tmp_restore_prev — S15 #1297), the contact lists a restore kept
+     (restore-previous — S20G #46 r1 A-2: one fixed parent; they stay on this device until delete account), block headers and the activity DB (headers / activity + testnet-*, Config.cs),
      the log and its rotation (Logging.cs rolls to ixian.0..ixian.4 at Config.maxLogCount = 5; .5 is a margin) plus the log
      copies made for sharing (ixian.log.tmp, spixi.log.zip, spixi-log.txt), and localonly.json (H-14 #1245: the declined-
      request addresses and the push trace salt).
@@ -27,6 +28,7 @@
     <exclude domain="file" path="Documents/Spixi/tmp" />
     <exclude domain="file" path="Documents/Spixi/tmp_zip" />
     <exclude domain="file" path="Documents/Spixi/tmp_restore_prev" />
+    <exclude domain="file" path="Documents/Spixi/restore-previous" />
     <exclude domain="file" path="Documents/Spixi/headers" />
     <exclude domain="file" path="Documents/Spixi/testnet-headers" />
     <exclude domain="file" path="Documents/Spixi/activity" />

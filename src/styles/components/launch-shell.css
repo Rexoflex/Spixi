@@ -200,6 +200,7 @@
   color: var(--text-neutral-02);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);   /* ★ S20G Q-2: 20 px (desktop token 18 px) — was the inherited body line height */
 }
 
 .c-launch__dots {
@@ -302,6 +303,20 @@
   flex-direction: column;
   gap: var(--spacing-12);
 }
+/* ★ S20G Q-3: a two-line safety net for the launch CTAs (button.css keeps every other button on one line): a label
+   too long for the 270 px box wraps, balanced, and the button GROWS (min-height) — the text never runs past the
+   outline. One line looks exactly as before (8 + 24 + 8 < 56 / 44). */
+.c-launch__ctas .c-button,
+.c-launch__footer .c-button[data-width="full"] {
+  height: auto;
+  min-height: 56px;
+  padding-block: var(--spacing-8);
+  white-space: normal;
+  text-align: center;
+  line-height: var(--line-height-label-md);
+}
+.c-launch__ctas .c-button__label,
+.c-launch__footer .c-button[data-width="full"] .c-button__label { min-width: 0; text-wrap: balance; overflow-wrap: break-word; }
 /* ★ #46 r1: the legal line under the welcome buttons — the tap above records consent */
 .c-launch__legal {
   flex: none;
@@ -394,5 +409,5 @@
 .c-launch__welcome[data-compact="2"] .c-launch__dots { padding: 2px 0; }
 .c-launch__welcome[data-compact="2"] .c-launch__slide { gap: var(--spacing-4); }
 .c-launch__welcome[data-compact="2"] .c-launch__carousel { max-width: 560px; }   /* a wide, short window (landscape phone) wraps the copy into fewer lines */
-.c-launch__welcome[data-compact="2"] .c-launch__ctas .c-button { height: 44px; min-height: 44px; }
+.c-launch__welcome[data-compact="2"] .c-launch__ctas .c-button { min-height: 44px; }   /* ★ S20G Q-3: a floor, not a fixed height (the two-line net) */
 .c-launch__welcome[data-compact="2"] .c-launch__version { padding-top: var(--spacing-4); min-height: calc(var(--spacing-4) + var(--line-height-body-xs)); }

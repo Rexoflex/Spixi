@@ -7,6 +7,8 @@
  * The first-row inset therefore matches Theme / Chat appearance (the same 6 px top in the same card padding).
  * Privacy (the settings <body> is .c-account too) keeps the S9 layout B and its 6 px top — the rule is the hub root's.
  * Was (S20 I, #1401): layout B kept + padding-top 13 — that is exactly what the `chevron` clause now rejects.
+ * ★ S20G R-1 RE-BASE (Damir "yes unify"): the hub geometry is now EVERY switch row's (pins-s20g/s-switch.mjs) — the row is
+ * the base flex row (not a one-row grid), and Privacy carries the hub's signature (no more layout B).
  * Deliberate breaks (S20F home report): ① settings-shell.css: `padding-top: 13px` back on the hub switch row → chevron
  * fails (padTop 13 vs 6) + inset fails; ② the hub stack `display: flex` rule deleted → chevron fails (stack contents vs
  * flex); ③ the sub's `margin-top: 2px` dropped → chevron fails (0 vs 2px — the 1 px the centred block was off). */
@@ -43,23 +45,23 @@ export default async function (h) {
     };
     n.chevron = chev && sig(chev);
     n.switches = sw.map(sig);
-    n.grid = sw.map((row) => [cs(row).display, cs(row).rowGap, cs(row).alignItems, cs(row.querySelector('.c-settings__switch')).gridRow].join(' '));
+    n.grid = sw.map((row) => [cs(row).display, cs(row).alignItems, row.querySelector('.c-settings__switch').parentElement === row].join(' '));   // ★ S20G R-1 re-base: the base flex row (was a one-row grid)
     n.themeTop = theme && padTop(theme);
     r.chevron = sw.length === 2 && !!chev && sw.every((row) => sig(row) === n.chevron) && /^66 6 /.test(n.chevron) && / flex column /.test(n.chevron) && / absolute 50% translateY\(-50%\) 2px /.test(n.chevron);
-    r.inset = sw.length === 2 && n.grid.every((g) => /^grid 0(px)? center 1$/.test(g)) && n.themeTop === 6 && sw.every((row) => padTop(row) === n.themeTop)
+    r.inset = sw.length === 2 && n.grid.every((g) => g === 'flex center true') && n.themeTop === 6 && sw.every((row) => padTop(row) === n.themeTop)
       && sw[0].closest('.c-settings__group').querySelector('.c-settings__row') === sw[0] && padTop(sw[0].closest('.c-settings__group')) === padTop(theme.closest('.c-settings__group'));
     /* Privacy: today's 6 px top + layout B */
     const pr = [...d.querySelectorAll('button.c-settings__row')].find((x) => /^\s*Privacy/.test(x.textContent || ''));
     if (pr) pr.click();
     await sleep(300);
     const priv = [...d.querySelectorAll('.c-settings-privacy .c-settings__row[data-row="switch"]')].filter((x) => x.querySelector('.c-settings__row-sub'));
-    n.privacy = priv.map((x) => [cs(x).display, cs(x.querySelector('.c-settings__row-label--stack')).display, padTop(x)].join(' '));
-    r.privacy = priv.length >= 3 && n.privacy.every((v) => v === 'grid contents 6') && d.body.classList.contains('c-account');
+    n.privacy = priv.map(sig);   // ★ S20G R-1 re-base: Privacy = the hub's chevron signature (was layout B: 'grid contents 6')
+    r.privacy = priv.length >= 3 && n.privacy.every((v) => v === n.chevron) && d.body.classList.contains('c-account');
     r.noErr = s.errs.length === 0;
   } catch (e) { r.threw = e.message; } finally { if (s) { try { s.dom.window.close(); } catch (e) {} } }
   const c = (k, m) => ok(r[k] === true, m + ' — ' + JSON.stringify(r[k] === true ? { [k]: true, n: k === 'privacy' ? n.privacy : n.chevron } : { [k]: r[k], threw: r.threw, n }).slice(0, 1600));
   c('chevron', '★ S20F W-2 (#1408/#1409 B): the hub switch rows (App lock, Confirm payments) carry the stacked CHEVRON row\'s box — 66 px, the 6 px account top, title + sub one flex column, the disc absolute-centred, the sub\'s 2 px — identical to "Chat appearance"');
-  c('inset', '★ S20F W-2: one grid row (row-gap 0) with the switch centred; App lock opens its card with the same 6 px top as Theme in the same card padding (the #1401 13 px is gone)');
-  c('privacy', '★ S20 I: Privacy keeps layout B and today\'s 6 px top (the rule is scoped to the hub root, not the .c-account <body>)');
+  c('inset', '★ S20F W-2 (→ S20G R-1: the base flex row): the switch centred; App lock opens its card with the same 6 px top as Theme in the same card padding (the #1401 13 px is gone)');
+  c('privacy', '★ S20G R-1 re-base: Privacy carries the hub\'s signature — 66 px, the 6 px top, title + sub one flex column, the disc absolute-centred, the sub\'s 2 px (layout B is gone)');
   c('noErr', '★ S20 I: no page error');
 }

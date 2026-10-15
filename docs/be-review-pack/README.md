@@ -77,6 +77,7 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | P27 | reserved (desktop Hello — not built) | — | — | — | — | — |
 | [P28](P28-moments.md) | S17: seven one-time Moment sheets (flag `S17Moments`); `ixian:photoAutoDl:` one-shot on a chat page | LOW–MEDIUM | no (the pay moment only delays the FE review) | yes (2 pushes, 2 verbs) | built, flag ON | 6 |
 | [P29](P29-file-size.md) | S20 E: the file size on the file card in both directions (flag `S20FileSize`) | LOW | no | `addFile` arg 20 widened · 1 dev verb, 1 dev push | built, flag ON · ⚠ uncompiled | 3 |
+| [P30](P30-restore-keeps-contacts.md) | S20G P0 + F-1: a restore never deletes an earlier contact list (kept as `restore-previous/<stamp>`, ask first, delete account wipes it); Account closes the open chat (flag `S20G`) | MEDIUM | no | 0 new verbs to the app shells · 1 dev verb, 1 dev push · 4 C# alert keys | built, flag ON · ⚠ uncompiled | 3 |
 | P30 | not built — the S20 notification strip: no OS notification carries message text (Node.cs per-type line), so nothing to strip | — | — | — | — | — |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |

@@ -1751,39 +1751,16 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
 .c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
 .c-settings__row[data-row="stacked"] { min-height: var(--row-h-stacked); }   /* ★ Session J: a nav row with a sub-line (the third height; Damir's pick) */
-/* ★ S9 toggle layout B (Damir): a SWITCH row with a stacked label is a two-row grid — disc + title + switch on
-   ONE line (the switch centred on the title line, not on the whole card), the description BELOW, starting
-   under the title (disc + its gap) and running the full remaining width, under the switch column too.
-   The stack becomes `display: contents`, so its two children (.c-settings__row-top, .c-settings__row-sub)
-   are the grid items; the disc goes back into the title line's flow (the N59b absolute-centred disc stays
-   for every OTHER stacked row). A switch row WITHOUT a sub is the same one-line row as before: label | switch,
-   centred, the same 8 px gap. The DOM is unchanged, so the switch keeps its aria-label (the title) and — on the
-   three rows that carry one (read receipts, typing, hide online) — its aria-describedby → the description.
-   ★ #46 r3 n3: row-gap 8 = the switch's 44 px tap layer (::after inset -8px) ends ABOVE the description, so no
-   part of the description's first line toggles the switch (at 2 px its top ~5 px did). */
-.c-settings__row[data-row="switch"] {
-  --row-disc-w: 32px;               /* sanctioned: the .c-disc box (base.css) — the description's indent */
-  --row-disc-gap: var(--spacing-12);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--spacing-8);
-  row-gap: var(--spacing-8);       /* ≥ the tap layer's 8 px overhang below the switch box (#46 r3 n3) */
-}
-.c-settings__row[data-row="switch"] > .c-settings__switch { grid-column: 2; grid-row: 1; }
-.c-settings__row[data-row="switch"] > .c-settings__row-label { grid-column: 1; grid-row: 1; }
-.c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: contents; }
-.c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-top {
-  grid-column: 1; grid-row: 1;
-  min-width: 0;
-  gap: var(--row-disc-gap);
-}
-.c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: static; transform: none; }
-.c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub {
-  grid-column: 1 / -1; grid-row: 2;
-  margin: 0;
-  padding-inline-start: calc(var(--row-disc-w) + var(--row-disc-gap));
-}
+/* ★ S20G R-1 (Damir "yes unify"; supersedes S9 toggle layout B and the S20F W-2 hub-only override, #1408/#1409):
+   ONE switch-row geometry for EVERY switch row (hub App lock / Confirm payments, Privacy, Notifications, the dev
+   rows): the base flex row — label | switch, align-items centre — so the switch is centred on the WHOLE title +
+   description block, as iOS / Android settings do. A stacked label is the N59b block every stacked row uses (title +
+   sub one flex column, the disc absolute-centred on it); the description stops at the switch column (the 8 px row
+   gap), so the switch's 44 px tap layer (::after −8 px) ends at the gap — clear of the text. A switch row WITHOUT a
+   description is the same one-line row as before. The builders (authSwitchRow, switchRow) stamp `data-stack` on a
+   switch row WITH a description, so its height is keyed by the attribute, never by :has() (the #875 rule). The new
+   group's Blind row (contacts-shell.css) is the same geometry: a flex row, centred. */
+.c-account .c-settings__row[data-row="switch"][data-stack] { min-height: calc(var(--row-h-stacked) + 6px); }   /* sanctioned: +6 = the account stacked-row step — the hub's 66 (S20F W-2), now every switch row with a description */
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */
@@ -2422,16 +2399,6 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-account .c-settings__row-top { gap: var(--spacing-16); }
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
-.c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
-/* ★ S20F W-2 (#1408 + #1409 = B, supersedes #1401): on the Account HUB a switch row with a sub = the CHEVRON-ROW geometry —
-   66 px (the stacked row's height), the account 6 px padding, title + sub ONE block (the stack is a flex column again, not
-   display: contents), the disc absolute-centred (N59b), the switch centred; the sub's 2 px (the account rule the layout-B
-   `margin: 0` overrode) is the 1 px the centred block was off. Privacy / Notifications keep layout B (hub root only).
-   The switch's tap layer (::after −8 px) ends at the column gap — clear of the sub. */
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] { min-height: calc(var(--row-h-stacked) + 6px); row-gap: 0; }   /* sanctioned: +6 = the account stacked-row step (:1000) */
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: flex; grid-column: 1; grid-row: 1; min-width: 0; }
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: absolute; inset-inline-start: 0; top: 50%; transform: translateY(-50%); }
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub { grid-column: auto; grid-row: auto; margin-top: 2px; padding-inline-start: 0; }   /* sanctioned: 2px = the account sub margin (:1004) */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.
@@ -3396,6 +3363,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   color: var(--text-neutral-02);
   font-family: var(--font-secondary);
   font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);   /* ★ S20G Q-2: 20 px (desktop token 18 px) — was the inherited body line height */
 }
 
 .c-launch__dots {
@@ -3498,6 +3466,20 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   flex-direction: column;
   gap: var(--spacing-12);
 }
+/* ★ S20G Q-3: a two-line safety net for the launch CTAs (button.css keeps every other button on one line): a label
+   too long for the 270 px box wraps, balanced, and the button GROWS (min-height) — the text never runs past the
+   outline. One line looks exactly as before (8 + 24 + 8 < 56 / 44). */
+.c-launch__ctas .c-button,
+.c-launch__footer .c-button[data-width="full"] {
+  height: auto;
+  min-height: 56px;
+  padding-block: var(--spacing-8);
+  white-space: normal;
+  text-align: center;
+  line-height: var(--line-height-label-md);
+}
+.c-launch__ctas .c-button__label,
+.c-launch__footer .c-button[data-width="full"] .c-button__label { min-width: 0; text-wrap: balance; overflow-wrap: break-word; }
 /* ★ #46 r1: the legal line under the welcome buttons — the tap above records consent */
 .c-launch__legal {
   flex: none;
@@ -3590,7 +3572,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-launch__welcome[data-compact="2"] .c-launch__dots { padding: 2px 0; }
 .c-launch__welcome[data-compact="2"] .c-launch__slide { gap: var(--spacing-4); }
 .c-launch__welcome[data-compact="2"] .c-launch__carousel { max-width: 560px; }   /* a wide, short window (landscape phone) wraps the copy into fewer lines */
-.c-launch__welcome[data-compact="2"] .c-launch__ctas .c-button { height: 44px; min-height: 44px; }
+.c-launch__welcome[data-compact="2"] .c-launch__ctas .c-button { min-height: 44px; }   /* ★ S20G Q-3: a floor, not a fixed height (the two-line net) */
 .c-launch__welcome[data-compact="2"] .c-launch__version { padding-top: var(--spacing-4); min-height: calc(var(--spacing-4) + var(--line-height-body-xs)); }
 
 </style>
@@ -3675,7 +3657,24 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 }
 .c-launch__progress { flex: none; display: flex; gap: 6px; margin: var(--spacing-4) var(--spacing-24) 0; }
 .c-launch__progress i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
-.c-launch__progress i[data-on] { background: var(--launch-brand); }
+/* ★ S20G R-3: a segment FILLS (its ::after grows from the reading start, --duration-200, background-color + transform);
+   reduced motion = instant (the token is 0 there) */
+.c-launch__progress i,
+.c-launch__meter i { position: relative; overflow: hidden; }
+.c-launch__progress i::after,
+.c-launch__meter i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: transparent;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--duration-200) var(--easing-standard), background-color var(--duration-200) var(--easing-standard);
+}
+html[dir="rtl"] .c-launch__progress i::after,
+html[dir="rtl"] .c-launch__meter i::after { transform-origin: right; }
+.c-launch__progress i[data-on]::after { background: var(--launch-brand); transform: none; }
 
 /* ★ S20F W-8 (#1426): retry's "Unlock" sits directly under the field — its body does not grow, so the
    footer follows it (it still lifts above the keyboard: the body is what shrinks, #615) */
@@ -3721,6 +3720,7 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
   line-height: 1.4;
   text-wrap: balance;
 }
+.c-launch__nick { font-weight: var(--font-weight-semibold); color: var(--text-neutral-01); }   /* ★ S20G R-2: the filled nickname on step 2 */
 /* restore art — ★ S11 B (#1262): the inline set, on the form backdrop, dark set */
 .c-launch__hero-illo {
   display: block;
@@ -3880,13 +3880,15 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 /* strength bar (advice) + the two live checks */
 .c-launch__meter { display: flex; align-items: center; gap: 6px; margin: 0 4px; }
 .c-launch__meter i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
-.c-launch__meter[data-level="1"] i:nth-child(-n+1) { background: var(--launch-meter-1); }
-.c-launch__meter[data-level="2"] i:nth-child(-n+2) { background: var(--launch-meter-2); }
-.c-launch__meter[data-level="3"] i:nth-child(-n+3) { background: var(--launch-meter-3); }
-.c-launch__meter[data-level="4"] i:nth-child(-n+4) { background: var(--launch-meter-4); }
+.c-launch__meter[data-level="1"] i:nth-child(-n+1)::after { background: var(--launch-meter-1); transform: none; }
+.c-launch__meter[data-level="2"] i:nth-child(-n+2)::after { background: var(--launch-meter-2); transform: none; }
+.c-launch__meter[data-level="3"] i:nth-child(-n+3)::after { background: var(--launch-meter-3); transform: none; }
+.c-launch__meter[data-level="4"] i:nth-child(-n+4)::after { background: var(--launch-meter-4); transform: none; }
 .c-launch__meter-label {
   flex: none;
   min-width: 52px;
+  min-height: 18px;                 /* ★ S20G R-3: the label's line is RESERVED before the first character (0 px shift) */
+  line-height: 18px;
   margin-inline-start: 6px;
   text-align: end;
   color: var(--launch-label);
@@ -3968,6 +3970,13 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
 .c-launch__filecard .c-launch__tile { background: var(--surface-action-default); }
 .c-launch__filecard[data-file-set] { background: var(--launch-ok-bg); }
 .c-launch__filecard[data-file-set] .c-launch__tile { background: var(--launch-ok); }
+/* ★ S20G F-4: a pointer hover in BOTH states (the .c-launch__sheet-close:hover grammar) — a white wash laid over
+   whichever fill the state has (the launch is fixed-dark); a disabled card does not react. The green (file set) state
+   takes a lighter wash: its "Change" accent stays ≥ 4.5 (6 % → 4.22, 3 % → 4.61). */
+@media (hover: hover) and (pointer: fine) {
+  .c-launch__filecard:hover:not(:disabled) { background-image: linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06)); }   /* sanctioned: a white wash on the fixed-dark card */
+  .c-launch__filecard[data-file-set]:hover:not(:disabled) { background-image: linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03)); }   /* sanctioned: the AA-safe wash on green */
+}
 .c-launch__filecard-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .c-launch__filecard-title { font-family: var(--font-secondary); font-size: 16px; line-height: 21px; font-weight: var(--font-weight-bold); overflow-wrap: anywhere; }   /* untrusted file names — never overflow */
 .c-launch__filecard-sub { color: var(--launch-label); font-family: var(--font-secondary); font-size: 13px; line-height: 17px; }
@@ -4021,18 +4030,6 @@ html[dir="rtl"] .c-launch__step[data-enter="back"] { animation-name: c-launch-st
   -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);   /* sanctioned: mask stops */
           mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);   /* sanctioned: mask stops */
 }
-/* ★ S20F W-5 (#1425/#1426): "Open source" under the dots — a muted caption; off at the L2 tight level */
-.c-launch__oss {
-  flex: none;
-  margin: 0;
-  padding-bottom: var(--spacing-4);
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-xs);
-  line-height: var(--line-height-body-xs);
-  letter-spacing: 0.02em;           /* sanctioned: caption tracking */
-}
-.c-launch__welcome[data-compact="2"] .c-launch__oss { display: none; }
 
 /* ══ desktop (Windows / Mac), Part B: the two-column layout at a window ≥ 900 px lives in the
    LAUNCH SHELL's own <style> (src/shells/launch.html) — a component stylesheet carries no ≥ 700 px

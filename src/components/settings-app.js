@@ -35,6 +35,7 @@ import { settingsConfirm, settingsOptionSheet } from './settings-shell.js';
 import { copyText } from './clipboard.js';   // ★ #993: the shared copy with the file:// fallback
 import { fillFileName, fileKind } from './typed-bubbles.js';   // ★ #1005: one file-name truncation, the extension kept
 import { formatFileSize } from './timestamp.js';            // ★★ #1107: one size format (chat info + Downloads) — ★ S11 F4 (#1263): its home is timestamp.js
+import { createKindTile } from './file-tile.js';   // ★ S20G Q-1 / B-5: the file type tile, shared with chat info › Files (its CSS: file-tile.css)
 import { createAvatar, safeImageSrc } from './avatar.js';                 // ★ S10 F7 (#1254): the From sheet's sender avatars
 import { illoChatsEmpty, illoAddContact, illoWelcome3, illoAppsEmpty, illoBackup, illoWelcome1, illoAboutGlass, illoContribHeart } from './illustrations.js';   // ★ S12 B (#1267): the How-to step art (the S11 set)
 
@@ -143,8 +144,8 @@ function appScreenShell(className, title, onBack) {
  * Free fn: setDownloads(el, files, { sendersKnown }) — the clearFiles/addFile wholesale mirror.
  * ★ S20F W-12 (#1409): `waiting` = no empty state until the first setDownloads (the host's quiet window decides
  *   "empty"); `awaitSenders` = the From row is RESERVED (laid out, invisible, inert) from the first non-empty paint
- *   until a setDownloads with sendersKnown — so phase 2 moves no row. Without a sender then, the row goes (the one
- *   remaining move, #46 r1 C-3 — recorded); a phase 2 that never comes releases it DL_SENDERS_BACKSTOP_MS after the
+ *   until a setDownloads with sendersKnown — so phase 2 moves no row. Without a sender then, the row STAYS reserved for
+ *   this screen (★ S20G R-5; was the #46 r1 C-3 move, −52 px); a phase 2 that never comes releases it DL_SENDERS_BACKSTOP_MS after the
  *   first non-empty paint (C-4, the #326 completes-never grammar; 12 s — a phase 2 slower than that moves the list twice,
  *   −52 then +52: the recorded trade, #46 r2 MINOR-3).
  *
@@ -161,7 +162,6 @@ function appScreenShell(className, title, onBack) {
  *     file with a known sender) and Delete (confirm, then onDeleteFile per name)
  * Untrusted: a file name and a sender name are PEER-chosen — textContent only, never markup, never a selector.
  */
-const DL_GLYPH = { image: 'photo', pdf: 'file-text', doc: 'file-text', archive: 'file-zip', audio: 'volume', video: 'player-play', code: 'code', other: 'file-isr' };
 const DL_LONG_PRESS_MS = 500;
 const DL_LEGEND_MAX = 4;          // kinds named in the bar + legend; the rest is "Other"
 const DL_SENDERS_BACKSTOP_MS = 12000;   // ★ S20F W-12 (#46 r2 MINOR-3): a phase 2 slower than this is a scan failure in practice
@@ -183,6 +183,41 @@ function dlTone(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return String(h % 8);
+}
+/* ★ S20G R-5 (the Downloads scroll jitter, Android): the list's Intl work, cached at MODULE level — one time-of-day
+   formatter per locale + hour cycle (toLocaleTimeString built a formatter per row: the profile's top self time), and the
+   size / day labels memoised per value. The key also carries the strings that feed them (Today, Yesterday, the units),
+   so a language switch can never read a stale label. timestamp.js's own sizeNumber / dayBucketLabel stay as they are. */
+const dlFmt = { key: '', clock: null, size: new Map(), day: new Map() };
+function dlFormats(strings) {
+  const loc = docLocale() || '';
+  const key = [loc, document.documentElement.dataset.hourCycle || '', strings.today, strings.yesterday, strings.unitB, strings.unitKB, strings.unitMB, strings.unitGB].join('|');
+  if (dlFmt.key !== key) { dlFmt.key = key; dlFmt.clock = null; dlFmt.size.clear(); dlFmt.day.clear(); }
+  return dlFmt;
+}
+function dlClock(ms, strings) {
+  const F = dlFormats(strings);
+  if (!F.clock) {
+    try { F.clock = new Intl.DateTimeFormat(docLocale(), timeOpts()); }   // = toLocaleTimeString(docLocale(), timeOpts()), built once
+    catch (e) { F.clock = { format: (d) => d.toLocaleTimeString(docLocale(), timeOpts()) }; }
+  }
+  return F.clock.format(new Date(ms));
+}
+function dlSize(bytes, strings) {
+  const F = dlFormats(strings);
+  const k = dlBytes(bytes);
+  let v = F.size.get(k);
+  if (v === undefined) { v = formatFileSize(k, strings); F.size.set(k, v); }
+  return v;
+}
+/* a day group's label — once per GROUP (not per file), memoised per calendar day + today's date (Today / Yesterday move) */
+function dlDayLabel(ep, dayKey, now, strings) {
+  const F = dlFormats(strings);
+  const n = new Date(now);
+  const k = dayKey + '@' + n.getFullYear() + '-' + n.getMonth() + '-' + n.getDate();
+  let v = F.day.get(k);
+  if (v === undefined) { v = dayBucketLabel(ep * 1000, strings, now, strings.today || 'Today'); F.day.set(k, v); }
+  return v;
 }
 const dlEpoch = (time) => { const s = String(time == null ? '' : time).trim(); return (/^\d{1,12}$/.test(s) && Number(s) > 0) ? Number(s) : 0; };
 const dlBytes = (size) => { const b = Number(size); return Number.isFinite(b) && b > 0 ? b : 0; };
@@ -554,7 +589,7 @@ export function createSettingsDownloads({
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-settings-dl__open c-settings-dl__th';
-    const sz = formatFileSize(f.size);
+    const sz = dlSize(f.size, strings);
     b.setAttribute('aria-label', sz ? f.name + ', ' + sz : f.name);   // peer-chosen — an attribute VALUE, never markup
     /* the picture layer (a tone + the photo glyph today; the thumbnail later) — it shrinks into the cell when picked */
     const img = document.createElement('span');
@@ -594,45 +629,15 @@ export function createSettingsDownloads({
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'c-settings-dl__open';
-    const { family, label } = fileKind(f.name);
-    const tile = document.createElement('span');
-    tile.className = 'c-settings-dl__tile';
-    tile.dataset.kind = family;
-    tile.setAttribute('aria-hidden', 'true');   // (#46 r1 B-1) decoration: the row's name is the file name
-    tile.append(icon(DL_GLYPH[family] || DL_GLYPH.other, { size: 22 }));
-    if (label) {
-      const tag = document.createElement('em');
-      tag.className = 'c-settings-dl__tag';
-      tag.textContent = label;
-      tile.append(tag);
-    }
+    const tile = createKindTile(f.name);   // ★ S20G Q-1: the shared type tile (file-tile.js); (#46 r1 B-1) aria-hidden decoration
     const meta = document.createElement('span');
     meta.className = 'c-settings-dl__meta';
     const nm = document.createElement('span');
-    nm.className = 'c-settings-dl__name';
+    nm.className = 'c-settings-dl__name c-file-name';   // ★ S20G Q-1: the shared name type (file-tile.css)
     fillFileName(nm, f.name);              // UNTRUSTED — textContent only (★ #1005: keeps the extension)
     meta.append(nm);
-    const parts = [];
-    const sz = formatFileSize(f.size);
-    if (sz) parts.push(sz);
-    const ep = dlEpoch(f.time);
-    if (ep) {
-      parts.push(timeOfDay ? new Date(ep * 1000).toLocaleTimeString(docLocale(), timeOpts()) : formatTxTimestamp(ep * 1000));
-    } else if (f.time) {
-      parts.push(String(f.time));          // an old exe's opaque locale string — never parsed
-    }
-    if (f.sender || parts.length) {
-      const tm = document.createElement('span');
-      tm.className = 'c-settings-dl__time';
-      if (f.sender) {
-        const from = document.createElement('span');
-        from.className = 'c-settings-dl__from';
-        from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(f.sender);   // peer-chosen name — textContent only
-        tm.append(from);
-      }
-      if (parts.length) tm.append(document.createTextNode((f.sender ? ' · ' : '') + parts.join(' · ')));
-      meta.append(tm);
-    }
+    row._dlParts = rowParts(f, timeOfDay);   // ★ S20G R-5: kept on the row — a phase-2 patch re-derives it (B-6) and rewrites only what changed
+    fillTimeLine(row, meta, f.sender || '');
     open.append(check(), tile, meta);
     markSelected(open, f.name);
     wirePress(open, f.name);
@@ -640,22 +645,60 @@ export function createSettingsDownloads({
     return row;
   }
 
+  /* the "size · time" part of a row's line (cached formatters) — the build and the phase-2 patch both read it (★ S20G B-6) */
+  function rowParts(f, timeOfDay) {
+    const parts = [];
+    const sz = dlSize(f.size, strings);
+    if (sz) parts.push(sz);
+    const ep = dlEpoch(f.time);
+    if (ep) {
+      parts.push(timeOfDay ? dlClock(ep * 1000, strings) : formatTxTimestamp(ep * 1000));
+    } else if (f.time) {
+      parts.push(String(f.time));          // an old exe's opaque locale string — never parsed
+    }
+    return parts.join(' · ');
+  }
+  /* the "from {name} · size · time" line — built with the row, and PATCHED in place by phase 2 (★ S20G R-5) */
+  function fillTimeLine(row, meta, sender) {
+    row._dlSender = sender;
+    let tm = meta.querySelector(':scope > .c-settings-dl__time');
+    if (!sender && !row._dlParts) { if (tm) tm.remove(); return; }
+    if (!tm) { tm = document.createElement('span'); tm.className = 'c-settings-dl__time c-file-meta'; meta.append(tm); }   // ★ S20G Q-1: the shared meta type
+    tm.textContent = '';
+    if (sender) {
+      const from = document.createElement('span');
+      from.className = 'c-settings-dl__from';
+      from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(sender);   // peer-chosen name — textContent only
+      tm.append(from);
+    }
+    if (row._dlParts) tm.append(document.createTextNode((sender ? ' · ' : '') + row._dlParts));
+  }
+
   const isPhoto = (f) => fileKind(f.name).family === 'image';
-  function paintList() {
-    for (const n of [...sel]) if (!current.some((f) => f.name === n)) sel.delete(n);   // a re-push drops what went
-    if (selecting && current.length === 0) selecting = false;
+  /* the controls row: the kind chips (a mixed list) + the From chip (reserved until phase 2 — W-12) */
+  let fromKept = false;                  // ★ S20G R-5: this screen laid the From row out — it is never collapsed under the list
+  function paintControls() {
     const hasPhoto = current.some(isPhoto);
     const hasFile = current.some((f) => !isPhoto(f));
     const mixed = hasPhoto && hasFile;
     if (!mixed) kindFilter = 'all';        // a filter on a kind no longer listed is cleared — its chips hide with it
     kindWrap.hidden = !mixed;
-    const reserve = sendersPending && senders.size === 0 && current.length > 0;   // ★ W-12: the row phase 2 fills
-    if (reserve && !sendersBackstop) sendersBackstop = setTimeout(() => { sendersPending = false; if (el.isConnected) paintList(); }, DL_SENDERS_BACKSTOP_MS);
+    const pending = sendersPending && senders.size === 0 && current.length > 0;   // ★ W-12: the row phase 2 fills
+    if (pending && !sendersBackstop) sendersBackstop = setTimeout(() => { sendersPending = false; fromKept = false; if (el.isConnected) paintList(); }, DL_SENDERS_BACKSTOP_MS);
+    if (pending) fromKept = true;
+    /* ★ S20G R-5 (was #46 r1 C-3, "the one remaining move"): phase 2 naming NO sender keeps the reserved row (laid out,
+       invisible, inert) — the list under it never jumps 52 px up. The backstop (C-4) still releases it. */
+    const reserve = (pending || fromKept) && senders.size === 0 && current.length > 0;
     controls.hidden = !mixed && senders.size === 0 && !reserve;
     fromChip.hidden = senders.size === 0 && !reserve;
     if (reserve) { fromChip.dataset.reserved = ''; fromChip.disabled = true; fromChip.setAttribute('aria-hidden', 'true'); }
     else if ('reserved' in fromChip.dataset) { delete fromChip.dataset.reserved; fromChip.disabled = false; fromChip.removeAttribute('aria-hidden'); }
     for (const [id, c] of kindChips) c.setAttribute('aria-pressed', String(id === kindFilter));
+  }
+  function paintList() {
+    for (const n of [...sel]) if (!current.some((f) => f.name === n)) sel.delete(n);   // a re-push drops what went
+    if (selecting && current.length === 0) selecting = false;
+    paintControls();
 
     /* newest first (stable: an old exe's opaque time sorts as 0 and keeps C#'s order) */
     const shown = current.slice().sort((a, b) => dlEpoch(b.time) - dlEpoch(a.time)).filter((f) =>
@@ -668,14 +711,10 @@ export function createSettingsDownloads({
     const byKey = new Map();
     for (const f of shown) {
       const ep = dlEpoch(f.time);
-      let key = '~', label = '';
-      if (ep) {
-        const d = new Date(ep * 1000);
-        key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
-        label = dayBucketLabel(ep * 1000, strings, now, strings.today || 'Today');
-      }
+      let key = '~';
+      if (ep) { const d = new Date(ep * 1000); key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); }
       let g = byKey.get(key);
-      if (!g) { g = { label, files: [] }; byKey.set(key, g); groups.push(g); }
+      if (!g) { g = { ep, key, label: ep ? dlDayLabel(ep, key, now, strings) : '', files: [] }; byKey.set(key, g); groups.push(g); }   // ★ S20G R-5: the label once per group
       g.files.push(f);
     }
     const out = [];
@@ -685,10 +724,13 @@ export function createSettingsDownloads({
       const h = document.createElement('h3');
       h.className = 'c-settings-dl__day';
       const hl = document.createElement('span');
+      hl.className = 'c-settings-dl__day-label';
       hl.textContent = g.label;
+      sec._dlTod = !!g.label;              // ★ S20G B-6: the patch path re-labels the group (Today → Yesterday) + re-clocks its rows
+      if (g.ep) { sec._dlEp = g.ep; sec._dlKey = g.key; }
       const hs = document.createElement('span');
       hs.className = 'c-settings-dl__day-size';
-      hs.textContent = formatFileSize(g.files.reduce((a, f) => a + dlBytes(f.size), 0));
+      hs.textContent = dlSize(g.files.reduce((a, f) => a + dlBytes(f.size), 0), strings);
       h.append(hl, hs);
       if (g.label || hs.textContent) sec.append(h);
       const ph = g.files.filter(isPhoto);
@@ -724,15 +766,55 @@ export function createSettingsDownloads({
     paintFromChip();
   }
 
+  /* ★ S20G R-5: phase 2 (setDownloadSenders) re-pushes the SAME files with senders added. It used to rebuild the whole
+     list (60 rows, every Intl call again: 120–430 ms at CPU × 4, landing mid-scroll). Now a push whose row set is
+     unchanged (name · time · size, in order) and no From filter in force PATCHES the rows in place — each row's sender key
+     and its "from" line, only where they changed — and repaints the controls row; a full paint only when the row set
+     changes (or a From filter makes the shown set depend on the senders). */
+  let rowSig = null;
+  const sigOf = (list) => list.map((f) => f.name + '\u0000' + f.time + '\u0000' + f.size).join('\u0001');
+  /* ★ S20G B-6 (#46 r1): the patch also re-derives each group's day label and each row's clock / date text from the
+     cached formatters (a Map hit each) and writes only what changed — a same-rows re-push after midnight (Today →
+     Yesterday) or an hour-cycle / language change is never left stale. */
+  function patchSenders() {
+    const by = new Map(current.map((f) => [f.name, f]));
+    const now = Date.now();
+    for (const sec of listEl.children) {
+      if (!sec._dlEp) continue;
+      const hl = sec.querySelector(':scope > .c-settings-dl__day > .c-settings-dl__day-label');
+      const lab = dlDayLabel(sec._dlEp, sec._dlKey, now, strings);
+      if (hl && hl.textContent !== lab) hl.textContent = lab;
+    }
+    for (const row of listEl.querySelectorAll('.c-settings-dl__row')) {
+      const f = by.get(row.dataset.name);
+      if (!f) continue;
+      if (f.senderKey) { if (row.dataset.sender !== f.senderKey) row.dataset.sender = f.senderKey; }
+      else if ('sender' in row.dataset) delete row.dataset.sender;
+      const meta = row.querySelector('.c-settings-dl__meta');
+      if (!meta) continue;                 // a photo cell: no time line (its size is in the row signature)
+      const sec = row.closest('.c-settings-dl__group');
+      const parts = rowParts(f, !!(sec && sec._dlTod));
+      if (row._dlSender !== (f.sender || '') || row._dlParts !== parts) { row._dlParts = parts; fillTimeLine(row, meta, f.sender || ''); }
+    }
+  }
   function render(list, opts) {
     if (opts && opts.sendersKnown) { sendersPending = false; clearTimeout(sendersBackstop); }
     current = (list || []).map((f) => Object.assign({}, f, { name: String(f && f.name != null ? f.name : '') }));
+    const was = senderKey;
     renderSenders(current);
+    const sig = sigOf(current);
     const has = current.length > 0;
     sum.hidden = !has;
     empty.hidden = has || waitingFirst;
     waitingFirst = false;
     searchWrap.hidden = current.length < SEARCH_MIN;
+    if (sig === rowSig && !was && !senderKey) {   // the same rows, no From filter: patch, never rebuild
+      paintControls();
+      patchSenders();
+      paintSelbar();
+      return;
+    }
+    rowSig = sig;
     paintSummary();
     paintList();
   }

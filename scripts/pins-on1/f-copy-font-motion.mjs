@@ -95,14 +95,16 @@ export default async function (h) {
     ok(Object.values(r4).every(Boolean),
       '★ ON-1 F (#46 r2, M2): the welcome ART is the flexible part — it shrinks whole (flex-shrink > 0, min-height 0, square), the title + copy never shrink, a slide under the art floor drops the art — ' + JSON.stringify({ r4, artFlex: fs(art, 'flex'), artMin: fs(art, 'min-height') }));
     /* (5) ★ #46 r3 (MINOR-A): the version line's room is reserved from the first paint — the box is never [hidden],
-       its min-height holds padding + one line, it is aria-hidden while empty; setVersion fills it in place */
+       its min-height holds padding + one line; setVersion fills it in place.
+       ★ S20G F-3 re-base: the line is never empty now — "Open source" alone before setVersion (announced, not
+       aria-hidden), "<version> · Open source" after (pins-s20g/l-version.mjs pins the format) */
     const ver = d.querySelector('.c-launch__version');
     const minH = fs(ver, 'min-height');
-    const r5 = { neverHidden: !ver.hidden, reserved: /calc\(\s*8px\s*\+\s*16px\s*\)|^24px$/.test(minH.replace(/\s+/g, ' ')) || minH === 'calc(8px + 16px)', emptyAriaHidden: ver.getAttribute('aria-hidden') === 'true' };
+    const r5 = { neverHidden: !ver.hidden, reserved: /calc\(\s*8px\s*\+\s*16px\s*\)|^24px$/.test(minH.replace(/\s+/g, ' ')) || minH === 'calc(8px + 16px)', ossBefore: ver.textContent === 'Open source' && !ver.hasAttribute('aria-hidden') };
     s.push('setVersion', '0.9.20 (build 2601)'); await sleep(30);
-    r5.filled = ver.textContent === '0.9.20 (build 2601)' && !ver.hidden && !ver.hasAttribute('aria-hidden');
+    r5.filled = ver.textContent === '0.9.20 (build 2601) · Open source' && !ver.hidden && !ver.hasAttribute('aria-hidden');
     ok(Object.values(r5).every(Boolean),
-      '★ ON-1 F (#46 r3, MINOR-A): the version line keeps a reserved box from the first paint (never hidden, min-height = padding + a line, aria-hidden while empty) — setVersion fills it without moving the carousel — ' + JSON.stringify({ r5, minH }));
+      '★ ON-1 F (#46 r3, MINOR-A): the version line keeps a reserved box from the first paint (never hidden, min-height = padding + a line, ★ S20G F-3: "Open source" before setVersion) — setVersion fills it without moving the carousel — ' + JSON.stringify({ r5, minH }));
 
     /* (6) ★ #46 r3 (MINOR-B): ONE art size per carousel — the smallest slide room; under the floor every slide drops
        its art. Layout is stubbed (jsdom has none): four slides of one height, the text of slide 3 taller. */
@@ -177,7 +179,8 @@ export default async function (h) {
     wv.dataset.compact = '1';
     r7.cssLogo = fs(logoEl, 'display') === 'none';
     wv.dataset.compact = '2';
-    r7.cssButtons = fs(d.querySelector('.c-launch__ctas .c-button'), 'height') === '44px';
+    /* ★ S20G Q-3 re-base: level 2 = a 44 px FLOOR (min-height), the height is auto — the two-line CTA net grows the button */
+    r7.cssButtons = fs(d.querySelector('.c-launch__ctas .c-button'), 'min-height') === '44px' && fs(d.querySelector('.c-launch__ctas .c-button'), 'height') === 'auto';
     delete wv.dataset.compact;
     r7.cssLogoBack = fs(logoEl, 'display') !== 'none';
     ok(Object.values(r7).every(Boolean),

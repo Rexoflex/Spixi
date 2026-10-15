@@ -73,9 +73,13 @@ export default async function (h) {
       W.Spixi.setDownloads(fresh, [{ name: 'a.jpg', time: String(T), size: 2048 }]);
       sm.freshRePushGrown = b.hasAttribute('data-grown');
     }
+    const segs0 = [...q('.c-settings-dl__bar').children];
     list();
     await sleep(200);
-    sm.rePushGrown = q('.c-settings-dl__bar').hasAttribute('data-grown');
+    /* ★ S20G R-5 re-base: a re-push of the SAME files is patched in place — the bar's segments are the same nodes, so
+       nothing can replay; a re-push that rebuilds the bar marks it data-grown (as before) */
+    { const b = q('.c-settings-dl__bar'), now = [...b.children];
+      sm.rePushGrown = b.hasAttribute('data-grown') || (now.length > 0 && now.length === segs0.length && now.every((x, i) => x === segs0[i])); }
     let n0 = sent.length;
     const clear = q('.c-settings-dl__clear');
     if (clear) clear.click();
@@ -101,7 +105,7 @@ export default async function (h) {
       groups: groups.length === 3 && !!today && /^Today/.test(today.querySelector('.c-settings-dl__day').textContent) && /1\.4 MB$/.test(today.querySelector('.c-settings-dl__day').textContent),
       cell: !!cell && cell.getAttribute('aria-label') === 'photo-1.jpg, 184 KB' && (cell.querySelector('.c-settings-dl__sz') || {}).textContent === '184 KB'
         && (cell.querySelector('.c-settings-dl__th-tag') || {}).textContent === 'JPG' && !!cell.closest('.c-settings-dl__grid'),
-      row: !!paper && (paper.querySelector('.c-settings-dl__tile') || { dataset: {} }).dataset.kind === 'pdf' && /^from Ana · 1\.2 MB · /.test((paper.querySelector('.c-settings-dl__time') || {}).textContent || ''),
+      row: !!paper && (paper.querySelector('.c-file-tile') || { dataset: {} }).dataset.kind === 'pdf' && /^from Ana · 1\.2 MB · /.test((paper.querySelector('.c-settings-dl__time') || {}).textContent || ''),
       noRowButtons: el.querySelectorAll('.c-settings-dl__row .c-settings-dl__del, .c-settings-dl__row .c-settings-dl__go').length === 0
         && [...el.querySelectorAll('.c-settings-dl__row')].every((r) => r.querySelectorAll('button').length === 1),
       evilText: !el.querySelector('.c-settings-dl__list img') && rowsOf().includes(EVIL) && el.querySelector('.c-settings-dl__list').textContent.includes(EVIL),

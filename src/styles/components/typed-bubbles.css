@@ -614,4 +614,17 @@
   @media (hover: hover) and (pointer: fine) { .c-bubble-row > .c-fbubble__cancel:hover { color: var(--chat-accent-ink-deep); } }
   .c-fbubble__fill { background: var(--chat-accent-ink-recv); }
   .c-fbubble__meta[data-cta] { color: var(--chat-accent-ink-recv); }
+  /* ★ S20G Q-5 (#1413 ⑥, ruling 3): the call-back disc (accent tonal, the side's ink) and the Details medallion's hover /
+     press ink take the chain too; only the INK moves under the pointer (#1012). The medallion's rest pair is shared, kept.
+     The .c-bubble-row prefix on the disc's hover / press = (0,3,0): it beats the sent ink rule. */
+  .c-tcard__call-back { background: var(--chat-accent-tonal); color: var(--chat-accent-ink-recv); }
+  .c-bubble-row[data-direction="sent"] .c-tcard__call-back { color: var(--chat-accent-ink-sent); }
+  .c-bubble-row .c-tcard__call-back:active,
+  .c-tcard__hit:active ~ .c-tcard__medallion,
+  .c-tcard__hit:active ~ .c-tcard__top > .c-tcard__medallion { color: var(--chat-accent-ink-strong); }
+  @media (hover: hover) and (pointer: fine) {
+    .c-bubble-row .c-tcard__call-back:hover,
+    .c-tcard__hit:hover ~ .c-tcard__medallion,
+    .c-tcard__hit:hover ~ .c-tcard__top > .c-tcard__medallion { color: var(--chat-accent-ink-strong); }
+  }
 }

@@ -5,6 +5,8 @@
  *       mapped back to its en-us key); under ?lang=de-de the same slides paint the de-de values of those keys.
  *   (2) "Open source" is the element right after the dots — a plain <p> (no link, no button, no role), the en-us
  *       welcomeOpenSource value; shown at L0 / L1, display none at the L2 tight level (data-compact="2", built CSS).
+ *       ★ S20G F-3 re-base: "Open source" moved INTO the version line — no separate element; the version line
+ *       (a plain <p>) says it before setVersion, at every level L0 / L1 / L2 (the format: pins-s20g/l-version.mjs).
  *   (3) autoplay = ONE interval of 7000 ms, read through a fake setInterval on a fresh shell; its tick pages the
  *       carousel (dot 2 selected); under prefers-reduced-motion no interval at all.
  *   (4) the claims sweep over the 14 dictionaries (src/strings/<code>.json, generated): the welcome keys of (1) + the
@@ -15,7 +17,9 @@
  *   ② the oss line appended before the dots → (2) fails; ③ the interval back to 5000 → (3) fails;
  *   ④ de-de slide1Copy3 given "… anonym …" → (4) banned fails; ⑤ en-us slide1Copy3 given "Post-quantum …" → (4) pq fails;
  *   ⑦ (#46 r1) the ten r0 slide2Copy2 drafts put back (de es pt ru sr sl id cn lt sq) → (4) route lists all ten;
- *   ⑥ the L2 rule `.c-launch__welcome[data-compact="2"] .c-launch__oss { display: none }` removed → (2) L2 fails. */
+ *   ⑥ the L2 rule `.c-launch__welcome[data-compact="2"] .c-launch__oss { display: none }` removed → (2) L2 fails.
+ * ★ S20G F-3 re-base breaks: ⑧ the separate oss <p> appended after the dots again → (2) noSeparate fails;
+ *   ⑨ the version line without the oss text → (1) deOss + (2) text fail; ⑩ an L2 rule hiding .c-launch__version → (2) L2 fails. */
 import { on1Kit } from '../pins-on1/kit.mjs';
 const LOCALES = ['en-us', 'de-de', 'es-co', 'fr-fr', 'sr-sp', 'sl-si', 'ru-ru', 'pt-br', 'it-it', 'id-id', 'lt-lt', 'cn-cn', 'ja-jp', 'sq-al'];
 /* banned (the store wording rule + #702 / #703): money · servers · anonymous · forward secrecy, per locale (the WALLET
@@ -64,24 +68,24 @@ export default async function (h) {
     const de = JSON.parse(readFileSync(join(root, 'src/strings/de-de.json'), 'utf8'));
     const dePainted = [...g.d.querySelectorAll('.c-launch__slide')].map((sl) => [sl.querySelector('.c-launch__slide-title').textContent, sl.querySelector('.c-launch__slide-copy').textContent]);
     const deWant = WANT.map((x) => [de[x[1]], de[x[2]]]);
-    const deOss = (g.d.querySelector('.c-launch__oss') || {}).textContent;
+    const deOss = (g.d.querySelector('.c-launch__version') || {}).textContent;   // ★ S20G F-3 re-base: in the version line
     g.close(); g = null;
     ok(JSON.stringify(got) === JSON.stringify(WANT) && JSON.stringify(dePainted) === JSON.stringify(deWant) && deOss === de.welcomeOpenSource,
       '★ S20F W-5 (#1425): the welcome order — slide 1 the ID-card art + "Private chat. No phone number.", slide 2 the orbit art + the post-quantum line, slide 3 unchanged, slide 4 "Play and plan together."; de-de paints the same keys — ' + JSON.stringify({ got, deOss }));
 
-    /* (2) "Open source" under the dots */
+    /* (2) "Open source" — ★ S20G F-3 re-base: inside the version line (no separate caption under the dots) */
     const wv = d.querySelector('.c-launch__welcome');
     const dots = d.querySelector('.c-launch__dots');
-    const oss = d.querySelector('.c-launch__oss');
+    const oss = d.querySelector('.c-launch__version');
     const disp = (lvl) => { if (lvl) wv.dataset.compact = lvl; else delete wv.dataset.compact; const x = cascade(W, oss, 'display'); delete wv.dataset.compact; return x || 'block'; };
     const r2 = {
-      underDots: !!oss && dots.nextElementSibling === oss && oss.tagName === 'P' && oss.parentElement === wv,
-      plain: !!oss && !oss.querySelector('a, button') && !oss.hasAttribute('role') && !oss.hasAttribute('tabindex'),
+      noSeparate: !d.querySelector('.c-launch__oss') && dots.nextElementSibling && dots.nextElementSibling.classList.contains('c-launch__ctas'),
+      plain: !!oss && oss.tagName === 'P' && !oss.querySelector('a, button') && !oss.hasAttribute('role') && !oss.hasAttribute('tabindex'),
       text: !!oss && oss.textContent === en.welcomeOpenSource && en.welcomeOpenSource === 'Open source',
-      L0: disp('') !== 'none', L1: disp('1') !== 'none', L2: disp('2') === 'none',
+      L0: disp('') !== 'none', L1: disp('1') !== 'none', L2: disp('2') !== 'none',
     };
     ok(Object.values(r2).every(Boolean),
-      '★ S20F W-5 (#1426): "Open source" is a plain caption right under the dots (not a link), shown at L0 / L1 and gone at the L2 tight level — ' + JSON.stringify(r2));
+      '★ S20F W-5 (#1426) → ★ S20G F-3: "Open source" is plain text in the version line (not a link, no separate caption under the dots), shown at every level L0 / L1 / L2 — ' + JSON.stringify(r2));
 
     /* (3) the autoplay interval, through a fake timer */
     const rec = [];

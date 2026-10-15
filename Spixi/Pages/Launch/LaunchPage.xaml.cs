@@ -334,6 +334,18 @@ namespace SPIXI
                 }
 
                 string password = split[1]; // Todo: secure this
+                /* ★ S20G P0 (2) (flag S20G, P30): ASK FIRST. No wallet is loaded here (the W14 guard above), yet the
+                 * user folder can still hold the contact list of an account whose wallet file is missing (Damir's PC:
+                 * wallet.ixi renamed away, 25 contacts on disk) — a restore replaces it. A native two-button alert;
+                 * Cancel = nothing changes (the overlay is released, the staged file stays). Asked once per staged
+                 * file (a wrong-password retry does not ask again; onSelectFile re-arms it).
+                 * ★ #46 r1 (A-3): not while a wallet FILE is still on disk (a lockout → welcome): that restore is a
+                 * WalletConflict and replaces nothing. */
+                if (SpixiFlags.S20G && !restoreReplaceConfirmed && S20GRules.needsReplaceConfirm(Config.spixiUserFolder, Config.walletFile))
+                {
+                    runFencedVerb("ixian:restore:", () => confirmReplaceThenRestore(password));   // A-1: fenced like every password call (gate 15)
+                    return;
+                }
                 // ★ A-1: fenced. onRestore reads the staged file, decrypts it, extracts an
                 // archive and moves files — every one of those can throw, and the URL that
                 // reaches the iOS catch would carry this password.
@@ -638,6 +650,58 @@ namespace SPIXI
         }
 
         // Shows a file picker to select the wallet file
+        /* ★ S20G P0 (2): the user said "Restore" to the replace question for the file staged now — a wrong-password retry
+         * of the same file does not ask again. Re-armed when a new file is staged (onSelectFile). */
+        private bool restoreReplaceConfirmed = false;
+
+        /* ★ S20G P0 (2): the replace question, then the restore. Awaited on the main thread like the other confirms: the
+         * branch above runs on it (WebView Navigating), the helper posts the alert there, and the continuation comes back
+         * there — onRestore runs on the same thread as before. The password is passed through, never logged (the fence
+         * logs the exception TYPE only). The 4-argument displaySpixiAlert returns null when it could not post the alert:
+         * that is a Cancel. */
+        private async void confirmReplaceThenRestore(string password)
+        {
+            /* ★ #46 r1 (A-N1): an async void — the WHOLE body sits in one try, so nothing can escape to the main-thread
+             * context (an unhandled throw there ends the app); the type only in the log (the password is in scope). */
+            try
+            {
+                bool replace = false;
+                try
+                {
+                    Task<bool> ask = displaySpixiAlert(
+                        SpixiLocalization._SL("intro-restore-replace-title") ?? "Replace the contacts on this device?",
+                        SpixiLocalization._SL("intro-restore-replace-text") ?? "This device still has contacts from an account whose wallet file is missing. Restore replaces them with the contacts in the backup. A copy of the current contacts is kept in the Spixi data folder.",
+                        SpixiLocalization._SL("intro-restore-replace-confirm") ?? "Restore",
+                        SpixiLocalization._SL("global-dialog-cancel") ?? "Cancel");
+                    replace = ask != null && await ask;
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("[RESTORE] the replace question failed (" + ex.GetType().Name + ")");
+                    replace = false;
+                }
+                if (!replace)
+                {
+                    Logging.info("[RESTORE] the user kept the contacts on this device");
+                    try { Utils.sendUiCommand(this, "removeLoadingOverlay"); } catch (Exception) { }
+                    return;
+                }
+                restoreReplaceConfirmed = true;
+                runFencedVerb("ixian:restore:", () =>
+                {
+                    if (!onRestore(password))
+                    {
+                        Utils.sendUiCommand(this, "removeLoadingOverlay");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[RESTORE] the replace path failed (" + ex.GetType().Name + ")");
+                try { Utils.sendUiCommand(this, "removeLoadingOverlay"); } catch (Exception) { }
+            }
+        }
+
         private async void onSelectFile()
         {
             byte[] _data = null;
@@ -688,6 +752,7 @@ namespace SPIXI
                 return;
             }
 
+            restoreReplaceConfirmed = false;   // ★ S20G P0 (2): a new file → the replace question is asked again
             // #334 L7: push the picked display name (shell baseName() handles a bare
             // filename unchanged); the staging path only when no name was available.
             Utils.sendUiCommand(this, "setUploadedFileName", pickedName ?? filepath);
@@ -776,8 +841,58 @@ namespace SPIXI
         /* #565 residual: the three ways a restore can end. `NotAnAccountBackup` is the
          * only one that may fall through to the bare-wallet path. */
         /* ★ S15 (#1297): where RestoreMoves parks stale targets during a restore; deleted on success and on rollback,
-         * and by the account wipe (SettingsPage.wipeEverything) — it can only hold this device's own stale account files. */
+         * and by the account wipe (SettingsPage.wipeEverything) — it can only hold this device's own stale account files.
+         * ★ S20G P0 (1) (flag S20G): on success a NON-EMPTY stash is no longer deleted — keepPreviousContacts renames it
+         * to restore-previous/<yyyyMMdd-HHmmss> (the wipe deletes those too; #46 r1 A-2: one fixed parent). */
         internal const string RestoreStashFolder = "tmp_restore_prev";
+
+        /* ★ S20G P0 (1): keep what the restore parked (the previous Acc tree, account.ixi, own avatar) in a dated folder in
+         * the user folder. Fixed words + a count in the log — no path, no address. A failure logs the exception TYPE and
+         * leaves the stash where it is (never deleted; the next restore tries to keep it first and, if that fails again,
+         * parks into a fresh stash instead — #46 r1 A-1, S20GRules.chooseStash). */
+        private static void keepPreviousContacts(string stashDir)
+        {
+            try
+            {
+                string? kept = RestoreMoves.keepPrevious(stashDir, Config.spixiUserFolder, DateTime.Now, out int contacts);
+                if (kept != null)
+                {
+                    Logging.info("[RESTORE] kept the previous contact list (" + contacts + " items)");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[RESTORE] the previous contact list stays in the restore stash (" + ex.GetType().Name + ")");
+            }
+            excludeKeptFromBackup();
+        }
+
+        /* ★ S20G #46 r1 (A-2): the kept contact lists stay on THIS device — iOS / Mac Catalyst flag their one parent
+         * (restore-previous/) excluded from the iCloud / Finder backup, the SLocalOnlyStore way (Android excludes it in
+         * backup_rules.xml + data_extraction_rules.xml; Windows has no device backup). Set every time a restore touched
+         * it (cheap; a folder restored without the flag is healed). Never throws; a type-only log. */
+        private static void excludeKeptFromBackup()
+        {
+#if IOS || MACCATALYST
+            try
+            {
+                string dir = Path.Combine(Config.spixiUserFolder, S20GRules.KeptParent);
+                if (!Directory.Exists(dir))
+                {
+                    return;
+                }
+                using Foundation.NSUrl url = Foundation.NSUrl.FromFilename(dir);
+                if (!url.SetResource(Foundation.NSUrl.IsExcludedFromBackupKey, Foundation.NSNumber.FromBoolean(true), out Foundation.NSError err) && err != null)
+                {
+                    Logging.warn("[RESTORE] the backup exclusion of the kept contact lists failed");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("[RESTORE] the backup exclusion of the kept contact lists threw (" + e.GetType().Name + ")");
+            }
+#endif
+        }
 
         private enum RestoreOutcome
         {
@@ -973,7 +1088,30 @@ namespace SPIXI
                 }
                 var moves = RestoreMoves.plan(tmpDirectory, Config.spixiUserFolder,
                     IxianHandler.localStorage.getOwnAvatarPath(false), Config.walletFile);
-                var moveResult = RestoreMoves.apply(moves, Path.Combine(Config.spixiUserFolder, RestoreStashFolder), out string? moveFail);
+                /* ★ S20G P0 (1) (flag S20G, P30): a restore never destroys the contact list it replaces (Damir's PC,
+                 * 2026-10-14: 20 of 25 contacts gone). A stash left by a killed run is kept FIRST (apply would refuse it,
+                 * StashBusy), apply parks without deleting, and the kept list is renamed only AFTER Done — the
+                 * all-or-nothing boundary (S15 #1297) is unchanged. OFF = the S15 path exactly.
+                 * ★ #46 r1 (A-1): a leftover that cannot be kept (a held handle, an unreadable Acc) no longer blocks the
+                 * restore — it stays untouched and this restore parks into a FRESH stash (restore-previous/stash-<stamp>),
+                 * kept on Done like the usual one: StashBusy cannot come back on this path. */
+                bool keepPrev = SpixiFlags.S20G;
+                string stashDir = Path.Combine(Config.spixiUserFolder, RestoreStashFolder);
+                if (keepPrev)
+                {
+                    keepPreviousContacts(stashDir);
+                    string usual = stashDir;
+                    stashDir = S20GRules.chooseStash(Config.spixiUserFolder, usual, DateTime.Now);
+                    if (stashDir != usual)
+                    {
+                        Logging.warn("[RESTORE] an earlier restore stash could not be kept; this restore parks into a fresh one");
+                    }
+                }
+                var moveResult = RestoreMoves.apply(moves, stashDir, keepPrev, out string? moveFail);
+                if (keepPrev)
+                {
+                    excludeKeptFromBackup();   // ★ #46 r1 (A-2): a fresh stash lives in restore-previous/ too
+                }
                 if (moveResult != RestoreMoves.Result.Done)
                 {
                     try { if (Directory.Exists(tmpDirectory)) { Directory.Delete(tmpDirectory, true); } } catch (Exception) { }
@@ -983,6 +1121,19 @@ namespace SPIXI
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                         displaySpixiAlert(SpixiLocalization._SL("intro-restore-walletexists-title") ?? "Account already on this device",
                             SpixiLocalization._SL("intro-restore-walletexists-text") ?? "An account already exists on this device. To use it, restart Spixi. To restore a different account: restart Spixi, open Account › Delete data… › Delete account, then open Restore again.",
+                            SpixiLocalization._SL("global-dialog-ok") ?? "OK");
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                        Utils.sendUiCommand(this, "removeLoadingOverlay");
+                        return RestoreOutcome.FailedReported;
+                    }
+                    /* ★ S20G #46 r1 (A-1): unreachable on the flag path (chooseStash) — if it ever happens, say what it was:
+                     * nothing moved (not "rolled back"), and not the "free space" text. */
+                    if (moveFail == RestoreMoves.StashBusy)
+                    {
+                        Logging.warn("restoreAccountFile: an earlier restore stash is still in place - nothing was moved");
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                        displaySpixiAlert(SpixiLocalization._SL("intro-restore-file-error-title") ?? "Could not read the backup file",
+                            SpixiLocalization._SL("intro-restore-stashbusy-text") ?? "This is a Spixi account backup, but it could not be restored: a copy of earlier contacts on this device could not be moved aside. Nothing was changed. Restart Spixi, then try again.",
                             SpixiLocalization._SL("global-dialog-ok") ?? "OK");
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                         Utils.sendUiCommand(this, "removeLoadingOverlay");
@@ -999,6 +1150,10 @@ namespace SPIXI
                         Logging.warn("restoreAccountFile: the moves failed and were rolled back (" + moveFail + ")");
                     }
                     return RestoreOutcome.Failed;
+                }
+                if (keepPrev)
+                {
+                    keepPreviousContacts(stashDir);   // ★ S20G P0 (1): after Done; a failure never fails the restore
                 }
 
                 applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change

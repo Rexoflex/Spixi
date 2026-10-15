@@ -331,39 +331,16 @@
 .c-settings__row--backup { min-height: var(--row-h-switch); }   /* ★ Session I canon: the two-line backup row shares the 56 */
 .c-settings__row[data-row="switch"] { min-height: var(--row-h-switch); }   /* ★ Session I canon: a row that carries a switch is 56 */
 .c-settings__row[data-row="stacked"] { min-height: var(--row-h-stacked); }   /* ★ Session J: a nav row with a sub-line (the third height; Damir's pick) */
-/* ★ S9 toggle layout B (Damir): a SWITCH row with a stacked label is a two-row grid — disc + title + switch on
-   ONE line (the switch centred on the title line, not on the whole card), the description BELOW, starting
-   under the title (disc + its gap) and running the full remaining width, under the switch column too.
-   The stack becomes `display: contents`, so its two children (.c-settings__row-top, .c-settings__row-sub)
-   are the grid items; the disc goes back into the title line's flow (the N59b absolute-centred disc stays
-   for every OTHER stacked row). A switch row WITHOUT a sub is the same one-line row as before: label | switch,
-   centred, the same 8 px gap. The DOM is unchanged, so the switch keeps its aria-label (the title) and — on the
-   three rows that carry one (read receipts, typing, hide online) — its aria-describedby → the description.
-   ★ #46 r3 n3: row-gap 8 = the switch's 44 px tap layer (::after inset -8px) ends ABOVE the description, so no
-   part of the description's first line toggles the switch (at 2 px its top ~5 px did). */
-.c-settings__row[data-row="switch"] {
-  --row-disc-w: 32px;               /* sanctioned: the .c-disc box (base.css) — the description's indent */
-  --row-disc-gap: var(--spacing-12);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--spacing-8);
-  row-gap: var(--spacing-8);       /* ≥ the tap layer's 8 px overhang below the switch box (#46 r3 n3) */
-}
-.c-settings__row[data-row="switch"] > .c-settings__switch { grid-column: 2; grid-row: 1; }
-.c-settings__row[data-row="switch"] > .c-settings__row-label { grid-column: 1; grid-row: 1; }
-.c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: contents; }
-.c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-top {
-  grid-column: 1; grid-row: 1;
-  min-width: 0;
-  gap: var(--row-disc-gap);
-}
-.c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: static; transform: none; }
-.c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub {
-  grid-column: 1 / -1; grid-row: 2;
-  margin: 0;
-  padding-inline-start: calc(var(--row-disc-w) + var(--row-disc-gap));
-}
+/* ★ S20G R-1 (Damir "yes unify"; supersedes S9 toggle layout B and the S20F W-2 hub-only override, #1408/#1409):
+   ONE switch-row geometry for EVERY switch row (hub App lock / Confirm payments, Privacy, Notifications, the dev
+   rows): the base flex row — label | switch, align-items centre — so the switch is centred on the WHOLE title +
+   description block, as iOS / Android settings do. A stacked label is the N59b block every stacked row uses (title +
+   sub one flex column, the disc absolute-centred on it); the description stops at the switch column (the 8 px row
+   gap), so the switch's 44 px tap layer (::after −8 px) ends at the gap — clear of the text. A switch row WITHOUT a
+   description is the same one-line row as before. The builders (authSwitchRow, switchRow) stamp `data-stack` on a
+   switch row WITH a description, so its height is keyed by the attribute, never by :has() (the #875 rule). The new
+   group's Blind row (contacts-shell.css) is the same geometry: a flex row, centred. */
+.c-account .c-settings__row[data-row="switch"][data-stack] { min-height: calc(var(--row-h-stacked) + 6px); }   /* sanctioned: +6 = the account stacked-row step — the hub's 66 (S20F W-2), now every switch row with a description */
 .c-settings__backup-badge { flex: none; }
 
 /* —— switch (chat-info parity) —— */
@@ -1002,16 +979,6 @@
 .c-account .c-settings__row-top { gap: var(--spacing-16); }
 .c-account .c-settings__row-label--stack { padding-inline-start: calc(30px + var(--spacing-16)); }
 .c-account .c-settings__row-sub { margin-top: 2px; }
-.c-account .c-settings__row[data-row="switch"] { --row-disc-w: 30px; --row-disc-gap: var(--spacing-16); }   /* ★ S9 toggle B: the Account disc (30) + its 16 gap — the description still starts under the title */
-/* ★ S20F W-2 (#1408 + #1409 = B, supersedes #1401): on the Account HUB a switch row with a sub = the CHEVRON-ROW geometry —
-   66 px (the stacked row's height), the account 6 px padding, title + sub ONE block (the stack is a flex column again, not
-   display: contents), the disc absolute-centred (N59b), the switch centred; the sub's 2 px (the account rule the layout-B
-   `margin: 0` overrode) is the 1 px the centred block was off. Privacy / Notifications keep layout B (hub root only).
-   The switch's tap layer (::after −8 px) ends at the column gap — clear of the sub. */
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] { min-height: calc(var(--row-h-stacked) + 6px); row-gap: 0; }   /* sanctioned: +6 = the account stacked-row step (:1000) */
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] > .c-settings__row-label--stack { display: flex; grid-column: 1; grid-row: 1; min-width: 0; }
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack .c-disc { position: absolute; inset-inline-start: 0; top: 50%; transform: translateY(-50%); }
-.c-settings--hub.c-account .c-settings__row[data-row="switch"] .c-settings__row-label--stack > .c-settings__row-sub { grid-column: auto; grid-row: auto; margin-top: 2px; padding-inline-start: 0; }   /* sanctioned: 2px = the account sub margin (:1004) */
 /* ★ #1080 F4 (Damir, walk ②, picked N · neutral): the Account rows' hover / pressed on DESKTOP are one
    quiet neutral step (tokens.css --surface-account-row-*). (0,4,0) beats the base (0,3,0) hover. The
    press sweep (base.css ::before) reads --surface-press-row*; on desktop Account it is halved.

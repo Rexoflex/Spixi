@@ -5189,13 +5189,23 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    out-specified active by one pseudo-class, so the pressed rung never painted
    on a mouse. :not([data-readonly]) also stops display-tag chips (spans — they
    match :active) from wearing the selected skin (loop r1 MINOR).
-   Contrast, non-text ≥3:1 (WCAG 1.4.11), executable in smoke (#358 pins):
+   Contrast, non-text ≥3:1 (WCAG 1.4.11), smoke #358 — the plain (no color-mix) outline vs the fill:
    light rest 600-on-100 = 4.73 · hover 700-on-200 = 6.28 · press 800-on-100 = 9.67
-   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62 */
+   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62
+   ★ S20G N-2 (r1 B-4): the color-mix 60 % outline is measured vs the GROUND, ≥ 3 (pins-s20g/c-chip): light rest
+   3.50 white · 3.34 screen · 3.05 card; dark 3.87 screen · 3.49 card; hover ≥ 3.94, press ≥ 7.26. */
 .c-chip[aria-pressed="true"] {
   background: var(--surface-action-tonal-default);
   border-color: var(--outline-action-default);
-  color: var(--text-action-default);
+  color: var(--text-chip-selected);   /* ★ S20G N-2 */
+  box-shadow: inset 0 1px 0 var(--highlight-chip-selected);
+}
+/* ★ S20G N-2 premium tonal (pick C): 6 % top lift, outline 60 % (vs the ground, see the header); no color-mix = the plain pair */
+@supports (color: color-mix(in srgb, red, blue)) {
+  .c-chip[aria-pressed="true"] {
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-default), var(--chip-lift-ink) 6%), var(--surface-action-tonal-default));
+    border-color: color-mix(in srgb, var(--outline-action-default) 60%, transparent);
+  }
 }
 
 /* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
@@ -5208,7 +5218,13 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
     background: var(--surface-action-tonal-hover);
     border-color: var(--outline-action-hover);   /* I-2 (#358): ladder, not transparent */
-    color: var(--text-action-hover);
+    color: var(--text-chip-selected);
+  }
+  @supports (color: color-mix(in srgb, red, blue)) {
+    .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-hover), var(--chip-lift-ink) 6%), var(--surface-action-tonal-hover));
+      border-color: color-mix(in srgb, var(--outline-action-hover) 60%, transparent);
+    }
   }
 }
 
@@ -5221,7 +5237,13 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
   background: var(--surface-action-tonal-default);   /* r1 MAJOR-6: fill holds — see header */
   border-color: var(--outline-action-pressed);       /* I-2 (#358): ladder, not transparent */
-  color: var(--text-action-pressed);
+  color: var(--text-chip-selected);
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-default), var(--chip-lift-ink) 6%), var(--surface-action-tonal-default));
+    border-color: color-mix(in srgb, var(--outline-action-pressed) 80%, transparent);
+  }
 }
 
 /* disabled — code-first #50 */
@@ -5229,6 +5251,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   background: var(--surface-neutral-disabled);
   border-color: var(--outline-neutral-disabled);
   color: var(--text-neutral-on-disabled);
+  box-shadow: none;   /* ★ S20G r1: no N-2 top light when disabled */
   cursor: not-allowed;
 }
 
@@ -5246,16 +5269,46 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 .c-shared__chips { display: flex; gap: var(--spacing-8); overflow-x: auto; scrollbar-width: none; }
 .c-shared__chips::-webkit-scrollbar { display: none; }
 .c-shared__chip { flex: none; }
-/* (#46 r2 R2-M2) a role=tab chip is SELECTED by aria-selected (no aria-pressed, r1 B7) — the chip's selected pair, here */
-.c-shared__chip[aria-selected="true"] {
+/* (#46 r2 R2-M2) a role=tab chip is SELECTED by aria-selected (no aria-pressed, r1 B7) — the chip's selected pair, here.
+   ★ S20G r1 B-3: + the See-all tab; every state names the ink (the generic .c-chip hover / press ink read 3.44 in dark) */
+.c-shared__chip[aria-selected="true"]:not(:disabled),
+.c-shared-list__tab[aria-selected="true"] {
   background: var(--surface-action-tonal-default);
   border-color: var(--outline-action-default);
-  color: var(--text-action-default);
+  color: var(--text-chip-selected);
+  box-shadow: inset 0 1px 0 var(--highlight-chip-selected);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-shared__chip[aria-selected="true"]:not(:disabled):hover {
+  .c-shared__chip[aria-selected="true"]:not(:disabled):not([data-readonly]):hover,
+  .c-shared-list__tab[aria-selected="true"]:hover {
     background: var(--surface-action-tonal-hover);
     border-color: var(--outline-action-hover);
+    color: var(--text-chip-selected);
+  }
+}
+.c-shared__chip[aria-selected="true"]:not(:disabled):not([data-readonly]):active,
+.c-shared-list__tab[aria-selected="true"]:active {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-pressed);
+  color: var(--text-chip-selected);
+}
+@supports (color: color-mix(in srgb, red, blue)) {   /* ★ S20G N-2: as chip.css */
+  .c-shared__chip[aria-selected="true"]:not(:disabled),
+  .c-shared-list__tab[aria-selected="true"] {
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-default), var(--chip-lift-ink) 6%), var(--surface-action-tonal-default));
+    border-color: color-mix(in srgb, var(--outline-action-default) 60%, transparent);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .c-shared__chip[aria-selected="true"]:not(:disabled):not([data-readonly]):hover,
+    .c-shared-list__tab[aria-selected="true"]:hover {
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-hover), var(--chip-lift-ink) 6%), var(--surface-action-tonal-hover));
+      border-color: color-mix(in srgb, var(--outline-action-hover) 60%, transparent);
+    }
+  }
+  .c-shared__chip[aria-selected="true"]:not(:disabled):not([data-readonly]):active,
+  .c-shared-list__tab[aria-selected="true"]:active {
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-default), var(--chip-lift-ink) 6%), var(--surface-action-tonal-default));
+    border-color: color-mix(in srgb, var(--outline-action-pressed) 80%, transparent);
   }
 }
 .c-shared__chips > .c-chip { max-width: none; }   /* GATE 58: a SCROLLING chip row opts out of the chip cap (#841) */
@@ -5357,6 +5410,18 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   .c-shared__row:hover, .c-shared__all:hover { background: var(--surface-card-hover); }
 }
 .c-shared__row:active, .c-shared__all:active { background: var(--surface-card-pressed); }
+/* ★ S20G NIT (#46 r1): the file tile's format tag stands on the ROW's ground — it follows the row into hover / pressed
+   (it kept --surface-card: a visible patch on the hovered row). Same media gate as the row's own hover. */
+@media (hover: hover) and (pointer: fine) {
+  .c-shared__row--file:hover { --file-tile-ground: var(--surface-card-hover); }
+}
+.c-shared__row--file:active { --file-tile-ground: var(--surface-card-pressed); }
+/* ★ S20G Q-1 / B-5: the file type tile + the file name / meta type live in file-tile.css (contact_details links it). */
+/* chat info › Files: the Downloads row rhythm (tile + 14 gap, 12 block padding → 68 px), the card's own 12 px inline
+   padding kept so the tile lines up with the other chat-info rows. No row-to-row line: #968 (no lines between rows of
+   the same card on chat info) outranks the Downloads hairline. */
+.c-shared__row--file { gap: 14px; padding-block: var(--spacing-12); }   /* sanctioned: 14 = the Downloads row gap (the render) */
+.c-shared__row--file .c-shared__row-text { gap: var(--spacing-2); }
 
 /* —— "See all" —— one structure: the phone takeover and the desktop pane */
 .c-shared-list {
@@ -5384,12 +5449,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   font-weight: var(--font-weight-medium);
   cursor: pointer;
 }
-/* selected = the filter chip's selected pair (chip.css), as role=tab needs aria-selected, not aria-pressed */
-.c-shared-list__tab[aria-selected="true"] {
-  background: var(--surface-action-tonal-default);
-  border-color: var(--outline-action-default);
-  color: var(--text-action-default);
-}
+/* selected: with the chip, above (★ S20G r1 B-3) */
 .c-shared-list__panel { flex: 1; overflow-y: auto; padding: 0 var(--spacing-16) var(--spacing-16); }
 .c-shared-list__panel > .c-shared__rows { background: var(--surface-card); border-radius: var(--radius-12); overflow: hidden; }
 .c-shared-list__panel > .c-shared__grid { padding: 0; }
@@ -5397,6 +5457,69 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
 .c-shared-list__panel .c-shared__tile[data-glyph] { background: var(--surface-card); }
 
 </style><!-- ★★ #1106: the shared media / files / links section + its "See all" cover -->
+<style data-src="../styles/components/file-tile.css">
+/* c-file-tile — the FILE TYPE TILE + the file name / meta type (★ S20G Q-1, #1414 queue, Damir): ONE look for the
+   Downloads rows (settings-app.js; settings.html + downloads.html) and chat info › Files (shared-items.js;
+   contact_details.html). Builder: createKindTile (file-tile.js). Moved verbatim from settings-app.css (S17 E #1336, the
+   render's values).
+   ★ S20G B-5 (#46 r1): its own sheet — settings / downloads linked all of shared-items.css (+9–10 KB dead) for it.
+   The tag's ground is the card the tile sits on: --surface-card by default, the settings card under Downloads, and the
+   row's hover / pressed ground in chat info (--file-tile-ground, set by the host). */
+.c-file-tile {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: the render's type tile */
+  height: 44px;
+  border-radius: 13px;
+  background: var(--dl-tile-other);
+  color: #fff;                      /* sanctioned: white glyph on the kind gradient */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+}
+.c-file-tile[data-kind="image"] { background: var(--dl-tile-image); }
+.c-file-tile[data-kind="pdf"] { background: var(--dl-tile-pdf); }
+.c-file-tile[data-kind="archive"] { background: var(--dl-tile-archive); }
+.c-file-tile[data-kind="doc"] { background: var(--dl-tile-doc); }
+.c-file-tile[data-kind="audio"] { background: var(--dl-tile-audio); }
+.c-file-tile[data-kind="video"] { background: var(--dl-tile-video); }
+.c-file-tile[data-kind="code"] { background: var(--dl-tile-code); }
+.c-file-tile > svg { width: 22px; height: 22px; }
+.c-file-tile__tag {
+  position: absolute;
+  inset-block-end: -5px;
+  inset-inline-end: -6px;
+  max-width: 40px;
+  overflow: hidden;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--file-tile-ground, var(--surface-card));
+  color: var(--text-neutral-01);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);   /* sanctioned: the render's own value (downloads-contributors-render.html / kit-render.html) — a picture ink, a lift or a scrim on art */
+  font-size: 9px;                   /* sanctioned: the render's format tag */
+  line-height: 1.4;
+  font-style: normal;
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+.c-file-name {
+  color: var(--text-neutral-01);
+  font-size: 15.5px;                /* sanctioned: the render's row name */
+  line-height: 1.3;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-file-meta {
+  color: var(--text-neutral-02);
+  font-size: 13.5px;                /* sanctioned: the render's row meta */
+  line-height: 1.35;
+  font-feature-settings: "tnum" 1;
+}
+
+</style><!-- ★ S20G Q-1 / B-5: chat info › Files rows lead with the shared file type tile (createKindTile) -->
 
 <style>
   /* Production shell: fill the WebView. contact_details.html is loaded by the C#

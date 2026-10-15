@@ -5749,7 +5749,7 @@ function hintCopy(id, strings = getStrings()) {
   switch (id) {
     case 'backup': return { title: strings.hintBackupTitle || 'Your backup is your account', text: strings.hintBackupBody || 'Only your backup can restore a lost phone.' };
     /* ★ S11 A2 (#1263, R2 copy): a group chat cannot pay — the line names a CONTACT (a new key: a changed meaning) */
-    case 'wallet': return { title: strings.hintWalletTitle || 'Money like a message', text: strings.hintWalletBody2 || 'Send IXI to a contact in a chat.' };
+    case 'wallet': return { title: strings.hintWalletTitle || 'Send IXI like a message', text: strings.hintWalletBody2 || 'Send IXI to a contact in a chat.' };
     case 'apps': return { title: strings.hintAppsTitle || 'Mini apps in chats', text: strings.hintAppsBody || 'Play or work together inside a chat.' };
     case 'addcontact': return { title: strings.hintAddContactTitle || 'Add people in person', text: strings.hintAddContactBody || 'Scan a QR code when you meet.' };
     /* ★ S11 A2 (#1263, R2 copy): platform-neutral — a desktop opens the menu with a right-click, not a long-press */
@@ -7878,7 +7878,7 @@ function createComposer({
     input.style.height = Math.min(input.scrollHeight, line * MAX_LINES + pad) + 'px';
   };
 
-  const send = () => {
+  const send = (byTouch) => {
     const text = input.value.trim();
     if (!text && !mediaN()) return;   // ★ S10 P1: the strip's photos go with an empty caption
     // A7: bail BEFORE onSend and BEFORE the clear — the text stays on screen, the
@@ -7906,13 +7906,19 @@ function createComposer({
     const ctxBefore = composerCtx.get(el);
     // ★ #1199 r1 (N-6): Enter on an unchanged edit does what the disabled Save does — nothing (the edit stays open)
     if (ctxBefore && ctxBefore.kind === 'edit' && ctxBefore.prefillText != null && text === String(ctxBefore.prefillText).trim()) return;
+    const hadMedia = mediaN() > 0;   // ★ S20G R-6: read BEFORE onSend — the shell's strip send clears the count (setComposerMedia 0)
     if (onSend) onSend(text);
     const editClosed = !!ctxBefore && ctxBefore.kind === 'edit' && composerCtx.get(el) !== ctxBefore;
     if (!editClosed) input.value = '';
     grow();
     syncCounter();
     syncAction();
-    input.focus();
+    /* ★ S20G R-6: a send that carried the strip's photos leaves the field unfocused — the Send tap already took focus off it,
+       and focusing it again raised the Android keyboard over the photos just sent. A text-only send keeps the focus (type on).
+       r1 B-2: ONLY a touch / pen tap skips it — after a mouse click or a keyboard press (or Enter in the field) the focus
+       would stay on the action button, now the mic, and Space would start a recording. */
+    if (!(hadMedia && byTouch)) input.focus();
+    else if (document.activeElement === action) action.blur();   // r2 M-1: a tapped disc keeps the focus — it is the mic now (a hardware keyboard's Space)
   };
 
   input.addEventListener('input', (e) => {
@@ -7936,7 +7942,13 @@ function createComposer({
   /* ★ #1208: one mic tap = one start. C# answers with voiceRec (recording / denied / busy / error); a second tap
      before that answer (a double tap, a slow bridge) would otherwise send a second start — MIC_GUARD_MS holds it. */
   let micAt = 0;
-  action.addEventListener('click', () => {
+  /* ★ S20G r1 B-2: the pointer of the press that led to this click — a keyboard click has no pointerdown (and detail 0),
+     so a stale touch press (pressed, dragged off, no click) older than 1.5 s never counts; consumed by the click. */
+  let downType = '', downAt = 0;
+  action.addEventListener('pointerdown', (e) => { downType = e.pointerType || ''; downAt = Date.now(); });
+  action.addEventListener('click', (e) => {
+    const byTouch = e.detail > 0 && (downType === 'touch' || downType === 'pen') && Date.now() - downAt < 1500;
+    downType = '';
     const mode = action.dataset.mode;
     if (mode === 'mic') {
       const t = Date.now();
@@ -7954,7 +7966,7 @@ function createComposer({
       if (onVoiceSend) onVoiceSend();
       return;
     }
-    send();
+    send(byTouch);
   });
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);
@@ -18857,7 +18869,7 @@ function createWalletTools(state, opts = {}) {
  *        the other. The hero RO (`min(target, expandedRest − heroHeight)`) stays
  *        as the belt: it re-feeds the same value after the flip's layout.
  *    The delta and rest heights are MEASURED from the element, never constants,
- *    and CACHED for 400 ms around a flip so a fast up-down flick cannot make the
+ *    and CACHED for the flip window (--wallet-hero-ms + 100, S20G R-4) so a fast up-down flick cannot make the
  *    probe cut a running transition (r1 MINOR-6).
  *  · LATCH THE COLLAPSE — a scroll event in which the geometry
  *    (scrollHeight/clientHeight) changed is a LAYOUT consequence, never a finger.
@@ -18879,8 +18891,8 @@ function createWalletTools(state, opts = {}) {
  *    never release the latch (no scroll events fire) → auto-expand. It cannot
  *    oscillate: with the reserve holding the maximum at ≥ the collapse position,
  *    a list that fits compact also fits expanded. Valve runs only AT REST (a
- *    flip < 400 ms ago means a transition is running and the transient numbers
- *    would lie).
+ *    flip less than the flip window ago — --wallet-hero-ms + 100, S20G R-4 — means a
+ *    transition is running and the transient numbers would lie).
  *  · ★ r1 MAJOR-2: attach and every at-top event can EXPAND a compact hero.
  *    A compact hero at scrollTop 0 has no gesture that can ever free it (no
  *    scroll events fire at the top of a fitting list), and its balance/actions
@@ -18902,9 +18914,13 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
    * scroller, the scroller included) rides a compensating translateY so no row jumps: collapse = the layout at once,
    * the band from +delta to 0; expand = the compact layout HELD ([data-held]) while the band slides to +delta, then
    * the height lands in the same task as the band's release. The hero's own layers move by transform + opacity
-   * (wallet-hero.css). Tokens --duration-300 / --easing-standard; 0 ms (reduced motion), no WAAPI (jsdom) or a
-   * hidden hero = instant, the same end state. */
+   * (wallet-hero.css). Tokens --wallet-hero-ms (★ S20G R-4: 380 ms, was --duration-300) / --easing-standard; 0 ms
+   * (reduced motion), no WAAPI (jsdom) or a hidden hero = instant, the same end state. */
   const tok = (n, f) => { try { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f; } catch (e) { return f; } };
+  /* ★ S20G R-4: ONE duration (wallet-hero.css :root) for the hero layers, the band and the guards; read per flip so a
+   * reduced-motion change applies at once. The fallback is only for a page without wallet-hero.css. */
+  const heroMs = () => { const v = parseFloat(tok('--wallet-hero-ms', '380ms')); return v >= 0 ? v : 380; };
+  const flipWindow = () => heroMs() + 100;   // was a fixed 400 (300 + 100): the transient numbers outlast the motion
   let slot = hero || null;
   while (slot && slot.parentElement && slot.parentElement !== scrollEl.parentElement) slot = slot.parentElement;
   const band = () => {
@@ -18927,7 +18943,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
   const endHold = () => { if (hero) delete hero.dataset.held; };
   const slide = (from, to, hold, onEnd) => {
     stopBand();
-    const ms = parseFloat(tok('--duration-300', '300ms'));
+    const ms = heroMs();   // S20G R-4
     const els = band();
     const r = { anims: [], timer: 0 };
     if (ms > 0 && (hold || Math.abs(from - to) >= 0.5)) {
@@ -19007,7 +19023,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
   /* MEASURED, never guessed: toggle the attribute with transitions suppressed
    * ([data-measuring], wallet-hero.css), read both rest heights, restore. All
    * synchronous — no paint happens between the toggles. ★ r1 MINOR-6: cached for
-   * 400 ms around a flip — a collapse ≤ 300 ms after an expand (the fast up-down
+   * the flip window (S20G R-4: --wallet-hero-ms + 100) — a collapse inside the motion after an expand (the fast up-down
    * flick) would otherwise measure MID-TRANSITION, and [data-measuring] cancels
    * whatever is animating: a visible snap. ★ r1 MINOR-8: the attribute restore
    * lives in `finally`, so a future throw between the toggles cannot strand a
@@ -19017,7 +19033,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
   let cachedMeasure = null;
   const measureHero = (force) => {
     if (!hero || !hero.isConnected) return { expanded: 0, compact: 0, delta: 0 };
-    if (!force && cachedMeasure && (performance.now() - lastFlipAt) < 400) return cachedMeasure;
+    if (!force && cachedMeasure && (performance.now() - lastFlipAt) < flipWindow()) return cachedMeasure;
     const wasCompact = 'compact' in hero.dataset;
     const wasHeld = 'held' in hero.dataset;
     hero.dataset.measuring = '';
@@ -19114,7 +19130,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
   const releaseIfMoot = () => {
     if (!collapsed) return;
     if (scrollEl.scrollHeight - scrollEl.clientHeight > 1) return;
-    const wait = 400 - (performance.now() - lastFlipAt);
+    const wait = flipWindow() - (performance.now() - lastFlipAt);
     if (wait > 0) {
       clearTimeout(valveRetry);
       valveRetry = setTimeout(releaseIfMoot, wait + 16);
@@ -19221,7 +19237,7 @@ function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, reveal 
        * belt that read zero as "never applied" slammed the full delta onto every
        * long list on the first re-render after a collapse: r1 MAJOR-4, restored by
        * the fix for it. */
-      if (collapsed && heroExpandedRest === 0 && (performance.now() - lastFlipAt) >= 400) {
+      if (collapsed && heroExpandedRest === 0 && (performance.now() - lastFlipAt) >= flipWindow()) {
         const m = measureHero();                       // attach-while-hidden completion
         if (m.expanded > 0) {
           heroExpandedRest = m.expanded;
@@ -24725,6 +24741,39 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
   return () => { removeOffer(); input.removeEventListener('input', check); };
 }
 
+/* ---- src/components/file-tile.js ---- */
+/**
+ * c-file-tile — the FILE TYPE TILE (★ S20G Q-1, #1414 queue, Damir): ONE builder for the Downloads rows (settings-app.js)
+ * and chat info › Files (shared-items.js).
+ *
+ * createKindTile(name) → span.c-file-tile[data-kind] (aria-hidden): the 44 px tile on its kind gradient (--dl-tile-*),
+ *   a white glyph, the format tag (PDF, ZIP) on its corner. Classified by typed-bubbles' fileKind (the chat's own family
+ *   table). Decoration only: the row's name is the file name.
+ *
+ * ★ S20G B-5 (#46 r1): its own module + its own stylesheet (file-tile.css) so a shell that only shows the tile (settings,
+ * downloads) links ~2 KB instead of all of shared-items.css (+9–10 KB dead CSS). The W-h gate derives the link from
+ * this module: every shell whose bundle code reaches createKindTile must link file-tile.css.
+ */
+
+
+
+const DL_GLYPH = { image: 'photo', pdf: 'file-text', doc: 'file-text', archive: 'file-zip', audio: 'volume', video: 'player-play', code: 'code', other: 'file-isr' };
+function createKindTile(name) {
+  const { family, label } = fileKind(String(name == null ? '' : name));
+  const tile = document.createElement('span');
+  tile.className = 'c-file-tile';
+  tile.dataset.kind = family;
+  tile.setAttribute('aria-hidden', 'true');
+  tile.append(icon(DL_GLYPH[family] || DL_GLYPH.other, { size: 22 }));
+  if (label) {
+    const tag = document.createElement('em');
+    tag.className = 'c-file-tile__tag';
+    tag.textContent = label;
+    tile.append(tag);
+  }
+  return tile;
+}
+
 /* ---- src/components/shared-items.js ---- */
 /**
  * c-shared — SHARED MEDIA · FILES · LINKS of one conversation (★★ #1106, be-cutover CI6; session 1 part 5).
@@ -24745,6 +24794,8 @@ function attachSplitPaste(composerEl, { onSendEach, strings = getStrings() } = {
  * openSharedItemMenu({ item, host, strings, onAction }) → the long-press sheet: Open · Show in chat · Show in Downloads ·
  *   Copy link · Delete from this device (★ #1166 V-3 / #1154: the last two rows only for a RECEIVED item with a local copy).
  */
+
+
 
 
 
@@ -24872,18 +24923,21 @@ function sharedMediaTile(item, strings, onOpen, onMenu) {
   return b;
 }
 
+/* ★ S20G Q-1: a Files row in the Downloads look — the kind tile, the name (semibold 15.5, the extension kept on a cut —
+   #1005) over the meta (13.5: size · date · "Not on this device"). The row's own behaviour (tap, long-press menu, aria
+   name) is unchanged. */
 function sharedFileRow(item, strings, onOpen, onMenu) {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'c-shared__row';
-  b.append(icon('file-isr', { size: 22 }));
+  b.className = 'c-shared__row c-shared__row--file';
+  b.append(createKindTile(item.label));
   const txt = document.createElement('span');
   txt.className = 'c-shared__row-text';
   const t = document.createElement('span');
-  t.className = 'c-shared__row-title';
-  t.textContent = item.label;
+  t.className = 'c-shared__row-title c-file-name';
+  fillFileName(t, item.label);           // UNTRUSTED — textContent only
   const sub = document.createElement('span');
-  sub.className = 'c-shared__row-sub';
+  sub.className = 'c-shared__row-sub c-file-meta';
   sub.textContent = [formatFileSize(item.size), sharedShortDate(item.ts), item.local ? '' : (strings.sharedNotOnDevice || 'Not on this device')]
     .filter(Boolean).join(' · ');
   txt.append(t, sub);
@@ -29926,6 +29980,7 @@ function createSettingsHub({
     const row = document.createElement('div');
     row.className = 'c-settings__row c-settings__row--static';
     row.dataset.row = 'switch';   // ★ Session I canon: switch rows are 56, nav rows 48
+    if (sub) row.dataset.stack = '';   // ★ S20G R-1: a switch row WITH a description = the stacked height (settings-shell.css; an attribute, never :has())
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
     if (sub) {
@@ -31179,6 +31234,7 @@ function switchRow({ glyph, grad, hue, label, sub, checked, live, failText, onTo
   const row = document.createElement('div');
   row.className = 'c-settings__row c-settings__row--static';
   row.dataset.row = 'switch';   // ★ Session I canon: switch rows are 56, nav rows 48
+  if (sub) row.dataset.stack = '';   // ★ S20G R-1: a switch row WITH a description = the stacked height (settings-shell.css; an attribute, never :has())
   const lab = document.createElement('span');
   lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
   const disc = document.createElement('span');
@@ -32181,6 +32237,7 @@ function createSecurityLevel({
 
 
 
+
 // one-shot ctrl (#138 m1) — module-local unique name (house collision rule)
 function appCtrl(onDone, onFail) {
   let used = false;
@@ -32286,8 +32343,8 @@ function appScreenShell(className, title, onBack) {
  * Free fn: setDownloads(el, files, { sendersKnown }) — the clearFiles/addFile wholesale mirror.
  * ★ S20F W-12 (#1409): `waiting` = no empty state until the first setDownloads (the host's quiet window decides
  *   "empty"); `awaitSenders` = the From row is RESERVED (laid out, invisible, inert) from the first non-empty paint
- *   until a setDownloads with sendersKnown — so phase 2 moves no row. Without a sender then, the row goes (the one
- *   remaining move, #46 r1 C-3 — recorded); a phase 2 that never comes releases it DL_SENDERS_BACKSTOP_MS after the
+ *   until a setDownloads with sendersKnown — so phase 2 moves no row. Without a sender then, the row STAYS reserved for
+ *   this screen (★ S20G R-5; was the #46 r1 C-3 move, −52 px); a phase 2 that never comes releases it DL_SENDERS_BACKSTOP_MS after the
  *   first non-empty paint (C-4, the #326 completes-never grammar; 12 s — a phase 2 slower than that moves the list twice,
  *   −52 then +52: the recorded trade, #46 r2 MINOR-3).
  *
@@ -32304,7 +32361,6 @@ function appScreenShell(className, title, onBack) {
  *     file with a known sender) and Delete (confirm, then onDeleteFile per name)
  * Untrusted: a file name and a sender name are PEER-chosen — textContent only, never markup, never a selector.
  */
-const DL_GLYPH = { image: 'photo', pdf: 'file-text', doc: 'file-text', archive: 'file-zip', audio: 'volume', video: 'player-play', code: 'code', other: 'file-isr' };
 const DL_LONG_PRESS_MS = 500;
 const DL_LEGEND_MAX = 4;          // kinds named in the bar + legend; the rest is "Other"
 const DL_SENDERS_BACKSTOP_MS = 12000;   // ★ S20F W-12 (#46 r2 MINOR-3): a phase 2 slower than this is a scan failure in practice
@@ -32326,6 +32382,41 @@ function dlTone(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return String(h % 8);
+}
+/* ★ S20G R-5 (the Downloads scroll jitter, Android): the list's Intl work, cached at MODULE level — one time-of-day
+   formatter per locale + hour cycle (toLocaleTimeString built a formatter per row: the profile's top self time), and the
+   size / day labels memoised per value. The key also carries the strings that feed them (Today, Yesterday, the units),
+   so a language switch can never read a stale label. timestamp.js's own sizeNumber / dayBucketLabel stay as they are. */
+const dlFmt = { key: '', clock: null, size: new Map(), day: new Map() };
+function dlFormats(strings) {
+  const loc = docLocale() || '';
+  const key = [loc, document.documentElement.dataset.hourCycle || '', strings.today, strings.yesterday, strings.unitB, strings.unitKB, strings.unitMB, strings.unitGB].join('|');
+  if (dlFmt.key !== key) { dlFmt.key = key; dlFmt.clock = null; dlFmt.size.clear(); dlFmt.day.clear(); }
+  return dlFmt;
+}
+function dlClock(ms, strings) {
+  const F = dlFormats(strings);
+  if (!F.clock) {
+    try { F.clock = new Intl.DateTimeFormat(docLocale(), timeOpts()); }   // = toLocaleTimeString(docLocale(), timeOpts()), built once
+    catch (e) { F.clock = { format: (d) => d.toLocaleTimeString(docLocale(), timeOpts()) }; }
+  }
+  return F.clock.format(new Date(ms));
+}
+function dlSize(bytes, strings) {
+  const F = dlFormats(strings);
+  const k = dlBytes(bytes);
+  let v = F.size.get(k);
+  if (v === undefined) { v = formatFileSize(k, strings); F.size.set(k, v); }
+  return v;
+}
+/* a day group's label — once per GROUP (not per file), memoised per calendar day + today's date (Today / Yesterday move) */
+function dlDayLabel(ep, dayKey, now, strings) {
+  const F = dlFormats(strings);
+  const n = new Date(now);
+  const k = dayKey + '@' + n.getFullYear() + '-' + n.getMonth() + '-' + n.getDate();
+  let v = F.day.get(k);
+  if (v === undefined) { v = dayBucketLabel(ep * 1000, strings, now, strings.today || 'Today'); F.day.set(k, v); }
+  return v;
 }
 const dlEpoch = (time) => { const s = String(time == null ? '' : time).trim(); return (/^\d{1,12}$/.test(s) && Number(s) > 0) ? Number(s) : 0; };
 const dlBytes = (size) => { const b = Number(size); return Number.isFinite(b) && b > 0 ? b : 0; };
@@ -32697,7 +32788,7 @@ function createSettingsDownloads({
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'c-settings-dl__open c-settings-dl__th';
-    const sz = formatFileSize(f.size);
+    const sz = dlSize(f.size, strings);
     b.setAttribute('aria-label', sz ? f.name + ', ' + sz : f.name);   // peer-chosen — an attribute VALUE, never markup
     /* the picture layer (a tone + the photo glyph today; the thumbnail later) — it shrinks into the cell when picked */
     const img = document.createElement('span');
@@ -32737,45 +32828,15 @@ function createSettingsDownloads({
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'c-settings-dl__open';
-    const { family, label } = fileKind(f.name);
-    const tile = document.createElement('span');
-    tile.className = 'c-settings-dl__tile';
-    tile.dataset.kind = family;
-    tile.setAttribute('aria-hidden', 'true');   // (#46 r1 B-1) decoration: the row's name is the file name
-    tile.append(icon(DL_GLYPH[family] || DL_GLYPH.other, { size: 22 }));
-    if (label) {
-      const tag = document.createElement('em');
-      tag.className = 'c-settings-dl__tag';
-      tag.textContent = label;
-      tile.append(tag);
-    }
+    const tile = createKindTile(f.name);   // ★ S20G Q-1: the shared type tile (file-tile.js); (#46 r1 B-1) aria-hidden decoration
     const meta = document.createElement('span');
     meta.className = 'c-settings-dl__meta';
     const nm = document.createElement('span');
-    nm.className = 'c-settings-dl__name';
+    nm.className = 'c-settings-dl__name c-file-name';   // ★ S20G Q-1: the shared name type (file-tile.css)
     fillFileName(nm, f.name);              // UNTRUSTED — textContent only (★ #1005: keeps the extension)
     meta.append(nm);
-    const parts = [];
-    const sz = formatFileSize(f.size);
-    if (sz) parts.push(sz);
-    const ep = dlEpoch(f.time);
-    if (ep) {
-      parts.push(timeOfDay ? new Date(ep * 1000).toLocaleTimeString(docLocale(), timeOpts()) : formatTxTimestamp(ep * 1000));
-    } else if (f.time) {
-      parts.push(String(f.time));          // an old exe's opaque locale string — never parsed
-    }
-    if (f.sender || parts.length) {
-      const tm = document.createElement('span');
-      tm.className = 'c-settings-dl__time';
-      if (f.sender) {
-        const from = document.createElement('span');
-        from.className = 'c-settings-dl__from';
-        from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(f.sender);   // peer-chosen name — textContent only
-        tm.append(from);
-      }
-      if (parts.length) tm.append(document.createTextNode((f.sender ? ' · ' : '') + parts.join(' · ')));
-      meta.append(tm);
-    }
+    row._dlParts = rowParts(f, timeOfDay);   // ★ S20G R-5: kept on the row — a phase-2 patch re-derives it (B-6) and rewrites only what changed
+    fillTimeLine(row, meta, f.sender || '');
     open.append(check(), tile, meta);
     markSelected(open, f.name);
     wirePress(open, f.name);
@@ -32783,22 +32844,60 @@ function createSettingsDownloads({
     return row;
   }
 
+  /* the "size · time" part of a row's line (cached formatters) — the build and the phase-2 patch both read it (★ S20G B-6) */
+  function rowParts(f, timeOfDay) {
+    const parts = [];
+    const sz = dlSize(f.size, strings);
+    if (sz) parts.push(sz);
+    const ep = dlEpoch(f.time);
+    if (ep) {
+      parts.push(timeOfDay ? dlClock(ep * 1000, strings) : formatTxTimestamp(ep * 1000));
+    } else if (f.time) {
+      parts.push(String(f.time));          // an old exe's opaque locale string — never parsed
+    }
+    return parts.join(' · ');
+  }
+  /* the "from {name} · size · time" line — built with the row, and PATCHED in place by phase 2 (★ S20G R-5) */
+  function fillTimeLine(row, meta, sender) {
+    row._dlSender = sender;
+    let tm = meta.querySelector(':scope > .c-settings-dl__time');
+    if (!sender && !row._dlParts) { if (tm) tm.remove(); return; }
+    if (!tm) { tm = document.createElement('span'); tm.className = 'c-settings-dl__time c-file-meta'; meta.append(tm); }   // ★ S20G Q-1: the shared meta type
+    tm.textContent = '';
+    if (sender) {
+      const from = document.createElement('span');
+      from.className = 'c-settings-dl__from';
+      from.textContent = (strings.downloadsFrom || 'from {name}').split('{name}').join(sender);   // peer-chosen name — textContent only
+      tm.append(from);
+    }
+    if (row._dlParts) tm.append(document.createTextNode((sender ? ' · ' : '') + row._dlParts));
+  }
+
   const isPhoto = (f) => fileKind(f.name).family === 'image';
-  function paintList() {
-    for (const n of [...sel]) if (!current.some((f) => f.name === n)) sel.delete(n);   // a re-push drops what went
-    if (selecting && current.length === 0) selecting = false;
+  /* the controls row: the kind chips (a mixed list) + the From chip (reserved until phase 2 — W-12) */
+  let fromKept = false;                  // ★ S20G R-5: this screen laid the From row out — it is never collapsed under the list
+  function paintControls() {
     const hasPhoto = current.some(isPhoto);
     const hasFile = current.some((f) => !isPhoto(f));
     const mixed = hasPhoto && hasFile;
     if (!mixed) kindFilter = 'all';        // a filter on a kind no longer listed is cleared — its chips hide with it
     kindWrap.hidden = !mixed;
-    const reserve = sendersPending && senders.size === 0 && current.length > 0;   // ★ W-12: the row phase 2 fills
-    if (reserve && !sendersBackstop) sendersBackstop = setTimeout(() => { sendersPending = false; if (el.isConnected) paintList(); }, DL_SENDERS_BACKSTOP_MS);
+    const pending = sendersPending && senders.size === 0 && current.length > 0;   // ★ W-12: the row phase 2 fills
+    if (pending && !sendersBackstop) sendersBackstop = setTimeout(() => { sendersPending = false; fromKept = false; if (el.isConnected) paintList(); }, DL_SENDERS_BACKSTOP_MS);
+    if (pending) fromKept = true;
+    /* ★ S20G R-5 (was #46 r1 C-3, "the one remaining move"): phase 2 naming NO sender keeps the reserved row (laid out,
+       invisible, inert) — the list under it never jumps 52 px up. The backstop (C-4) still releases it. */
+    const reserve = (pending || fromKept) && senders.size === 0 && current.length > 0;
     controls.hidden = !mixed && senders.size === 0 && !reserve;
     fromChip.hidden = senders.size === 0 && !reserve;
     if (reserve) { fromChip.dataset.reserved = ''; fromChip.disabled = true; fromChip.setAttribute('aria-hidden', 'true'); }
     else if ('reserved' in fromChip.dataset) { delete fromChip.dataset.reserved; fromChip.disabled = false; fromChip.removeAttribute('aria-hidden'); }
     for (const [id, c] of kindChips) c.setAttribute('aria-pressed', String(id === kindFilter));
+  }
+  function paintList() {
+    for (const n of [...sel]) if (!current.some((f) => f.name === n)) sel.delete(n);   // a re-push drops what went
+    if (selecting && current.length === 0) selecting = false;
+    paintControls();
 
     /* newest first (stable: an old exe's opaque time sorts as 0 and keeps C#'s order) */
     const shown = current.slice().sort((a, b) => dlEpoch(b.time) - dlEpoch(a.time)).filter((f) =>
@@ -32811,14 +32910,10 @@ function createSettingsDownloads({
     const byKey = new Map();
     for (const f of shown) {
       const ep = dlEpoch(f.time);
-      let key = '~', label = '';
-      if (ep) {
-        const d = new Date(ep * 1000);
-        key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
-        label = dayBucketLabel(ep * 1000, strings, now, strings.today || 'Today');
-      }
+      let key = '~';
+      if (ep) { const d = new Date(ep * 1000); key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); }
       let g = byKey.get(key);
-      if (!g) { g = { label, files: [] }; byKey.set(key, g); groups.push(g); }
+      if (!g) { g = { ep, key, label: ep ? dlDayLabel(ep, key, now, strings) : '', files: [] }; byKey.set(key, g); groups.push(g); }   // ★ S20G R-5: the label once per group
       g.files.push(f);
     }
     const out = [];
@@ -32828,10 +32923,13 @@ function createSettingsDownloads({
       const h = document.createElement('h3');
       h.className = 'c-settings-dl__day';
       const hl = document.createElement('span');
+      hl.className = 'c-settings-dl__day-label';
       hl.textContent = g.label;
+      sec._dlTod = !!g.label;              // ★ S20G B-6: the patch path re-labels the group (Today → Yesterday) + re-clocks its rows
+      if (g.ep) { sec._dlEp = g.ep; sec._dlKey = g.key; }
       const hs = document.createElement('span');
       hs.className = 'c-settings-dl__day-size';
-      hs.textContent = formatFileSize(g.files.reduce((a, f) => a + dlBytes(f.size), 0));
+      hs.textContent = dlSize(g.files.reduce((a, f) => a + dlBytes(f.size), 0), strings);
       h.append(hl, hs);
       if (g.label || hs.textContent) sec.append(h);
       const ph = g.files.filter(isPhoto);
@@ -32867,15 +32965,55 @@ function createSettingsDownloads({
     paintFromChip();
   }
 
+  /* ★ S20G R-5: phase 2 (setDownloadSenders) re-pushes the SAME files with senders added. It used to rebuild the whole
+     list (60 rows, every Intl call again: 120–430 ms at CPU × 4, landing mid-scroll). Now a push whose row set is
+     unchanged (name · time · size, in order) and no From filter in force PATCHES the rows in place — each row's sender key
+     and its "from" line, only where they changed — and repaints the controls row; a full paint only when the row set
+     changes (or a From filter makes the shown set depend on the senders). */
+  let rowSig = null;
+  const sigOf = (list) => list.map((f) => f.name + '\u0000' + f.time + '\u0000' + f.size).join('\u0001');
+  /* ★ S20G B-6 (#46 r1): the patch also re-derives each group's day label and each row's clock / date text from the
+     cached formatters (a Map hit each) and writes only what changed — a same-rows re-push after midnight (Today →
+     Yesterday) or an hour-cycle / language change is never left stale. */
+  function patchSenders() {
+    const by = new Map(current.map((f) => [f.name, f]));
+    const now = Date.now();
+    for (const sec of listEl.children) {
+      if (!sec._dlEp) continue;
+      const hl = sec.querySelector(':scope > .c-settings-dl__day > .c-settings-dl__day-label');
+      const lab = dlDayLabel(sec._dlEp, sec._dlKey, now, strings);
+      if (hl && hl.textContent !== lab) hl.textContent = lab;
+    }
+    for (const row of listEl.querySelectorAll('.c-settings-dl__row')) {
+      const f = by.get(row.dataset.name);
+      if (!f) continue;
+      if (f.senderKey) { if (row.dataset.sender !== f.senderKey) row.dataset.sender = f.senderKey; }
+      else if ('sender' in row.dataset) delete row.dataset.sender;
+      const meta = row.querySelector('.c-settings-dl__meta');
+      if (!meta) continue;                 // a photo cell: no time line (its size is in the row signature)
+      const sec = row.closest('.c-settings-dl__group');
+      const parts = rowParts(f, !!(sec && sec._dlTod));
+      if (row._dlSender !== (f.sender || '') || row._dlParts !== parts) { row._dlParts = parts; fillTimeLine(row, meta, f.sender || ''); }
+    }
+  }
   function render(list, opts) {
     if (opts && opts.sendersKnown) { sendersPending = false; clearTimeout(sendersBackstop); }
     current = (list || []).map((f) => Object.assign({}, f, { name: String(f && f.name != null ? f.name : '') }));
+    const was = senderKey;
     renderSenders(current);
+    const sig = sigOf(current);
     const has = current.length > 0;
     sum.hidden = !has;
     empty.hidden = has || waitingFirst;
     waitingFirst = false;
     searchWrap.hidden = current.length < SEARCH_MIN;
+    if (sig === rowSig && !was && !senderKey) {   // the same rows, no From filter: patch, never rebuild
+      paintControls();
+      patchSenders();
+      paintSelbar();
+      return;
+    }
+    rowSig = sig;
     paintSummary();
     paintList();
   }
@@ -33881,6 +34019,13 @@ const mk = (tag, cls, text) => {
 };
 /* {name} / {n} / {total} fill — the value lands in a text node, never in markup */
 const fillIn = (s, map) => String(s).replace(/\{(\w+)\}/g, (m, k) => (k in map ? String(map[k]) : m));
+/* ★ S20G R-2: the same fill as NODES — a slot whose value is a Node lands as that node (the nickname's <b>), every
+   other piece as a text node; nothing is parsed as markup. The translation keeps its {name} position. */
+const fillNodes = (s, map) => String(s).split(/(\{\w+\})/).filter(Boolean).map((part) => {
+  const k = /^\{(\w+)\}$/.exec(part);
+  const val = k && k[1] in map ? map[k[1]] : part;
+  return val instanceof Node ? val : document.createTextNode(String(val));
+});
 /* phone vs desktop wording = TWO keys chosen at runtime by data-desktop (typed-bubbles.js:840 pattern) */
 const onDesktop = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-desktop');
 /* ★ #46 r1: the "device" wording also fits a TABLET (it is not a phone). The shell's own
@@ -34374,13 +34519,13 @@ function buildWelcome(st) {
     b.className = 'c-launch__dot';
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-label', s.title);
-    b.addEventListener('click', () => { stopAuto(); go(i); });
+    b.addEventListener('click', () => { pauseAuto(); go(i); });
     dots.append(b);
     return b;
   });
   dots.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight') { stopAuto(); go(st.slide + 1); dotBtns[st.slide].focus(); }
-    if (e.key === 'ArrowLeft') { stopAuto(); go(st.slide - 1); dotBtns[st.slide].focus(); }
+    if (e.key === 'ArrowRight') { pauseAuto(); go(st.slide + 1); dotBtns[st.slide].focus(); }
+    if (e.key === 'ArrowLeft') { pauseAuto(); go(st.slide - 1); dotBtns[st.slide].focus(); }
   });
 
   st.slide = 0;
@@ -34407,22 +34552,51 @@ function buildWelcome(st) {
     });
   };
 
-  // gentle autoplay (premium-tour idiom): wraps every 7s until the user takes
-  // control (any manual nav/swipe = theirs now); prefers-reduced-motion = off;
+  // gentle autoplay (premium-tour idiom): wraps every 7s; prefers-reduced-motion = off;
   // self-stops when the shell leaves the DOM (demo/jsdom re-creation guard)
-  let autoTimer = null;
-  const stopAuto = () => { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } };
+  /* ★ S20G F-2: a manual nav (dot / arrow key / swipe) only PAUSES it — one resume timer, re-armed by
+     every further input on the welcome view; 15 s with no input → the next slide, then every 7 s again.
+     Create / Restore (stopAuto) end it for good; reduced motion = it never starts (and never resumes). */
+  let autoTimer = null, resumeT = 0, autoOn = false;
+  const AUTO_MS = 7000, RESUME_MS = 15000;      // ★ S20F W-5 (#1425): 5 s → 7 s (reading time) · ★ S20G F-2: the idle pause
+  const tick = () => {
+    if (!v.isConnected) { stopAuto(); return; }
+    if (st.view === 'welcome') go((st.slide + 1) % defs.length);
+  };
+  const runAuto = () => { clearInterval(autoTimer); autoTimer = setInterval(tick, AUTO_MS); };
+  const stopAuto = () => { autoOn = false; clearInterval(autoTimer); autoTimer = null; clearTimeout(resumeT); resumeT = 0; };
+  /* ★ S20G C-F2 (WCAG 2.2.2): keyboard / assistive-tech focus INSIDE the carousel (slides + dots) holds the pause
+     with NO resume timer; focus leaving re-arms the 15 s. A pointer-made focus (a tapped dot) is not a hold — the
+     modality is the last input: pointerdown = pointer, keydown = keyboard, a focus with neither (AT) = keyboard.
+     r2 M-2: the pointer modality is TIME-BOXED (1 s) — a screen reader's synthetic tap must not make every later AT focus count as pointer. */
+  let ptrAt = 0;
+  const ptrNow = () => ptrAt > 0 && Date.now() - ptrAt < 1000;
+  const inCar = (n) => !!n && (car.contains(n) || dots.contains(n));
+  const pauseAuto = () => {
+    if (!autoOn) return;
+    clearInterval(autoTimer); autoTimer = null;
+    clearTimeout(resumeT); resumeT = 0;
+    if (!ptrNow() && inCar(document.activeElement)) return;   // held: focusout re-arms
+    resumeT = setTimeout(() => { resumeT = 0; if (!autoOn) return; tick(); if (autoOn) runAuto(); }, RESUME_MS);
+  };
   const reduced = typeof matchMedia === 'function'
     && matchMedia('(prefers-reduced-motion: reduce)').matches;
   // only run autoplay when this shell actually BOOTS at welcome — every view is
   // built up front (welcome hidden on a retry boot), and a ticking timer on a
   // hidden welcome is pure waste (go() is view-gated anyway). Demo boots welcome.
-  if (!reduced && (st.opts.view || 'welcome') === 'welcome') {
-    autoTimer = setInterval(() => {
-      if (!v.isConnected) { stopAuto(); return; }
-      if (st.view === 'welcome') go((st.slide + 1) % defs.length);
-    }, 7000);   // ★ S20F W-5 (#1425): 5 s → 7 s (reading time)
-  }
+  if (!reduced && (st.opts.view || 'welcome') === 'welcome') { autoOn = true; runAuto(); }
+  /* any further touch / key on the welcome while paused re-arms the one resume timer (not the 7 s run) */
+  v.addEventListener('pointerdown', () => { ptrAt = Date.now(); }, true);
+  v.addEventListener('keydown', () => { ptrAt = 0; }, true);
+  v.addEventListener('pointerdown', () => { if (resumeT) pauseAuto(); });
+  v.addEventListener('keydown', () => { if (resumeT) pauseAuto(); });
+  const onFocusIn = () => {                        // only a user's focus lands here: go() never moves focus
+    if (!autoOn || ptrNow()) return;
+    clearInterval(autoTimer); autoTimer = null;
+    clearTimeout(resumeT); resumeT = 0;
+  };
+  const onFocusOut = (e) => { if (autoOn && !autoTimer && !inCar(e.relatedTarget)) pauseAuto(); };
+  for (const n of [car, dots]) { n.addEventListener('focusin', onFocusIn); n.addEventListener('focusout', onFocusOut); }
   st.stopAuto = stopAuto;
   st.els.carousel = car;
 
@@ -34508,12 +34682,12 @@ function buildWelcome(st) {
     const dx = e.clientX - downX;
     downX = null;
     if (Math.abs(dx) < 40) return;               // sanctioned: swipe threshold
-    stopAuto();
+    pauseAuto();
     go(st.slide + (dx < 0 ? 1 : -1));
   });
 
-  /* ★ S20F W-5 (#1425/#1426): one quiet line under the dots — plain text, not a link; hidden at L2 (CSS) */
-  v.append(car, dots, mk('p', 'c-launch__oss', strings.welcomeOpenSource || 'Open source'));
+  /* ★ S20F W-5 (#1425/#1426) → ★ S20G F-3: "Open source" moved INTO the version line (setLaunchVersion) */
+  v.append(car, dots);
 
   // — CTAs: always enabled, pinned; internal routing (the shell ABSORBS the
   //   legacy pages). ⚠ SUPERSEDED by #1421 (1): consent is recorded at THIS tap
@@ -34577,11 +34751,10 @@ function buildWelcome(st) {
 
   /* ★ #46 r3 (MINOR-A): the version line's room is RESERVED from the first paint (min-height
      in launch-shell.css) — C#'s setVersion arrives after it, and a line that appeared then
-     took ~32 px from the carousel and re-sized the art under the user's eyes. Empty = an
-     empty, aria-hidden box (nothing to announce). */
+     took ~32 px from the carousel and re-sized the art under the user's eyes.
+     ★ S20G F-3: the line always says "Open source" now (before setVersion: that alone). */
   const version = document.createElement('p');
   version.className = 'c-launch__version';
-  version.setAttribute('aria-hidden', 'true');
   v.append(version);
 
   st.els.version = version;
@@ -34991,9 +35164,9 @@ function buildCreate(st) {
     progress.setAttribute('aria-label', stepEl.textContent);
     if (n === 2) {
       const name = nickIn.value.trim();
-      sub2.textContent = fillIn(deviceWords()
+      sub2.replaceChildren(...fillNodes(deviceWords()
         ? (strings.create2SubDevice || '{name}, this password locks your chats and your wallet on this device.')
-        : (strings.create2SubPhone || '{name}, this password locks your chats and your wallet on this phone.'), { name });
+        : (strings.create2SubPhone || '{name}, this password locks your chats and your wallet on this phone.'), { name: mk('b', 'c-launch__nick', name) }));
       renderAvatar();
     }
     const pane = n === 1 ? pane1 : pane2;
@@ -35459,13 +35632,19 @@ function launchWelcomeFit(el) {
   if (st.fitArt) st.fitArt();
 }
 
-/** ← setVersion(Config.version) — quiet welcome footer line. */
+/** ← setVersion(Config.version) — quiet welcome footer line.
+ *  ★ S20G F-3: "Spixi 0.9.22 · Open source" — C# sends "spixi-0.9.22": a leading "spixi-" (any case) becomes
+ *  "Spixi ", anything else is shown as it is; no version = "Open source" alone. textContent only. */
 function setLaunchVersion(el, v) {
   const st = launchState.get(el);
   if (!st) return;
-  st.els.version.textContent = v || '';
-  // ★ #46 r3: never `hidden` — the box keeps its reserved height either way, only its text and a11y change
-  if (v) st.els.version.removeAttribute('aria-hidden'); else st.els.version.setAttribute('aria-hidden', 'true');
+  const strings = st.strings || {};
+  const oss = strings.welcomeOpenSource || 'Open source';
+  // ★ S20G (smoke trim gate): no trim — C# Config.version is a clean token; all-whitespace counts as empty
+  const raw = v == null || !/\S/.test(String(v)) ? '' : String(v);
+  const ver = /^spixi-/i.test(raw) ? 'Spixi ' + raw.slice(6) : raw;
+  // ★ #46 r3: never `hidden` — the box keeps its reserved height either way
+  st.els.version.textContent = ver ? ver + ' · ' + oss : oss;
 }
 
 /** ← showTerms() — C# only calls it when terms are NOT yet accepted. Premium
@@ -37254,5 +37433,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, formatFileSizeOf: formatFileSizeOf, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, clearRowHover: clearRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, LINKIFY_MAX: LINKIFY_MAX, urlSpans: urlSpans, parseFormat: parseFormat, formatSpans: formatSpans, stripFormat: stripFormat, renderFormat: renderFormat, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, applyFormat: applyFormat, mountFormatBar: mountFormatBar, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, composerMotion: composerMotion, emitComposerShift: emitComposerShift, bandY: bandY, canSlide: canSlide, slideBand: slideBand, stopBand: stopBand, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsRenderPlan: chatsRenderPlan, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, txDayLabel: txDayLabel, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, radioArrows: radioArrows, createThemePicker: createThemePicker, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, launchRingQuiet: launchRingQuiet, launchRingGeometry: launchRingGeometry, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, launchWelcomeFit: launchWelcomeFit, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, formatFileSizeOf: formatFileSizeOf, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, clearRowHover: clearRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, LINKIFY_MAX: LINKIFY_MAX, urlSpans: urlSpans, parseFormat: parseFormat, formatSpans: formatSpans, stripFormat: stripFormat, renderFormat: renderFormat, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, applyFormat: applyFormat, mountFormatBar: mountFormatBar, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, composerMotion: composerMotion, emitComposerShift: emitComposerShift, bandY: bandY, canSlide: canSlide, slideBand: slideBand, stopBand: stopBand, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsRenderPlan: chatsRenderPlan, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, txDayLabel: txDayLabel, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, DL_GLYPH: DL_GLYPH, createKindTile: createKindTile, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, radioArrows: radioArrows, createThemePicker: createThemePicker, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, launchRingQuiet: launchRingQuiet, launchRingGeometry: launchRingGeometry, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, launchWelcomeFit: launchWelcomeFit, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

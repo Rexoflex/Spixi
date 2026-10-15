@@ -261,6 +261,7 @@
      start, so the card says a change acts after a restart. */
   let flagsDev = null;   // [securePassOn, mediaGateOn] once C# told us
   let flagsDevS20 = null;   // ★ S20 (P29): the S20FileSize switch, its own push (setFlagsDev stays at 4 digits)
+  let flagsDevS20G = null;   // ★ S20G (P30, #46 r1 A-4): the S20G switch, its own push the same way
   const RESET_QUIET_MS = 1000;   // ★ S19 F8 (#1371): taps on Reset moment sheets inside this window after one are ignored
   let lastResetAt = -1e9;
   function mountFlagsDev() {
@@ -282,6 +283,7 @@
     if (flagsDev.length > 2) rows.push(['s17', strings.devFlagsS17 || 'What’s new and the About bar ink (S17)']);   // ★ S17 (P26)
     if (flagsDev.length > 3) rows.push(['s17m', strings.devFlagsS17m || 'Moment sheets (S17)']);   // ★ S17 F (P28)
     if (flagsDevS20 !== null) rows.push(['s20size', strings.devFlagsS20Size || 'File size on sent files (S20)', flagsDevS20]);   // ★ S20 E (P29)
+    if (flagsDevS20G !== null) rows.push(['s20g', strings.devFlagsS20G || 'Restore keeps contacts, Account closes the chat (S20G)', flagsDevS20G]);   // ★ S20G (P30)
     rows.forEach(([name, label, own], i) => {
       const row = document.createElement('div');
       row.className = 'c-settings__row c-settings__row--static';
@@ -387,6 +389,13 @@
       const w = String(v || '');
       if (w !== '0' && w !== '1') return;
       flagsDevS20 = w === '1';
+      mountFlagsDev();
+    },
+    /* ★ S20G (P30, #46 r1 A-4): the S20G switch ("0" | "1"); C# pushes it after setFlagsDevS20. */
+    setFlagsDevS20G(v) {
+      const w = String(v || '');
+      if (w !== '0' && w !== '1') return;
+      flagsDevS20G = w === '1';
       mountFlagsDev();
     },
   };

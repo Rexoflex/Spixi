@@ -16,6 +16,7 @@ namespace SPIXI
         public const string S17BridgeKey = "flagS17Bridge";                 // int pref; absent = default (1) — ★ S17 (#1338/#1339, P26)
         public const string S17MomentsKey = "flagS17Moments";               // int pref; absent = default (1) — ★ S17 F (#1340, P28)
         public const string S20FileSizeKey = "flagS20FileSize";             // int pref; absent = default (1) — ★ S20 E (#1376, P29)
+        public const string S20GKey = "flagS20G";                           // int pref; absent = default (1) — ★ S20G F-1 + P0 (P30)
 
         /** L8: the wallet password lives in SecureStorage (WalletPassStore). OFF = the legacy plaintext preference. */
         public static bool SecureWalletPass { get; private set; } = true;
@@ -37,10 +38,16 @@ namespace SPIXI
          *  offers only — the old behaviour). */
         public static bool S20FileSize { get; private set; } = true;
 
+        /** ★ S20G (P30): ONE flag for all the S20G C# — F-1 (opening Account closes the open conversation first, so a chat
+         *  under Account never counts as displayed: HomePage.onSettings) and P0 (a restore keeps the contact list it
+         *  replaces in a dated folder and asks first when the device still holds contacts: LaunchPage, RestoreMoves).
+         *  OFF = exactly the old behaviour. (The delete-account wipe of the kept folders is NOT behind it: privacy.) */
+        public static bool S20G { get; private set; } = true;
+
         public static void init()
         {
             bool dev = false;
-            int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1;
+            int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1, sg = 1;
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -49,6 +56,7 @@ namespace SPIXI
                 sb = Preferences.Default.Get(S17BridgeKey, 1);
                 sm = Preferences.Default.Get(S17MomentsKey, 1);
                 fs = Preferences.Default.Get(S20FileSizeKey, 1);
+                sg = Preferences.Default.Get(S20GKey, 1);
             }
             catch (Exception ex)
             {
@@ -65,6 +73,8 @@ namespace SPIXI
             Logging.info(S17MomentRules.flagLine(S17Moments));
             S20FileSize = S16PassRules.effectiveFlag(dev, fs);
             Logging.info(S11MediaRules.fileSizeFlagLine(S20FileSize));
+            S20G = S16PassRules.effectiveFlag(dev, sg);
+            Logging.info(S20GRules.flagLine(S20G));
         }
     }
 }

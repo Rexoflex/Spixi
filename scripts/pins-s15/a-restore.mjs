@@ -43,7 +43,9 @@ export default async function (h) {
     onlyRehomeMove: (restore.match(/File\.Move\(/g) || []).length === 1 && /File\.Move\(strayFile, rehomed\);/.test(restore)
       && !/Directory\.Move\(/.test(restore),
     planned: /RestoreMoves\.plan\(tmpDirectory, Config\.spixiUserFolder,\s*IxianHandler\.localStorage\.getOwnAvatarPath\(false\), Config\.walletFile\)/.test(restore)
-      && /RestoreMoves\.apply\(moves, Path\.Combine\(Config\.spixiUserFolder, RestoreStashFolder\), out string\? moveFail\)/.test(restore),
+      /* ★ S20G P0 re-base: the stash path is a local now and keepStash = the S20G flag (pins-s20g/h-csharp pins the keep) */
+      && /string stashDir = Path\.Combine\(Config\.spixiUserFolder, RestoreStashFolder\);/.test(restore)
+      && /RestoreMoves\.apply\(moves, stashDir, keepPrev, out string\? moveFail\)/.test(restore),
     movesBeforePrefs: (() => {   // ★ S15 #46 r1 (R3 M1): the exact guard, ending in the Failed return, before the prefs
       const g = 'if (moveResult != RestoreMoves.Result.Done)';
       const gi = restore.indexOf(g), pi = restore.indexOf('applyRestorePrefs(pass);');

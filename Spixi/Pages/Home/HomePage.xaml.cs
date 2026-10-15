@@ -2274,9 +2274,11 @@ namespace SPIXI
          * ⚠ A conversation that is CLOSED is one `Utils.getChatPage` no longer finds, so an
          * arriving message notifies instead of rendering silently into a hidden page
          * (Node.cs:1164) — which is the correct behaviour for a chat that is not open. */
-        private void closeChatOverlays()
+        /* ★ S20G F-1: `anyWidth` = Account (onSettings) — it covers a conversation on a narrow window too (the phone's
+         * "Open Settings" from a chat), so there the belt is off. Every other caller keeps the wide-only belt. */
+        private void closeChatOverlays(bool anyWidth = false)
         {
-            if (!rightContent.IsVisible)
+            if (!rightContent.IsVisible && !anyWidth)
             {
                 return;
             }
@@ -2920,6 +2922,19 @@ namespace SPIXI
             }
 
             fromSettings = true;
+            /* ★ S20G F-1 (flag S20G, P30): opening Account CLOSES the open conversation first, exactly as a Wallet / Apps
+             * tab switch does (#897). SettingsPage presents as an overlay ABOVE a chat (replaces: null, both branches
+             * below), so the chat stayed in getOverlayPages → Utils.getChatPage found it → isChatScreenDisplayed was TRUE
+             * under Account: a message that arrived then raised no unread count / rail badge (Node.cs, the #1148 rule)
+             * and SingleChatPage.updateMessageReadStatus sent a READ RECEIPT for a message nobody saw. Both branches:
+             * the desktop rail pane AND the phone path (a chat's "Open Settings" → SettingsPage.openAt), so the sweep
+             * runs WITHOUT its wide-only belt here. Before every presentation path below (warm claim, parked re-present,
+             * fresh push). Closing Account afterwards lands on the chats list with no conversation — Damir's #897 trade.
+             * OFF = the old path (the chat stays under Account). */
+            if (S20GRules.closeChatOnAccount(SpixiFlags.S20G))
+            {
+                closeChatOverlays(true);
+            }
             // Load-then-move (N3): Account opens as a #225 overlay. #245 (Damir: "same
             // peer as wallet/apps/chats, NOT a distant pane"): on a WIDE window the
             // settings WebView spans the WHOLE grid minus the rail strip — the home
@@ -5558,6 +5573,10 @@ namespace SPIXI
                  * the next conversation open cold, and whether it costs the wallet's paint
                  * anything is unmeasured (#294). */
                 bool chatsListOnScreen = currentTab == "tab1" && !homeShellTakeoverOpen;   // r2: the L6 hand-off closes a chat on tab1 UNDER a full-shell takeover — the same predicate the hero colour already uses
+                if (SpixiFlags.S20G && fromSettings)
+                {
+                    chatsListOnScreen = false;   // ★ S20G F-1: closed for the Account overlay (onSettings) — the chats list is not on screen
+                }
                 if (chatsListOnScreen)
                 {
                     checkForRating();

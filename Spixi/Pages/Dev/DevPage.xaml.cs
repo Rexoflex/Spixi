@@ -100,6 +100,25 @@ namespace SPIXI
                 }
                 pushFlagsDev();
             }
+            else if (current_url.StartsWith("ixian:devflash:s20g:", StringComparison.Ordinal))
+            {
+                /* ★ S20G #46 r1 (A-4, #1312 rule 1, P30, dev surface): `ixian:devflash:s20g:<0|1>` — SpixiFlags.S20G (Account
+                 * closes the open chat, the restore keeps the replaced contacts + asks first); the s20size switch's rules
+                 * exactly: dev mode on and "0" / "1", or nothing is stored; acts at the next start. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false)
+                        && S16PassRules.parseFlagTail(current_url.Substring("ixian:devflash:s20g:".Length), out int value))
+                    {
+                        Preferences.Default.Set(SpixiFlags.S20GKey, value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: flag switch failed: " + ex.GetType().Name);
+                }
+                pushFlagsDev();
+            }
             else if (current_url.StartsWith("ixian:devflash:s17m:", StringComparison.Ordinal))
             {
                 /* ★ S17 F (#1312 rule 1, P28, dev surface): `ixian:devflash:s17m:<0|1>` — SpixiFlags.S17Moments (the Moment
@@ -290,7 +309,7 @@ namespace SPIXI
          *  acts in THIS run is SpixiFlags (read at start); the row says a change acts after a restart. Guarded reference. */
         private void pushFlagsDev()
         {
-            int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1;
+            int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1, sg = 1;
             try
             {
                 sp = Preferences.Default.Get(SpixiFlags.SecureWalletPassKey, 1);
@@ -298,6 +317,7 @@ namespace SPIXI
                 sb = Preferences.Default.Get(SpixiFlags.S17BridgeKey, 1);
                 sm = Preferences.Default.Get(SpixiFlags.S17MomentsKey, 1);
                 fs = Preferences.Default.Get(SpixiFlags.S20FileSizeKey, 1);
+                sg = Preferences.Default.Get(SpixiFlags.S20GKey, 1);
             }
             catch (Exception)
             {
@@ -309,6 +329,8 @@ namespace SPIXI
              * anchored at four digits, so a fifth would hide the whole card; a shell without the handler ignores this push
              * (executeUiCommand: not a function). The dev.html row is a request (S20 S report). */
             Utils.sendUiCommand(this, "window.setFlagsDevS20", fs == 0 ? "0" : "1");
+            // ★ S20G #46 r1 (A-4, P30): the S20G switch, its own guarded push the same way (an older dev.html ignores it)
+            Utils.sendUiCommand(this, "window.setFlagsDevS20G", sg == 0 ? "0" : "1");
         }
 
         // #321 (R5 parity): share/save the CURRENT log. The share copy is a stable

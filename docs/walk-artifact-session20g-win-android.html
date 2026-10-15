@@ -1,0 +1,226 @@
+<title>Spixi Session 20G Walk</title>
+<style>
+/* Layout: one narrow column — commit steps, then a Windows part and an Android part (each: build steps, then walk rows), a sticky tally bar.
+   Tokens follow the Spixi redesign palette (ink neutrals, the Spixi blue). */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:780px;margin:0 auto;padding-inline:16px;padding-block:20px 110px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:8px 0 0;text-wrap:balance;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .tag{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 8px}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:8px;flex-wrap:wrap}
+nav.jump a{font:600 13px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:5px 12px;text-decoration:none}
+nav.jump a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps li{min-width:0}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.cmd button,.ctl button{font:600 12px var(--font);border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;flex:none}
+.exp{font-size:13px;color:var(--ink-2)}
+.exp b{color:var(--ink)}
+code{font:13px var(--mono);background:var(--brand-soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-inline-start:4px solid var(--line)}
+.row[data-v="P"]{border-inline-start-color:var(--pass)}.row[data-v="F"]{border-inline-start-color:var(--fail)}.row[data-v="N"]{border-inline-start-color:var(--na)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.id{font:600 13px var(--mono);color:var(--brand)}
+.title{font-weight:600;min-width:0;flex:1}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--ink-2);font-size:13px}dd{margin:0;min-width:0}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ctl button[aria-pressed="true"][data-k="P"]{background:var(--pass-soft);color:var(--pass);border-color:var(--pass)}
+.ctl button[aria-pressed="true"][data-k="F"]{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+.ctl button[aria-pressed="true"][data-k="N"]{background:var(--na-soft);color:var(--na);border-color:var(--na)}
+textarea{width:100%;box-sizing:border-box;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:780px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tally{font:600 14px var(--font);font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.tally b.p{color:var(--pass)}.tally b.f{color:var(--fail)}.tally b.n{color:var(--na)}
+.bar button{font:600 14px var(--font);border:0;border-radius:999px;padding:9px 18px;cursor:pointer;background:var(--brand);color:var(--bg)}
+.bar button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+#out{width:100%;min-height:120px;font:13px var(--mono)}
+.grp{font:600 12px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin:12px 0 0;text-wrap:balance}
+.both{font:600 11px var(--font);color:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:1px 7px}
+.note{font-size:13px;color:var(--ink-2);border-inline-start:3px solid var(--brand);padding-inline-start:10px}
+</style>
+
+
+<div class="wrap">
+  <header>
+    <h1>Spixi Session 20G Walk</h1>
+    <p class="sub"><b>Session 20G — the S20F walk fix round (#1415–#1423, #1428, #1446): P0 restore keeps contacts, Account closes the open chat, darker dark incoming bubbles, the premium selected chip, the code look, one switch geometry, Downloads scrolling, the welcome / create / restore fixes.</b> Apply the patch and commit, build Windows (F5) and Android, then walk. C# changed (behind flagS20G). ★ COPY YOUR DATA FOLDER FIRST (set-up below).</p>
+  </header>
+  <nav class="jump" aria-label="Parts">
+    <a href="#setup">1 · Set-up</a><a href="#windows">2 · Windows</a><a href="#android">3 · Android</a>
+  </nav>
+
+  <h2 id="setup">Set-up <span class="tag">fresh PowerShell</span></h2>
+  <section class="box">
+    <h3>Patch + commit</h3>
+    <ol class="steps" id="steps-commit"></ol>
+  </section>
+  <section class="box">
+    <h3>Test data (have it before you start)</h3>
+    <ol class="steps" id="steps-data"></ol>
+  </section>
+  <p class="note"><b>★ Copy your data first (L149).</b> Close Spixi. PowerShell: <code>Copy-Item -Recurse "$env:USERPROFILE\Documents\Spixi" "$env:USERPROFILE\Documents\Spixi-copy-$(Get-Date -Format yyyyMMdd-HHmm)"</code>. Welcome rows on Windows: rename <code>Documents\Spixi</code> to <code>Spixi-mine</code>, F5 (empty folder = welcome); when done rename the new folder to <code>Spixi-test</code> and <code>Spixi-mine</code> back to <code>Spixi</code>. Android: a TEST phone (Clear storage). Never Restore into a folder that holds contacts you need.</p>
+
+  <h2 id="windows">Windows <span class="tag">F5</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-win"></ol>
+  </section>
+  <div id="rows-win"></div>
+
+  <h2 id="android">Android <span class="tag">Debug</span></h2>
+  <section class="box">
+    <h3>Build + deploy</h3>
+    <ol class="steps" id="steps-and"></ol>
+  </section>
+  <div id="rows-and"></div>
+  <p class="note">iPhone / Mac rows are NOT here — they are the office sheet (docs/office-walk-sheet-v1.md §15).</p>
+  <textarea id="out" readonly aria-label="Results text" hidden></textarea>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <button type="button" class="ghost" id="reset">Clear</button>
+  <button type="button" id="copy">Copy results</button>
+</div></div>
+
+<script>
+const REPO = 'C:\\Users\\Damir\\Claude\\Projects\\Spixi Rework Of Frontend\\Spixi';
+const ADB = '& "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe"';
+const WIPE_BIN = `cmd /c rd /s /q "\\\\?\\${REPO}\\Spixi\\bin"`;
+const WIPE_OBJ = 'Remove-Item -Recurse -Force Spixi\\obj -ErrorAction SilentlyContinue';
+const STEPS = {
+  commit: [
+    ["Open a new PowerShell window. Go to the repo.", `cd "${REPO}"`, ""],
+    ["Check the tree.", "git --no-optional-locks status --short", "Only untracked files (your notes). Other changes: stop and paste them."],
+    ["Apply the patch and commit. The commands are in the delivery message.", "", "See the delivery message (base hash, file count, commit subject, push)."],
+  ],
+  data: [
+    ["Chats on several canvases (Mist, Meadow, Dusk, Ocean…) with code messages and a reply quote (N1-DARK, F5-CODE).", "", ""],
+    ["A settled payment pill + a missed call card (Q5-ACCENT); shared files in a chat (Q1-FILES); a backup file of a TEST account (P0-ASK).", "", ""],
+    ["A wallet with 50+ rows (R4-HERO).", "", ""],
+    ["20+ downloaded files from several contacts (R5-DL).", "", ""],
+    ["A second device as the peer.", "", ""],
+  ],
+  win: [
+    ['Close Visual Studio (the wipe needs the files free).', '', ''],
+    ['Delete the build output: bin first (a WebView2 file has a 261-char path; Remove-Item stops on it, L139).', WIPE_BIN, 'No output.'],
+    ['Delete obj.', WIPE_OBJ, 'No output.'],
+    ['Open the solution in Visual Studio.', `start "${REPO}\\SPIXI.sln"`, ''],
+    ['Set the target.', '', 'Configuration <b>Debug</b>, target <b>Windows Machine</b>.'],
+    ['Press F5. Never use dotnet build for Windows (#663).', '', 'The app starts. A build error: paste it in the chat.'],
+    ['Walk the Windows rows below. Use a wide window.', '', ''],
+    ['Save the log.', '', 'Developer page → <b>Send log</b>. It saves <b>Downloads\\spixi-log-&lt;date&gt;.txt</b>.'],
+    ['Copy the log next to the other outputs (NOT into the repo folder).', 'Copy-Item "$env:USERPROFILE\\Downloads\\spixi-log-*.txt" "..\\Claude outputs\\" ', 'Use the newest file if there are many.'],
+  ],
+  and: [
+    ['Close Visual Studio. Delete bin (the html changed, #320 / #449).', WIPE_BIN, 'No output.'],
+    ['Delete obj.', WIPE_OBJ, 'No output.'],
+    ['Connect the phone with USB. Check it.', ADB + ' devices', 'One line ending with <b>device</b>.'],
+    ['Make the log buffer large.', ADB + ' logcat -G 16M', 'No output.'],
+    ['Clear the log.', ADB + ' logcat -c', 'No output.'],
+    ['Build and deploy Debug.', 'dotnet build Spixi\\Spixi.csproj -f net10.0-android -c Debug -t:Run', 'The app opens on the phone. A build error: paste it.'],
+    ['Walk the Android rows below.', '', ''],
+    ['Show the Downloads and flag lines. Copy them into the chat.', ADB + " logcat -d -v time | Select-String '\\[DOWNLOADS\\]|\\[FLAGS\\]|\\[RESTORE\\]'", 'Includes <b>[FLAGS] … s20g=1</b> and the <b>[DOWNLOADS] …</b> lines (R5-DL).'],
+    ['Save the full log as UTF-8.', ADB + ' logcat -d -v time | Out-File -Encoding utf8 "..\\Claude outputs\\android-s20g.txt"', 'A file of a few MB.'],
+  ],
+};
+const W = 'w', A = 'a';
+const ROWS = [{"p": "aw", "g": "BUILD · this build only", "id": "S20G-BUILD", "t": "S20G-BUILD", "d": "1) Build (set-up b / c). 2) Look at the chats filter chips in dark. 3) Windows: ixian.log.", "e": "The selected chip (\"All\") has WHITE text, a soft top light and a quieter outline (only this build). The log has [FLAGS] … s20g=1."}, {"p": "w", "g": "P0 · restore keeps contacts (#1417)", "id": "P0-ASK", "t": "P0-ASK", "d": "1) Set-up (0) and (d). In the TEST folder create an account (nickname \"walk1\"), add or accept one contact. 2) Close Spixi. Rename wallet.ixi in the TEST folder to wallet.ixi.off. 3) F5 → welcome → Restore → pick a backup file → password → Restore account. 4) Tap Cancel. 5) Again: Restore account → Restore.", "e": "3: a native question \"Replace the contacts on this device?\" with Cancel / Restore. 4: nothing changes; you stay on the restore form. 5: Home with the backup's contacts. In the TEST folder there is a new folder restore-previous-<date-time> holding Acc + account.ixi of \"walk1\". ixian.log: [RESTORE] kept the previous contact list (n items)."}, {"p": "w", "g": "P0 · restore keeps contacts (#1417)", "id": "P0-WIPE", "t": "P0-WIPE", "d": "1) After P0-ASK: Account › Delete data… › Delete account. 2) Look in the TEST folder.", "e": "No restore-previous-* folder is left."}, {"p": "aw", "g": "Chat", "id": "N1-DARK", "t": "N1-DARK", "d": "1) Dark. 2) Open a chat on each canvas: Mist, Iris, Meadow, Spixi, Aurora, Dusk, Ocean.", "e": "The incoming bubbles are clearly darker than the outgoing ones (S20F: too close), still visible on the ground; a reply quote inside them shows."}, {"p": "aw", "g": "Chat", "id": "F5-CODE", "t": "F5-CODE", "d": "1) Meadow, light. Send ⟦ok smoke and npm install --save x⟧. 2) Send a 3-line message ⟦⟧ · ⟦node scripts/build-shells.mjs --check⟧ · ⟦⟧. 3) Dark. 4) Android: display size largest.", "e": "1: the code outline on the green bubble is light and quiet, not heavy; a chip that breaks onto the next line does not run past the bubble. 2: the long code line WRAPS inside the bubble (no cut text, no sideways scroll). 4: nothing runs past the bubble edge."}, {"p": "aw", "g": "Chat", "id": "Q5-ACCENT", "t": "Q5-ACCENT", "d": "1) Meadow, then Dusk, light and dark. 2) A settled payment pill: hover / press \"Details\" (Windows: mouse). 3) A missed call card: look at the call-back disc; hover / press it.", "e": "2: the medallion turns the canvas colour (green on Meadow, pink on Dusk), not the global blue. 3: the disc is a soft canvas tint with a canvas-colour phone icon."}, {"p": "a", "g": "Chat", "id": "R6-PHOTOS", "t": "R6-PHOTOS", "d": "1) Open a chat, keyboard closed. 2) ⊕ › Photos › pick 2 photos › Send. 3) Type text › Send.", "e": "2: the photos send; the keyboard does NOT open. 3: after a text send the keyboard stays open as before."}, {"p": "aw", "g": "Chat", "id": "N2-CHIP", "t": "N2-CHIP", "d": "1) Dark: chats filter chips; tap Unread, then All. 2) Light. 3) Chat info › Media / Files / Links chips. 4) Windows: hover a selected chip.", "e": "Dark: the selected chip has white text, a soft top light, a quieter blue outline. Light: deep-blue text. The chip does not look like a button. 4: hover darkens it a little; text stays readable."}, {"p": "w", "g": "Home · Account · Wallet · Downloads", "id": "F1-RAIL", "t": "F1-RAIL", "d": "1) Wide window. Open a chat with contact X. 2) Open Account (rail). 3) X sends you a message. 4) Look at the rail. 5) Close Account (rail: Chats). 6) On X's phone: look at the message ticks.", "e": "4: the rail Chats badge shows 1. 5: the chats list, no chat open; X's row is unread. 6: X's message is NOT marked read until you open the chat."}, {"p": "a", "g": "Home · Account · Wallet · Downloads", "id": "F1-PHONE", "t": "F1-PHONE", "d": "1) Open a chat. 2) Open Account (bottom bar / the chat's settings path). 3) The peer sends a message. 4) Back.", "e": "3: the Chats tab badge shows 1. 4: the chats list (the chat is closed)."}, {"p": "aw", "g": "Home · Account · Wallet · Downloads", "id": "R1-SWITCH", "t": "R1-SWITCH", "d": "1) Account: App lock + Confirm payments. 2) Privacy. 3) Notifications. 4) New group › Blind group. Light + dark; Windows wide window.", "e": "Every switch sits in the vertical middle of its title + description block — the same on every screen; no description runs under a switch."}, {"p": "a", "g": "Home · Account · Wallet · Downloads", "id": "R4-HERO", "t": "R4-HERO", "d": "1) Wallet with 50+ rows. 2) Scroll down slowly, then up to the top. 3) Hide the balance and do 2 again.", "e": "The hero shrinks and opens a bit slower (380 ms, was 300) in one smooth motion; the list does not shake. Say if it should be slower / faster."}, {"p": "a", "g": "Home · Account · Wallet · Downloads", "id": "R5-DL", "t": "R5-DL", "d": "1) 20+ downloaded files from several contacts. 2) Account › Downloads. 3) Start scrolling at once, fast, for 10 s. 4) Leave and open again; scroll.", "e": "The list scrolls smoothly from the first second (no hitch when the \"From\" senders arrive); the \"From: Everyone\" row does not push the list down."}, {"p": "aw", "g": "Home · Account · Wallet · Downloads", "id": "Q1-FILES", "t": "Q1-FILES", "d": "1) A chat with shared files (PDF, ZIP, MP3). 2) Chat info › Files. 3) Compare with Account › Downloads.", "e": "The Files rows look like the Downloads rows: the coloured type tile with the format tag, the name, size · date; \"Not on this device\" still shows for files you do not have. No lines between rows (chat info rule)."}, {"p": "aw", "g": "Launch · welcome / create / restore (set-up 0 + d)", "id": "F2-AUTO", "t": "F2-AUTO", "d": "1) Welcome, cold start. Do not touch; time it. 2) Swipe to slide 3. Wait 15 s, then keep waiting. 3) Windows: Settings › Accessibility › Visual effects › Animation effects ON for this row.", "e": "1: the slide changes about every 7 s. 2: after your swipe it waits ~15 s, then moves on and keeps turning every 7 s. (With Animation effects OFF it never turns — by design.)"}, {"p": "aw", "g": "Launch · welcome / create / restore (set-up 0 + d)", "id": "F3-VERSION", "t": "F3-VERSION", "d": "1) Welcome. 2) Android: largest display size. 3) Windows: 800 × 600. 4) Deutsch, Русский.", "e": "The bottom line reads \"Spixi 0.9.22 · Open source\"; no separate \"Open source\" line under the dots. Nothing clips."}, {"p": "w", "g": "Launch · welcome / create / restore (set-up 0 + d)", "id": "F4-FILE", "t": "F4-FILE", "d": "1) Restore. Hover \"Choose backup file\". 2) Pick a file; hover the card again. 3) Tab to it.", "e": "1–2: the card lightens on hover in both states. 3: the focus ring shows."}, {"p": "aw", "g": "Launch · welcome / create / restore (set-up 0 + d)", "id": "R2-NICK", "t": "R2-NICK", "d": "1) Create: nickname \"Damir\". Continue.", "e": "Step 2: \"Damir\" is bold and bright in \"Damir, this password locks…\"."}, {"p": "w", "g": "Launch · welcome / create / restore (set-up 0 + d)", "id": "R3-STEP2", "t": "R3-STEP2", "d": "1) Create step 2 (window ~1126 × 710, then maximised). 2) Type the first password character; keep typing.", "e": "1: the step-2 progress segment fills with a short motion. 2: nothing below the field moves when the strength line appears; the strength bar grows smoothly."}, {"p": "aw", "g": "Launch · welcome / create / restore (set-up 0 + d)", "id": "Q2-SLIDES", "t": "Q2-SLIDES", "d": "1) Welcome: read slides 1–4. 2) 320-wide phone or Windows narrow window. 3) Русский.", "e": "The slide text sits tighter (smaller line gap); the art is the same or larger; no text clipped; in Русский the art shows on a small screen."}, {"p": "a", "g": "Launch · welcome / create / restore (set-up 0 + d)", "id": "Q3-RESTORE", "t": "Q3-RESTORE", "d": "1) Deutsch, Русский, Français, on the smallest phone / largest display size. 2) Welcome.", "e": "\"Konto wiederherstellen\" / \"Восстановить аккаунт\" / \"Restaurer un compte\" fit inside the button (no text over the outline)."}, {"p": "aw", "g": "Launch · welcome / create / restore (set-up 0 + d)", "id": "HINT-IXI", "t": "HINT-IXI", "d": "1) A fresh account. 2) The wallet hint card (Home / Wallet tip).", "e": "Its title reads \"Send IXI like a message\" (no \"money\")."}];
+
+const KEY = 'spixi-walk-session20g-v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function el(tag, attrs, kids){ const n = document.createElement(tag); for (const k in (attrs||{})) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'html') n.innerHTML = attrs[k]; else n.setAttribute(k, attrs[k]); } (kids||[]).forEach(c => c && n.append(c)); return n; }
+/* ⟦…⟧ = text to type or a log line → a <code> node (DOM-built, no innerHTML) */
+function rich(tag, text){ const n = document.createElement(tag); String(text).split(/⟦([^⟧]*)⟧/).forEach((part, i) => { if (i % 2) n.append(el('code', {text: part})); else if (part) n.append(part); }); return n; }
+async function copyText(text, btn){
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { const out = document.getElementById('out'); out.hidden = false; out.value = text; out.focus(); out.select(); btn.textContent = 'Select + Ctrl+C'; }
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+}
+function renderSteps(id, list){
+  const ol = document.getElementById(id);
+  list.forEach(([say, cmd, expect]) => {
+    const li = el('li', {}, [el('span', {text: say})]);
+    if (cmd) {
+      const b = el('button', {type:'button', 'aria-label':'Copy command'}); b.textContent = 'Copy'; b.dataset.label = 'Copy';
+      b.addEventListener('click', () => copyText(cmd, b));
+      li.append(el('div', {class:'cmd'}, [el('pre', {text: cmd}), b]));
+    }
+    if (expect) li.append(el('div', {class:'exp', html: 'Expect: ' + expect}));
+    ol.append(li);
+  });
+}
+renderSteps('steps-commit', STEPS.commit);
+renderSteps('steps-data', STEPS.data);
+renderSteps('steps-win', STEPS.win);
+renderSteps('steps-and', STEPS.and);
+/* one mark per row per platform: an A+W row is two cards, keyed id@w / id@a */
+const ITEMS = [];
+for (const plat of [W, A]) ROWS.filter(r => r.p.includes(plat)).forEach(r => ITEMS.push({ r, plat, key: r.p === 'aw' ? r.id + '@' + plat : r.id }));
+function renderRows(){
+  for (const [host, plat] of [['rows-win', W], ['rows-and', A]]) {
+    const box = document.getElementById(host); box.innerHTML = ''; box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '12px';
+    let grp = '';
+    ITEMS.filter(it => it.plat === plat).forEach(({ r, key }) => {
+      if (r.g !== grp) { grp = r.g; box.append(el('h3', {class:'grp', text: grp})); }
+      const s = state[key] || {};
+      const card = el('article', {class:'row', 'data-v': s.v || ''});
+      const top = el('div', {class:'top'}, [el('span', {class:'id', text:r.id}), el('span', {class:'title', text:r.t})]);
+      if (r.p === 'aw') top.append(el('span', {class:'both', text:'A+W'}));
+      card.append(top);
+      card.append(el('dl', {}, [el('dt', {text:'Do'}), rich('dd', r.d), el('dt', {text:'Pass if'}), rich('dd', r.e)]));
+      const ctl = el('div', {class:'ctl'});
+      [['P','Pass'],['F','Fail'],['N','N/A']].forEach(([k, lab]) => {
+        const b = el('button', {type:'button', 'data-k':k, 'aria-pressed': s.v === k ? 'true' : 'false'}); b.textContent = lab;
+        b.addEventListener('click', () => { state[key] = Object.assign({}, state[key], {v: s.v === k ? '' : k}); save(); renderRows(); tally(); });
+        ctl.append(b);
+      });
+      card.append(ctl);
+      const ta = el('textarea', {id:'note-' + key, 'aria-label':'Note for ' + r.id + (r.p === 'aw' ? (plat === W ? ' on Windows' : ' on Android') : ''), placeholder:'Note (what you saw, numbers, paste lines)'});
+      ta.value = s.n || '';
+      ta.addEventListener('input', () => { state[key] = Object.assign({}, state[key], {n: ta.value}); save(); });
+      card.append(ta);
+      box.append(card);
+    });
+  }
+}
+function counts(){ let p=0,f=0,n=0; ITEMS.forEach(it => { const v = (state[it.key]||{}).v; if (v==='P') p++; else if (v==='F') f++; else if (v==='N') n++; }); return {p,f,n}; }
+function tally(){ const c = counts(); const left = ITEMS.length - c.p - c.f - c.n;
+  document.getElementById('tally').innerHTML = `<b class="p">${c.p} P</b> · <b class="f">${c.f} F</b> · <b class="n">${c.n} N/A</b> · ${left} open`; }
+document.getElementById('copy').addEventListener('click', (ev) => {
+  const c = counts();
+  const lines = ITEMS.map(({ r, plat, key }) => { const s = state[key] || {}; const v = s.v === 'P' ? 'P' : s.v === 'F' ? 'F' : s.v === 'N' ? 'N/A' : '—'; return `${r.id} [${plat === W ? 'W' : 'A'}]: ${v}${s.n ? ' — ' + s.n.replace(/\n+/g, ' / ') : ''}`; });
+  const text = `Walk session 20 (Windows F5 + Android Debug): ${c.p} P · ${c.f} F · ${c.n} N/A\n` + lines.join('\n');
+  const b = ev.currentTarget; b.dataset.label = 'Copy results'; copyText(text, b);
+});
+document.getElementById('reset').addEventListener('click', (ev) => {
+  const b = ev.currentTarget;
+  if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Clear'; }, 2500); return; }
+  state = {}; save(); b.dataset.armed = ''; b.textContent = 'Clear'; renderRows(); tally();
+});
+renderRows(); tally();
+</script>

@@ -1696,13 +1696,23 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
    out-specified active by one pseudo-class, so the pressed rung never painted
    on a mouse. :not([data-readonly]) also stops display-tag chips (spans — they
    match :active) from wearing the selected skin (loop r1 MINOR).
-   Contrast, non-text ≥3:1 (WCAG 1.4.11), executable in smoke (#358 pins):
+   Contrast, non-text ≥3:1 (WCAG 1.4.11), smoke #358 — the plain (no color-mix) outline vs the fill:
    light rest 600-on-100 = 4.73 · hover 700-on-200 = 6.28 · press 800-on-100 = 9.67
-   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62 */
+   dark  rest 400-on-800 = 5.47 · hover 300-on-600 = 3.44 · press 200-on-800 = 8.62
+   ★ S20G N-2 (r1 B-4): the color-mix 60 % outline is measured vs the GROUND, ≥ 3 (pins-s20g/c-chip): light rest
+   3.50 white · 3.34 screen · 3.05 card; dark 3.87 screen · 3.49 card; hover ≥ 3.94, press ≥ 7.26. */
 .c-chip[aria-pressed="true"] {
   background: var(--surface-action-tonal-default);
   border-color: var(--outline-action-default);
-  color: var(--text-action-default);
+  color: var(--text-chip-selected);   /* ★ S20G N-2 */
+  box-shadow: inset 0 1px 0 var(--highlight-chip-selected);
+}
+/* ★ S20G N-2 premium tonal (pick C): 6 % top lift, outline 60 % (vs the ground, see the header); no color-mix = the plain pair */
+@supports (color: color-mix(in srgb, red, blue)) {
+  .c-chip[aria-pressed="true"] {
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-default), var(--chip-lift-ink) 6%), var(--surface-action-tonal-default));
+    border-color: color-mix(in srgb, var(--outline-action-default) 60%, transparent);
+  }
 }
 
 /* hover guarded per #43; :not(:disabled) — disabled elements still match :hover */
@@ -1715,7 +1725,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
     background: var(--surface-action-tonal-hover);
     border-color: var(--outline-action-hover);   /* I-2 (#358): ladder, not transparent */
-    color: var(--text-action-hover);
+    color: var(--text-chip-selected);
+  }
+  @supports (color: color-mix(in srgb, red, blue)) {
+    .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):hover {
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-hover), var(--chip-lift-ink) 6%), var(--surface-action-tonal-hover));
+      border-color: color-mix(in srgb, var(--outline-action-hover) 60%, transparent);
+    }
   }
 }
 
@@ -1728,7 +1744,13 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
 .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
   background: var(--surface-action-tonal-default);   /* r1 MAJOR-6: fill holds — see header */
   border-color: var(--outline-action-pressed);       /* I-2 (#358): ladder, not transparent */
-  color: var(--text-action-pressed);
+  color: var(--text-chip-selected);
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  .c-chip[aria-pressed="true"]:not(:disabled):not([data-readonly]):active {
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-default), var(--chip-lift-ink) 6%), var(--surface-action-tonal-default));
+    border-color: color-mix(in srgb, var(--outline-action-pressed) 80%, transparent);
+  }
 }
 
 /* disabled — code-first #50 */
@@ -1736,6 +1758,7 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   background: var(--surface-neutral-disabled);
   border-color: var(--outline-neutral-disabled);
   color: var(--text-neutral-on-disabled);
+  box-shadow: none;   /* ★ S20G r1: no N-2 top light when disabled */
   cursor: not-allowed;
 }
 
@@ -4963,6 +4986,9 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
 
 /* ★ S20F W-10 (#1409): ONE layout per flip, no layout transition here. ::before = the expanded look (kept at the
    expanded box), it and the body move by transform + opacity; [data-held] = an expand holding the compact layout. */
+/* ★ S20G R-4: 380 ms, one token (wallet-shell.js reads it). #46 r1: the fades end with it — fade-ms + 100 = 380 */
+:root { --wallet-hero-ms: 380ms; --wallet-hero-fade-ms: 280ms; }
+@media (prefers-reduced-motion: reduce) { :root { --wallet-hero-ms: 0ms; --wallet-hero-fade-ms: 0ms; } }
 .c-wallet-hero { position: relative; isolation: isolate; }
 .c-wallet-hero::before {
   content: '';
@@ -4972,16 +4998,16 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   pointer-events: none;
   background: inherit;
   border-radius: inherit;
-  transition: transform var(--duration-300) var(--easing-standard);   /* opacity back at once: a fade-in washes the band */
+  transition: transform var(--wallet-hero-ms) var(--easing-standard);   /* opacity back at once: a fade-in washes the band */
 }
 .c-wallet-hero[data-compact]::before,
 .c-wallet-hero[data-held]::before { bottom: auto; height: var(--wallet-hero-full, 100%); }
 .c-wallet-hero[data-compact]::before {
   transform: translateY(calc(-1 * var(--wallet-hero-delta, 0px)));
   opacity: 0;
-  transition: transform var(--duration-300) var(--easing-standard), opacity var(--duration-100) var(--easing-standard) var(--duration-200);
+  transition: transform var(--wallet-hero-ms) var(--easing-standard), opacity var(--duration-100) var(--easing-standard) var(--wallet-hero-fade-ms);
 }
-.c-wallet-hero__main { transition: transform var(--duration-300) var(--easing-standard), opacity var(--duration-200) var(--easing-standard); }
+.c-wallet-hero__main { transition: transform var(--wallet-hero-ms) var(--easing-standard), opacity var(--wallet-hero-fade-ms) var(--easing-standard); }
 .c-wallet-hero[data-compact] .c-wallet-hero__main,
 .c-wallet-hero[data-held] .c-wallet-hero__main { position: absolute; inset-inline: 0; }
 .c-wallet-hero[data-compact] .c-wallet-hero__main {
@@ -4989,7 +5015,7 @@ html[dir="rtl"] .c-subslide { --subslide-from: -40%; }
   visibility: hidden;
   pointer-events: none;
   transform: translateY(calc(-1 * var(--spacing-16)));
-  transition: transform var(--duration-300) var(--easing-standard), opacity var(--duration-200) var(--easing-standard), visibility 0s linear var(--duration-300);
+  transition: transform var(--wallet-hero-ms) var(--easing-standard), opacity var(--wallet-hero-fade-ms) var(--easing-standard), visibility 0s linear var(--wallet-hero-ms);
 }
 .c-wallet-hero[data-compact] { padding-block-end: var(--spacing-8); }
 

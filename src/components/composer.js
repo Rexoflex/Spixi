@@ -188,7 +188,7 @@ export function createComposer({
     input.style.height = Math.min(input.scrollHeight, line * MAX_LINES + pad) + 'px';
   };
 
-  const send = () => {
+  const send = (byTouch) => {
     const text = input.value.trim();
     if (!text && !mediaN()) return;   // ★ S10 P1: the strip's photos go with an empty caption
     // A7: bail BEFORE onSend and BEFORE the clear — the text stays on screen, the
@@ -216,13 +216,19 @@ export function createComposer({
     const ctxBefore = composerCtx.get(el);
     // ★ #1199 r1 (N-6): Enter on an unchanged edit does what the disabled Save does — nothing (the edit stays open)
     if (ctxBefore && ctxBefore.kind === 'edit' && ctxBefore.prefillText != null && text === String(ctxBefore.prefillText).trim()) return;
+    const hadMedia = mediaN() > 0;   // ★ S20G R-6: read BEFORE onSend — the shell's strip send clears the count (setComposerMedia 0)
     if (onSend) onSend(text);
     const editClosed = !!ctxBefore && ctxBefore.kind === 'edit' && composerCtx.get(el) !== ctxBefore;
     if (!editClosed) input.value = '';
     grow();
     syncCounter();
     syncAction();
-    input.focus();
+    /* ★ S20G R-6: a send that carried the strip's photos leaves the field unfocused — the Send tap already took focus off it,
+       and focusing it again raised the Android keyboard over the photos just sent. A text-only send keeps the focus (type on).
+       r1 B-2: ONLY a touch / pen tap skips it — after a mouse click or a keyboard press (or Enter in the field) the focus
+       would stay on the action button, now the mic, and Space would start a recording. */
+    if (!(hadMedia && byTouch)) input.focus();
+    else if (document.activeElement === action) action.blur();   // r2 M-1: a tapped disc keeps the focus — it is the mic now (a hardware keyboard's Space)
   };
 
   input.addEventListener('input', (e) => {
@@ -246,7 +252,13 @@ export function createComposer({
   /* ★ #1208: one mic tap = one start. C# answers with voiceRec (recording / denied / busy / error); a second tap
      before that answer (a double tap, a slow bridge) would otherwise send a second start — MIC_GUARD_MS holds it. */
   let micAt = 0;
-  action.addEventListener('click', () => {
+  /* ★ S20G r1 B-2: the pointer of the press that led to this click — a keyboard click has no pointerdown (and detail 0),
+     so a stale touch press (pressed, dragged off, no click) older than 1.5 s never counts; consumed by the click. */
+  let downType = '', downAt = 0;
+  action.addEventListener('pointerdown', (e) => { downType = e.pointerType || ''; downAt = Date.now(); });
+  action.addEventListener('click', (e) => {
+    const byTouch = e.detail > 0 && (downType === 'touch' || downType === 'pen') && Date.now() - downAt < 1500;
+    downType = '';
     const mode = action.dataset.mode;
     if (mode === 'mic') {
       const t = Date.now();
@@ -264,7 +276,7 @@ export function createComposer({
       if (onVoiceSend) onVoiceSend();
       return;
     }
-    send();
+    send(byTouch);
   });
 
   if (mentionSource) wireMentions(el, input, mentionSource, strings);

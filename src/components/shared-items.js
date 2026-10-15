@@ -26,6 +26,8 @@ import { createChip, setChipSelected } from './chip.js';   // ★ G-6: the kind 
 import { createSheet, openSheet, closeSheet } from './sheet.js';   // ★ G-6: the long-press menu
 import { p1Shown } from './p1.js';   // ★ P-1 (#1127) — TEMPORARY, retire with the [P1] set
 import { attachTouchPressGuard } from './message-menu.js';   // ★ #1174: the scroll-safe contextmenu
+import { fillFileName } from './typed-bubbles.js';   // ★ S20G Q-1: the extension-keeping name (pure; no typed-bubbles CSS)
+import { createKindTile } from './file-tile.js';   // ★ S20G Q-1 / B-5: the shared file type tile (its CSS: file-tile.css)
 
 export const SHARED_KINDS = ['media', 'file', 'link'];
 export const SHARED_PREVIEW = { media: 6, file: 3, link: 3 };   // (the #1110 cards; kept for the demo and older callers)
@@ -144,18 +146,21 @@ function sharedMediaTile(item, strings, onOpen, onMenu) {
   return b;
 }
 
+/* ★ S20G Q-1: a Files row in the Downloads look — the kind tile, the name (semibold 15.5, the extension kept on a cut —
+   #1005) over the meta (13.5: size · date · "Not on this device"). The row's own behaviour (tap, long-press menu, aria
+   name) is unchanged. */
 function sharedFileRow(item, strings, onOpen, onMenu) {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'c-shared__row';
-  b.append(icon('file-isr', { size: 22 }));
+  b.className = 'c-shared__row c-shared__row--file';
+  b.append(createKindTile(item.label));
   const txt = document.createElement('span');
   txt.className = 'c-shared__row-text';
   const t = document.createElement('span');
-  t.className = 'c-shared__row-title';
-  t.textContent = item.label;
+  t.className = 'c-shared__row-title c-file-name';
+  fillFileName(t, item.label);           // UNTRUSTED — textContent only
   const sub = document.createElement('span');
-  sub.className = 'c-shared__row-sub';
+  sub.className = 'c-shared__row-sub c-file-meta';
   sub.textContent = [formatFileSize(item.size), sharedShortDate(item.ts), item.local ? '' : (strings.sharedNotOnDevice || 'Not on this device')]
     .filter(Boolean).join(' · ');
   txt.append(t, sub);

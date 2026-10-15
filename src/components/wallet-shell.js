@@ -436,7 +436,7 @@ export function createWalletTools(state, opts = {}) {
  *        the other. The hero RO (`min(target, expandedRest − heroHeight)`) stays
  *        as the belt: it re-feeds the same value after the flip's layout.
  *    The delta and rest heights are MEASURED from the element, never constants,
- *    and CACHED for 400 ms around a flip so a fast up-down flick cannot make the
+ *    and CACHED for the flip window (--wallet-hero-ms + 100, S20G R-4) so a fast up-down flick cannot make the
  *    probe cut a running transition (r1 MINOR-6).
  *  · LATCH THE COLLAPSE — a scroll event in which the geometry
  *    (scrollHeight/clientHeight) changed is a LAYOUT consequence, never a finger.
@@ -458,8 +458,8 @@ export function createWalletTools(state, opts = {}) {
  *    never release the latch (no scroll events fire) → auto-expand. It cannot
  *    oscillate: with the reserve holding the maximum at ≥ the collapse position,
  *    a list that fits compact also fits expanded. Valve runs only AT REST (a
- *    flip < 400 ms ago means a transition is running and the transient numbers
- *    would lie).
+ *    flip less than the flip window ago — --wallet-hero-ms + 100, S20G R-4 — means a
+ *    transition is running and the transient numbers would lie).
  *  · ★ r1 MAJOR-2: attach and every at-top event can EXPAND a compact hero.
  *    A compact hero at scrollTop 0 has no gesture that can ever free it (no
  *    scroll events fire at the top of a fitting list), and its balance/actions
@@ -481,9 +481,13 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
    * scroller, the scroller included) rides a compensating translateY so no row jumps: collapse = the layout at once,
    * the band from +delta to 0; expand = the compact layout HELD ([data-held]) while the band slides to +delta, then
    * the height lands in the same task as the band's release. The hero's own layers move by transform + opacity
-   * (wallet-hero.css). Tokens --duration-300 / --easing-standard; 0 ms (reduced motion), no WAAPI (jsdom) or a
-   * hidden hero = instant, the same end state. */
+   * (wallet-hero.css). Tokens --wallet-hero-ms (★ S20G R-4: 380 ms, was --duration-300) / --easing-standard; 0 ms
+   * (reduced motion), no WAAPI (jsdom) or a hidden hero = instant, the same end state. */
   const tok = (n, f) => { try { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f; } catch (e) { return f; } };
+  /* ★ S20G R-4: ONE duration (wallet-hero.css :root) for the hero layers, the band and the guards; read per flip so a
+   * reduced-motion change applies at once. The fallback is only for a page without wallet-hero.css. */
+  const heroMs = () => { const v = parseFloat(tok('--wallet-hero-ms', '380ms')); return v >= 0 ? v : 380; };
+  const flipWindow = () => heroMs() + 100;   // was a fixed 400 (300 + 100): the transient numbers outlast the motion
   let slot = hero || null;
   while (slot && slot.parentElement && slot.parentElement !== scrollEl.parentElement) slot = slot.parentElement;
   const band = () => {
@@ -506,7 +510,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
   const endHold = () => { if (hero) delete hero.dataset.held; };
   const slide = (from, to, hold, onEnd) => {
     stopBand();
-    const ms = parseFloat(tok('--duration-300', '300ms'));
+    const ms = heroMs();   // S20G R-4
     const els = band();
     const r = { anims: [], timer: 0 };
     if (ms > 0 && (hold || Math.abs(from - to) >= 0.5)) {
@@ -586,7 +590,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
   /* MEASURED, never guessed: toggle the attribute with transitions suppressed
    * ([data-measuring], wallet-hero.css), read both rest heights, restore. All
    * synchronous — no paint happens between the toggles. ★ r1 MINOR-6: cached for
-   * 400 ms around a flip — a collapse ≤ 300 ms after an expand (the fast up-down
+   * the flip window (S20G R-4: --wallet-hero-ms + 100) — a collapse inside the motion after an expand (the fast up-down
    * flick) would otherwise measure MID-TRANSITION, and [data-measuring] cancels
    * whatever is animating: a visible snap. ★ r1 MINOR-8: the attribute restore
    * lives in `finally`, so a future throw between the toggles cannot strand a
@@ -596,7 +600,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
   let cachedMeasure = null;
   const measureHero = (force) => {
     if (!hero || !hero.isConnected) return { expanded: 0, compact: 0, delta: 0 };
-    if (!force && cachedMeasure && (performance.now() - lastFlipAt) < 400) return cachedMeasure;
+    if (!force && cachedMeasure && (performance.now() - lastFlipAt) < flipWindow()) return cachedMeasure;
     const wasCompact = 'compact' in hero.dataset;
     const wasHeld = 'held' in hero.dataset;
     hero.dataset.measuring = '';
@@ -693,7 +697,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
   const releaseIfMoot = () => {
     if (!collapsed) return;
     if (scrollEl.scrollHeight - scrollEl.clientHeight > 1) return;
-    const wait = 400 - (performance.now() - lastFlipAt);
+    const wait = flipWindow() - (performance.now() - lastFlipAt);
     if (wait > 0) {
       clearTimeout(valveRetry);
       valveRetry = setTimeout(releaseIfMoot, wait + 16);
@@ -800,7 +804,7 @@ export function attachWalletScroll(scrollEl, { hero, tools, collapseAfter = 12, 
        * belt that read zero as "never applied" slammed the full delta onto every
        * long list on the first re-render after a collapse: r1 MAJOR-4, restored by
        * the fix for it. */
-      if (collapsed && heroExpandedRest === 0 && (performance.now() - lastFlipAt) >= 400) {
+      if (collapsed && heroExpandedRest === 0 && (performance.now() - lastFlipAt) >= flipWindow()) {
         const m = measureHero();                       // attach-while-hidden completion
         if (m.expanded > 0) {
           heroExpandedRest = m.expanded;

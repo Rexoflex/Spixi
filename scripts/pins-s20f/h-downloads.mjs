@@ -9,8 +9,9 @@
  *   (4) RESERVED: a photos-only list shows the controls row from its first paint with the From chip laid out but
  *       COMPUTED visibility: hidden + disabled + aria-hidden; phase 2 fills that chip and nothing above the list appears
  *       or disappears (the avatar push neither). A RE-OPENED screen reserves again until ITS phase 2 (#4).
- *   (5) THE TRADES: phase 2 with no sender collapses the row (C-3, the one remaining move); no phase 2 at all → the row is
- *       released 12 s after the first non-empty paint (C-4 / r2 MINOR-3: still reserved at 11.5 s, gone at 12.5 s).
+ *   (5) THE TRADES: ★ S20G R-5 re-base — phase 2 with no sender KEEPS the reserved row (was C-3 "the one remaining move":
+ *       the list jumped 52 px up); no phase 2 at all → the row is released 12 s after the first non-empty paint (C-4 /
+ *       r2 MINOR-3: still reserved at 11.5 s, gone at 12.5 s).
  * DELIBERATE BREAKS (each run once, failed for exactly that reason, restored — see the S20F home reports):
  *   ① addFile `dlBuf = dlLast.slice()` → `dlBuf = []` → append.   ② DL_EMPTY_MS 400 → 80 → firstLoad.
  *   ③ settings-app.js `const reserve = …` → `false` → reserved.   ④ the `dlFirst &&` dropped from the wait → rePush.
@@ -87,13 +88,13 @@ export default async function (h) {
     await sleep(60);
     n.reopen1 = !!chip() && !('reserved' in chip().dataset) && !chip().hidden;
     r.reopen = n.reopen0 === true && n.reopen1 === true;
-    /* (5) C-3: phase 2 with no sender collapses the row */
+    /* (5) C-3 → ★ S20G R-5: phase 2 with no sender KEEPS the reserved row (nothing above the list moves) */
     await open();
     photos(); await sleep(150);
     n.ns0 = reservedNow();
     push('setDownloadSenders', '[]'); await sleep(60);
-    n.ns1 = shown('.c-settings-dl__controls');
-    r.noSender = n.ns0 === true && n.ns1 === false;
+    n.ns1 = reservedNow();
+    r.noSender = n.ns0 === true && n.ns1 === true;
     /* (5) C-4: no phase 2 at all → released by the backstop */
     await open();
     photos(); await sleep(150);
@@ -109,7 +110,7 @@ export default async function (h) {
   c('rePush', 'C-8: a re-push on a screen that already painted (delete / Delete all) is the 80 ms settle — the empty state is up at 200 ms');
   c('reserved', 'the From row is reserved from the first paint of a photos-only list (computed visibility hidden, disabled, aria-hidden) and phase 2 fills it — nothing above the list appears or disappears, the avatar push neither');
   c('reopen', '#4: a re-opened Downloads screen reserves the From row again until ITS phase 2');
-  c('noSender', 'C-3 (the recorded trade): phase 2 with no sender collapses the reserved row');
+  c('noSender', 'C-3 → ★ S20G R-5: phase 2 with no sender KEEPS the reserved row (laid out, invisible, inert) — the list under it never jumps 52 px');
   c('backstop', 'C-4 / r2 MINOR-3: no phase 2 at all → the reserve holds at 11.5 s and is released by 12.5 s (the 12 s backstop)');
   c('noErr', 'no page error');
 }

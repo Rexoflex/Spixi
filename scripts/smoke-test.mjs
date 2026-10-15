@@ -2744,7 +2744,7 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
     'settings-app never touches .innerHTML — bridge names/log stay text (SECURITY; the word in the doc comment is fine)');
   const appCss = readFileSync(join(root, 'src/styles/components/settings-app.css'), 'utf8');
   ok(/\.c-settings-dl__open \{[^}]*min-width: 0/.test(appCss)
-    && /\.c-settings-dl__name \{[^}]*text-overflow: ellipsis/.test(appCss),
+    && /\.c-file-name \{[^}]*text-overflow: ellipsis/.test(readFileSync(join(root, 'src/styles/components/file-tile.css'), 'utf8')),   /* ★ S20G Q-1 re-base: the name type moved to the shared .c-file-name — ★ S20G B-5: its own sheet, file-tile.css */
     'long file names ellipsize — min-width:0 + ellipsis (#140③ class, jsdom is layout-blind)');
   ok(/\.c-settings-dl__selbar button \{[^}]*height: 44px/.test(appCss),   /* ★ S17 E (#1336) re-base: the delete lives in the select bar */
     'the select bar\'s Delete keeps the 44px touch target');
@@ -4568,8 +4568,9 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     heroRO.fire();
 
     /* the safety valve is REST-GUARDED (r1 MINOR-6/-7): it must not act on transient
-       mid-flip numbers, so the fixture waits out the 400ms window first. */
-    await sleep(420);
+       mid-flip numbers, so the fixture waits out the flip window first. ★ S20G R-4 re-base: the window is
+       --wallet-hero-ms + 100 = 480 ms now (was 400; pins-s20g/h-hero-ms) → 520. */
+    await sleep(520);
     scroll(0, 700, 700);    // a filter/search re-render leaves NOTHING to scroll
     ok(!('compact' in heroEl.dataset),
       '★ oscillator, the safety valve: when a re-render leaves NO scroll range, the hero auto-expands — no gesture could ever release the latch (no events fire with nothing to scroll); rest-guarded so mid-flip transients cannot trigger it');
@@ -4581,7 +4582,7 @@ console.log('settings.html — lock shell (Phase 1 #4)');
     scroll(41);             // +13 → collapse
     ok('compact' in heroEl.dataset, 'oscillator fixture: collapsed for the belt test');
     heroRO.fire();
-    await sleep(420);       // rest-guard again
+    await sleep(520);       // rest-guard again (★ S20G R-4: the 480 ms window)
     TOP = 0; S = 690; V = 700;   // re-render: fits entirely, scrollTop reset, NO scroll event
     beltRO.fire();
     ok(!('compact' in heroEl.dataset),
@@ -4600,7 +4601,7 @@ console.log('settings.html — lock shell (Phase 1 #4)');
 
     /* —— r2 W-MINOR-3: the valve expand resets the accumulators. */
     scroll(56);              // +13 more while compact — down accumulates past the dial
-    await sleep(420);
+    await sleep(520);        // ★ S20G R-4: the 480 ms window
     scroll(0, 700, 700);     // re-render leaves nothing → valve expands
     ok(!('compact' in heroEl.dataset), 'r2 fixture: valve expanded with a surplus accumulator pending');
     scroll(1);               // ONE pixel of drift
@@ -4754,7 +4755,7 @@ console.log('launch.html — launch/onboarding shell (Phase 1 #5)');
   dots[2].click();
   ok(dots[2].getAttribute('aria-selected') === 'true'
     && /translateX\(-200%\)/.test(d.querySelector('.c-launch__track').style.transform),
-    'dot click drives the track (and retires autoplay — the user took control)');
+    'dot click drives the track (and PAUSES autoplay — ★ S20G F-2: it resumes after 15 s idle; behaviour: pins-s20g/l-autoplay.mjs)');
   d.querySelector('.c-launch__dots').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
   ok(dots[1].getAttribute('aria-selected') === 'true', '←/→ arrows page the carousel');
   // ★ N76 (#391): the onboarding tail is GONE from this shell — with it the backup
@@ -8673,7 +8674,7 @@ console.log('#345 — shared bundle, strings, icons and base CSS are external');
      picks #46 r1 fixes (MEASURED): 866 140 → 871 075 (+4 935: the live-only accent + reflush keep, the still ring after 30 s,
      the overlaid seconds-left hint track, the 40-bar fit, the reopen-from-on-screen strip) → CHAT 848 → 853; 852 would leave
      404, 853 leaves 1 428 (after the r2 / r3 lead fixes: 872 044 chars). Stated. */
-  const CHAT_KB_CEIL = 957,   /* ★ S19 (#1369–#1379, MEASURED on the merge): chat.html 976 631 → 978 233 chars (+1 602: the blind-group notice + its re-render on setChatMode, the accept-echo flags for the offline moment, the pattern default, the per-direction transfer text in the shared bundle, the lifted dark received bubble + quote / voice / name inks in message-bubble.css) = 955.3 KB → CHAT 955 → 957 (1.7 KB headroom); index.html 648 048 → 649 109 (+1 061) = 633.9 KB, INDEX 635 unchanged (1.1 KB). Stated. */   /* ★ #1357 + #1358 (MEASURED): 974 499 → 975 991 chars (+1 492: the shared bundle's address card in wallet-receive + the rocket / bokeh art) = 953.1 KB → 955; index.html 630 807 → 637 974 chars (+7 167 since 052aac6b: the one theme picker + the address card CSS / JS + the rocket / 78 bokeh dots in the art tables) = 623.0 KB → INDEX 618 → 625. Stated. */   /* ★ #1354 + #1355 (MEASURED): 972 145 → 974 499 chars (+2 354: the neutral notice + the guarded chat-accent remaps in composer / attach / voice / select + the accent tokens) = 951.7 KB → 951 → 953; 952 would leave 0.3 KB. Stated. */   /* ★ S17 F #46 r3 (MINOR-3): +11.8 KB = illo.css linked so the moment art moves in the chat (it rendered static) — 949.4 KB measured (a perf-track candidate: only the mo-* rules are needed here) */   /* ★ S17 A + F (#1338 · #1340): +12.4 KB = the shared bundle carries whats-new.js + moment-sheet.js (the card, the seven sheets, the ask / answer client) and the chat's moment wiring (mic · autodl · offline · app · pay · tip) + moment-sheet.css + illo.css (the moment art's motion, #46 r3) — 937.6 KB measured; index.html +20.2 KB = the same bundle + the home wiring + whats-new.css + moment-sheet.css → INDEX 597 → 618 (615.8 KB measured) */   /* ★ S17 (#1334 · #1336): +2.0 KB = the chat-appearance ladders (two new keys, three new grounds, the rings) in the head script and readPatternPrefs, and the S17 tokens (--dl-* / --dc-* / --wn-* / --ch-*) — 924.4 KB measured; index.html +6.1 KB = the S17 motion block of illo.css (What's new scenes, About glass, Moments, the heart) + the same tokens → INDEX 590 → 597 (595.6 KB measured) */   /* ★ S15 (#1301 · #1302 · O-09): +5.3 KB = the send entrance (E) + the pending strip tiles and the composer busy gate (F) + the DOM-built missing-asset panel (O-09) — 918.1 KB measured */   /* ★ S11 r2 (#1263): +11.6 KB = the album mosaic + offer preview + viewer Reply/Save (G, +8.6) and the amount pad for the chat Pay (H, +3) — 912.3 KB measured */   /* ★ S11 (#1262): +6.6 KB = the viewer zoom + paging track (E), the flash paintAck answer, touch-menu blur, paste toast, created-line title/subtitle (C) — 900.7 KB measured */   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */   /* ★ S18 (#1359 – #1361 + the S17 walk fixes, MEASURED on the final merge): index.html 637 974 → 648 048 chars (+10 074: the Add app tiles + field card, the Add contact card / in-field states / known row, the coloured sheet medallions, the group identity card + members card + chip faces in contacts-shell.css / apps-add.css / chip.css, the round-1 fixes, the Tips row moved into Notifications in the shared bundle) = 632.9 KB → INDEX 625 → 635 (2.1 KB headroom); chat.html 975 991 → 976 631 (+640: the identity-band tokens + offline 5 s) = 953.7 KB, CHAT 955 unchanged (1.3 KB). Stated. */ /* ★ DT-1 P1 (#1385 · #1386, MEASURED on the build): index.html 649 109 → 657 088 chars (+7 979: the shared bundle's chats-shell section plan / section heads / hover-action bar + chatlist-item.css + chats-shell.css desktop rules + the pinnedSection key in the 14 dictionaries) = 641.7 KB → INDEX 635 → 644 (2.3 KB headroom); chat.html unchanged (979 327 = 956.4 KB, the S19 base, CHAT 957). Stated. */ INDEX_KB_CEIL = 649;   /* ★ DT-1 round 2 (#1390–#1393, MEASURED after the #46 fixes): index.html 657 261 → 662 563 chars (+5 302: the List density ladder in the head, the density + pinned-hover CSS, the 4 new keys in every locale) = 647.0 KB → INDEX 644 → 649 (2.0 KB headroom). Stated. */   /* ★ S11 r2 (#1263): +4.9 KB = the 2-step send/receive (H, +3.2) and the hint timing + held entrances (A2, +1.7) — 585.6 KB measured */   /* ★ S11 (#1262): +21.4 KB = seasonal bar + glass update/hint cards + hints wiring (A, ~16 KB) and the illo.css link + inline art hosts (B, ~5 KB) — 580.7 KB measured */
+  const CHAT_KB_CEIL = 959,   /* ★ S20G (MEASURED on the merge): chat.html 978 538 → 980 963 chars (+2 425: N-1 dark received bubbles + quotes, F-5 wrap + break-spaces, Q-5 the accent disc / medallion, R-6 the media-send focus rule, N-2 the premium selected chip in the shared chip.css) = 958.0 KB → CHAT 957 → 959 (leaves 1 053); index.html 664 029 → 665 478 (+1 449: R-4 the hero token + windows, N-2 chip.css) = 649.9 KB → INDEX 649 → 651 (leaves 1 146). Stated. */   /* ★ S19 (#1369–#1379, MEASURED on the merge): chat.html 976 631 → 978 233 chars (+1 602: the blind-group notice + its re-render on setChatMode, the accept-echo flags for the offline moment, the pattern default, the per-direction transfer text in the shared bundle, the lifted dark received bubble + quote / voice / name inks in message-bubble.css) = 955.3 KB → CHAT 955 → 957 (1.7 KB headroom); index.html 648 048 → 649 109 (+1 061) = 633.9 KB, INDEX 635 unchanged (1.1 KB). Stated. */   /* ★ #1357 + #1358 (MEASURED): 974 499 → 975 991 chars (+1 492: the shared bundle's address card in wallet-receive + the rocket / bokeh art) = 953.1 KB → 955; index.html 630 807 → 637 974 chars (+7 167 since 052aac6b: the one theme picker + the address card CSS / JS + the rocket / 78 bokeh dots in the art tables) = 623.0 KB → INDEX 618 → 625. Stated. */   /* ★ #1354 + #1355 (MEASURED): 972 145 → 974 499 chars (+2 354: the neutral notice + the guarded chat-accent remaps in composer / attach / voice / select + the accent tokens) = 951.7 KB → 951 → 953; 952 would leave 0.3 KB. Stated. */   /* ★ S17 F #46 r3 (MINOR-3): +11.8 KB = illo.css linked so the moment art moves in the chat (it rendered static) — 949.4 KB measured (a perf-track candidate: only the mo-* rules are needed here) */   /* ★ S17 A + F (#1338 · #1340): +12.4 KB = the shared bundle carries whats-new.js + moment-sheet.js (the card, the seven sheets, the ask / answer client) and the chat's moment wiring (mic · autodl · offline · app · pay · tip) + moment-sheet.css + illo.css (the moment art's motion, #46 r3) — 937.6 KB measured; index.html +20.2 KB = the same bundle + the home wiring + whats-new.css + moment-sheet.css → INDEX 597 → 618 (615.8 KB measured) */   /* ★ S17 (#1334 · #1336): +2.0 KB = the chat-appearance ladders (two new keys, three new grounds, the rings) in the head script and readPatternPrefs, and the S17 tokens (--dl-* / --dc-* / --wn-* / --ch-*) — 924.4 KB measured; index.html +6.1 KB = the S17 motion block of illo.css (What's new scenes, About glass, Moments, the heart) + the same tokens → INDEX 590 → 597 (595.6 KB measured) */   /* ★ S15 (#1301 · #1302 · O-09): +5.3 KB = the send entrance (E) + the pending strip tiles and the composer busy gate (F) + the DOM-built missing-asset panel (O-09) — 918.1 KB measured */   /* ★ S11 r2 (#1263): +11.6 KB = the album mosaic + offer preview + viewer Reply/Save (G, +8.6) and the amount pad for the chat Pay (H, +3) — 912.3 KB measured */   /* ★ S11 (#1262): +6.6 KB = the viewer zoom + paging track (E), the flash paintAck answer, touch-menu blur, paste toast, created-line title/subtitle (C) — 900.7 KB measured */   /* ★ S10 (#1254): +9.5 KB = the media strip, Download all, group reply, toast rules (C report; the S9 sheet removed) — 894 KB measured */   /* ★ S9 (#1244–#1247): +31 KB = the photo grid, preview sheet, paste, viewer paging, played flag, Joined card, a11y (B1 report) */   /* ★ S18 (#1359 – #1361 + the S17 walk fixes, MEASURED on the final merge): index.html 637 974 → 648 048 chars (+10 074: the Add app tiles + field card, the Add contact card / in-field states / known row, the coloured sheet medallions, the group identity card + members card + chip faces in contacts-shell.css / apps-add.css / chip.css, the round-1 fixes, the Tips row moved into Notifications in the shared bundle) = 632.9 KB → INDEX 625 → 635 (2.1 KB headroom); chat.html 975 991 → 976 631 (+640: the identity-band tokens + offline 5 s) = 953.7 KB, CHAT 955 unchanged (1.3 KB). Stated. */ /* ★ DT-1 P1 (#1385 · #1386, MEASURED on the build): index.html 649 109 → 657 088 chars (+7 979: the shared bundle's chats-shell section plan / section heads / hover-action bar + chatlist-item.css + chats-shell.css desktop rules + the pinnedSection key in the 14 dictionaries) = 641.7 KB → INDEX 635 → 644 (2.3 KB headroom); chat.html unchanged (979 327 = 956.4 KB, the S19 base, CHAT 957). Stated. */ INDEX_KB_CEIL = 651;   /* ★ DT-1 round 2 (#1390–#1393, MEASURED after the #46 fixes): index.html 657 261 → 662 563 chars (+5 302: the List density ladder in the head, the density + pinned-hover CSS, the 4 new keys in every locale) = 647.0 KB → INDEX 644 → 649 (2.0 KB headroom). Stated. */   /* ★ S11 r2 (#1263): +4.9 KB = the 2-step send/receive (H, +3.2) and the hint timing + held entrances (A2, +1.7) — 585.6 KB measured */   /* ★ S11 (#1262): +21.4 KB = seasonal bar + glass update/hint cards + hints wiring (A, ~16 KB) and the illo.css link + inline art hosts (B, ~5 KB) — 580.7 KB measured */
   ok(chatBuilt.length < CHAT_KB_CEIL * 1024 && indexBuilt.length < INDEX_KB_CEIL * 1024,
     '★ #345 THE POINT: chat.html is under ' + CHAT_KB_CEIL + ' KB (was 2019 KB; it is ' + Math.round(chatBuilt.length / 1024) + ' KB today) and index.html under ' + INDEX_KB_CEIL + ' KB (was 1625 KB; ' + Math.round(indexBuilt.length / 1024) + ' KB today). At the measured ~0.08 ms/KB, chat.html\'s generatePage leg should fall from ~172 ms to ~' + Math.round(chatBuilt.length / 1024 * 0.08) + ' ms');
   /* ★ #346 review r2 MINOR-1: empty_detail.html DOES get a guard now — just no bundle
@@ -15668,7 +15669,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       '★ oscillator fix: an overscroll rubber-band settling back to the top (iOS reports negative scrollTop) is a spring, not a finger — counting it would re-collapse the hero the instant an at-top expand let go (driven with real negative scrollTop in the behavioural block)');
     ok(/collapseAfter = \d+/.test(wsJs) && !/collapseAt = 120/.test(wsJs),
       '★ Damir\'s dial ("it should minimise the hero ANY TIME you scroll down, so it\'s always the same effect"): the collapse trigger is an accumulated DOWNWARD GESTURE, not an absolute 120px offset a 5-transaction account can never reach. Pinned by NAME (the value is bracketed behaviourally at 6-no/13-yes), and the rejected alternative is recorded in the docblock');
-    ok(/const releaseIfMoot = \(\) => \{[\s\S]{0,240}?clientHeight > 1\) return;\s*\n\s*const wait = 400 - \(performance\.now\(\) - lastFlipAt\);\s*\n\s*if \(wait > 0\) \{\s*\n\s*clearTimeout\(valveRetry\);\s*\n\s*valveRetry = setTimeout\(releaseIfMoot, wait \+ 16\);\s*\n\s*return;\s*\n\s*\}\s*\n\s*expand\(\);/.test(wsJs.replace(/\/\*[\s\S]*?\*\//g, '')),
+    ok(/const releaseIfMoot = \(\) => \{[\s\S]{0,240}?clientHeight > 1\) return;\s*\n\s*const wait = flipWindow\(\) - \(performance\.now\(\) - lastFlipAt\);\s*\n\s*if \(wait > 0\) \{\s*\n\s*clearTimeout\(valveRetry\);\s*\n\s*valveRetry = setTimeout\(releaseIfMoot, wait \+ 16\);\s*\n\s*return;\s*\n\s*\}\s*\n\s*expand\(\);/.test(wsJs.replace(/\/\*[\s\S]*?\*\//g, '')),
       '★ the safety valve, REST-GUARDED (r1) + SELF-RE-CHECKING (r2 W-MINOR-5): a refusal schedules its own retry at guard expiry — a zero-range state may never fire another event (search keystroke right after a collapse), and a valve that only listens can be starved. detach clears the retry');
     ok(/if \(collapsed\) \{\s*\n\s*if \(\(scrollEl\.scrollTop \|\| 0\) <= 1\) \{\s*\n\s*expand\(\);/.test(wsJs),
       '★ oscillator r1 MAJOR-2: attach onto a compact hero AT THE TOP expands it — a compact hero at scrollTop 0 has no gesture that can ever free it (a fitting list fires no scroll events) and its balance/actions are inert; the tab round-trip is the production path');
@@ -15677,7 +15678,8 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     ok(/const collapse = \(\) => \{\s*\n\s*if \(collapsed\) return;/.test(wsJs)
       && /const expand = \(\) => \{\s*\n\s*if \(!collapsed\) return;/.test(wsJs),
       '★ oscillator r1: the re-entrancy guards are pinned — without them every stable downward event past threshold re-runs the measurement (a forced double reflow + attribute thrash per scroll event)');
-    ok(/if \(!force && cachedMeasure && \(performance\.now\(\) - lastFlipAt\) < 400\) return cachedMeasure;/.test(wsJs)
+    ok(/if \(!force && cachedMeasure && \(performance\.now\(\) - lastFlipAt\) < flipWindow\(\)\) return cachedMeasure;/.test(wsJs)   /* ★ S20G R-4 re-base: the window = --wallet-hero-ms + 100 (pins-s20g/h-hero-ms) */
+      && /const flipWindow = \(\) => heroMs\(\) \+ 100;/.test(wsJs)
       && /\} finally \{\s*\n\s*if \(wasCompact\) hero\.dataset\.compact = ''; else delete hero\.dataset\.compact;/.test(wsJs),
       '★ oscillator r1 MINOR-6/-8: the measurement is CACHED for 400ms around a flip (a fast up-down flick would otherwise measure mid-transition, and [data-measuring] cancels whatever is animating — a visible snap), and the attribute restore lives in `finally` so a throw cannot strand a hero/latch desync');
     ok(/lastFlipAt = performance\.now\(\);\s*\n\s*down = 0; up = 0;\s*\n\s*if \(hero\) setWalletHeroCompact\(hero, false\);[\s\S]{0,300}?applyReserve\(0\);\s*\n\s*reserveTarget = 0;/.test(wsJs.replace(/\/\*[\s\S]*?\*\//g, '')),
@@ -15694,7 +15696,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
          only while its message claimed both. */
       ok(iMax >= 0 && iTop > iMax && iFloor > iTop && iMeasure > iFloor,
         '★ r2 W-MAJOR-1: inside collapse(), maxPre/top are read FIRST, the probe FLOOR lands SECOND, and only then does the measurement run — the probe forces one real compact-hero layout, and with no reserve under it Blink clamps scrollTop during the probe itself: the fix re-created the defect and read the user\'s position after destroying it. Order is the whole fix, so order is what this pins');
-      ok(/if \(collapsed && heroExpandedRest === 0 && \(performance\.now\(\) - lastFlipAt\) >= 400\)/.test(wsNC),
+      ok(/if \(collapsed && heroExpandedRest === 0 && \(performance\.now\(\) - lastFlipAt\) >= flipWindow\(\)\)/.test(wsNC),   /* ★ S20G R-4 re-base */
         '★ r2 W-MAJOR-2: the belt re-apply keys on heroExpandedRest === 0 (the measured-while-hidden SENTINEL), never on reservePx() === 0 — the deficit made a zero reserve a LEGITIMATE resting value on every long list, and a belt reading zero as "never applied" slammed the full delta back on the first re-render after a collapse: r1 MAJOR-4 restored by its own fix');
       ok(/if \(!collapsed \|\| heroExpandedRest <= 0\) return;/.test(wsNC),
         '★ r2 W-MINOR-4: the hero RO refuses to track against a hidden measurement — its INITIAL observation otherwise computed min(target, 0) and wiped a reserve the attach path deliberately kept');
@@ -24339,8 +24341,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     const verb = hpCode.slice(iVerb, hpCode.indexOf('ixian:homeoverlay:', iVerb));
     ok(/if \(rightContent\.IsVisible\)/.test(verb) && /closeChatOverlays\(\);/.test(verb),
       '★★ L6, THE GATE: the WHOLE verb is wide-only. The first cut gated one of its four sweeps while the shell\'s comment promised "a no-op on a narrow window" of all of them — and a narrow window has no detail column for any of them to be beside');
-    const helper = hpCode.slice(hpCode.indexOf('private void closeChatOverlays()'), hpCode.indexOf('private void closeTxDetailOverlays()'));
-    ok(/if \(!rightContent\.IsVisible\)/.test(helper) && /p is SingleChatPage/.test(helper),
+    const helper = hpCode.slice(hpCode.indexOf('private void closeChatOverlays('), hpCode.indexOf('private void closeTxDetailOverlays()'));   /* ★ S20G F-1 re-base: + `bool anyWidth = false` */
+    ok(/if \(!rightContent\.IsVisible && !anyWidth\)/.test(helper) && /p is SingleChatPage/.test(helper),   /* ★ S20G F-1: only the Account sweep passes anyWidth (pins-s20g/h-csharp) */
       '★ L6: …and the conversation close keeps its own belt. Narrow has no detail column — a conversation there is the full screen, and closing one would shut the screen the user is standing on');
     /* ★★ #897 INVERTS L6's NEGATIVE — written down, not quietly flipped (superseded
        decisions are marked, never deleted). L6 pinned "a plain tab switch does NOT close the
@@ -24384,9 +24386,9 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
              tab, so both are gated on the chats list being on screen — and the spare warm is
              deliberately NOT (ungated = the next open stays warm; its cost there is unmeasured). */
       const methodBody902 = (src, sig) => { const i = src.indexOf(sig); if (i < 0) return ''; let d = 0; for (let k = src.indexOf('{', i); k >= 0 && k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); } return ''; };
-      const helper902 = hpSafe.slice(hpSafe.indexOf('private void closeChatOverlays()'), hpSafe.indexOf('private void closeTxDetailOverlays()'));
-      ok(helper902.indexOf('if (!rightContent.IsVisible)') > 0
-        && helper902.indexOf('if (!rightContent.IsVisible)') < helper902.indexOf('SpixiContentPage.getStagingPage() is SingleChatPage staging && staging.friend != null')
+      const helper902 = hpSafe.slice(hpSafe.indexOf('private void closeChatOverlays('), hpSafe.indexOf('private void closeTxDetailOverlays()'));   /* ★ S20G F-1 re-base: + `bool anyWidth = false` */
+      ok(helper902.indexOf('if (!rightContent.IsVisible && !anyWidth)') > 0
+        && helper902.indexOf('if (!rightContent.IsVisible && !anyWidth)') < helper902.indexOf('SpixiContentPage.getStagingPage() is SingleChatPage staging && staging.friend != null')
         && /staging\.friend != null\)\s*\{\s*staging\.popPageAsync\(\);\s*\}/.test(helper902)
         && (helper902.match(/popPageAsync\(/g) || []).length === 1 && (helper902.match(/getStagingPage\(/g) || []).length === 1
         && /if \(p is SingleChatPage\)\s*\{\s*removePage\(p\);\s*\}/.test(helper902) && (helper902.match(/return;/g) || []).length === 1   /* r2: nothing asserted that the helper REMOVES — a log in place of removePage, or a second early return after the belt, left #897 and #902 inert with every pin green */
@@ -38363,7 +38365,10 @@ console.log('★★ #1001–#1010 — the premium polish round');
        && !!ln && ln.children.length === 2 && ln.children[0].classList.contains('c-tcard__app-name') && ln.children[1].classList.contains('c-tcard__foot'),
       '★★ #1013 (r2 M1): the amount and the foot share ONE wrapping line in a shrinkable track, so on a 320–430px phone the foot drops UNDER the amount instead of running past the card edge (the old minmax(max-content, …) grid measured +2…+79px). Layout is not measurable in jsdom; the render (narrow-*.png, 0px overflow at 320/360/393/430) and the walk row carry the pixels');
     const medRules = [...tb.matchAll(/\.c-tcard__hit:(hover|active) ~ \.c-tcard__medallion,\s*\.c-tcard__hit:\1 ~ \.c-tcard__top > \.c-tcard__medallion \{[^}]*\}/g)].map((m) => m[0]);   /* ★ re-based by S20 Q (#1440 J1): + the stacked bubble's label-row medallion */
-    ok(medRules.length === 2 && medRules.every((r) => /color: var\(--icon-action-(hover|pressed)\);/.test(r) && !/background/.test(r)),
+    /* ★ S20G Q-5 re-base (#1413 ⑥, ruling 3): + the two guarded accent rules (typed-bubbles.css @supports block: the Details
+       hover / press ink = --chat-accent-ink-strong; behaviour: pins-s20g/c-accent) — still INK only, never a background */
+    ok(medRules.length === 4 && medRules.filter((r) => /color: var\(--icon-action-(hover|pressed)\);/.test(r)).length === 2
+       && medRules.filter((r) => /color: var\(--chat-accent-ink-strong\);/.test(r)).length === 2 && medRules.every((r) => !/background/.test(r)),
       '★ #1013 (r2 m1): the pill medallion under the pointer moves its INK only — the dark tonal-hover/-pressed fill is the solid action blue and the medallion ink fell to 1.95:1 on it (the #1012 m6 call-back rule)');
     /* ★ #1013 (r3 MINOR-2): a WALK, not three samples — every sublevel stylesheet, every
        declaration: no bare --surface-card / --surface-screen fill survives (the hub pair or
@@ -41939,7 +41944,8 @@ console.log('#1101–#1107 — session 1');
     r.showAll = alls.join() === 'media';
     r.noPressed = chips.every((c) => !c.hasAttribute('aria-pressed'));   /* (#46 r1 B7) a tab is aria-selected, never pressed */
     /* (#46 r2 R2-M2) …and it still LOOKS selected: the chip's selected pair keyed on aria-selected */
-    r.selectedLook = /\.c-shared__chip\[aria-selected="true"\] \{\s*background: var\(--surface-action-tonal-default\);\s*border-color: var\(--outline-action-default\);\s*color: var\(--text-action-default\);\s*\}/.test(rdS2('Spixi/Resources/Raw/html/contact_details.html'));   /* the BUILT shell */
+    /* ★ S20G r1 B-3 re-base: the selector list now carries :not(:disabled) + the See-all tab (behaviour, every state: pins-s20g/c-chip) */
+    r.selectedLook = /\.c-shared__chip\[aria-selected="true"\]:not\(:disabled\),\s*\.c-shared-list__tab\[aria-selected="true"\] \{\s*background: var\(--surface-action-tonal-default\);\s*border-color: var\(--outline-action-default\);\s*color: var\(--text-chip-selected\);\s*box-shadow: inset 0 1px 0 var\(--highlight-chip-selected\);\s*\}/.test(rdS2('Spixi/Resources/Raw/html/contact_details.html'));   /* the BUILT shell */
     chips[1].click();
     r.switches = sec.dataset.kind === 'file' && !!sec.querySelector('.c-chat-info__card .c-shared__row') && !sec.querySelector('.c-shared__tile') && !sec.querySelector('.c-shared__all');
     /* long press: a TOUCH held 500 ms still → the menu, and the click that follows is swallowed */
@@ -42331,7 +42337,7 @@ console.log('#1101–#1107 — session 1');
     await sleep(50);
     /* ★ S17 E (#1336) re-base: the render's KIND tile (44 px, a glyph + a format tag) on the SAME classifier as the chat's
        tile (typed-bubbles fileKind — one family table); a photo is a grid cell with its format tag */
-    const tileOf = (n) => el.querySelector('.c-settings-dl__row[data-name="' + n + '"] .c-settings-dl__open .c-settings-dl__tile');
+    const tileOf = (n) => el.querySelector('.c-settings-dl__row[data-name="' + n + '"] .c-settings-dl__open .c-file-tile');   /* ★ S20G Q-1 re-base: the SHARED tile (file-tile.js createKindTile — ★ S20G B-5; behaviour: pins-s20g/s-filetile) */
     const tiles = ['report.pdf', 'noext'].map(tileOf).filter(Boolean);
     const cell = el.querySelector('.c-settings-dl__row--th[data-name="photo.JPG"] .c-settings-dl__th');
     const built = rdS2('Spixi/Resources/Raw/html/settings.html');
@@ -42340,7 +42346,7 @@ console.log('#1101–#1107 — session 1');
     const r = {
       tiles: tiles.length === 2 && !!cell,
       kinds: tiles.map((t) => t.dataset.kind).join() === 'pdf,other',
-      labels: tiles.map((t) => (t.querySelector('.c-settings-dl__tag') || {}).textContent || '-').join() === 'PDF,-'
+      labels: tiles.map((t) => (t.querySelector('.c-file-tile__tag') || {}).textContent || '-').join() === 'PDF,-'   /* ★ S20G Q-1 re-base: .c-file-tile__tag */
         && (cell.querySelector('.c-settings-dl__th-tag') || {}).textContent === 'JPG',
       glyph: tiles.every((t) => !!t.querySelector('svg')),
       noBadge: !el.querySelector('.c-settings-dl__open .c-fbubble__badge'),
@@ -42349,7 +42355,7 @@ console.log('#1101–#1107 — session 1');
       hidden: tiles.length === 2 && tiles.every((t) => t.getAttribute('aria-hidden') === 'true'),
       sameClassifier: /import \{ fillFileName, fileKind \} from '\.\/typed-bubbles\.js';/.test(sa) && !/FILE_FAMILIES|jpe\?g\|png/.test(sa),
       /* the tile's look ships in both shells that render Downloads */
-      css: [built, builtDl].every((h) => /\.c-settings-dl__tile\[data-kind="pdf"\]/.test(h) && /\.c-settings-dl__tag \{/.test(h)),
+      css: [built, builtDl].every((h) => /\.c-file-tile\[data-kind="pdf"\]/.test(h) && /\.c-file-tile__tag \{/.test(h)),   /* ★ S20G Q-1 re-base: the shared class, shipped via the file-tile.css link (★ S20G B-5) */
       noErrs: errs.length === 0,
     };
     try { dom.window.close(); } catch (e) {}
@@ -42492,6 +42498,7 @@ for (const mod of ['p-pattern', 'p-offline', 'p-blind', 'p-keepopen', 'q-lang', 
 for (const mod of ['p-tray', 'p-strip', 'p-send', 'q-meta', 'q-size', 'q-pay', 'q-file', 'q-app', 'f-grammar', 'f-render', 'f-strip', 'f-bar', 'f-copy', 'f-linkcap', 'f-r1', 'r-apps-run', 'r-dark-grounds', 'r-notice-card', 'r-group-photo-rtl', 'r-install-wait', 'r-account-toggle', 's-filesize', 'u-face', 'u-days', 'u-amount', 'u-hero', 'u-spoof']) await (await import(new URL('./pins-s20/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20 (combined, #1374–#1402, #1440) — p = composer ↔ list motion · q = meta 0.7, file size, payment / file / app layout · f = message formatting · r = apps Run, dark grounds, notice card, group photo + RTL, install wait, Account toggle inset · s = the C# file size · u = the wallet
 for (const mod of ['a-steps', 'b-commit', 'c-restore', 'd-look', 'e-desktop', 'f-copy-font-motion']) await (await import(new URL('./pins-on1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ ON-1 (the launch flow, #1420–#1422)
 for (const mod of ['c-accent', 'c-tray', 'c-code', 'c-react', 'l-slides', 'l-fade', 'l-inset', 'l-card', 'l-retry', 'l-kb', 'h-rail', 'h-hero', 'h-downloads']) await (await import(new URL('./pins-s20f/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20F (the S20 walk fix round, #1407–#1410, #1424–#1427, #1443–#1445) — c = chat (W-3 accent · W-9 tray layer · W-11 code · W-13 reaction pills) · l = launch (W-5 slides · W-4 fade · W-6 inset · W-7 card anchor · W-8 retry · the iOS keyboard reveal) · h = home / settings / wallet (W-1 rail belt · W-10 hero · W-12 downloads)
+for (const mod of ['c-n1', 'c-code', 'c-accent', 'c-focus', 'c-chip', 'l-autoplay', 'l-version', 'l-forms', 'l-copy', 's-switch', 's-dlpatch', 's-filetile', 'h-hero-ms', 'h-csharp']) await (await import(new URL('./pins-s20g/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20G B2 launch — F-2 autoplay pause · F-3 the version line · R-2 / R-3 / F-4 step 2 + the file card · Q-2 / Q-3 / #1406 copy (the Chromium sweep pins-s20g/l-sweep.mjs is NOT in smoke)
 for (const mod of ['a-list', 'a-plan', 'b-titlebar', 'c-density', 'd-pinned']) await (await import(new URL('./pins-dt1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ DT-1 (the desktop uplift, P1, #1380–#1399) — a = the chat list polish (sections + fold, hover actions = the row menu's actions, inset rows, desktop-only CSS, the patch path, the phone unchanged) · b = the Windows title bar (S20 #1395: the `maui` / `colors` ways deleted, `off` = the only way)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

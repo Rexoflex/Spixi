@@ -11,6 +11,9 @@
  *   (3) THE BLOCK: padding `var(--spacing-8) var(--spacing-12)`, margin `var(--spacing-8) 0`, `--radius-8`, a 3 px START rule
  *       (`border-inline-start: 3px solid var(--fmt-rule)`, the pre is dir=ltr), still `white-space: pre` + `overflow-x: auto` +
  *       `max-width: 100%` (the sideways scroll), and its fill per direction is unchanged.
+ * ★ re-based by S20G F-5 / Q-4: (1) the sent rule ink is rgba(255,255,255,0.30) (was 0.45); (2) the chip carries white-space:
+ *   break-spaces (the #1413 ① soft-wrap overhang); (3) the block WRAPS — white-space: pre-wrap + overflow-wrap: anywhere, no
+ *   overflow-x / overscroll-behavior-x / scrollbar-width (was pre + the sideways scroll). Behaviour pins: pins-s20g/c-code.
  * Deliberate breaks (S20F report): the code background put back (`.c-fmt-code { background: var(--surface-bubble-received-quote) }`)
  * → CHIP · `border-inline-start` → `border-left` → BLOCK · (r3) the r2 glue + the data-short mark put back in msg-format.js
  * → INLINE · (r3) `.c-fmt-code[data-short] { display: inline-block }` put back in format-bar.css → INLINE. */
@@ -53,7 +56,7 @@ export default async function (h) {
     r.chip = !!got.chip && !got.chip.bg && !!got.men && /var\(--surface-action-tonal-default\)/.test(got.men.bg)
       && /^inset 0 0 0 var\(--outline-width-1\) var\(--fmt-rule\)$/.test(got.chip.shadow) && got.chip.pad === '1px 6px' && got.chip.pad !== got.men.pad
       && got.chip.rule === 'var(--outline-fmt-code)' && got.chip.sentRule === 'var(--outline-on-hero)'
-      && tokL === 'var(--outline-neutral-02)' && tokD === 'var(--outline-neutral-04)' && /^rgba\(255, ?255, ?255, ?0\.45\)$/.test(got.tok[2]);
+      && tokL === 'var(--outline-neutral-02)' && tokD === 'var(--outline-neutral-04)' && /^rgba\(255, ?255, ?255, ?0\.30?\)$/.test(got.tok[2]);   // ★ S20G F-5 (a) re-base: 0.45 → 0.30
     /* (2) ★ r3 (the short-chip line logic REMOVED — a defect in three rounds, r1 orphans · r2 unbounded overflow · r3 bounded
        overflow + CJK orphans): a code span is ONE inline span.c-fmt-code as at HEAD — no data-short, no c-fmt-nb wrapper, no
        display override, overflow-wrap anywhere (it wraps like text); the reader's runs keep HEAD's link / mention result */
@@ -65,7 +68,7 @@ export default async function (h) {
       shape: cases[0].innerHTML.replace(/ dir="ltr"/, ''), disp: rc && C.win(rc, 'display'), wrap: rc && C.win(rc, 'overflow-wrap'), ws: rc && C.win(rc, 'white-space'),
       rules: C.rules.filter(({ r: ru }) => /c-fmt-nb|c-fmt-code\[data-short\]/.test(ru.selectorText)).length, strip: S.stripFormat('see `smoke`. ok'), text: cases[0].textContent };
     const I = got.inline;
-    r.inline = I.short === 0 && I.nb === 0 && I.shape === 'see <code class="c-fmt-code">smoke</code>. ok' && !I.disp && I.wrap === 'anywhere' && !I.ws && I.rules === 0
+    r.inline = I.short === 0 && I.nb === 0 && I.shape === 'see <code class="c-fmt-code">smoke</code>. ok' && !I.disp && I.wrap === 'anywhere' && I.ws === 'break-spaces' && I.rules === 0   /* ★ S20G Q-4 re-base (#1413 ①): + white-space: break-spaces (was: no override) */
       && I.strip === 'see smoke. ok' && I.text === 'see smoke. ok';
     const ng = (id) => { const rw = row(id); return rw ? { links: [...rw.querySelectorAll('.c-bubble__link')].map((x) => x.title || x.textContent), pills: rw.querySelectorAll('.c-bubble__mention').length } : null; };
     got.noglue = {}; for (const id of ['n1', 'n2', 'n3', 'n4', 'n5', 'c1', 'c2']) got.noglue[id] = ng(id);
@@ -78,15 +81,15 @@ export default async function (h) {
     const preRules = [...css.matchAll(/(^|\})\s*\.c-fmt-pre\s*\{([^}]*)\}/g)].map((m) => m[2]);
     got.preRule = preRules.map((x) => x.replace(/\s+/g, ' ').trim());
     const startRule = preRules.some((b) => /border-inline-start:\s*3px solid var\(--fmt-rule\)/.test(b)) && !preRules.some((b) => /border-(left|right)\s*:/.test(b));
-    got.pre = rp && { pad: C.win(rp, 'padding'), margin: C.win(rp, 'margin'), radius: C.win(rp, 'border-radius'), ws: C.win(rp, 'white-space'), ox: C.win(rp, 'overflow-x'), max: C.win(rp, 'max-width'), dir: rp.dir, bgR: bg(rp), bgS: sp && bg(sp), ruleS: sp && C.win(sp, '--fmt-rule') };
+    got.pre = rp && { pad: C.win(rp, 'padding'), margin: C.win(rp, 'margin'), radius: C.win(rp, 'border-radius'), ws: C.win(rp, 'white-space'), ox: C.win(rp, 'overflow-x'), ow: C.win(rp, 'overflow-wrap'), osb: C.win(rp, 'overscroll-behavior-x'), sbw: C.win(rp, 'scrollbar-width'), max: C.win(rp, 'max-width'), dir: rp.dir, bgR: bg(rp), bgS: sp && bg(sp), ruleS: sp && C.win(sp, '--fmt-rule') };
     const P = got.pre;
     r.block = startRule && preRules.length === 1 && !!P && P.pad === 'var(--spacing-8) var(--spacing-12)' && P.margin === 'var(--spacing-8) 0' && P.radius === 'var(--radius-8)'
-      && P.ws === 'pre' && P.ox === 'auto' && P.max === '100%' && P.dir === 'ltr'
+      && P.ws === 'pre-wrap' && P.ow === 'anywhere' && !P.ox && !P.osb && !P.sbw && P.max === '100%' && P.dir === 'ltr'   /* ★ S20G F-5 (b) re-base: it WRAPS (was white-space: pre + overflow-x: auto, the sideways scroll) */
       && P.bgR === 'var(--surface-bubble-received-quote)' && P.bgS === 'var(--surface-wash-on-hero)' && P.ruleS === 'var(--outline-on-hero)';
     r.noErr = K.noErr(s.errs);
   } catch (e) { r.err = e.message + ' ' + (e.stack || '').split('\n')[1]; }
   finally { if (s) s.W.close(); }
   ok(Object.values(r).every((v) => v === true),
-    '★ S20F W-11 (#1409): inline code is an OUTLINE chip (no fill, a 1 px inset rule in --outline-fmt-code / --outline-on-hero, padding 1px 6px — not the filled @-mention pill) that stays ONE inline span as at HEAD (no data-short, no c-fmt-nb, wraps like text; links / mentions across a chip as at HEAD), and the ``` block has the 8 / 12 padding, the 8 px margin, radius 8 and a 3 px border-inline-start in the same rule ink, still scrolling sideways — '
+    '★ S20F W-11 (#1409): inline code is an OUTLINE chip (no fill, a 1 px inset rule in --outline-fmt-code / --outline-on-hero, padding 1px 6px — not the filled @-mention pill) that stays ONE inline span as at HEAD (no data-short, no c-fmt-nb, wraps like text; links / mentions across a chip as at HEAD), and the ``` block has the 8 / 12 padding, the 8 px margin, radius 8 and a 3 px border-inline-start in the same rule ink, wrapping inside the bubble (S20G F-5; the chip break-spaces, Q-4) — '
     + JSON.stringify({ r, got }));
 }

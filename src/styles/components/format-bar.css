@@ -19,8 +19,9 @@
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   overflow-wrap: anywhere;
+  white-space: break-spaces;   /* ★ S20G Q-4 (#1413 ①): the wrap space stays in the line (normal hangs it), so the outline never passes the text edge */
 }
-/* a block: as typed, scrolls sideways inside the bubble's width */
+/* a block: as typed, WRAPS in the bubble — ★ S20G F-5 (b): was white-space: pre + a sideways scroll (overflow-x / overscroll / scrollbar) */
 .c-fmt-pre {
   display: block;
   max-width: 100%;
@@ -31,10 +32,8 @@
   background: var(--surface-bubble-received-quote);
   font-size: var(--font-size-body-sm);
   line-height: var(--line-height-body-sm);
-  white-space: pre;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .c-bubble-row[data-direction="sent"] .c-fmt-pre { background: var(--surface-wash-on-hero); }
 .c-fmt-pre:first-child { margin-block-start: 0; }

@@ -3,10 +3,10 @@
 Paste this as the first message of a NEW chat. Chat replies in ASD-STE100 (#931). PowerShell blocks with every delivery, each starting with the full `cd`.
 
 ## 0 · Precondition (stop if it fails)
-- `git --no-optional-locks log --oneline -3` on Damir's clone: the top is "Session 20F: the S20 walk fix round (W-1 … W-13)" — or the S20G commit (the office walk fix round, `docs/prompts/session-20g.md`) on top of it; HEAD = origin/redesign/frontend.
+- `git --no-optional-locks log --oneline -3` on Damir's clone: the top is "Session 20G: the S20F walk fix round (P0 restore, F-1 … F-5, R-1 … R-6, Q-1 … Q-5, N-1, N-2)" on top of "Session 20F: …" (`a43dd4c5`); HEAD = origin/redesign/frontend.
 - The S20F walk (Windows + Android, `docs/walk-s20f.md`) and the office walk (iPhone + Mac, `docs/office-walk-sheet-v1.md` §7–§14) are recorded, and the S20G fix round is committed. The office walk (iPhone + Mac, `docs/office-walk-sheet-v1.md`) is done or scheduled — say which.
-- Read: `CLAUDE.md` → the newest `docs/handoff-*.md` (S20G's, else `docs/handoff-2026-10-14b.md`) → DECISIONS #1412, #1413, #1414, #1441 → the privacy rows (grep "privacy levels", Damir 2026-10-11 23:33).
-- Cloud twin: the repo + `ixian-platform/Ixian-Core` at `097341a` next to it; `apt-get install -y dotnet-sdk-8.0`; `npm i --no-save jsdom eslint globals tree-sitter tree-sitter-c-sharp` (ONE command). Baseline: smoke **6148** (S20F; S20G may move it — read its handoff) / the 2 KNOWN · CSH **451**. Next free: DECISIONS #1407 (S line) · lessons L145.
+- Read: `CLAUDE.md` → `docs/handoff-2026-10-15.md` (S20G) → DECISIONS #1412, #1413, #1414, #1441 → the privacy rows (grep "privacy levels", Damir 2026-10-11 23:33).
+- Cloud twin: the repo + `ixian-platform/Ixian-Core` at `097341a` next to it; `apt-get install -y dotnet-sdk-8.0`; `npm i --no-save jsdom eslint globals tree-sitter tree-sitter-c-sharp` (ONE command). Baseline: smoke **6207** (S20G, #1422) / the 2 KNOWN · CSH **463**. Next free: DECISIONS #1407 (S line) · lessons L145.
 
 ## 1 · Outcome
 Damir can pick one privacy level in Settings › Privacy and see exactly what it changes.

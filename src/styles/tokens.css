@@ -690,6 +690,9 @@
   --text-action-default: var(--primary-600);
   --text-action-hover: var(--primary-700);
   --text-action-pressed: var(--primary-800);
+  --text-chip-selected: var(--text-action-pressed);   /* ★ S20G N-2 (Damir 22:49 "white font in the selected chips … premiumize it", pick C): the selected chip's ink — light = the deep action ink (9.7 : 1 on the tonal fill, was 4.73); dark = white below */
+  --highlight-chip-selected: rgba(255, 255, 255, 0.14);   /* ★ S20G N-2: the selected chip's 1 px top light (both themes) */
+  --chip-lift-ink: #ffffff;   /* ★ S20G r1 (GATE 64): the white the selected chip's 6 % top lift mixes toward (chip.css, shared-items.css) — both themes; a token so the component files carry no literal */
   --text-action-disabled: var(--neutral-400);
   /* ★ L18 (Damir, 2026-08-31): the SPIXI LOGOTYPE ink — its own role because the
      two themes want different answers and a component file never carries a
@@ -1037,7 +1040,7 @@
      neutral-800/-700 were measured at 1.06/1.02 against the pill: not an edge. */
   --surface-composer-pill: var(--ink-750);   /* ★ #46 S19 M1: the dark pill stays NEUTRAL — ink-750 #1E2023 on every canvas (S19 F10 gave each dark canvas its own tinted received bubble; the pill no longer follows it). Was var(--surface-bubble-received) (#1166 "follows the bubble"), var(--neutral-800) (#989), #1e222b */
   --outline-composer-pill: var(--neutral-500);
-  --surface-notice-card: var(--ink-800);   /* ★ S20 G (#1379): one ramp step DOWN — ink-800 #1A1C1F. On the S20 D grounds (one step darker) the #1E2023 card was the lightest neutral on screen (level with the pill, above the Mist bubble); now it sits under the pill #1E2023 and the Mist bubble #232729 (#1403), stays lighter than every dark ground stop (Mist 1.19 : 1); it equals the dark sheet ground (ink-800) — allow-listed in the #1035 census, it never sits in a sheet and keeps --elevation-2; title 14.4 : 1. Was var(--ink-750). ★ #1354 (Damir 2026-10-12 13:14: "make the dark mode notice more neutral so it fits into each theme"): the NEUTRAL dark card — #1E2023, the dark received bubble's step, the mirror of light's white; lifted by --elevation-2. Superseded: #0c1a4a midnight (Session J / Z #884 ③), which read as navy on the S17 violet / pink / teal canvases */
+  --surface-notice-card: var(--ink-800);   /* ★ S20 G (#1379): one ramp step DOWN — ink-800 #1A1C1F. On the S20 D grounds (one step darker) the #1E2023 card was the lightest neutral on screen (level with the pill, above the Mist bubble); now it sits under the pill #1E2023 (it sat under the Mist bubble #232729 too (#1403); since S20G N-1 the Mist received bubble is #1A1D1F, level with this card at 1.01 : 1 — no longer under it; the card keeps its --elevation-2), stays lighter than every dark ground stop (Mist 1.19 : 1); it equals the dark sheet ground (ink-800) — allow-listed in the #1035 census, it never sits in a sheet and keeps --elevation-2; title 14.4 : 1. Was var(--ink-750). ★ #1354 (Damir 2026-10-12 13:14: "make the dark mode notice more neutral so it fits into each theme"): the NEUTRAL dark card — #1E2023, the dark received bubble's step, the mirror of light's white; lifted by --elevation-2. Superseded: #0c1a4a midnight (Session J / Z #884 ③), which read as navy on the S17 violet / pink / teal canvases */
   --surface-qr: var(--neutral-10); /* stays near-white: QR scan readability */
   --on-qr: #131415; /* module ink stays dark too — the QR pair never theme-flips */
   --surface-presence-online: var(--success-400);
@@ -1101,6 +1104,7 @@
   --text-action-default: var(--primary-400);
   --text-action-hover: var(--primary-300);
   --text-action-pressed: var(--primary-300);
+  --text-chip-selected: var(--text-neutral-on-action);   /* ★ S20G N-2: WHITE on the dark selected chip (13.7 : 1 on the tonal fill; hover 5.84 on tonal-hover). Was --text-action-default (5.47) */
   --text-action-disabled: var(--neutral-500);
   /* ★ L18: dark = neutral-01, the plain title ink. Not a dimmer blue — Damir
      asked for the mark and the wordmark to stop being blue in dark, full stop. */
@@ -1937,7 +1941,7 @@
   --surface-wash-on-hero: rgba(255, 255, 255, 0.12);
   --surface-wash-on-hero-pressed: rgba(255, 255, 255, 0.18);
   --surface-wash-on-hero-strong: rgba(255, 255, 255, 0.24);   /* S20 J2: the action circle press */
-  --outline-on-hero: rgba(255, 255, 255, 0.45);   /* ★ S20F W-11 (#1409): the code chip / block rule on the sent bubble */
+  --outline-on-hero: rgba(255, 255, 255, 0.30);   /* ★ S20G F-5 (a): 0.45 → 0.30, the rule quieter on the sent colour (only the code chip / block read it). ★ S20F W-11 (#1409): the code chip / block rule on the sent bubble */
   /* ★★ #1193 (#1168 A): the ring TRACK on --surface-scrim-strong — a stronger white wash, so the track shows on a
      light photo; over a white photo the --icon-on-scrim fill on it ≈ 3.6:1 (≥ 3). Mode-less (the scrim under it is). */
   --surface-wash-on-scrim-strong: rgba(255, 255, 255, 0.28);
@@ -2405,8 +2409,8 @@
   --outline-card-sent-selected: rgba(156, 142, 215, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #2A2960;   /* ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #262263). ★ S19 option B: Iris's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue (measured: the S19 note at the Mist rule). Was #312F52 (F10 A) */
-  --surface-bubble-received-quote: #1A1941;   /* ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #15123F). ★ S19 B: the reply quote INSIDE that bubble — the bubble scaled in OKLab to 1.25 : 1 darker (was #23223B) */
+  --surface-bubble-received: #1D194F;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #2A2960). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #262263). ★ S19 option B: Iris's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue (measured: the S19 note at the Mist rule). Was #312F52 (F10 A) */
+  --surface-bubble-received-quote: #06041B;   /* ★ S20G N-1: the S19 rule on it (was #1A1941). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #15123F). ★ S19 B: the reply quote INSIDE that bubble — the bubble scaled in OKLab to 1.25 : 1 darker (was #23223B) */
 }
 /* ★★ S8 (#1237, Damir 2026-10-07, picked from the rendered s8x 3-ways): the DARK green (DG1 "Forest") and the DARK blue
    (DB1 "Azure") — each carries its own pattern ink (the dark #C6CFFD periwinkle read violet on these hues). ★ S17 C v3
@@ -2425,8 +2429,8 @@
   --outline-card-sent-selected: rgba(124, 168, 149, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #1B382F;   /* ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #11352B). ★ S19 option B: Meadow's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #2A3D38 (F10 A) */
-  --surface-bubble-received-quote: #112620;   /* ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #08221A). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1E2C28) */
+  --surface-bubble-received: #0B2920;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1B382F). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #11352B). ★ S19 option B: Meadow's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #2A3D38 (F10 A) */
+  --surface-bubble-received-quote: #02100B;   /* ★ S20G N-1: the S19 rule on it (was #112620). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #08221A). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1E2C28) */
 }
 :root[data-theme='dark'][data-chat-ground='blue'],
 :root[data-theme='dark'] [data-chat-ground='blue'] {
@@ -2440,8 +2444,8 @@
   --outline-card-sent-selected: rgba(140, 154, 204, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #1A2F5C;   /* ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #122A5F). ★ S19 option B: Spixi's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #2A3754 (F10 A) */
-  --surface-bubble-received-quote: #0F1E3F;   /* ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #08193D). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1E283C) */
+  --surface-bubble-received: #0C1F4B;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1A2F5C). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #122A5F). ★ S19 option B: Spixi's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #2A3754 (F10 A) */
+  --surface-bubble-received-quote: #02071C;   /* ★ S20G N-1: the S19 rule on it (was #0F1E3F). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #08193D). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1E283C) */
 }
 :root[data-theme='dark'] [data-chat-ground='flat'] {
   --gradient-chat: #040607;   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #07090B). ★ S19 option B: the Mist ground L × 0.85 (#0C0E10 → #07090B) — the ground only; --chat-canvas-base / ink-950 stay (the chrome and every other reader keep #0C0E10). Was var(--chat-canvas-base) */
@@ -2480,12 +2484,16 @@
    option-3 BUBBLE half — every dark received bubble OKLCH C × 0.85, L + 0.015; each quote re-derived by the S19 rule (1.25 : 1).
    Bubble vs each S20 stop · text #E8ECEE · meta ink at the #1041 0.7: Mist #232729 1.35 · 12.67 · 4.75 — Iris #2A2960 1.46 / 1.51
    · 11.15 · 4.28 — Spixi #1A2F5C 1.42 / 1.52 · 11.01 · 4.25 — Meadow #1B382F 1.43 / 1.55 · 10.68 · 4.18 — Aurora #1B3364
-   1.46 / 1.50 / 1.55 · 10.37 · 4.04 — Dusk #3D284A 1.43 / 1.52 · 11.03 · 4.27 — Ocean #153A54 1.48 / 1.65 · 10.01 · 3.94. */
+   1.46 / 1.50 / 1.55 · 10.37 · 4.04 — Dusk #3D284A 1.43 / 1.52 · 11.03 · 4.27 — Ocean #153A54 1.48 / 1.65 · 10.01 · 3.94.
+   ★★ S20G N-1 (Damir 21:50, "even darker still, still too close to outgoing"): every coloured bubble OKLCH L −0.06, Mist −0.04
+   (h + C kept); quotes by the S19 rule (Mist's lands on #000, 1.24). Bubble vs stops · text · meta at 0.7: Mist 1.20 · 14.3 · 5.2
+   — Iris 1.20 / 1.25 · 13.5 · 4.9 — Spixi 1.16 / 1.25 · 13.5 · 4.9 — Meadow 1.17 / 1.27 · 13.1 · 4.8 — Aurora 1.18 / 1.22 /
+   1.25 · 12.8 · 4.7 — Dusk 1.18 / 1.25 · 13.4 · 4.9 — Ocean 1.19 / 1.32 · 12.5 · 4.7 (pins-s20g/c-n1). */
 :root[data-theme='dark'][data-chat-ground='flat'],
 :root[data-theme='dark'] [data-chat-ground='flat'] {
   --gradient-chat: #040607;   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #07090B). ★ S19 option B: the Mist GROUND L × 0.85 (#0C0E10 → #07090B) on the chat root too (the descendant rule above says the same); --chat-canvas-base / ink-950 stay. Was the dark block's var(--chat-canvas-base) */
-  --surface-bubble-received: #232729;   /* ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #1F2326). ★ S19 option B: Mist's OWN received bubble — OKLCH L 0.25, a touch of the ink hue (Mist is neutral, so B only darkens it). Was #292B2D (F10 A: the ground + 12 % white) */
-  --surface-bubble-received-quote: #0F1113;   /* ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #090A0C). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1B1C1E) */
+  --surface-bubble-received: #1A1D1F;   /* ★ S20G N-1: OKLCH L −0.04, h + C kept (was #232729). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #1F2326). ★ S19 option B: Mist's OWN received bubble — OKLCH L 0.25, a touch of the ink hue (Mist is neutral, so B only darkens it). Was #292B2D (F10 A: the ground + 12 % white) */
+  --surface-bubble-received-quote: #000000;   /* ★ S20G N-1: the S19 rule lands ON #000 (1.24 : 1) (was #0F1113). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #090A0C). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1B1C1E) */
 }
 
 /* ═══ ★ S17 C (#1334) — CHAT APPEARANCE: three NEW canvases + the bubble colours ═══════════════════════════════════
@@ -2531,8 +2539,8 @@
   --outline-card-sent-selected: rgba(119, 169, 173, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #1B3364;   /* ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #122D67). ★ S19 option B: Aurora's OWN received bubble — OKLCH L 0.315, C 1.5 × the canvas mid chroma, its hue. Was #2E3C5E (F10 A) */
-  --surface-bubble-received-quote: #112349;   /* ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #091D46). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #212B44) */
+  --surface-bubble-received: #0D2353;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1B3364). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #122D67). ★ S19 option B: Aurora's OWN received bubble — OKLCH L 0.315, C 1.5 × the canvas mid chroma, its hue. Was #2E3C5E (F10 A) */
+  --surface-bubble-received-quote: #040E2A;   /* ★ S20G N-1: the S19 rule on it (was #112349). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #091D46). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #212B44) */
 }
 :root:not([data-theme='dark'])[data-chat-ground='dusk'],
 :root:not([data-theme='dark']) [data-chat-ground='dusk'] {
@@ -2559,8 +2567,8 @@
   --outline-card-sent-selected: rgba(206, 133, 170, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #3D284A;   /* ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #3B224A). ★ S19 option B: Dusk's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #3E3147 (F10 A) */
-  --surface-bubble-received-quote: #291932;   /* ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #24132F). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #2D2333) */
+  --surface-bubble-received: #2E193A;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #3D284A). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #3B224A). ★ S19 option B: Dusk's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #3E3147 (F10 A) */
+  --surface-bubble-received-quote: #0F0515;   /* ★ S20G N-1: the S19 rule on it (was #291932). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #24132F). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #2D2333) */
 }
 :root:not([data-theme='dark'])[data-chat-ground='ocean'],
 :root:not([data-theme='dark']) [data-chat-ground='ocean'] {
@@ -2587,8 +2595,8 @@
   --outline-card-sent-selected: rgba(125, 177, 199, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #153A54;   /* ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #053655). ★ S19 option B: Ocean's OWN received bubble — OKLCH L 0.32, C 1.5 × the canvas mid chroma, its hue. Was #263F50 (F10 A) */
-  --surface-bubble-received-quote: #0D293E;   /* ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #02243B). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1B2D3A) */
+  --surface-bubble-received: #032A43;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #153A54). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #053655). ★ S19 option B: Ocean's OWN received bubble — OKLCH L 0.32, C 1.5 × the canvas mid chroma, its hue. Was #263F50 (F10 A) */
+  --surface-bubble-received-quote: #011524;   /* ★ S20G N-1: the S19 rule on it (was #0D293E). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #02243B). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1B2D3A) */
 }
 /* ★ S17 C (#1334, values v3 §1 / §7): THE PREVIEW TILES MUST NOT INHERIT ANOTHER CANVAS. Custom properties inherit, so a tile
    (a descendant with its own data-chat-ground) under a root on Aurora / Meadow / Ocean … would take the root's values wherever

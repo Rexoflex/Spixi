@@ -114,6 +114,7 @@ const FILES = [
   'src/components/wallet-receive.js',
   'src/components/tip-sheet.js',
   'src/components/chat-select.js',
+  'src/components/file-tile.js',      // ★ S20G B-5: the file type tile (createKindTile) — before shared-items + settings-app, its consumers
   'src/components/shared-items.js',   // ★★ #1106: shared media / files / links — before chat-info, which imports it
   'src/components/chat-info.js',
   'src/components/contacts-shell.js',   // Phase 1 #2: FAB picker · add-contact · group setup

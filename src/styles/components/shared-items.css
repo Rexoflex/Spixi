@@ -10,16 +10,46 @@
 .c-shared__chips { display: flex; gap: var(--spacing-8); overflow-x: auto; scrollbar-width: none; }
 .c-shared__chips::-webkit-scrollbar { display: none; }
 .c-shared__chip { flex: none; }
-/* (#46 r2 R2-M2) a role=tab chip is SELECTED by aria-selected (no aria-pressed, r1 B7) — the chip's selected pair, here */
-.c-shared__chip[aria-selected="true"] {
+/* (#46 r2 R2-M2) a role=tab chip is SELECTED by aria-selected (no aria-pressed, r1 B7) — the chip's selected pair, here.
+   ★ S20G r1 B-3: + the See-all tab; every state names the ink (the generic .c-chip hover / press ink read 3.44 in dark) */
+.c-shared__chip[aria-selected="true"]:not(:disabled),
+.c-shared-list__tab[aria-selected="true"] {
   background: var(--surface-action-tonal-default);
   border-color: var(--outline-action-default);
-  color: var(--text-action-default);
+  color: var(--text-chip-selected);
+  box-shadow: inset 0 1px 0 var(--highlight-chip-selected);
 }
 @media (hover: hover) and (pointer: fine) {
-  .c-shared__chip[aria-selected="true"]:not(:disabled):hover {
+  .c-shared__chip[aria-selected="true"]:not(:disabled):not([data-readonly]):hover,
+  .c-shared-list__tab[aria-selected="true"]:hover {
     background: var(--surface-action-tonal-hover);
     border-color: var(--outline-action-hover);
+    color: var(--text-chip-selected);
+  }
+}
+.c-shared__chip[aria-selected="true"]:not(:disabled):not([data-readonly]):active,
+.c-shared-list__tab[aria-selected="true"]:active {
+  background: var(--surface-action-tonal-default);
+  border-color: var(--outline-action-pressed);
+  color: var(--text-chip-selected);
+}
+@supports (color: color-mix(in srgb, red, blue)) {   /* ★ S20G N-2: as chip.css */
+  .c-shared__chip[aria-selected="true"]:not(:disabled),
+  .c-shared-list__tab[aria-selected="true"] {
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-default), var(--chip-lift-ink) 6%), var(--surface-action-tonal-default));
+    border-color: color-mix(in srgb, var(--outline-action-default) 60%, transparent);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .c-shared__chip[aria-selected="true"]:not(:disabled):not([data-readonly]):hover,
+    .c-shared-list__tab[aria-selected="true"]:hover {
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-hover), var(--chip-lift-ink) 6%), var(--surface-action-tonal-hover));
+      border-color: color-mix(in srgb, var(--outline-action-hover) 60%, transparent);
+    }
+  }
+  .c-shared__chip[aria-selected="true"]:not(:disabled):not([data-readonly]):active,
+  .c-shared-list__tab[aria-selected="true"]:active {
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-action-tonal-default), var(--chip-lift-ink) 6%), var(--surface-action-tonal-default));
+    border-color: color-mix(in srgb, var(--outline-action-pressed) 80%, transparent);
   }
 }
 .c-shared__chips > .c-chip { max-width: none; }   /* GATE 58: a SCROLLING chip row opts out of the chip cap (#841) */
@@ -121,6 +151,18 @@
   .c-shared__row:hover, .c-shared__all:hover { background: var(--surface-card-hover); }
 }
 .c-shared__row:active, .c-shared__all:active { background: var(--surface-card-pressed); }
+/* ★ S20G NIT (#46 r1): the file tile's format tag stands on the ROW's ground — it follows the row into hover / pressed
+   (it kept --surface-card: a visible patch on the hovered row). Same media gate as the row's own hover. */
+@media (hover: hover) and (pointer: fine) {
+  .c-shared__row--file:hover { --file-tile-ground: var(--surface-card-hover); }
+}
+.c-shared__row--file:active { --file-tile-ground: var(--surface-card-pressed); }
+/* ★ S20G Q-1 / B-5: the file type tile + the file name / meta type live in file-tile.css (contact_details links it). */
+/* chat info › Files: the Downloads row rhythm (tile + 14 gap, 12 block padding → 68 px), the card's own 12 px inline
+   padding kept so the tile lines up with the other chat-info rows. No row-to-row line: #968 (no lines between rows of
+   the same card on chat info) outranks the Downloads hairline. */
+.c-shared__row--file { gap: 14px; padding-block: var(--spacing-12); }   /* sanctioned: 14 = the Downloads row gap (the render) */
+.c-shared__row--file .c-shared__row-text { gap: var(--spacing-2); }
 
 /* —— "See all" —— one structure: the phone takeover and the desktop pane */
 .c-shared-list {
@@ -148,12 +190,7 @@
   font-weight: var(--font-weight-medium);
   cursor: pointer;
 }
-/* selected = the filter chip's selected pair (chip.css), as role=tab needs aria-selected, not aria-pressed */
-.c-shared-list__tab[aria-selected="true"] {
-  background: var(--surface-action-tonal-default);
-  border-color: var(--outline-action-default);
-  color: var(--text-action-default);
-}
+/* selected: with the chip, above (★ S20G r1 B-3) */
 .c-shared-list__panel { flex: 1; overflow-y: auto; padding: 0 var(--spacing-16) var(--spacing-16); }
 .c-shared-list__panel > .c-shared__rows { background: var(--surface-card); border-radius: var(--radius-12); overflow: hidden; }
 .c-shared-list__panel > .c-shared__grid { padding: 0; }

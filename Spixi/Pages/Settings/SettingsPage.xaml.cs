@@ -1766,6 +1766,15 @@ namespace SPIXI
             {
                 try { string sd = Path.Combine(Config.spixiUserFolder, staleDir); if (Directory.Exists(sd)) { Directory.Delete(sd, true); } } catch (Exception ex) { Logging.error("wipe: restore scratch threw: " + ex.GetType().Name); }
             }
+            /* ★ S20G P0 (3): the contact lists a restore KEPT (restore-previous/<yyyyMMdd-HHmmss>, RestoreMoves.keepPrevious)
+             * go with the account — delete account leaves nothing. Exact names only (S20GRules.isKeptFolderName, and #46 r1
+             * A-1's fresh stashes, isFreshStashName); then the one fixed parent (#46 r1 A-2) when it is empty. NOT behind
+             * the S20G flag: a folder kept while the flag was on must not outlive the account after it is turned off. */
+            foreach (string keptDir in S20GRules.keptFolders(Config.spixiUserFolder))
+            {
+                try { Directory.Delete(keptDir, true); } catch (Exception ex) { Logging.error("wipe: kept contact list threw: " + ex.GetType().Name); }
+            }
+            try { string kp = Path.Combine(Config.spixiUserFolder, S20GRules.KeptParent); if (Directory.Exists(kp) && !Directory.EnumerateFileSystemEntries(kp).Any()) { Directory.Delete(kp, false); } } catch (Exception ex) { Logging.error("wipe: kept parent threw: " + ex.GetType().Name); }
             try { IxianHandler.localStorage.deleteAllDownloads(); } catch (Exception ex) { Logging.error("wipe: downloads threw: " + ex.GetType().Name); }   // ★ S16 #46 r1 (R1-n3): the type — an IOException carries the path (a peer file name)
             /* ★ #585 rider (Damir): "wiping the account leaves the mini app installed, and
              * a create or restore inherits it." Step 1 stops the manager (Node.stop calls

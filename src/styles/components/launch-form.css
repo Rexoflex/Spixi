@@ -78,7 +78,24 @@
 }
 .c-launch__progress { flex: none; display: flex; gap: 6px; margin: var(--spacing-4) var(--spacing-24) 0; }
 .c-launch__progress i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
-.c-launch__progress i[data-on] { background: var(--launch-brand); }
+/* ★ S20G R-3: a segment FILLS (its ::after grows from the reading start, --duration-200, background-color + transform);
+   reduced motion = instant (the token is 0 there) */
+.c-launch__progress i,
+.c-launch__meter i { position: relative; overflow: hidden; }
+.c-launch__progress i::after,
+.c-launch__meter i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: transparent;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--duration-200) var(--easing-standard), background-color var(--duration-200) var(--easing-standard);
+}
+html[dir="rtl"] .c-launch__progress i::after,
+html[dir="rtl"] .c-launch__meter i::after { transform-origin: right; }
+.c-launch__progress i[data-on]::after { background: var(--launch-brand); transform: none; }
 
 /* ★ S20F W-8 (#1426): retry's "Unlock" sits directly under the field — its body does not grow, so the
    footer follows it (it still lifts above the keyboard: the body is what shrinks, #615) */
@@ -124,6 +141,7 @@
   line-height: 1.4;
   text-wrap: balance;
 }
+.c-launch__nick { font-weight: var(--font-weight-semibold); color: var(--text-neutral-01); }   /* ★ S20G R-2: the filled nickname on step 2 */
 /* restore art — ★ S11 B (#1262): the inline set, on the form backdrop, dark set */
 .c-launch__hero-illo {
   display: block;
@@ -283,13 +301,15 @@
 /* strength bar (advice) + the two live checks */
 .c-launch__meter { display: flex; align-items: center; gap: 6px; margin: 0 4px; }
 .c-launch__meter i { flex: 1; height: 4px; border-radius: 4px; background: var(--launch-track); }
-.c-launch__meter[data-level="1"] i:nth-child(-n+1) { background: var(--launch-meter-1); }
-.c-launch__meter[data-level="2"] i:nth-child(-n+2) { background: var(--launch-meter-2); }
-.c-launch__meter[data-level="3"] i:nth-child(-n+3) { background: var(--launch-meter-3); }
-.c-launch__meter[data-level="4"] i:nth-child(-n+4) { background: var(--launch-meter-4); }
+.c-launch__meter[data-level="1"] i:nth-child(-n+1)::after { background: var(--launch-meter-1); transform: none; }
+.c-launch__meter[data-level="2"] i:nth-child(-n+2)::after { background: var(--launch-meter-2); transform: none; }
+.c-launch__meter[data-level="3"] i:nth-child(-n+3)::after { background: var(--launch-meter-3); transform: none; }
+.c-launch__meter[data-level="4"] i:nth-child(-n+4)::after { background: var(--launch-meter-4); transform: none; }
 .c-launch__meter-label {
   flex: none;
   min-width: 52px;
+  min-height: 18px;                 /* ★ S20G R-3: the label's line is RESERVED before the first character (0 px shift) */
+  line-height: 18px;
   margin-inline-start: 6px;
   text-align: end;
   color: var(--launch-label);
@@ -371,6 +391,13 @@
 .c-launch__filecard .c-launch__tile { background: var(--surface-action-default); }
 .c-launch__filecard[data-file-set] { background: var(--launch-ok-bg); }
 .c-launch__filecard[data-file-set] .c-launch__tile { background: var(--launch-ok); }
+/* ★ S20G F-4: a pointer hover in BOTH states (the .c-launch__sheet-close:hover grammar) — a white wash laid over
+   whichever fill the state has (the launch is fixed-dark); a disabled card does not react. The green (file set) state
+   takes a lighter wash: its "Change" accent stays ≥ 4.5 (6 % → 4.22, 3 % → 4.61). */
+@media (hover: hover) and (pointer: fine) {
+  .c-launch__filecard:hover:not(:disabled) { background-image: linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06)); }   /* sanctioned: a white wash on the fixed-dark card */
+  .c-launch__filecard[data-file-set]:hover:not(:disabled) { background-image: linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03)); }   /* sanctioned: the AA-safe wash on green */
+}
 .c-launch__filecard-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .c-launch__filecard-title { font-family: var(--font-secondary); font-size: 16px; line-height: 21px; font-weight: var(--font-weight-bold); overflow-wrap: anywhere; }   /* untrusted file names — never overflow */
 .c-launch__filecard-sub { color: var(--launch-label); font-family: var(--font-secondary); font-size: 13px; line-height: 17px; }
@@ -424,18 +451,6 @@ html[dir="rtl"] .c-launch__step[data-enter="back"] { animation-name: c-launch-st
   -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);   /* sanctioned: mask stops */
           mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);   /* sanctioned: mask stops */
 }
-/* ★ S20F W-5 (#1425/#1426): "Open source" under the dots — a muted caption; off at the L2 tight level */
-.c-launch__oss {
-  flex: none;
-  margin: 0;
-  padding-bottom: var(--spacing-4);
-  color: var(--text-neutral-02);
-  font-family: var(--font-secondary);
-  font-size: var(--font-size-body-xs);
-  line-height: var(--line-height-body-xs);
-  letter-spacing: 0.02em;           /* sanctioned: caption tracking */
-}
-.c-launch__welcome[data-compact="2"] .c-launch__oss { display: none; }
 
 /* ══ desktop (Windows / Mac), Part B: the two-column layout at a window ≥ 900 px lives in the
    LAUNCH SHELL's own <style> (src/shells/launch.html) — a component stylesheet carries no ≥ 700 px

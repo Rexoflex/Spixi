@@ -11,6 +11,8 @@
  *   · the dark pattern keeps A's visibility on the deeper grounds (per canvas the mean ink-over-stop excess contrast at the
  *     computed alpha is 0.97–1.15 × A's at 0.0832 — the S19 rule; 0.0932 measured 0.90–0.96 on the S20 grounds, 0.101 1.02–1.08);
  *   · LIGHT is unchanged: every light ground = its S19 value.
+ * ★ re-based by S20G N-1 (Damir 21:50 "even darker still, still too close to outgoing"): the bubble clause now expects the S20 bubble
+ *   moved OKLCH L −0.06 (Mist −0.04) and ≥ 1.15 off every stop (r1 NIT: was 1.10; measured min 1.158) (was ≥ 1.34 and further off than S19); pins-s20g/c-n1 holds the N-1 relations.
  * Deliberate breaks (S20 R report): the Dusk bubble back to the S19 #3B224A → bubbles fails (#1403); the dark Ocean rule's stops back to the S19 #002633 / #031129 → grounds fails (Ocean L ratio 1);
  * the dark pattern alpha back to 0.0932 → pattern fails (Iris 0.895). */
 export default async function (h) {
@@ -91,9 +93,10 @@ export default async function (h) {
       let dhB = nb ? Math.abs(nb.h - ob.h) : 999; if (dhB > 180) dhB = 360 - dhB;
       t.bubble = bub; t.quote = q; t.dL = nb && r2(nb.L - ob.L); t.cK = nb && r2(nb.C / ob.C); t.q = nq && hex(bub) ? r2(cr(nq, hex(bub))) : 0;
       t.vsS19 = got.map((x) => r2(cr(hex(ref.bubble), hex(x))));
-      const shift = !!nb && Math.abs(nb.L - ob.L - 0.015) <= 0.004 && Math.abs(nb.C - 0.85 * ob.C) <= 0.004 && (ob.C < 0.02 || dhB <= 8);
+      const dN1 = g === 'flat' ? -0.04 : -0.06;   // ★ S20G N-1 re-base (Damir 21:50 "even darker still"): the S20 bubble then OKLCH L −0.06 (Mist −0.04), C + h kept
+      const shift = !!nb && Math.abs(nb.L - ob.L - 0.015 - dN1) <= 0.004 && Math.abs(nb.C - 0.85 * ob.C) <= 0.004 && (ob.C < 0.02 || dhB <= 8);
       const quoteOk = !!nq && lum(nq) < lum(hex(bub)) && t.q >= 1.2 && t.q < 1.3;
-      const rises = t.vs.every((v, i) => v >= 1.34 && v > t.vsS19[i]);   // Mist 1.347 is the lowest
+      const rises = t.vs.every((v) => v >= 1.15);   // ★ S20G N-1 re-base (r1 NIT 1.10 → 1.15): ≥ 1.15 off every stop (measured 1.16–1.32; Spixi 1.158 the lowest). Was ≥ 1.34 and further off than the S19 bubble (S20 #1403)
       t.text = text && hex(bub) ? r2(cr(text, hex(bub))) : 0; t.meta = meta && hex(bub) ? r2(cr(meta, hex(bub))) : 0;
       if (!(shift && quoteOk && rises && t.text >= 7 && t.meta >= 4.5)) fail.bubbles.push(ref.name + JSON.stringify({ bub, q, dL: t.dL, cK: t.cK, dh: dhB, quote: t.q, vs: t.vs, was: t.vsS19, text: t.text, meta: t.meta }));
       if (g !== 'flat') {
@@ -117,7 +120,7 @@ export default async function (h) {
   finally { try { W.close(); } catch (e) { /* */ } }
   const c = (k, m, extra) => ok(r[k] === true, m + ' — ' + JSON.stringify(r[k] === true ? (extra || { [k]: true }) : { [k]: r[k], threw: r.threw, fail: fail[k], table }).slice(0, 1600));
   c('grounds', '★ S20 D (#1377 option 1): DARK — every ground stop of all 7 canvases is the S19 B stop at OKLab L × 0.85 (± 0.004 L), hue kept, the same stops and angle (computed on the built chat)', { L: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, t.got.join('/')])) });
-  c('bubbles', '★ S20 #1403: each dark received bubble = the S19 bubble at C × 0.85, L + 0.015 (hue kept), its quote the S19 rule on it (1.2–1.3 darker); it sits ≥ 1.34 : 1 off every darker stop and further off than the S19 bubble; text ≥ 7, meta ink ≥ 4.5', { b: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, [t.bubble, t.quote, t.vs, t.text, t.meta]])) });
+  c('bubbles', '★ S20 #1403 + ★ S20G N-1 (re-based): each dark received bubble = the S19 bubble at C × 0.85, L + 0.015 − 0.06 (Mist − 0.04; hue kept), its quote the S19 rule on it (1.2–1.3 darker); it sits ≥ 1.15 : 1 off every darker stop; text ≥ 7, meta ink ≥ 4.5', { b: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, [t.bubble, t.quote, t.vs, t.text, t.meta]])) });
   c('gap', '★ S20 D: each dark select-row gap = the 22 % band made opaque over the new middle (± 1)');
   c('pattern', '★ S20 D: the dark pattern keeps A\'s visibility on the darker grounds (0.97–1.15 × A per canvas, the S19 rule)', { pattern: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, t.pattern])) });
   c('light', '★ S20 D: LIGHT unchanged — every light ground keeps its value');

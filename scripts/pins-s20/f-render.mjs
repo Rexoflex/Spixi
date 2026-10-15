@@ -10,7 +10,8 @@
  *   · the look (cascade winners on the built document): bold = var(--font-weight-semibold) (600); ★ S20F W-11 (#1409): the
  *     code chip has NO fill (an inset outline in var(--fmt-rule) = --outline-fmt-code on the received bubble); the block fill
  *     = var(--surface-wash-on-hero) on the sent one; the block
- *     = white-space pre + overflow-x auto + max-width 100% (scrolls sideways inside the bubble)
+ *     = white-space pre-wrap + overflow-wrap anywhere + max-width 100%, no overflow-x (★ S20G F-5 (b) re-base: it WRAPS inside the
+ *     bubble; was white-space pre + overflow-x auto, the sideways scroll)
  *   · markup INSIDE a mark / a code chip / a block (`*<b>x</b>*`, `<img onerror>` in backticks, `<i>` in a ```) stays text
  * Deliberate breaks (S20 F report): renderFormat writes the code chip with innerHTML → the XSS clauses fail · the bubble
  * back on the old linkifyInto(body, text…) → the bold / code clauses fail · onText called for code → the code clause fails ·
@@ -70,7 +71,7 @@ export default async function (h) {
       && !!code && !C.win(code, 'background') && C.win(code, '--fmt-rule') === 'var(--outline-fmt-code)'   /* ★ S20F W-11 (#1409): NO fill — an inset outline (pins-s20f/c-code); was the quote fill */
       && /var\(--fmt-rule\)/.test(C.win(code, 'box-shadow'))
       && !!pre2 && C.win(pre2, 'background') === 'var(--surface-wash-on-hero)'
-      && C.win(pre2, 'white-space') === 'pre' && C.win(pre2, 'overflow-x') === 'auto' && C.win(pre2, 'max-width') === '100%'
+      && C.win(pre2, 'white-space') === 'pre-wrap' && C.win(pre2, 'overflow-wrap') === 'anywhere' && !C.win(pre2, 'overflow-x') && C.win(pre2, 'max-width') === '100%'   /* ★ S20G F-5 (b) re-base: the block WRAPS (was pre + overflow-x auto) */
       && C.win(code, 'font-family') === 'var(--font-mono)';
     k.noErr = K.noErr(s.errs);
     k._dbg = Object.entries(k).filter(([, v]) => v !== true).length ? (t1 && t1.outerHTML) + ' || ' + (t2 && t2.outerHTML) + ' || html=' + html.join(',') : '';

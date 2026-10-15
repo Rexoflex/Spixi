@@ -192,6 +192,13 @@ const mk = (tag, cls, text) => {
 };
 /* {name} / {n} / {total} fill — the value lands in a text node, never in markup */
 const fillIn = (s, map) => String(s).replace(/\{(\w+)\}/g, (m, k) => (k in map ? String(map[k]) : m));
+/* ★ S20G R-2: the same fill as NODES — a slot whose value is a Node lands as that node (the nickname's <b>), every
+   other piece as a text node; nothing is parsed as markup. The translation keeps its {name} position. */
+const fillNodes = (s, map) => String(s).split(/(\{\w+\})/).filter(Boolean).map((part) => {
+  const k = /^\{(\w+)\}$/.exec(part);
+  const val = k && k[1] in map ? map[k[1]] : part;
+  return val instanceof Node ? val : document.createTextNode(String(val));
+});
 /* phone vs desktop wording = TWO keys chosen at runtime by data-desktop (typed-bubbles.js:840 pattern) */
 const onDesktop = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-desktop');
 /* ★ #46 r1: the "device" wording also fits a TABLET (it is not a phone). The shell's own
@@ -685,13 +692,13 @@ function buildWelcome(st) {
     b.className = 'c-launch__dot';
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-label', s.title);
-    b.addEventListener('click', () => { stopAuto(); go(i); });
+    b.addEventListener('click', () => { pauseAuto(); go(i); });
     dots.append(b);
     return b;
   });
   dots.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight') { stopAuto(); go(st.slide + 1); dotBtns[st.slide].focus(); }
-    if (e.key === 'ArrowLeft') { stopAuto(); go(st.slide - 1); dotBtns[st.slide].focus(); }
+    if (e.key === 'ArrowRight') { pauseAuto(); go(st.slide + 1); dotBtns[st.slide].focus(); }
+    if (e.key === 'ArrowLeft') { pauseAuto(); go(st.slide - 1); dotBtns[st.slide].focus(); }
   });
 
   st.slide = 0;
@@ -718,22 +725,51 @@ function buildWelcome(st) {
     });
   };
 
-  // gentle autoplay (premium-tour idiom): wraps every 7s until the user takes
-  // control (any manual nav/swipe = theirs now); prefers-reduced-motion = off;
+  // gentle autoplay (premium-tour idiom): wraps every 7s; prefers-reduced-motion = off;
   // self-stops when the shell leaves the DOM (demo/jsdom re-creation guard)
-  let autoTimer = null;
-  const stopAuto = () => { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } };
+  /* ★ S20G F-2: a manual nav (dot / arrow key / swipe) only PAUSES it — one resume timer, re-armed by
+     every further input on the welcome view; 15 s with no input → the next slide, then every 7 s again.
+     Create / Restore (stopAuto) end it for good; reduced motion = it never starts (and never resumes). */
+  let autoTimer = null, resumeT = 0, autoOn = false;
+  const AUTO_MS = 7000, RESUME_MS = 15000;      // ★ S20F W-5 (#1425): 5 s → 7 s (reading time) · ★ S20G F-2: the idle pause
+  const tick = () => {
+    if (!v.isConnected) { stopAuto(); return; }
+    if (st.view === 'welcome') go((st.slide + 1) % defs.length);
+  };
+  const runAuto = () => { clearInterval(autoTimer); autoTimer = setInterval(tick, AUTO_MS); };
+  const stopAuto = () => { autoOn = false; clearInterval(autoTimer); autoTimer = null; clearTimeout(resumeT); resumeT = 0; };
+  /* ★ S20G C-F2 (WCAG 2.2.2): keyboard / assistive-tech focus INSIDE the carousel (slides + dots) holds the pause
+     with NO resume timer; focus leaving re-arms the 15 s. A pointer-made focus (a tapped dot) is not a hold — the
+     modality is the last input: pointerdown = pointer, keydown = keyboard, a focus with neither (AT) = keyboard.
+     r2 M-2: the pointer modality is TIME-BOXED (1 s) — a screen reader's synthetic tap must not make every later AT focus count as pointer. */
+  let ptrAt = 0;
+  const ptrNow = () => ptrAt > 0 && Date.now() - ptrAt < 1000;
+  const inCar = (n) => !!n && (car.contains(n) || dots.contains(n));
+  const pauseAuto = () => {
+    if (!autoOn) return;
+    clearInterval(autoTimer); autoTimer = null;
+    clearTimeout(resumeT); resumeT = 0;
+    if (!ptrNow() && inCar(document.activeElement)) return;   // held: focusout re-arms
+    resumeT = setTimeout(() => { resumeT = 0; if (!autoOn) return; tick(); if (autoOn) runAuto(); }, RESUME_MS);
+  };
   const reduced = typeof matchMedia === 'function'
     && matchMedia('(prefers-reduced-motion: reduce)').matches;
   // only run autoplay when this shell actually BOOTS at welcome — every view is
   // built up front (welcome hidden on a retry boot), and a ticking timer on a
   // hidden welcome is pure waste (go() is view-gated anyway). Demo boots welcome.
-  if (!reduced && (st.opts.view || 'welcome') === 'welcome') {
-    autoTimer = setInterval(() => {
-      if (!v.isConnected) { stopAuto(); return; }
-      if (st.view === 'welcome') go((st.slide + 1) % defs.length);
-    }, 7000);   // ★ S20F W-5 (#1425): 5 s → 7 s (reading time)
-  }
+  if (!reduced && (st.opts.view || 'welcome') === 'welcome') { autoOn = true; runAuto(); }
+  /* any further touch / key on the welcome while paused re-arms the one resume timer (not the 7 s run) */
+  v.addEventListener('pointerdown', () => { ptrAt = Date.now(); }, true);
+  v.addEventListener('keydown', () => { ptrAt = 0; }, true);
+  v.addEventListener('pointerdown', () => { if (resumeT) pauseAuto(); });
+  v.addEventListener('keydown', () => { if (resumeT) pauseAuto(); });
+  const onFocusIn = () => {                        // only a user's focus lands here: go() never moves focus
+    if (!autoOn || ptrNow()) return;
+    clearInterval(autoTimer); autoTimer = null;
+    clearTimeout(resumeT); resumeT = 0;
+  };
+  const onFocusOut = (e) => { if (autoOn && !autoTimer && !inCar(e.relatedTarget)) pauseAuto(); };
+  for (const n of [car, dots]) { n.addEventListener('focusin', onFocusIn); n.addEventListener('focusout', onFocusOut); }
   st.stopAuto = stopAuto;
   st.els.carousel = car;
 
@@ -819,12 +855,12 @@ function buildWelcome(st) {
     const dx = e.clientX - downX;
     downX = null;
     if (Math.abs(dx) < 40) return;               // sanctioned: swipe threshold
-    stopAuto();
+    pauseAuto();
     go(st.slide + (dx < 0 ? 1 : -1));
   });
 
-  /* ★ S20F W-5 (#1425/#1426): one quiet line under the dots — plain text, not a link; hidden at L2 (CSS) */
-  v.append(car, dots, mk('p', 'c-launch__oss', strings.welcomeOpenSource || 'Open source'));
+  /* ★ S20F W-5 (#1425/#1426) → ★ S20G F-3: "Open source" moved INTO the version line (setLaunchVersion) */
+  v.append(car, dots);
 
   // — CTAs: always enabled, pinned; internal routing (the shell ABSORBS the
   //   legacy pages). ⚠ SUPERSEDED by #1421 (1): consent is recorded at THIS tap
@@ -888,11 +924,10 @@ function buildWelcome(st) {
 
   /* ★ #46 r3 (MINOR-A): the version line's room is RESERVED from the first paint (min-height
      in launch-shell.css) — C#'s setVersion arrives after it, and a line that appeared then
-     took ~32 px from the carousel and re-sized the art under the user's eyes. Empty = an
-     empty, aria-hidden box (nothing to announce). */
+     took ~32 px from the carousel and re-sized the art under the user's eyes.
+     ★ S20G F-3: the line always says "Open source" now (before setVersion: that alone). */
   const version = document.createElement('p');
   version.className = 'c-launch__version';
-  version.setAttribute('aria-hidden', 'true');
   v.append(version);
 
   st.els.version = version;
@@ -1302,9 +1337,9 @@ function buildCreate(st) {
     progress.setAttribute('aria-label', stepEl.textContent);
     if (n === 2) {
       const name = nickIn.value.trim();
-      sub2.textContent = fillIn(deviceWords()
+      sub2.replaceChildren(...fillNodes(deviceWords()
         ? (strings.create2SubDevice || '{name}, this password locks your chats and your wallet on this device.')
-        : (strings.create2SubPhone || '{name}, this password locks your chats and your wallet on this phone.'), { name });
+        : (strings.create2SubPhone || '{name}, this password locks your chats and your wallet on this phone.'), { name: mk('b', 'c-launch__nick', name) }));
       renderAvatar();
     }
     const pane = n === 1 ? pane1 : pane2;
@@ -1770,13 +1805,19 @@ export function launchWelcomeFit(el) {
   if (st.fitArt) st.fitArt();
 }
 
-/** ← setVersion(Config.version) — quiet welcome footer line. */
+/** ← setVersion(Config.version) — quiet welcome footer line.
+ *  ★ S20G F-3: "Spixi 0.9.22 · Open source" — C# sends "spixi-0.9.22": a leading "spixi-" (any case) becomes
+ *  "Spixi ", anything else is shown as it is; no version = "Open source" alone. textContent only. */
 export function setLaunchVersion(el, v) {
   const st = launchState.get(el);
   if (!st) return;
-  st.els.version.textContent = v || '';
-  // ★ #46 r3: never `hidden` — the box keeps its reserved height either way, only its text and a11y change
-  if (v) st.els.version.removeAttribute('aria-hidden'); else st.els.version.setAttribute('aria-hidden', 'true');
+  const strings = st.strings || {};
+  const oss = strings.welcomeOpenSource || 'Open source';
+  // ★ S20G (smoke trim gate): no trim — C# Config.version is a clean token; all-whitespace counts as empty
+  const raw = v == null || !/\S/.test(String(v)) ? '' : String(v);
+  const ver = /^spixi-/i.test(raw) ? 'Spixi ' + raw.slice(6) : raw;
+  // ★ #46 r3: never `hidden` — the box keeps its reserved height either way
+  st.els.version.textContent = ver ? ver + ' · ' + oss : oss;
 }
 
 /** ← showTerms() — C# only calls it when terms are NOT yet accepted. Premium

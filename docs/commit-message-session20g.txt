@@ -1,0 +1,37 @@
+Session 20G: the S20F walk fix round (P0 restore, F-1 … F-5, R-1 … R-6, Q-1 … Q-5, N-1, N-2)
+
+Records WALK #1415 (S20F, Windows + Android: 30 P · 5 F · 1 N/A) and the
+rulings (#1416). Fixes the five walk fails, the remarks and the S20F queue.
+
+P0 (#1417, #1421): a restore never deletes an earlier contact list. The
+S20F ON-RT1 walk lost 20 contacts: RestoreMoves parked the live Acc tree
+when wallet.ixi was missing and deleted the stash on Done. Now the parked
+items are kept as restore-previous/<stamp> (excluded from Android backup
+and device transfer, iOS / Mac backup), Spixi asks before it replaces a
+contact list, and delete account wipes the kept folders. Behind flagS20G
+(dev switch ixian:devflash:s20g), packet P30, CSH S20GRestoreTests.
+
+F-1 (#1418): opening Account closes the open chat, so a chat under the
+Account overlay no longer marks messages read (no false read receipt) and
+the rail / tab badge rises.
+
+Chat (#1446): N-1 darker dark received bubbles on every canvas; F-5 the
+code outline at 0.30 and the code block wraps; Q-4 break-spaces on the
+code chip; Q-5 the call-back disc and the Details medallion on the chat
+accent; R-6 no keyboard after a touch photo send; N-2 the premium selected
+chip (white ink in dark, deep ink in light, top light, softer outline).
+
+Launch (#1428): F-2 autoplay pauses on a manual nav and resumes after 15 s
+(holds while keyboard / AT focus is in the carousel); F-3 "Spixi 0.9.22 ·
+Open source" in the version line; F-4 file card hover; Q-2 slide copy line
+height; Q-3 shorter restore labels (de, ru, fr) + a two-line net; R-2 the
+nickname in bold; R-3 no jump on the first password character, animated
+fills; #1406 the wallet hint title without "money".
+
+Settings + home (#1421): R-1 one switch-row geometry; R-5 Downloads patches
+in place (phase 2 169 → 20 ms); Q-1 chat info Files rows in the Downloads
+tile (file-tile.js / file-tile.css); R-4 the wallet hero at 380 ms.
+
+Size ceilings CHAT 957 → 959, INDEX 649 → 651 (#1420). #46 loop CLEAN at
+r3 (#1422); recorded, not fixed: #1423. Walk: docs/walk-s20g.md + office
+sheet §15. Lessons L149–L151.

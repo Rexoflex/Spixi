@@ -955,6 +955,7 @@ export function createSettingsHub({
     const row = document.createElement('div');
     row.className = 'c-settings__row c-settings__row--static';
     row.dataset.row = 'switch';   // ★ Session I canon: switch rows are 56, nav rows 48
+    if (sub) row.dataset.stack = '';   // ★ S20G R-1: a switch row WITH a description = the stacked height (settings-shell.css; an attribute, never :has())
     const lab = document.createElement('span');
     lab.className = 'c-settings__row-label' + (sub ? ' c-settings__row-label--stack' : '');
     if (sub) {

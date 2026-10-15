@@ -378,10 +378,10 @@ intro-new-walletexists-title = Аккаунт уже существует
 intro-new-walletexists-text = На этом устройстве уже есть аккаунт, поэтому создать новый здесь нельзя. Перезапустите Spixi, чтобы продолжить с существующим аккаунтом.
 intro-restore-walletexists-title = Аккаунт уже есть на этом устройстве
 intro-restore-walletexists-text = На этом устройстве уже есть аккаунт. Чтобы использовать его, перезапустите Spixi. Чтобы восстановить другой аккаунт: перезапустите Spixi, откройте Аккаунт › Удалить данные… › Удалить Аккаунт, затем снова откройте Восстановить аккаунт.
-intro-restore-replace-title = Replace the contacts on this device?
-intro-restore-replace-text = This device still has contacts from an account whose wallet file is missing. Restore replaces them with the contacts in the backup. A copy of the current contacts is kept in the Spixi data folder.
-intro-restore-replace-confirm = Restore
-intro-restore-stashbusy-text = This is a Spixi account backup, but it could not be restored: a copy of earlier contacts on this device could not be moved aside. Nothing was changed. Restart Spixi, then try again.
+intro-restore-replace-title = Заменить контакты на этом устройстве?
+intro-restore-replace-text = На этом устройстве остались контакты аккаунта, файл кошелька которого отсутствует. Восстановление заменит их контактами из резервной копии. Копия текущих контактов сохраняется в папке данных Spixi.
+intro-restore-replace-confirm = Восстановить
+intro-restore-stashbusy-text = Это резервная копия аккаунта Spixi, но восстановить её не удалось: не удалось отложить в сторону копию прежних контактов на этом устройстве. Ничего не было изменено. Перезапустите Spixi и повторите попытку.
 
 ; Intro Restore Screen
 intro-restore-title = Восстановление аккаунта

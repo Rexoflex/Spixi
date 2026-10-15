@@ -34,7 +34,7 @@ export default async function (h) {
   r.logsNothing = hh.length > 0 && !/Logging\./.test(hh);
   r.aboveHint = HP.indexOf(HEAD) > 0 && HP.indexOf(HEAD) < HP.indexOf('current_url.StartsWith("ixian:hint:", StringComparison.Ordinal)');
   r.elseIf = new RegExp('\\}\\s*else if \\(' + HEAD.replace(/[.()[\]?*+^$|\\]/g, '\\$&') + '\\)').test(HP);
-  r.caps = /Utils\.sendUiCommand\(this, "setCaps", "composeSend,hints,updateHelp,hintHelp"(?: \+ \(SpixiFlags\.S17Bridge \? ",whatsnew" : ""\))?(?: \+ \(SpixiFlags\.S17Moments \? ",moments" : ""\))?\);/.test(branch(HP, 'private void onLoaded()'));   // ★ S17 A / F re-base: the flag-gated caps follow hintHelp
+  r.caps = /Utils\.sendUiCommand\(this, "setCaps", "composeSend,hints,updateHelp,hintHelp"(?: \+ \(SpixiFlags\.S17Bridge \? ",whatsnew" : ""\))?(?: \+ \(SpixiFlags\.S17Moments \? ",moments" : ""\))?(?: \+ \(SpixiFlags\.S17Moments && SpixiFlags\.V1IxiHelp \? ",ixihelp" : ""\))?(?: \+ \(SpixiFlags\.V1Hints \? ",wordtips" : ""\))?\);/.test(branch(HP, 'private void onLoaded()'));   // ★ S17 A / F re-base: the flag-gated caps follow hintHelp; ★ V1A-M re-base: + ixihelp / wordtips
   const hu = branch(HR, 'public static string? helpUrlFor(string? id)');
   r.helpUrlForBody = /^\{\s*if \(string\.Equals\(id, "network", StringComparison\.Ordinal\)\) return Config\.networkHelpUrl;\s*return null;\s*\}$/.test(hu);
   const lit = /public static readonly string networkHelpUrl = "(https:\/\/[^"]+)";/.exec(CF);

@@ -1023,5 +1023,12 @@
   "slide2Copy2": "端末上でポスト量子暗号化し、ピアツーピアで送信。読めるのは送信先の相手だけです。",
   "slide4Title2": "一緒に遊んで、一緒に計画。",
   "slide4Copy2": "Blitz Chess や Split などのミニアプリが、チャットの中で開きます。",
-  "welcomeOpenSource": "オープンソース"
+  "welcomeOpenSource": "オープンソース",
+  "momentIxiHelpTitle": "IXI とは？",
+  "momentIxiHelpBody": "IXI は Ixian ネットワークのトークンです。友だちはあなたに IXI を送れます。アドレスを友だちと共有しましょう。支払いは取り消せません。",
+  "momentShowAddress": "自分のアドレスを表示",
+  "wordTipRequest": "連絡先リクエストは、誰かがあなたとチャットしたいという意味です。承認するか無視するかは、あなたが選べます。",
+  "wordTipPhonebook": "Spixi には電話帳がありません。相手の Spixi アドレスまたは QR コードで追加しましょう。",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

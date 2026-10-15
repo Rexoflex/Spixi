@@ -1022,5 +1022,12 @@
   "slide2Copy2": "Postkvantiškai užšifruojama jūsų įrenginyje ir siunčiama tiesiogiai. Perskaityti gali tik tas, kuriam rašote.",
   "slide4Title2": "Žaiskite ir planuokite kartu.",
   "slide4Copy2": "Mini programėlės, tokios kaip Blitz Chess ir Split, atsidaro tiesiog jūsų pokalbiuose.",
-  "welcomeOpenSource": "Atvirasis kodas"
+  "welcomeOpenSource": "Atvirasis kodas",
+  "momentIxiHelpTitle": "Kas yra IXI?",
+  "momentIxiHelpBody": "IXI yra Ixian tinklo žetonas. Draugai gali jums atsiųsti IXI: pasidalykite su jais savo adresu. Mokėjimų atšaukti negalima.",
+  "momentShowAddress": "Rodyti mano adresą",
+  "wordTipRequest": "Kontakto prašymas reiškia, kad kažkas nori su jumis susirašinėti. Jūs renkatės: priimti arba atmesti.",
+  "wordTipPhonebook": "Spixi neturi telefonų knygos. Pridėkite žmones pagal jų Spixi adresą ar QR kodą.",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

@@ -1721,15 +1721,45 @@ function formatFileSizeOf(doneBytes, totalBytes, strings = getStrings()) {
   return sizeNumber(d / Math.pow(1024, u), u) + ' / ' + sizeNumber(v, u) + ' ' + sizeUnits(strings || {})[u];
 }
 
+/* ---- src/components/v1-flags.js ---- */
+/* ★ V1A-M (Session V1A-M Drop 2, M3) — JS-only V1 feature flags.
+ *
+ * Why this file exists: every runtime flag so far is C# (SpixiFlags int prefs, a stored 0 acts only in devMode)
+ * and reaches a shell as a setCaps cap. A flag for a pure-JS change (the group emoji avatar) has no C# side, so it
+ * needs a JS switch. There is no build-time JS constant either — the committed bundle is identical in Debug and
+ * Release (strip-release.mjs touches CSS only). So the switch is:
+ *   · DEBUG  = ON: `<html data-p1>` is present. Every shell's head sets it when `*SL{SpixiP1}` === '1', and C# seeds
+ *     SpixiP1 = "1" only under SPIXI_DEV_COEXIST (SpixiLocalization.cs P1_FLAG; Spixi.csproj sets it for Debug).
+ *   · RELEASE = the source constant below (V1_RELEASE_DEFAULTS). Flip it to ship a flag ON in Release.
+ * ⚠ TIED TO THE [P1] RETIREMENT. data-p1 is labelled "TEMPORARY, retire with the [P1] set" (p1.js, SpixiLocalization.cs).
+ *   When the P1 carrier is retired, this function needs another Debug signal (or the flags go to their Release value);
+ *   grep `v1Flag(` for the callers. Also: a Release test build made with -p:SpixiDevCoexist=true carries data-p1, so
+ *   it shows the Debug value (Spixi.csproj comment).
+ * The read is a plain attribute test, every call — no cache, no layout read. A flag name not in the table is OFF in
+ * Release. */
+
+const V1_RELEASE_DEFAULTS = { groupavatars: false };
+
+function v1Flag(name, doc = (typeof document !== 'undefined' ? document : null)) {
+  try {
+    if (doc && doc.documentElement && doc.documentElement.hasAttribute('data-p1')) return true;
+  } catch (e) { /* no document (node import) → the Release value */ }
+  return Object.prototype.hasOwnProperty.call(V1_RELEASE_DEFAULTS, name) && V1_RELEASE_DEFAULTS[name] === true;
+}
+
 /* ---- src/components/avatar.js ---- */
 /**
  * c-avatar — photo, or deterministic gradient placeholder (DECISIONS.md #34).
  * The identity color comes from the address hash → a stable anchor per contact.
  * Named contacts show initials; address-only contacts show the user glyph;
- * groups always show the `users` glyph (N1 — a group never looks like a person).
+ * groups show the `users` glyph (N1 — the app never draws a group as a person: no initials,
+ * no person glyph) — ★ V1A-M M3: or, behind the `groupavatars` flag (v1-flags.js), the emoji
+ * the group's own name starts or ends with. That emoji is the group's choice, and it may be a
+ * face (👤, 🧑) — N1 is about what the APP draws; never initials for a group, #364 stays.
  *
  * createAvatar({ src, name, address, size = 48, online = false, group = false })
  */
+
 
 
 /* N1 (#364): the identity wheel is QUANTIZED to 12 curated hue anchors.
@@ -1861,6 +1891,132 @@ function initials(name) {
   return trimmed.split(/\s+/).slice(0, 2).map(p => [...p][0].toLocaleUpperCase()).join('');
 }
 
+/* ★ V1A-M M3 — THE GROUP EMOJI AVATAR ("Weekend in Bled 🏔️", "🎸 Band practice").
+ *
+ * groupEmojiOf(name) → the emoji GRAPHEME the name ends with, else the one it starts with,
+ * else ''. LAST wins over FIRST. ★ #46 r1: before the edge test the name loses, at BOTH ends,
+ * whitespace and the bidi / format controls (U+200B–200F, 202A–202E, 2060, 2066–2069, FEFF —
+ * an RTL name often ends with an RLM or a PDI, C-3), and at the END only a run of punctuation
+ * (\p{P}: "Party 🎉!" → 🎉, C-N1). Leading punctuation is NOT stripped: "#" is \p{P} and starts
+ * a keycap ("#️⃣ fans"); a keycap ends with U+20E3, so the trailing strip cannot reach into one. One grapheme = what a reader sees as one emoji: a ZWJ
+ * family, a skin-tone sequence, a VS16 sequence, a flag (regional-indicator pair, or a tag
+ * sequence) and a keycap each come back whole.
+ *
+ * WHAT COUNTS AS AN EMOJI (one grapheme):
+ *   · a regional-indicator PAIR (a flag), or a keycap ([0-9#*] + optional VS16 + U+20E3);
+ *   · else its FIRST code point is an \p{Extended_Pictographic} base, and every later code point is on
+ *     a WHITELIST (★ #46 r1 C-1): VS16, a skin tone (U+1F3FB–1F3FF), a tag character (U+E0020–E007F),
+ *     or a ZWJ immediately followed by another pictograph. Anything else — a combining-mark stack
+ *     ("🎸" + 200 × U+0336 is ONE grapheme, a peer can name a group that), VS15, a stray ZWJ — is not
+ *     an avatar emoji. And the grapheme is at most AV_EMOJI_MAX_UNITS code units (the longest real
+ *     sequence, a kiss with two skin tones, is 15; a subdivision flag ≤ 18).
+ *   · and it must be emoji-PRESENTED: a code point at or above U+1F000 (most of them are emoji-default;
+ *     a few — 🏔 🕊 🌡 — are text-default and render the platform's way), an \p{Emoji_Presentation}
+ *     code point, VS16, a skin-tone modifier, or a ZWJ.
+ *   ⚠ That second condition is stricter than "\p{Extended_Pictographic}" alone, on purpose: ©, ®, ™, ‼
+ *     and the other TEXT-default pictographs are Extended_Pictographic too, and "Acme™" must not wear a
+ *     ™ in its avatar. Typed with VS16 (❤️, ☀️) they ARE emoji. A digit, a letter or "#" alone is never one.
+ *
+ * GRAPHEMES: Intl.Segmenter when present — ONE instance, made at the first call (never per render).
+ * Without it, a fallback splitter that keeps exactly the emoji-relevant clusters together (marks
+ * incl. VS15/VS16 and U+20E3, skin tones, tag characters, ZWJ + the next code point when the cluster
+ * started with a pictograph (GB11), regional indicators in pairs). It is not a full UAX #29 splitter — for non-emoji text it may cut differently,
+ * which cannot matter: a non-emoji edge gives '' either way.
+ * PERF (the S20F scroll budget): a pure-ASCII name returns '' before any segmenting; results are
+ * cached per name in a Map capped at AV_EMOJI_CACHE_MAX (oldest out first); no DOM, no layout read.
+ * A name longer than 256 code units is examined only at its two 64-unit ends. */
+const AV_EMOJI_CACHE_MAX = 256;
+const AV_EMOJI_CACHE = new Map();
+let avSegmenter = null;          // the one Intl.Segmenter, or false when the runtime has none
+const AV_RI_PAIR = /^[\u{1F1E6}-\u{1F1FF}]{2}$/u;
+const AV_KEYCAP = /^[0-9#*]\uFE0F?\u20E3$/u;
+const AV_PICTO_ONE = /^\p{Extended_Pictographic}$/u;
+const AV_EMOJI_MAX_UNITS = 32;
+const AV_EDGE_CTRL = /^[\s\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]$/u;
+const AV_EDGE_PUNCT = /^\p{P}$/u;
+const AV_PRESENTED = /[\u{1F000}-\u{1FFFF}\uFE0F\u200D\u{1F3FB}-\u{1F3FF}]|\p{Emoji_Presentation}/u;
+const AV_EXTEND = /^(?:\p{M}|[\u200D\uFE0E\uFE0F\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}])$/u;
+/* the sizes avatar.css gives an emoji scale rule (`.c-avatar[data-size="N"] { --c-avatar-px }`); any other size
+   stamps its own px on the emoji span. Keep the two lists equal (the a-groupemoji pin checks it). */
+const AV_EMOJI_SIZES = new Set([24, 28, 32, 36, 40, 44, 48, 56, 64, 80, 96]);
+
+function avGetSegmenter() {
+  if (avSegmenter === null) {
+    try {
+      avSegmenter = (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function')
+        ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : false;
+    } catch (e) { avSegmenter = false; }
+  }
+  return avSegmenter;
+}
+
+/** Fallback grapheme split (no Intl.Segmenter): emoji-correct clusters — see the block above. */
+function avSplitGraphemes(s) {
+  const out = [];
+  let cur = '', ri = 0, afterZwj = false, curPicto = false;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0);
+    const isRi = cp >= 0x1F1E6 && cp <= 0x1F1FF;
+    const join = cur !== '' && ((afterZwj && curPicto) || AV_EXTEND.test(ch) || (isRi && ri % 2 === 1));
+    if (join) cur += ch;
+    else { if (cur) out.push(cur); cur = ch; ri = 0; curPicto = AV_PICTO_ONE.test(ch); }
+    ri = isRi ? ri + 1 : 0;
+    afterZwj = cp === 0x200D;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+function avIsEmojiGrapheme(g) {
+  if (!g || g.length > AV_EMOJI_MAX_UNITS) return false;
+  if (AV_RI_PAIR.test(g) || AV_KEYCAP.test(g)) return true;
+  const cps = Array.from(g);
+  if (!AV_PICTO_ONE.test(cps[0])) return false;              // the base IS the pictograph
+  for (let i = 1; i < cps.length; i++) {
+    const cp = cps[i].codePointAt(0);
+    if (cp === 0xFE0F || (cp >= 0x1F3FB && cp <= 0x1F3FF) || (cp >= 0xE0020 && cp <= 0xE007F)) continue;
+    if (cp === 0x200D && i + 1 < cps.length && AV_PICTO_ONE.test(cps[i + 1])) { i++; continue; }
+    return false;                                            // a mark stack, VS15 (asked-for TEXT), a stray ZWJ …
+  }
+  return AV_PRESENTED.test(g);
+}
+
+/* whitespace + bidi/format controls off both ends; a punctuation run off the END only (see the block above).
+   Index loops, not `[…]+$` regexes: a peer-made name of 10 000 punctuation marks must stay linear. */
+function avStripEdges(s) {
+  let a = 0, b = s.length;
+  while (a < b && AV_EDGE_CTRL.test(s[a])) a++;
+  while (b > a && (AV_EDGE_CTRL.test(s[b - 1]) || AV_EDGE_PUNCT.test(s[b - 1]))) b--;
+  return a === 0 && b === s.length ? s : s.slice(a, b);
+}
+
+function avEdgeGraphemes(s) {
+  const head = s.length > 256 ? s.slice(0, 64) : s;
+  const tail = s.length > 256 ? s.slice(-64) : s;
+  const seg = avGetSegmenter();
+  if (seg) {
+    const first = seg.segment(head)[Symbol.iterator]().next().value;
+    const last = seg.segment(tail).containing(tail.length - 1);
+    return [first ? first.segment : '', last ? last.segment : ''];
+  }
+  const h = avSplitGraphemes(head);
+  const t = tail === head ? h : avSplitGraphemes(tail);
+  return [h[0] || '', t[t.length - 1] || ''];
+}
+
+/** The emoji a GROUP name starts or ends with (LAST wins), whole grapheme; '' when neither edge is one. */
+function groupEmojiOf(name) {
+  const s = typeof name === 'string' ? avStripEdges(name) : '';
+  if (!s || !/[^\x00-\x7F]/.test(s)) return '';          // every emoji (and every keycap) carries a non-ASCII code point
+  const hit = AV_EMOJI_CACHE.get(s);
+  if (hit !== undefined) return hit;
+  const [first, last] = avEdgeGraphemes(s);
+  const v = avIsEmojiGrapheme(last) ? last : (avIsEmojiGrapheme(first) ? first : '');
+  if (AV_EMOJI_CACHE.size >= AV_EMOJI_CACHE_MAX) AV_EMOJI_CACHE.delete(AV_EMOJI_CACHE.keys().next().value);
+  AV_EMOJI_CACHE.set(s, v);
+  return v;
+}
+
 /** Render the deterministic gradient placeholder (anchor from address/name hash)
  *  + initials, the user glyph, or the group glyph — into `el`. Extracted so it's
  *  reusable as the fallback when a photo `src` fails to load. */
@@ -1873,11 +2029,22 @@ function renderPlaceholder(el, { name, address, size, group }) {
   // N1: a GROUP placeholder always wears the `users` glyph — never initials,
   // never the person glyph — so a group is recognisable at a glance.
   const ini = (!group && name) ? initials(name) : null;
+  // ★ V1A-M M3: a group whose name starts/ends with an emoji wears THAT emoji instead of the glyph —
+  // behind v1Flag('groupavatars') (Debug ON, Release OFF = the glyph exactly as before). Groups only.
+  const emo = (group && name && v1Flag('groupavatars')) ? groupEmojiOf(name) : '';
   if (ini) {
     const t = document.createElement('span');
     t.className = 'c-avatar__initials';
     t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
     t.textContent = ini;
+    el.append(t);
+  } else if (emo) {
+    const t = document.createElement('span');
+    t.className = 'c-avatar__emoji';
+    t.setAttribute('aria-hidden', 'true'); // decoration: the row/heading carries the name
+    t.textContent = emo;
+    // a size with no rule in avatar.css carries its own scale input (the inline width/height precedent)
+    if (!AV_EMOJI_SIZES.has(size)) t.style.setProperty('--c-avatar-px', size + 'px');
     el.append(t);
   } else {
     el.append(icon(group ? 'users' : 'user-circle', { size: Math.round(size * 0.55) }));
@@ -36155,7 +36322,7 @@ function createWhatsNew({
  *   ctx  — { name } (offline: the sender) · { app, invitedBy, caps:[MiniAppCapabilities names] } (app) · {} otherwise.
  *          Every value lands through textContent — never markup.
  *   onClose(choice) — ONCE, after the sheet is gone: the button's value ('backup' · 'continue' ·
- *          'open' · 'ok' · 'settings'), or 'dismiss' for every quiet path (the text button, back, Esc, the scrim, a swipe). The flag
+ *          'open' · 'ok' · 'settings' · ★ V1A-M 'address'), or 'dismiss' for every quiet path (the text button, back, Esc, the scrim, a swipe). The flag
  *          was already stored by C# when it answered yes (every close path counts as seen, MOMENTS.md).
  *
  * THE CLIENT (one per shell): createMomentClient({ bridge }) → { setState(json), answer(id, arg, ok, caps),
@@ -36178,8 +36345,10 @@ function createWhatsNew({
 
 
 
-const MOMENT_IDS = ['lang', 'autodl', 'offline', 'firstixi', 'mic', 'app', 'pay'];
-const MO_ART_OF = { lang: 'ai', autodl: 'autodl', offline: 'offline', firstixi: 'firstixi', mic: 'mic', app: 'app', pay: 'pay' };
+/* ★ V1A-M (M1, Damir's dial 2026-10-15 title A + the coin art): + `ixihelp` — "What is IXI?", asked on the first Wallet open
+   (home only; cap `ixihelp` = C# flag V1IxiHelp). The art is the `pay` moment's coin drawing. */
+const MOMENT_IDS = ['lang', 'autodl', 'offline', 'firstixi', 'mic', 'app', 'pay', 'ixihelp'];
+const MO_ART_OF = { lang: 'ai', autodl: 'autodl', offline: 'offline', firstixi: 'firstixi', mic: 'mic', app: 'app', pay: 'pay', ixihelp: 'pay' };
 /* the capability rows of the app moment: the apps-details vocabulary (cap_* / capx_*), the same fallbacks */
 const MO_CAP_ORDER = ['Storage', 'MultiUser', 'Authentication', 'TransactionSigning', 'RegisteredNamesManagement'];
 const MO_CAP_GLYPH = { Storage: 'database', MultiUser: 'users', Authentication: 'user-circle', TransactionSigning: 'key', RegisteredNamesManagement: 'at' };
@@ -36251,6 +36420,12 @@ function momentCopy(id, ctx = {}, strings = getStrings()) {
       title: strings.momentPayTitle || 'Before you pay',
       body: strings.momentPayBody || 'Payments cannot be undone. Check the contact and the amount on the next screen. The small network fee goes to the Ixian network, not to Spixi.',
       buttons: [['fill', strings.continue || 'Continue', 'continue']],
+    };
+    /* ★ V1A-M (M1): "Show my address" = 'address' (home opens the Wallet's address sheet); "Got it" reuses whatsNewGotIt */
+    case 'ixihelp': return {
+      title: strings.momentIxiHelpTitle || 'What is IXI?',
+      body: strings.momentIxiHelpBody || 'IXI is the Ixian network’s token. Friends can send you IXI: share your address with them. Payments cannot be undone.',
+      buttons: [['fill', strings.momentShowAddress || 'Show my address', 'address'], ['text', strings.whatsNewGotIt || 'Got it', 'dismiss']],
     };
     default: return null;
   }
@@ -36454,8 +36629,10 @@ function createMomentClient({ bridge, onSessionEnd = null } = {}) {
         if (id === 'app') { if (state.apps.indexOf(a) < 0) state.apps.push(a); }
         else if (id === 'lang') state.lang = '';
         else if (state.seen.indexOf(id) < 0) state.seen.push(id);
-        /* ★ #46 S19 N2: firstixi and lang never take the session (C#: S17MomentRules.takesSession, S19 F4) */
-        if (id !== 'firstixi' && id !== 'lang' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
+        /* ★ #46 S19 N2: firstixi and lang never take the session (C#: S17MomentRules.takesSession, S19 F4)
+           ★ V1A-M #46 r1 (A-MINOR-1 / B-MINOR-1): nor does ixihelp — it RESPECTS the session (C# refuses it after a moment or a
+           card) but never TAKES it, so "What is IXI?" holds back no pay / mic / app sheet and no hint or rating card */
+        if (id !== 'firstixi' && id !== 'lang' && id !== 'ixihelp' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
       }
       if (!w) return;
       waits.delete(k);
@@ -36494,6 +36671,95 @@ function momentBeforeAction(client, { id, arg = '', ctx = {}, ctxFor = null, hos
 function momentAfterResult(client, id, arg, show) {
   if (!client) return false;
   return client.ask(id, arg || '', (caps) => { try { show(caps); } catch (e) {} }, null, { late: true });
+}
+
+/* ---- src/components/word-tip.js ---- */
+/**
+ * c-word-tip — ★ V1A-M (M2, Damir's dial 2026-10-15: tips ONLY "contact request" and "no phone book", style A = the quiet
+ * card). A one-line explanation of a NEW WORD, shown in place the first time the word is on the Chats screen, until the
+ * user closes it with ✕. Two ids: `wordrequest` (under the first incoming contact-request card) and `wordphonebook` (under
+ * the body text of the empty Chats state). The host (home.html) decides WHERE and WHEN (cap `wordtips` = C# flag V1Hints,
+ * a setHints push with off:false, the id not done, at most one, never beside a glass hint / update / backup / rating card
+ * or a moment sheet); this file only builds the element and reads the done ids.
+ * C# stores done in SHints (`ixian:hint:done:<id>`; the two ids are S11HintRules.WordIds, which S11HintRules.isTipId admits —
+ * they are NOT in TipIds, the glass-hint list); a word tip NEVER sends `shown` (the weekly glass-hint rotation must not move).
+ * No storage here — never a `spixi.*` key (#383).
+ *
+ *   WORD_TIP_IDS                        — ['wordrequest', 'wordphonebook']
+ *   wordTipCopy(id, strings)            → the text ('' for an unknown id)
+ *   createWordTip({ id, strings, onClose }) → the element (role="note"), or null for an unknown id. Text via textContent.
+ *                                          ✕ (aria-label strings.close, aria-describedby → the tip's text, #46 r1 B-NIT-4)
+ *                                          calls onClose(id, { hadFocus }) ONCE; the HOST moves the focus (#46 r1 B-MINOR-5).
+ *   wordTipsDone(json)                  → Set of the word ids in the RAW setHints push's `done` array (anything malformed →
+ *                                          an empty set). parseHintsState keeps only the glass-hint ids, so it cannot carry them.
+ */
+
+
+
+const WORD_TIP_IDS = ['wordrequest', 'wordphonebook'];
+let wtSeq = 0;
+
+/** The copy — explicit `strings.key || 'English'` lines so extract-strings sees both keys. */
+function wordTipCopy(id, strings = getStrings()) {
+  switch (id) {
+    case 'wordrequest': return strings.wordTipRequest || 'A contact request means someone wants to chat with you. You choose: accept or decline.';
+    case 'wordphonebook': return strings.wordTipPhonebook || 'Spixi has no phone book. Add people with their Spixi address or QR code.';
+    default: return '';
+  }
+}
+
+function createWordTip({ id, strings = getStrings(), onClose } = {}) {
+  const text = wordTipCopy(id, strings);
+  if (!text) return null;
+  const el = document.createElement('div');
+  el.className = 'c-word-tip';
+  el.dataset.tip = id;
+  el.setAttribute('role', 'note');
+
+  const glyph = document.createElement('span');
+  glyph.className = 'c-word-tip__glyph';
+  glyph.setAttribute('aria-hidden', 'true');
+  glyph.append(icon('info-circle', { size: 20 }));
+
+  const p = document.createElement('p');
+  p.className = 'c-word-tip__text';
+  p.textContent = text;
+  wtSeq += 1;
+  p.id = 'c-word-tip-t' + wtSeq;
+
+  const x = document.createElement('button');
+  x.type = 'button';
+  x.className = 'c-word-tip__close';
+  x.setAttribute('aria-label', strings.close || 'Close');
+  x.setAttribute('aria-describedby', p.id);   // "Close" + the tip's text: a screen reader hears WHAT closes (no new string)
+  x.append(icon('x', { size: 20 }));
+  let closed = false;
+  x.addEventListener('click', () => {
+    if (closed) return;                          // one ✕ = one done verb
+    closed = true;
+    /* #46 r1 B-MINOR-5: the host removes the tip and moves the focus to the next sensible control when the tip held it */
+    let hadFocus = false;
+    try { hadFocus = el.contains(document.activeElement); } catch (e) {}
+    try { if (onClose) onClose(id, { hadFocus }); } catch (e) { /* the host's bookkeeping */ }
+  });
+
+  el.append(glyph, p, x);
+  return el;
+}
+
+/** PURE — the word ids already done, from the RAW setHints JSON (same 4096-char cap as parseHintsState). */
+function wordTipsDone(json) {
+  const out = new Set();
+  let o = json;
+  try {
+    if (typeof json === 'string') {
+      if (json.length > 4096) return out;
+      o = JSON.parse(json);
+    }
+  } catch (e) { return out; }
+  if (!o || typeof o !== 'object' || Array.isArray(o) || !Array.isArray(o.done)) return out;
+  for (const d of o.done) if (WORD_TIP_IDS.indexOf(d) >= 0) out.add(d);
+  return out;
 }
 
 /* ---- src/bridge/native.js ---- */
@@ -37433,5 +37699,5 @@ function mountEncPassPage({ host, bridge, strings } = {}) {
   return { el, bridge: br };
 }
 
-  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, formatFileSizeOf: formatFileSizeOf, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, clearRowHover: clearRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, LINKIFY_MAX: LINKIFY_MAX, urlSpans: urlSpans, parseFormat: parseFormat, formatSpans: formatSpans, stripFormat: stripFormat, renderFormat: renderFormat, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, applyFormat: applyFormat, mountFormatBar: mountFormatBar, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, composerMotion: composerMotion, emitComposerShift: emitComposerShift, bandY: bandY, canSlide: canSlide, slideBand: slideBand, stopBand: stopBand, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsRenderPlan: chatsRenderPlan, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, txDayLabel: txDayLabel, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, DL_GLYPH: DL_GLYPH, createKindTile: createKindTile, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, radioArrows: radioArrows, createThemePicker: createThemePicker, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, launchRingQuiet: launchRingQuiet, launchRingGeometry: launchRingGeometry, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, launchWelcomeFit: launchWelcomeFit, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
+  window.Spixi = { p1Log: p1Log, p1Install: p1Install, p1Shown: p1Shown, p1Sent: p1Sent, getStrings: getStrings, setStrings: setStrings, applyPushedTheme: applyPushedTheme, sanitizeAmount: sanitizeAmount, toUnits: toUnits, canonicalAmount: canonicalAmount, localeSeps: localeSeps, groupAmountDisplay: groupAmountDisplay, ungroupAmountInput: ungroupAmountInput, amountEditToCanonical: amountEditToCanonical, attachAmountPreEdit: attachAmountPreEdit, amountInputToCanonical: amountInputToCanonical, amountCaretAfterFormat: amountCaretAfterFormat, formatIxiAmount: formatIxiAmount, formatFiatAmount: formatFiatAmount, fiatLine: fiatLine, zeroAmount: zeroAmount, attachAmountKeyboardDismiss: attachAmountKeyboardDismiss, padApply: padApply, padPaste: padPaste, createAmountDisplay: createAmountDisplay, setAmountDisplay: setAmountDisplay, createAmountPad: createAmountPad, discGrad: discGrad, DISC_SEQUENCE: DISC_SEQUENCE, spreadDiscs: spreadDiscs, setFlagBase: setFlagBase, flagEmoji: flagEmoji, flagGlyphAvailable: flagGlyphAvailable, setFlagGlyphAvailable: setFlagGlyphAvailable, FLAG_FONT_FAMILY: FLAG_FONT_FAMILY, FLAG_FONT_SCRIPT: FLAG_FONT_SCRIPT, FLAG_FONT_GLOBAL: FLAG_FONT_GLOBAL, FLAG_FONT_RANGE: FLAG_FONT_RANGE, installFlagFont: installFlagFont, installFlagFontLater: installFlagFontLater, HIDDEN_PROBE_MS: HIDDEN_PROBE_MS, isFlagFontInstalled: isFlagFontInstalled, createFlag: createFlag, LANGUAGES: LANGUAGES, FLAG_CODES: FLAG_CODES, docLocale: docLocale, timeOpts: timeOpts, dayBucketLabel: dayBucketLabel, formatChatTimestamp: formatChatTimestamp, formatTxTimestamp: formatTxTimestamp, startTimestampTicker: startTimestampTicker, formatLastSeen: formatLastSeen, formatFileSize: formatFileSize, formatFileSizeOf: formatFileSizeOf, V1_RELEASE_DEFAULTS: V1_RELEASE_DEFAULTS, v1Flag: v1Flag, IDENTITY_HUES: IDENTITY_HUES, identityIndex: identityIndex, hashHue: hashHue, truncateAddressMiddle: truncateAddressMiddle, ADDRESS_MIN_CHARS: ADDRESS_MIN_CHARS, isAddressShaped: isAddressShaped, isPseudoAddressNick: isPseudoAddressNick, groupEmojiOf: groupEmojiOf, safeImageSrc: safeImageSrc, createAvatar: createAvatar, PRESSABLE_ROW: PRESSABLE_ROW, PRESSABLE_CONTROL: PRESSABLE_CONTROL, clearPressFeedback: clearPressFeedback, attachPressFeedback: attachPressFeedback, formatCount: formatCount, createStatusIcon: createStatusIcon, createIndicator: createIndicator, createIndicators: createIndicators, createExcerpt: createExcerpt, createChatItem: createChatItem, refreshTimestamps: refreshTimestamps, trackRowHover: trackRowHover, clearRowHover: clearRowHover, snapRowHover: snapRowHover, carryRowHover: carryRowHover, restoreRowFocus: restoreRowFocus, createButton: createButton, setLoading: setLoading, setSuccess: setSuccess, S17_ART: S17_ART, momentAiEntry: momentAiEntry, IL_HOLD_BACKSTOP_MS: IL_HOLD_BACKSTOP_MS, watchEntrance: watchEntrance, illoWelcome1: illoWelcome1, illoWelcome2: illoWelcome2, illoWelcome3: illoWelcome3, illoWelcome4: illoWelcome4, illoRestore: illoRestore, illoChatsEmpty: illoChatsEmpty, illoContactsEmpty: illoContactsEmpty, illoAddContact: illoAddContact, illoAppsEmpty: illoAppsEmpty, illoExplore: illoExplore, illoBackup: illoBackup, illoRating: illoRating, WALLET_EMPTY_ART: WALLET_EMPTY_ART, illoWalletEmptyA: illoWalletEmptyA, illoWalletEmptyB: illoWalletEmptyB, illoWalletEmpty: illoWalletEmpty, WN_SCENE_IDS: WN_SCENE_IDS, illoWhatsNew: illoWhatsNew, illoAboutGlass: illoAboutGlass, illoContribHeart: illoContribHeart, MOMENT_ART_KINDS: MOMENT_ART_KINDS, illoMoment: illoMoment, illustrationFor: illustrationFor, createEmptyState: createEmptyState, setEmptyStateCopy: setEmptyStateCopy, createTopbar: createTopbar, setTopbarSub: setTopbarSub, seasonFor: seasonFor, applySeason: applySeason, SEASON_CHECK_MS: SEASON_CHECK_MS, SEASON_REARM_MS: SEASON_REARM_MS, SEASON_SCROLL_IDLE_MS: SEASON_SCROLL_IDLE_MS, attachSeasonal: attachSeasonal, PHONE_SHORT_SIDE_MAX: PHONE_SHORT_SIDE_MAX, LANDSCAPE_FLAG: LANDSCAPE_FLAG, isPhoneLandscape: isPhoneLandscape, attachPhoneLandscape: attachPhoneLandscape, createBottomNav: createBottomNav, setNavActive: setNavActive, setNavBadge: setNavBadge, attachLandscapeRail: attachLandscapeRail, createChip: createChip, setChipSelected: setChipSelected, createSearchField: createSearchField, setSearchValue: setSearchValue, getSearchValue: getSearchValue, resetSearchField: resetSearchField, resetSearchFields: resetSearchFields, clearHighlights: clearHighlights, setHighlights: setHighlights, createBadge: createBadge, createTxItem: createTxItem, overlayId: overlayId, setOverlayOpts: setOverlayOpts, isEditableEl: isEditableEl, openOverlay: openOverlay, isOverlayOpen: isOverlayOpen, topOverlayEl: topOverlayEl, dismissOverlay: dismissOverlay, dismissTopOverlay: dismissTopOverlay, createSheet: createSheet, openSheet: openSheet, closeSheet: closeSheet, createModal: createModal, openModal: openModal, closeModal: closeModal, isDesktopPresentation: isDesktopPresentation, clearScrimFor: clearScrimFor, attachContextMenuAnchors: attachContextMenuAnchors, anchorSheetToRow: anchorSheetToRow, anchorSheetAbove: anchorSheetAbove, createWarningBanner: createWarningBanner, setWarning: setWarning, HINT_SETUP_GRACE_MS: HINT_SETUP_GRACE_MS, HINT_GAP_MS: HINT_GAP_MS, HINT_TIPS: HINT_TIPS, HINT_IDS: HINT_IDS, hintCopy: hintCopy, parseHintsState: parseHintsState, pickHint: pickHint, updateVersionOf: updateVersionOf, createGlassCard: createGlassCard, GLASS_HOLD_MS: GLASS_HOLD_MS, createUpdateCard: createUpdateCard, createHintCard: createHintCard, showToast: showToast, formatCallDuration: formatCallDuration, callStateLine: callStateLine, callToggle: callToggle, showCallBar: showCallBar, hideCallBar: hideCallBar, LINKIFY_MAX: LINKIFY_MAX, urlSpans: urlSpans, parseFormat: parseFormat, formatSpans: formatSpans, stripFormat: stripFormat, renderFormat: renderFormat, setReplyQuoteTile: setReplyQuoteTile, createMessageBubble: createMessageBubble, setMessageStatus: setMessageStatus, replayStatusChange: replayStatusChange, removeMessage: removeMessage, createDateSeparator: createDateSeparator, VOICE_BARS: VOICE_BARS, fillVoiceSlots: fillVoiceSlots, voiceQuoteText: voiceQuoteText, formatVoiceClock: formatVoiceClock, formatVoiceDuration: formatVoiceDuration, setVoiceBubble: setVoiceBubble, applyFormat: applyFormat, mountFormatBar: mountFormatBar, createComposer: createComposer, clearComposer: clearComposer, cancelComposerContext: cancelComposerContext, composerMotion: composerMotion, emitComposerShift: emitComposerShift, bandY: bandY, canSlide: canSlide, slideBand: slideBand, stopBand: stopBand, setComposerContext: setComposerContext, getComposerContext: getComposerContext, setComposerMedia: setComposerMedia, setComposerVoice: setComposerVoice, getComposerRecording: getComposerRecording, releaseComposerRecording: releaseComposerRecording, setComposerRecLevel: setComposerRecLevel, setComposerRecording: setComposerRecording, setComposerCost: setComposerCost, createPaymentBubble: createPaymentBubble, setPaymentStatus: setPaymentStatus, createAppBubble: createAppBubble, createCallBubble: createCallBubble, fillFileName: fillFileName, fileKind: fileKind, createFileTile: createFileTile, createFileBubble: createFileBubble, createFileGoneBubble: createFileGoneBubble, isPhotoFileName: isPhotoFileName, resetPhotoQuiet: resetPhotoQuiet, tileShowsPicture: tileShowsPicture, jpegSize: jpegSize, fileNameAria: fileNameAria, createImageFileBubble: createImageFileBubble, setImageFileThumb: setImageFileThumb, setFileProgress: setFileProgress, createUnreadDivider: createUnreadDivider, addReactions: addReactions, openReactionsSheet: openReactionsSheet, createTypingIndicator: createTypingIndicator, createScrollToLatest: createScrollToLatest, setScrollLatestCount: setScrollLatestCount, QUICK_REACTIONS: QUICK_REACTIONS, messageMenuTarget: messageMenuTarget, attachTouchPressGuard: attachTouchPressGuard, openMessageMenu: openMessageMenu, attachMessageMenu: attachMessageMenu, REPLY_SWIPE_EDGE_PX: REPLY_SWIPE_EDGE_PX, REPLY_SWIPE_TRIGGER_PX: REPLY_SWIPE_TRIGGER_PX, REPLY_SWIPE_MAX_PX: REPLY_SWIPE_MAX_PX, REPLY_SWIPE_SETTLE_MS: REPLY_SWIPE_SETTLE_MS, attachReplySwipe: attachReplySwipe, createReplyHoverButton: createReplyHoverButton, placeReplyButton: placeReplyButton, attachReplyDoubleClick: attachReplyDoubleClick, createMediaBubble: createMediaBubble, setMediaSrc: setMediaSrc, setTileHead: setTileHead, MOSAIC_MAX: MOSAIC_MAX, mosaicRows: mosaicRows, mosaicGeometry: mosaicGeometry, createPhotoGridBubble: createPhotoGridBubble, addPhotoGridCell: addPhotoGridCell, setTilePreview: setTilePreview, createSystemNotice: createSystemNotice, attachLazyHistory: attachLazyHistory, attachTilesFor: attachTilesFor, hasAttachTiles: hasAttachTiles, openAttachSheet: openAttachSheet, openAttachTray: openAttachTray, revealAttachTray: revealAttachTray, closeAttachTray: closeAttachTray, isAttachTrayOpen: isAttachTrayOpen, attachEdgeBack: attachEdgeBack, settleSubscreenSlide: settleSubscreenSlide, slideSubscreenIn: slideSubscreenIn, slideSubscreenOut: slideSubscreenOut, isSubscreenSliding: isSubscreenSliding, openChannelSheet: openChannelSheet, openMemberSheet: openMemberSheet, VIEWER_URI_RE: VIEWER_URI_RE, VIEWER_WAIT_MS: VIEWER_WAIT_MS, findOpenViewer: findOpenViewer, openMediaViewer: openMediaViewer, MEDIA_CAPTION_MAX: MEDIA_CAPTION_MAX, MEDIA_STRIP_MAX: MEDIA_STRIP_MAX, openMediaStrip: openMediaStrip, createCallBackdrop: createCallBackdrop, createE2eChip: createE2eChip, showCallScreen: showCallScreen, hideCallScreen: hideCallScreen, showIncomingCall: showIncomingCall, updateIncomingCall: updateIncomingCall, hideIncomingCall: hideIncomingCall, DECLINE_MESSAGE_MAX: DECLINE_MESSAGE_MAX, declinePresets: declinePresets, createContactRequest: createContactRequest, setRequestAccepting: setRequestAccepting, repaintRowGhost: repaintRowGhost, liftedRowAddress: liftedRowAddress, openChatRowMenu: openChatRowMenu, openRemoveContactSheet: openRemoveContactSheet, setRemoveSheetGroups: setRemoveSheetGroups, setRemoveSheetResult: setRemoveSheetResult, openDeleteFlow: openDeleteFlow, openRevokeRequestFlow: openRevokeRequestFlow, clearChatRowMenuTimers: clearChatRowMenuTimers, attachChatRowMenu: attachChatRowMenu, closeChatRowSwipe: closeChatRowSwipe, wrapChatRowSwipe: wrapChatRowSwipe, chatMatchesFilter: chatMatchesFilter, chatMatchesQuery: chatMatchesQuery, orderedRequests: orderedRequests, orderedChats: orderedChats, orderedTimeline: orderedTimeline, chatsRenderPlan: chatsRenderPlan, chatsUnreadTotal: chatsUnreadTotal, renderChatsList: renderChatsList, patchChatRows: patchChatRows, applyChatRowAction: applyChatRowAction, acceptContactRequest: acceptContactRequest, completeHandshake: completeHandshake, failHandshake: failHandshake, createChatsList: createChatsList, setChatsFilter: setChatsFilter, setChatsQuery: setChatsQuery, setChatsHeaderCounts: setChatsHeaderCounts, createChatsHeader: createChatsHeader, attachChatsCollapse: attachChatsCollapse, createAppIcon: createAppIcon, createAppItem: createAppItem, openAppMenu: openAppMenu, appMatchesQuery: appMatchesQuery, orderedApps: orderedApps, recordRecent: recordRecent, orderedRecents: orderedRecents, renderAppsList: renderAppsList, applyAppAction: applyAppAction, createAppsList: createAppsList, setAppsLayout: setAppsLayout, setAppsQuery: setAppsQuery, renderAppsRecents: renderAppsRecents, createAppsRecents: createAppsRecents, createAppsHeader: createAppsHeader, setAppsHeaderEmpty: setAppsHeaderEmpty, createAppsAdd: createAppsAdd, setAddUrl: setAddUrl, setAddDiscoverFeed: setAddDiscoverFeed, setAddError: setAddError, createAppDetails: createAppDetails, showAppInstalling: showAppInstalling, showAppInstalled: showAppInstalled, showAppInstallFailed: showAppInstallFailed, showAppRemoved: showAppRemoved, createAppsDiscover: createAppsDiscover, setDiscoverFeed: setDiscoverFeed, APPS_FEED_URL: APPS_FEED_URL, feedEntryToApp: feedEntryToApp, parseAppsFeed: parseAppsFeed, createWalletHero: createWalletHero, setWalletBalance: setWalletBalance, setBalanceHidden: setBalanceHidden, setWalletHeroCompact: setWalletHeroCompact, execCopyText: execCopyText, copyText: copyText, createScanRing: createScanRing, setScanRing: setScanRing, createScanProgress: createScanProgress, ETA_WINDOW_MS: ETA_WINDOW_MS, formatScanEta: formatScanEta, scanProgressState: scanProgressState, setScanProgress: setScanProgress, txMatchesFilter: txMatchesFilter, txMatchesQuery: txMatchesQuery, orderedTxs: orderedTxs, walletLedgerEmpty: walletLedgerEmpty, txDayLabel: txDayLabel, renderWalletTxList: renderWalletTxList, createWalletTxList: createWalletTxList, setWalletFilter: setWalletFilter, setWalletQuery: setWalletQuery, flashWalletTx: flashWalletTx, createWalletFilters: createWalletFilters, createWalletTools: createWalletTools, attachWalletScroll: attachWalletScroll, openTxSheet: openTxSheet, openMissingTxSheet: openMissingTxSheet, contactDisplayName: contactDisplayName, contactSubLine: contactSubLine, createContactRow: createContactRow, setContactRowChecked: setContactRowChecked, createGlyphRow: createGlyphRow, createWalletSend: createWalletSend, openPaymentReview: openPaymentReview, setSendAddress: setSendAddress, setSendRecipient: setSendRecipient, setSendQuote: setSendQuote, setSendError: setSendError, createQrSvg: createQrSvg, setQrValue: setQrValue, createWalletReceive: createWalletReceive, openAddressSheet: openAddressSheet, closeAddressSheet: closeAddressSheet, setRequestAmount: setRequestAmount, openTipSheet: openTipSheet, openRequestSheet: openRequestSheet, getChatCopyBuffer: getChatCopyBuffer, enterChatSelect: enterChatSelect, attachSplitPaste: attachSplitPaste, DL_GLYPH: DL_GLYPH, createKindTile: createKindTile, SHARED_KINDS: SHARED_KINDS, SHARED_PREVIEW: SHARED_PREVIEW, SHARED_INLINE_MAX: SHARED_INLINE_MAX, SHARED_LONG_PRESS_MS: SHARED_LONG_PRESS_MS, parseSharedItems: parseSharedItems, sharedLinkHost: sharedLinkHost, sharedByKind: sharedByKind, createSharedSection: createSharedSection, openSharedItemMenu: openSharedItemMenu, createSharedList: createSharedList, createChatInfo: createChatInfo, setChatInfoPresence: setChatInfoPresence, createContactsPicker: createContactsPicker, setPickerMode: setPickerMode, getPickerSelection: getPickerSelection, setPickerSelection: setPickerSelection, setPickerContacts: setPickerContacts, createAddContact: createAddContact, setAddContactAddress: setAddContactAddress, setAddContactKnown: setAddContactKnown, createGroupSetup: createGroupSetup, createPendingContact: createPendingContact, setGroupAvatar: setGroupAvatar, createAddContactSheet: createAddContactSheet, mountContacts: mountContacts, createScanView: createScanView, startScanRequest: startScanRequest, setScanState: setScanState, deliverScanResult: deliverScanResult, ENC_DELIM: ENC_DELIM, ENC_MIN: ENC_MIN, passwordField: passwordField, createLockScreen: createLockScreen, setLockMode: setLockMode, createEncPassScreen: createEncPassScreen, THEME_OPTIONS: THEME_OPTIONS, backupStatusParts: backupStatusParts, ENGLISH_LANG: ENGLISH_LANG, languageNote: languageNote, settingsOptionSheet: settingsOptionSheet, attachScrollIndicator: attachScrollIndicator, radioArrows: radioArrows, createThemePicker: createThemePicker, settingsThemeSheet: settingsThemeSheet, createSettingsHub: createSettingsHub, setSettingsSaveVisible: setSettingsSaveVisible, setBackupStatus: setBackupStatus, settingsConfirm: settingsConfirm, createSettingsIgnored: createSettingsIgnored, createSettingsDanger: createSettingsDanger, createSettingsBackup: createSettingsBackup, setBackupScreenStatus: setBackupScreenStatus, PATTERN_STYLES: PATTERN_STYLES, CHAT_GROUNDS: CHAT_GROUNDS, patternLevelVar: patternLevelVar, PATTERN_SWATCH_BOOST: PATTERN_SWATCH_BOOST, readPatternLevel: readPatternLevel, SECURITY_TIERS: SECURITY_TIERS, BUBBLE_COLOURS: BUBBLE_COLOURS, BUBBLE_CORNERS: BUBBLE_CORNERS, TEXT_SIZE_PX: TEXT_SIZE_PX, createChatAppearance: createChatAppearance, createPrivacy: createPrivacy, createNotificationsScreen: createNotificationsScreen, createSecurityLevel: createSecurityLevel, ASSET_CREDITS: ASSET_CREDITS, CONTRIBUTORS: CONTRIBUTORS, createSettingsDownloads: createSettingsDownloads, setDownloadsAvatars: setDownloadsAvatars, setDownloads: setDownloads, createSettingsDev: createSettingsDev, setDevLog: setDevLog, createSettingsContributors: createSettingsContributors, aboutVersionText: aboutVersionText, createSettingsAbout: createSettingsAbout, HOWTO_SEEN_KEY: HOWTO_SEEN_KEY, HOWTO_STEPS: HOWTO_STEPS, readHowToSeen: readHowToSeen, createSettingsHowTo: createSettingsHowTo, LEGAL_DOCS: LEGAL_DOCS, launchRingQuiet: launchRingQuiet, launchRingGeometry: launchRingGeometry, openLegalDoc: openLegalDoc, createLaunchShell: createLaunchShell, setLaunchView: setLaunchView, launchShellBack: launchShellBack, launchWelcomeFit: launchWelcomeFit, setLaunchVersion: setLaunchVersion, setLaunchTerms: setLaunchTerms, setLaunchAvatar: setLaunchAvatar, setLaunchFile: setLaunchFile, showBackupNudge: showBackupNudge, showRatingNudge: showRatingNudge, WHATS_NEW_SETS: WHATS_NEW_SETS, whatsNewSlides: whatsNewSlides, createWhatsNew: createWhatsNew, MOMENT_IDS: MOMENT_IDS, momentCopy: momentCopy, momentCaps: momentCaps, showMomentSheet: showMomentSheet, ASK_WAIT_MS: ASK_WAIT_MS, MO_SESSION_MS: MO_SESSION_MS, createMomentClient: createMomentClient, momentBeforeAction: momentBeforeAction, momentAfterResult: momentAfterResult, WORD_TIP_IDS: WORD_TIP_IDS, wordTipCopy: wordTipCopy, createWordTip: createWordTip, wordTipsDone: wordTipsDone, b64ToUtf8: b64ToUtf8, createNativeBridge: createNativeBridge, NATIVE_COPY_MAX: NATIVE_COPY_MAX, NATIVE_COPY_TIMEOUT_MS: NATIVE_COPY_TIMEOUT_MS, utf8ToB64Url: utf8ToB64Url, installExecuteUiCommand: installExecuteUiCommand, html5QrcodeCamera: html5QrcodeCamera, mountScanPage: mountScanPage, mountLockPage: mountLockPage, mountEncPassPage: mountEncPassPage };
 })();

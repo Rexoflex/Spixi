@@ -2,11 +2,15 @@
  * c-avatar — photo, or deterministic gradient placeholder (DECISIONS.md #34).
  * The identity color comes from the address hash → a stable anchor per contact.
  * Named contacts show initials; address-only contacts show the user glyph;
- * groups always show the `users` glyph (N1 — a group never looks like a person).
+ * groups show the `users` glyph (N1 — the app never draws a group as a person: no initials,
+ * no person glyph) — ★ V1A-M M3: or, behind the `groupavatars` flag (v1-flags.js), the emoji
+ * the group's own name starts or ends with. That emoji is the group's choice, and it may be a
+ * face (👤, 🧑) — N1 is about what the APP draws; never initials for a group, #364 stays.
  *
  * createAvatar({ src, name, address, size = 48, online = false, group = false })
  */
 import { icon } from './icons.js';
+import { v1Flag } from './v1-flags.js';
 
 /* N1 (#364): the identity wheel is QUANTIZED to 12 curated hue anchors.
  * The old continuous hue was already uniform (#38 measured), but neighbours
@@ -137,6 +141,132 @@ function initials(name) {
   return trimmed.split(/\s+/).slice(0, 2).map(p => [...p][0].toLocaleUpperCase()).join('');
 }
 
+/* ★ V1A-M M3 — THE GROUP EMOJI AVATAR ("Weekend in Bled 🏔️", "🎸 Band practice").
+ *
+ * groupEmojiOf(name) → the emoji GRAPHEME the name ends with, else the one it starts with,
+ * else ''. LAST wins over FIRST. ★ #46 r1: before the edge test the name loses, at BOTH ends,
+ * whitespace and the bidi / format controls (U+200B–200F, 202A–202E, 2060, 2066–2069, FEFF —
+ * an RTL name often ends with an RLM or a PDI, C-3), and at the END only a run of punctuation
+ * (\p{P}: "Party 🎉!" → 🎉, C-N1). Leading punctuation is NOT stripped: "#" is \p{P} and starts
+ * a keycap ("#️⃣ fans"); a keycap ends with U+20E3, so the trailing strip cannot reach into one. One grapheme = what a reader sees as one emoji: a ZWJ
+ * family, a skin-tone sequence, a VS16 sequence, a flag (regional-indicator pair, or a tag
+ * sequence) and a keycap each come back whole.
+ *
+ * WHAT COUNTS AS AN EMOJI (one grapheme):
+ *   · a regional-indicator PAIR (a flag), or a keycap ([0-9#*] + optional VS16 + U+20E3);
+ *   · else its FIRST code point is an \p{Extended_Pictographic} base, and every later code point is on
+ *     a WHITELIST (★ #46 r1 C-1): VS16, a skin tone (U+1F3FB–1F3FF), a tag character (U+E0020–E007F),
+ *     or a ZWJ immediately followed by another pictograph. Anything else — a combining-mark stack
+ *     ("🎸" + 200 × U+0336 is ONE grapheme, a peer can name a group that), VS15, a stray ZWJ — is not
+ *     an avatar emoji. And the grapheme is at most AV_EMOJI_MAX_UNITS code units (the longest real
+ *     sequence, a kiss with two skin tones, is 15; a subdivision flag ≤ 18).
+ *   · and it must be emoji-PRESENTED: a code point at or above U+1F000 (most of them are emoji-default;
+ *     a few — 🏔 🕊 🌡 — are text-default and render the platform's way), an \p{Emoji_Presentation}
+ *     code point, VS16, a skin-tone modifier, or a ZWJ.
+ *   ⚠ That second condition is stricter than "\p{Extended_Pictographic}" alone, on purpose: ©, ®, ™, ‼
+ *     and the other TEXT-default pictographs are Extended_Pictographic too, and "Acme™" must not wear a
+ *     ™ in its avatar. Typed with VS16 (❤️, ☀️) they ARE emoji. A digit, a letter or "#" alone is never one.
+ *
+ * GRAPHEMES: Intl.Segmenter when present — ONE instance, made at the first call (never per render).
+ * Without it, a fallback splitter that keeps exactly the emoji-relevant clusters together (marks
+ * incl. VS15/VS16 and U+20E3, skin tones, tag characters, ZWJ + the next code point when the cluster
+ * started with a pictograph (GB11), regional indicators in pairs). It is not a full UAX #29 splitter — for non-emoji text it may cut differently,
+ * which cannot matter: a non-emoji edge gives '' either way.
+ * PERF (the S20F scroll budget): a pure-ASCII name returns '' before any segmenting; results are
+ * cached per name in a Map capped at AV_EMOJI_CACHE_MAX (oldest out first); no DOM, no layout read.
+ * A name longer than 256 code units is examined only at its two 64-unit ends. */
+const AV_EMOJI_CACHE_MAX = 256;
+const AV_EMOJI_CACHE = new Map();
+let avSegmenter = null;          // the one Intl.Segmenter, or false when the runtime has none
+const AV_RI_PAIR = /^[\u{1F1E6}-\u{1F1FF}]{2}$/u;
+const AV_KEYCAP = /^[0-9#*]\uFE0F?\u20E3$/u;
+const AV_PICTO_ONE = /^\p{Extended_Pictographic}$/u;
+const AV_EMOJI_MAX_UNITS = 32;
+const AV_EDGE_CTRL = /^[\s\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]$/u;
+const AV_EDGE_PUNCT = /^\p{P}$/u;
+const AV_PRESENTED = /[\u{1F000}-\u{1FFFF}\uFE0F\u200D\u{1F3FB}-\u{1F3FF}]|\p{Emoji_Presentation}/u;
+const AV_EXTEND = /^(?:\p{M}|[\u200D\uFE0E\uFE0F\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}])$/u;
+/* the sizes avatar.css gives an emoji scale rule (`.c-avatar[data-size="N"] { --c-avatar-px }`); any other size
+   stamps its own px on the emoji span. Keep the two lists equal (the a-groupemoji pin checks it). */
+const AV_EMOJI_SIZES = new Set([24, 28, 32, 36, 40, 44, 48, 56, 64, 80, 96]);
+
+function avGetSegmenter() {
+  if (avSegmenter === null) {
+    try {
+      avSegmenter = (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function')
+        ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : false;
+    } catch (e) { avSegmenter = false; }
+  }
+  return avSegmenter;
+}
+
+/** Fallback grapheme split (no Intl.Segmenter): emoji-correct clusters — see the block above. */
+function avSplitGraphemes(s) {
+  const out = [];
+  let cur = '', ri = 0, afterZwj = false, curPicto = false;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0);
+    const isRi = cp >= 0x1F1E6 && cp <= 0x1F1FF;
+    const join = cur !== '' && ((afterZwj && curPicto) || AV_EXTEND.test(ch) || (isRi && ri % 2 === 1));
+    if (join) cur += ch;
+    else { if (cur) out.push(cur); cur = ch; ri = 0; curPicto = AV_PICTO_ONE.test(ch); }
+    ri = isRi ? ri + 1 : 0;
+    afterZwj = cp === 0x200D;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+function avIsEmojiGrapheme(g) {
+  if (!g || g.length > AV_EMOJI_MAX_UNITS) return false;
+  if (AV_RI_PAIR.test(g) || AV_KEYCAP.test(g)) return true;
+  const cps = Array.from(g);
+  if (!AV_PICTO_ONE.test(cps[0])) return false;              // the base IS the pictograph
+  for (let i = 1; i < cps.length; i++) {
+    const cp = cps[i].codePointAt(0);
+    if (cp === 0xFE0F || (cp >= 0x1F3FB && cp <= 0x1F3FF) || (cp >= 0xE0020 && cp <= 0xE007F)) continue;
+    if (cp === 0x200D && i + 1 < cps.length && AV_PICTO_ONE.test(cps[i + 1])) { i++; continue; }
+    return false;                                            // a mark stack, VS15 (asked-for TEXT), a stray ZWJ …
+  }
+  return AV_PRESENTED.test(g);
+}
+
+/* whitespace + bidi/format controls off both ends; a punctuation run off the END only (see the block above).
+   Index loops, not `[…]+$` regexes: a peer-made name of 10 000 punctuation marks must stay linear. */
+function avStripEdges(s) {
+  let a = 0, b = s.length;
+  while (a < b && AV_EDGE_CTRL.test(s[a])) a++;
+  while (b > a && (AV_EDGE_CTRL.test(s[b - 1]) || AV_EDGE_PUNCT.test(s[b - 1]))) b--;
+  return a === 0 && b === s.length ? s : s.slice(a, b);
+}
+
+function avEdgeGraphemes(s) {
+  const head = s.length > 256 ? s.slice(0, 64) : s;
+  const tail = s.length > 256 ? s.slice(-64) : s;
+  const seg = avGetSegmenter();
+  if (seg) {
+    const first = seg.segment(head)[Symbol.iterator]().next().value;
+    const last = seg.segment(tail).containing(tail.length - 1);
+    return [first ? first.segment : '', last ? last.segment : ''];
+  }
+  const h = avSplitGraphemes(head);
+  const t = tail === head ? h : avSplitGraphemes(tail);
+  return [h[0] || '', t[t.length - 1] || ''];
+}
+
+/** The emoji a GROUP name starts or ends with (LAST wins), whole grapheme; '' when neither edge is one. */
+export function groupEmojiOf(name) {
+  const s = typeof name === 'string' ? avStripEdges(name) : '';
+  if (!s || !/[^\x00-\x7F]/.test(s)) return '';          // every emoji (and every keycap) carries a non-ASCII code point
+  const hit = AV_EMOJI_CACHE.get(s);
+  if (hit !== undefined) return hit;
+  const [first, last] = avEdgeGraphemes(s);
+  const v = avIsEmojiGrapheme(last) ? last : (avIsEmojiGrapheme(first) ? first : '');
+  if (AV_EMOJI_CACHE.size >= AV_EMOJI_CACHE_MAX) AV_EMOJI_CACHE.delete(AV_EMOJI_CACHE.keys().next().value);
+  AV_EMOJI_CACHE.set(s, v);
+  return v;
+}
+
 /** Render the deterministic gradient placeholder (anchor from address/name hash)
  *  + initials, the user glyph, or the group glyph — into `el`. Extracted so it's
  *  reusable as the fallback when a photo `src` fails to load. */
@@ -149,11 +279,22 @@ function renderPlaceholder(el, { name, address, size, group }) {
   // N1: a GROUP placeholder always wears the `users` glyph — never initials,
   // never the person glyph — so a group is recognisable at a glance.
   const ini = (!group && name) ? initials(name) : null;
+  // ★ V1A-M M3: a group whose name starts/ends with an emoji wears THAT emoji instead of the glyph —
+  // behind v1Flag('groupavatars') (Debug ON, Release OFF = the glyph exactly as before). Groups only.
+  const emo = (group && name && v1Flag('groupavatars')) ? groupEmojiOf(name) : '';
   if (ini) {
     const t = document.createElement('span');
     t.className = 'c-avatar__initials';
     t.setAttribute('aria-hidden', 'true'); // audit r2: SRs read "HS Han Solo"
     t.textContent = ini;
+    el.append(t);
+  } else if (emo) {
+    const t = document.createElement('span');
+    t.className = 'c-avatar__emoji';
+    t.setAttribute('aria-hidden', 'true'); // decoration: the row/heading carries the name
+    t.textContent = emo;
+    // a size with no rule in avatar.css carries its own scale input (the inline width/height precedent)
+    if (!AV_EMOJI_SIZES.has(size)) t.style.setProperty('--c-avatar-px', size + 'px');
     el.append(t);
   } else {
     el.append(icon(group ? 'users' : 'user-circle', { size: Math.round(size * 0.55) }));

@@ -227,10 +227,12 @@ export default async function (h) {
     /* ★ S17 A / F re-base: one [FLAGS] line per flag family — S16's two flags, then S17Bridge, then S17Moments (each a fixed line)
        ★ DT-1 B re-base (#1386): + the Windows-only title bar way line, under #if WINDOWS (pins-dt1/b-titlebar.mjs)
        ★ re-based by S20 S (#1395 · #1376): the title bar line is GONE with the way switch; + the S20 file-size line
-       ★ S20G re-base: + the S20G line (pins-s20g/h-csharp) */
-    oneLine: (init.match(/Logging\.info\(/g) || []).length === 5 && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
+       ★ S20G re-base: + the S20G line (pins-s20g/h-csharp)
+       ★ V1A-M re-base: + the v1ixihelp and v1hints lines (pins-v1am/c-csharp) */
+    oneLine: (init.match(/Logging\.info\(/g) || []).length === 7 && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
       && /Logging\.info\(S17Rules\.flagLine\(S17Bridge\)\);/.test(init) && /Logging\.info\(S17MomentRules\.flagLine\(S17Moments\)\);/.test(init)
-      && /Logging\.info\(S11MediaRules\.fileSizeFlagLine\(S20FileSize\)\);/.test(init) && /Logging\.info\(S20GRules\.flagLine\(S20G\)\);/.test(init) && !/DtTitleBar/.test(init),
+      && /Logging\.info\(S11MediaRules\.fileSizeFlagLine\(S20FileSize\)\);/.test(init) && /Logging\.info\(S20GRules\.flagLine\(S20G\)\);/.test(init) && !/DtTitleBar/.test(init)
+      && /Logging\.info\(V1AMRules\.flagLineIxiHelp\(V1IxiHelp\)\);/.test(init) && /Logging\.info\(V1AMRules\.flagLineHints\(V1Hints\)\);/.test(init),
   };
   /* ★ #46 r1 (R2 NIT-2): leaving dev mode drops both switches, so a later dev-mode-on cannot revive a stored 0 */
   const HPd = rd('Spixi/Pages/Home/HomePage.xaml.cs');

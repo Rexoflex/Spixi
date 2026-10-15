@@ -2990,6 +2990,56 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   border: var(--outline-width-2) solid var(--surface-screen);
 }
 
+/* ★ V1A-M M3 — the GROUP EMOJI avatar (avatar.js renderPlaceholder, behind v1Flag('groupavatars')).
+   A group whose name starts or ends with an emoji wears it on the same gradient disc, in place of the
+   `users` glyph. Centred by the disc's own inline-flex; the disc box is fixed, so there is no layout
+   shift between the glyph and the emoji. Scale ≈ 0.52 × the disc, read from --c-avatar-px: the size token
+   per known data-size below (the list equals AV_EMOJI_SIZES in avatar.js); any other size stamps its own px
+   on the span. The colour emoji fonts come first so a platform text font never draws a monochrome glyph.
+   sanctioned-block: 28 / 36 / 44 / 64 / 80 have no --size-avatar-* token (by design, avatar.css above and
+   createAvatar's inline width/height fallback) — each px literal IS the disc's own size, the same number
+   createAvatar writes inline; a token per step would be five names for five numbers nobody else reads. */
+.c-avatar[data-size="24"] { --c-avatar-px: var(--size-avatar-24); }
+.c-avatar[data-size="28"] { --c-avatar-px: 28px; }   /* sanctioned: no token — the disc's own px (see above) */
+.c-avatar[data-size="32"] { --c-avatar-px: var(--size-avatar-32); }
+.c-avatar[data-size="36"] { --c-avatar-px: 36px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="40"] { --c-avatar-px: var(--size-avatar-40); }
+.c-avatar[data-size="44"] { --c-avatar-px: 44px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-48); }
+.c-avatar[data-size="56"] { --c-avatar-px: var(--size-avatar-56); }
+.c-avatar[data-size="64"] { --c-avatar-px: 64px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="80"] { --c-avatar-px: 80px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="96"] { --c-avatar-px: var(--size-avatar-96); }
+/* the desktop list densities shrink the 48 row disc in chatlist-item.css (40 / 32) — the emoji follows */
+:root[data-desktop][data-row-density="compact"] .c-chatlist-item .c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-40); }
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-32); }
+
+/* ★ #46 r1 C-1: the emoji never paints outside its disc. The name is peer-made: a sequence the platform
+   font lacks renders as 2–3 glyphs side by side, and the row's own name text is clipped while the disc is
+   `overflow: visible` (for the presence dot). So the SPAN clips: no wider than the disc, one line, hidden
+   overflow. line-height 1.25 (not 1) gives the colour-emoji fonts' ascent + descent (≈ 1.17–1.25 em) room
+   inside that clip, so a normal emoji is never cut at the top or bottom. */
+.c-avatar__emoji {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font-ui);
+  font-size: calc(var(--c-avatar-px, var(--size-avatar-48)) * 0.52);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.25;
+  letter-spacing: 0;
+  user-select: none;
+  -webkit-user-select: none; /* WebKit honors only the prefixed form */
+}
+/* Windows (#flag font, tokens.css :root[data-flag-font]): Segoe UI Emoji draws a flag as two letters —
+   the bundled flag face (unicode-range = the regional indicators only) goes first there. */
+:root[data-flag-font] .c-avatar__emoji {
+  font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font-ui);
+}
+
 </style><!-- caller avatar in the incoming-call overlay -->
 <style data-src="../styles/components/toast.css">
 /* c-toast — transient feedback, bottom-anchored above the bottom bar.
@@ -3273,6 +3323,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   let flagsDev = null;   // [securePassOn, mediaGateOn] once C# told us
   let flagsDevS20 = null;   // ★ S20 (P29): the S20FileSize switch, its own push (setFlagsDev stays at 4 digits)
   let flagsDevS20G = null;   // ★ S20G (P30, #46 r1 A-4): the S20G switch, its own push the same way
+  let flagsDevV1 = null;     // ★ V1A-M (P31): [ixihelp, hints] — the V1IxiHelp + V1Hints switches, their own push "<0|1>,<0|1>"
   const RESET_QUIET_MS = 1000;   // ★ S19 F8 (#1371): taps on Reset moment sheets inside this window after one are ignored
   let lastResetAt = -1e9;
   function mountFlagsDev() {
@@ -3295,6 +3346,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     if (flagsDev.length > 3) rows.push(['s17m', strings.devFlagsS17m || 'Moment sheets (S17)']);   // ★ S17 F (P28)
     if (flagsDevS20 !== null) rows.push(['s20size', strings.devFlagsS20Size || 'File size on sent files (S20)', flagsDevS20]);   // ★ S20 E (P29)
     if (flagsDevS20G !== null) rows.push(['s20g', strings.devFlagsS20G || 'Restore keeps contacts, Account closes the chat (S20G)', flagsDevS20G]);   // ★ S20G (P30)
+    if (flagsDevV1 !== null) {   // ★ V1A-M (P31): the "What is IXI?" moment (M1) + the new-word tips (M2)
+      rows.push(['v1ixihelp', strings.devFlagsV1IxiHelp || 'What is IXI moment (V1A)', flagsDevV1[0]]);
+      rows.push(['v1hints', strings.devFlagsV1Hints || 'New-word tips (V1A)', flagsDevV1[1]]);
+    }
     rows.forEach(([name, label, own], i) => {
       const row = document.createElement('div');
       row.className = 'c-settings__row c-settings__row--static';
@@ -3407,6 +3462,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       const w = String(v || '');
       if (w !== '0' && w !== '1') return;
       flagsDevS20G = w === '1';
+      mountFlagsDev();
+    },
+    /* ★ V1A-M (P31): the V1IxiHelp + V1Hints switches ("<ixihelp 0|1>,<hints 0|1>", exactly); C# pushes it after
+       setFlagsDevS20G. Anything else is ignored. */
+    setFlagsDevV1(v) {
+      const m = /^([01]),([01])$/.exec(String(v || ''));
+      if (!m) return;
+      flagsDevV1 = [m[1] === '1', m[2] === '1'];
       mountFlagsDev();
     },
   };

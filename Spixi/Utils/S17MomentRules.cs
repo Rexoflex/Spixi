@@ -32,8 +32,10 @@ namespace SPIXI
         public const int MaxLangs = 40;
         public const long MaxSessionMs = 6L * 60 * 60 * 1000;   // a session ends 6 h after its first moment / card
 
-        /** The seven ids (MOMENTS.md). `lang` and `app` carry an argument; the other five never do. */
-        public static readonly string[] Ids = { "lang", "autodl", "offline", "firstixi", "mic", "app", "pay" };
+        /** The seven ids (MOMENTS.md) + ★ V1A-M M1 `ixihelp` (the "What is IXI?" moment, home only, flag SpixiFlags.V1IxiHelp —
+         *  V1AMRules; it obeys the session rule but never takes the session — takesSession). `lang` and `app` carry an
+         *  argument; the other six never do. */
+        public static readonly string[] Ids = { "lang", "autodl", "offline", "firstixi", "mic", "app", "pay", "ixihelp" };
         /** The only names the app moment's answer may carry (MiniAppCapabilities minus SingleUser). */
         public static readonly string[] CapNames = { "MultiUser", "Authentication", "TransactionSigning", "RegisteredNamesManagement", "Storage" };
 
@@ -100,8 +102,13 @@ namespace SPIXI
         public static bool exemptFromSession(string id) => id == "firstixi" || id == "lang";
 
         /** Does this grant take the session? The exempt ids do not — a language sheet never blocks pay / mic / app / autodl /
-         *  offline, and never holds home's cards back. */
-        public static bool takesSession(string id) => !exemptFromSession(id);
+         *  offline, and never holds home's cards back. ★ V1A-M #46 r1 (A-MINOR-1): nor does `ixihelp` — it RESPECTS the
+         *  session (not exempt: refused after a moment or a card this session) but never TAKES it, so "What is IXI?" never
+         *  holds back the first-payment `pay` sheet, mic / app / autodl / offline or home's hint / rating cards. */
+        public static bool takesSession(string id) => !exemptFromSession(id) && !respectsButNeverTakes(id);
+
+        /** ★ V1A-M #46 r1: the ids that obey the one-per-session + card rule but never take the session (only `ixihelp`). */
+        public static bool respectsButNeverTakes(string id) => id == "ixihelp";
 
         /** ★ S20 G (#1379, the S19 residual "the install moment takes the session, so an unmarked app re-asks later"): the app
          *  moment AT INSTALL — asked by App details (before Install, or before the Open pill of an app never opened) or the
@@ -112,7 +119,7 @@ namespace SPIXI
         public static bool installMoment(string id, bool onAppDetails, bool unmarkedThisProcess) =>
             id == "app" && (onAppDetails || unmarkedThisProcess);
         public static bool exemptFromSession(string id, bool installMoment) => exemptFromSession(id) || (installMoment && id == "app");
-        public static bool takesSession(string id, bool installMoment) => !exemptFromSession(id, installMoment);
+        public static bool takesSession(string id, bool installMoment) => !exemptFromSession(id, installMoment) && !respectsButNeverTakes(id);   // ★ V1A-M #46 r1
 
         /** ★ S19 F4: the language moment's own check — Settings only, the language the user just applied only, never English. */
         public static Eligible langEligible(bool onSettings, string? arg, string? pendingLang) =>

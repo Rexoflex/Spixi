@@ -32,7 +32,7 @@ export default async function (h) {
   const r = {};
   const ol = branch(HP, 'private void onLoaded()');
   // ★ S12 A re-base (#1267): + hintHelp at the end of the caps literal (pins-s12/a-cs.mjs pins its branch)
-  r.capsThenPush = /Utils\.sendUiCommand\(this, "setCaps", "composeSend,hints,updateHelp,hintHelp"(?: \+ \(SpixiFlags\.S17Bridge \? ",whatsnew" : ""\))?(?: \+ \(SpixiFlags\.S17Moments \? ",moments" : ""\))?\);\s*pushHints\(\);/.test(ol);   // ★ S17 A / F re-base: + the flag-gated whatsnew / moments caps
+  r.capsThenPush = /Utils\.sendUiCommand\(this, "setCaps", "composeSend,hints,updateHelp,hintHelp"(?: \+ \(SpixiFlags\.S17Bridge \? ",whatsnew" : ""\))?(?: \+ \(SpixiFlags\.S17Moments \? ",moments" : ""\))?(?: \+ \(SpixiFlags\.S17Moments && SpixiFlags\.V1IxiHelp \? ",ixihelp" : ""\))?(?: \+ \(SpixiFlags\.V1Hints \? ",wordtips" : ""\))?\);\s*pushHints\(\);/.test(ol);   // ★ S17 A / F re-base: + the flag-gated whatsnew / moments caps; ★ V1A-M re-base: + ixihelp / wordtips (pins-v1am/c-csharp)
   r.pushBody = /Utils\.sendUiCommand\(this, "setHints", SHints\.pushJson\(SHints\.nowMs\(\)\)\);/.test(branch(HP, 'public void pushHints()'));
   const hint = branch(HP, 'current_url.StartsWith("ixian:hint:", StringComparison.Ordinal)');
   /* ★ S11 A2 (#1263, R3-MAJOR-6): the WHOLE branch body — validate, then shown → markShown(now) else markDone(id) */

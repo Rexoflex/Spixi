@@ -23,6 +23,13 @@ namespace SPIXI
          *  this list does not know is ignored. */
         public static readonly string[] TipIds = { "backup", "wallet", "apps", "addcontact", "tip", "network", "quantum", "nophone" };
 
+        /** ★ V1A-M M2 (P31, flag SpixiFlags.V1Hints): the WORD tips (word-tip.js WORD_TIP_IDS) — "contact request" under the
+         *  first incoming request, "no phone book" in the empty Chats state. NOT in TipIds on purpose: TipIds = the rotation
+         *  list the shell picks from (glass-card.js HINT_IDS, pinned equal by pins-s12/a-cs.mjs). isTipId admits both lists,
+         *  so parseVerb / parseDone / addDone / pushJson / SHints.markDone carry a word id like a tip id; HomePage takes a
+         *  word-id verb in its own branch first (V1AMRules.parseWordTipVerb) — `done` only, never `shown`. */
+        public static readonly string[] WordIds = { "wordrequest", "wordphonebook" };
+
         public const string ActionShown = "shown";
         public const string ActionDone = "done";
 
@@ -32,6 +39,17 @@ namespace SPIXI
             foreach (string t in TipIds)
             {
                 if (string.Equals(t, id, StringComparison.Ordinal)) return true;
+            }
+            return isWordId(id);   // ★ V1A-M M2
+        }
+
+        /** ★ V1A-M M2: one of WordIds (exact, Ordinal). */
+        public static bool isWordId(string? id)
+        {
+            if (string.IsNullOrEmpty(id)) return false;
+            foreach (string w in WordIds)
+            {
+                if (string.Equals(w, id, StringComparison.Ordinal)) return true;
             }
             return false;
         }
@@ -113,7 +131,7 @@ namespace SPIXI
         }
 
         /** The `setHints` push: {"firstSeen":ms,"lastShown":ms,"done":["id",…],"off":bool,"now":ms}. Every value is a
-         *  number, a bool or one of TipIds — built by hand on purpose (no escaping question can arise). */
+         *  number, a bool or one of TipIds / ★ V1A-M WordIds (isTipId) — built by hand on purpose (no escaping question can arise). */
         public static string pushJson(long firstSeen, long lastShown, IEnumerable<string> done, bool off, long now)
         {
             StringBuilder sb = new StringBuilder(128);

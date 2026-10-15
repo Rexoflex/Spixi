@@ -1099,5 +1099,12 @@
   "slide2Copy2": "Post-Quanten-verschlüsselt auf deinem Gerät und Peer-to-Peer gesendet. Nur die Person, der du schreibst, kann es lesen.",
   "slide4Title2": "Gemeinsam spielen und planen.",
   "slide4Copy2": "Mini-Apps wie Blitz Chess und Split öffnen sich direkt in deinen Chats.",
-  "welcomeOpenSource": "Open Source"
+  "welcomeOpenSource": "Open Source",
+  "momentIxiHelpTitle": "Was ist IXI?",
+  "momentIxiHelpBody": "IXI ist der Token des Ixian-Netzwerks. Freunde können dir IXI senden: Teile deine Adresse mit ihnen. Zahlungen können nicht rückgängig gemacht werden.",
+  "momentShowAddress": "Meine Adresse zeigen",
+  "wordTipRequest": "Eine Kontaktanfrage bedeutet, dass jemand mit dir chatten möchte. Du entscheidest: akzeptieren oder ablehnen.",
+  "wordTipPhonebook": "Spixi hat kein Telefonbuch. Füge Personen über ihre Spixi-Adresse oder ihren QR-Code hinzu.",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

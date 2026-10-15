@@ -1,0 +1,20 @@
+Session V1A-M Drop 2: the first-minute moments (What is IXI?, new-word tips, group emoji, restore keys)
+
+- M1 "What is IXI?" (flag SpixiFlags.V1IxiHelp, cap ixihelp): a moment sheet on the first Wallet
+  open (coin art; "Show my address" opens the address sheet). C#: the id ixihelp in S17MomentRules.Ids,
+  home only, OFF = the verb is ignored. It obeys the one-moment-per-session rule but never takes the
+  session, so "Before you pay" is never held back; it waits for the first wallet flush and never goes
+  in a document where the first-IXI sheet is wanted (#1450).
+- M2 new-word tips (flag SpixiFlags.V1Hints, cap wordtips): "contact request" under the first request
+  card and "no phone book" in the empty Chats; a quiet card, ✕ = ixian:hint:done:<id> (S11HintRules.WordIds,
+  never the weekly tip rotation); focus after ✕ lands on the card, never on Accept / Decline.
+- M3 group emoji avatar (JS flag v1groupavatars: Debug ON via data-p1, Release OFF): the emoji at the
+  end or start of a group / bot name, grapheme-safe, bounded; never initials for a group (#364).
+- M4 the 4 intro-restore-* C# keys in 13 locales; the 7 new JS keys drafted in 13 locales.
+- Dev switches ixian:devflash:v1ixihelp|v1hints; [FLAGS] v1ixihelp / v1hints lines.
+- Pins scripts/pins-v1am (5 modules), CSH V1AMTests (7); re-based without weakening: pins-s11/a-cs,
+  pins-s12/a-cs, pins-s16/b-l8, pins-s18/f-moments-dev, pins-s19/q-lang, csh S17MomentTests.
+- Review packet P31 (+ P28 addendum, README row); security gate section; DECISIONS #1447-#1452;
+  lessons L152-L153; size ceilings CHAT 964 / INDEX 670 (measured); ring fixture recaptured.
+- Office walk: §16 phase 13 rows + the office Artifact; walk sheet docs/walk-v1am.md + Artifact.
+- #46: r1 0 MAJOR (17 MINOR fixed), r2 0 MAJOR (4 MINOR fixed), r3 0 MAJOR (3 MINOR recorded) = CLEAN.

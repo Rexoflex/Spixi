@@ -1028,6 +1028,56 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   border: var(--outline-width-2) solid var(--surface-screen);
 }
 
+/* ★ V1A-M M3 — the GROUP EMOJI avatar (avatar.js renderPlaceholder, behind v1Flag('groupavatars')).
+   A group whose name starts or ends with an emoji wears it on the same gradient disc, in place of the
+   `users` glyph. Centred by the disc's own inline-flex; the disc box is fixed, so there is no layout
+   shift between the glyph and the emoji. Scale ≈ 0.52 × the disc, read from --c-avatar-px: the size token
+   per known data-size below (the list equals AV_EMOJI_SIZES in avatar.js); any other size stamps its own px
+   on the span. The colour emoji fonts come first so a platform text font never draws a monochrome glyph.
+   sanctioned-block: 28 / 36 / 44 / 64 / 80 have no --size-avatar-* token (by design, avatar.css above and
+   createAvatar's inline width/height fallback) — each px literal IS the disc's own size, the same number
+   createAvatar writes inline; a token per step would be five names for five numbers nobody else reads. */
+.c-avatar[data-size="24"] { --c-avatar-px: var(--size-avatar-24); }
+.c-avatar[data-size="28"] { --c-avatar-px: 28px; }   /* sanctioned: no token — the disc's own px (see above) */
+.c-avatar[data-size="32"] { --c-avatar-px: var(--size-avatar-32); }
+.c-avatar[data-size="36"] { --c-avatar-px: 36px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="40"] { --c-avatar-px: var(--size-avatar-40); }
+.c-avatar[data-size="44"] { --c-avatar-px: 44px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-48); }
+.c-avatar[data-size="56"] { --c-avatar-px: var(--size-avatar-56); }
+.c-avatar[data-size="64"] { --c-avatar-px: 64px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="80"] { --c-avatar-px: 80px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="96"] { --c-avatar-px: var(--size-avatar-96); }
+/* the desktop list densities shrink the 48 row disc in chatlist-item.css (40 / 32) — the emoji follows */
+:root[data-desktop][data-row-density="compact"] .c-chatlist-item .c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-40); }
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-32); }
+
+/* ★ #46 r1 C-1: the emoji never paints outside its disc. The name is peer-made: a sequence the platform
+   font lacks renders as 2–3 glyphs side by side, and the row's own name text is clipped while the disc is
+   `overflow: visible` (for the presence dot). So the SPAN clips: no wider than the disc, one line, hidden
+   overflow. line-height 1.25 (not 1) gives the colour-emoji fonts' ascent + descent (≈ 1.17–1.25 em) room
+   inside that clip, so a normal emoji is never cut at the top or bottom. */
+.c-avatar__emoji {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font-ui);
+  font-size: calc(var(--c-avatar-px, var(--size-avatar-48)) * 0.52);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.25;
+  letter-spacing: 0;
+  user-select: none;
+  -webkit-user-select: none; /* WebKit honors only the prefixed form */
+}
+/* Windows (#flag font, tokens.css :root[data-flag-font]): Segoe UI Emoji draws a flag as two letters —
+   the bundled flag face (unicode-range = the regional indicators only) goes first there. */
+:root[data-flag-font] .c-avatar__emoji {
+  font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font-ui);
+}
+
 </style>
 <style data-src="../styles/components/chatlist-item.css">
 /* Chat list row family — token-exact per docs/chat-list-spec.md.
@@ -3619,6 +3669,69 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 .c-moment__cap-text small { font-size: 12.5px; line-height: 1.35; color: var(--text-neutral-02); }   /* sanctioned: the render's row line */
 
 </style><!-- ★ S17 F (#1340): the Moment sheets (first IXI · mini app · first payment) -->
+<style data-src="../styles/components/word-tip.css">
+/* c-word-tip — ★ V1A-M (M2): the new-word tip on the Chats screen (word-tip.js). Damir's dial 2026-10-15 = style A, the
+   QUIET card: the card ground + a hairline outline, the info glyph in the info ink, body-sm text, a ✕ with a 44×44 hit
+   area (padding + negative margin — the card stays compact). Semantic tokens only. */
+
+.c-word-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+  /* #46 r1 B-NIT-5: logical properties — the ✕ keeps the narrow side in RTL too */
+  margin-block: var(--spacing-4) var(--spacing-12);
+  margin-inline: var(--spacing-16);
+  padding-block: var(--spacing-12);
+  padding-inline: var(--spacing-12) var(--spacing-4);
+  background: var(--surface-card);
+  border: 1px solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  text-align: start;
+}
+/* inside the empty Chats state (a centred column): full width of the column, its own side gutter */
+.c-empty-state > .c-word-tip { align-self: stretch; margin-inline: 0; }
+/* #46 r1 B-NIT-5: on desktop the rows and the request cards sit in an 8 px gutter (chatlist-item.css) — the tip under a
+   card takes the same inset, so its edges line up with the card above it */
+:root[data-desktop] .c-chats-list > .c-word-tip { margin-inline: var(--spacing-8); }
+
+.c-word-tip__glyph {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-info);
+}
+.c-word-tip__text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-word-tip__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: minimum touch target (the glass-card ✕ precedent) */
+  height: 44px;
+  margin-block: calc(-1 * var(--spacing-12));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* hover guarded per #43 (AND-18 pointer: fine) */
+@media (hover: hover) and (pointer: fine) {
+  .c-word-tip__close:hover { background: var(--surface-interactive-hover); }
+}
+.c-word-tip__close:active { background: var(--surface-interactive-pressed); }
+
+</style><!-- ★ V1A-M (M2): the new-word tips on the Chats screen (word-tip.js) -->
 <style data-src="../styles/components/illo.css">
 /* illo — ★ S11 B (#1262): motion for the inline illustration set (illustrations.js).
    ONE entrance, then the frame holds (every animation runs once, fill both; nothing
@@ -7519,6 +7632,7 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
     showBackupNudge, showRatingNudge,
     createWhatsNew, whatsNewSlides,       // ★ S17 A (#1338): the What's new card — rides the SAME queue, at its head
     showMomentSheet, createMomentClient, momentBeforeAction, momentAfterResult,   // ★ S17 F (#1340): the Moment sheets
+    createWordTip, wordTipsDone, WORD_TIP_IDS,   // ★ V1A-M (M2): the new-word tips (cap `wordtips`)
     attachPressFeedback,
     formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
     fiatLine,                              // ★ #1040: one fiat display rule (2 dp, sub-cent = "<$0.01")
@@ -9076,6 +9190,141 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
 
   scroller.insertBefore(chatsCardSlot, list);   // ★ S11 A (#1262): the glass cards sit above the list, under the search + chips
 
+  /* ★★ V1A-M (M2, P31; dial style A) — THE NEW-WORD TIPS (word-tip.js): `wordrequest` under the FIRST incoming request
+   * card, `wordphonebook` under the empty Chats state's body. Cap `wordtips` + setHints off:false + not done. One at a
+   * time; never beside a glass hint / the update card / a nudge or moment sheet / a search query, nor before the hint
+   * settle. ✕ = gone + `ixian:hint:done:<id>` once; never `shown`. ONE node: the observer puts it back after a re-render
+   * (same task, no flicker); the #1166 patch steps around it (patchChatRowsAroundTip). */
+  let wordTipsOn = false;              // set only with the cap (setHints): off:false
+  const wordTipsDoneSet = new Set();   // done word ids: C#'s pushes ∪ this document's ✕
+  let wordTip = null;                  // the one tip element on screen (or null)
+  let wordTipFocus = null;             // the control the user focused in the tip
+  let wordTipRestoring = false;        // our give-back is not a user focus
+  let wordTipHeld = false;             // a place exists but the tip is held back
+  const wordTipsAllDone = () => WORD_TIP_IDS.every((w) => wordTipsDoneSet.has(w));
+  function wordTipBlocked() {
+    try {
+      return nudgeOpen !== null                                       // backup · rating · What's new · a moment (pumpMoment)
+        || !!hintCard                                                 // a glass hint card
+        || (!!updateCard && chatsView.contains(updateCard))           // the update card on the Chats screen
+        || !!document.querySelector('.c-moment__sheet');              // a confirm-step moment (app · pay) — outside the queue
+    } catch (e) { return true; }   // the nudge queue is declared further down — before it exists, nothing shows
+  }
+  /* direct list children only; a done id is never looked for */
+  function wordTipPlace() {
+    if (!wordTipsDoneSet.has('wordrequest')) {
+      const card = list.querySelector(':scope > .c-contact-request');
+      if (card) return { id: 'wordrequest', after: card };
+    }
+    if (wordTipsDoneSet.has('wordphonebook')) return null;
+    const empty = list.querySelector(':scope > .c-empty-state');      // the TRUE zero state only (a filter miss is .c-chats-empty)
+    const body = empty ? empty.querySelector('.c-empty-state__body') : null;
+    return body ? { id: 'wordphonebook', after: body } : null;
+  }
+  function dropWordTip() {
+    if (!wordTip) return;
+    wordTip.remove();
+    wordTip = null;
+    wordTipFocus = null;
+  }
+  function pumpWordTip() {
+    /* the place first, so a HELD tip is known (the observer pumps sheet / card changes only then, r2 MINOR-3) */
+    const at = (wordTipsOn && !wordTipsAllDone()) ? wordTipPlace() : null;
+    if (!at) { wordTipHeld = false; dropWordTip(); return; }
+    /* never on a search result (B-NIT-3) */
+    if (!hintsSettled || (state.query || '').trim() || wordTipBlocked()) { wordTipHeld = true; dropWordTip(); return; }
+    wordTipHeld = false;
+    if (!wordTip || wordTip.dataset.tip !== at.id) {
+      dropWordTip();
+      const tip = createWordTip({ id: at.id, strings, onClose: wordTipClosed });
+      if (!tip) return;
+      /* B-MINOR-5: the control the USER focused; a re-render detaches silently, a real focus move forgets it */
+      tip.addEventListener('focusin', (e) => { if (!wordTipRestoring) wordTipFocus = e.target; });
+      tip.addEventListener('focusout', (e) => {
+        if (e.relatedTarget && tip.contains(e.relatedTarget)) return;
+        Promise.resolve().then(() => {
+          if (wordTip !== tip || (tip.isConnected && !tip.contains(document.activeElement))) wordTipFocus = null;
+        });
+      });
+      wordTip = tip;
+    }
+    if (at.after.nextSibling !== wordTip) {
+      at.after.after(wordTip);
+      /* give it back after a rebuild — once per user focus (r2 NIT-2), only from <body> */
+      const ae = document.activeElement;
+      const f = wordTipFocus;
+      if (f && wordTip.contains(f) && (!ae || ae === document.body)) {
+        wordTipFocus = null;
+        wordTipRestoring = true;
+        try { f.focus({ preventScroll: true }); } catch (e) {}
+        wordTipRestoring = false;
+      }
+    }
+  }
+  /* a non-interactive landing spot for the focus (tabindex -1: focusable by script, not in the Tab order) */
+  function wordTipFocusSpot(el) {
+    if (!el) return null;
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+    return el;
+  }
+  function wordTipClosed(id, info) {
+    const tip = wordTip;
+    /* r2 MINOR-2 (SAFETY): the focus goes to the card itself / the empty state's title — never Accept / Decline or any
+       action (Decline is one tap, no confirm) */
+    let next = null;
+    if (tip && info && info.hadFocus) {
+      if (id === 'wordrequest') {
+        const prev = tip.previousElementSibling;
+        next = prev && prev.classList.contains('c-contact-request') ? wordTipFocusSpot(prev) : null;
+      } else {
+        const empty = tip.closest('.c-empty-state');
+        next = empty ? wordTipFocusSpot(empty.querySelector('.c-empty-state__title') || empty.querySelector('.c-empty-state__body')) : null;
+      }
+    }
+    dropWordTip();
+    /* no spot → the engine's <body>; a VoiceOver activation sets no DOM focus (hadFocus false) (r2 NIT-3) */
+    if (next) { try { next.focus({ preventScroll: true }); } catch (e) {} }
+    if (!wordTipsDoneSet.has(id)) {
+      wordTipsDoneSet.add(id);
+      bridge.send('ixian:hint:done:' + id);
+    }
+    syncWordTipWatch();
+  }
+  /* #1166 P-03 matches the list's children 1:1 against the timeline — the tip steps out for the patch and the observer
+     puts it back (the same task's microtask: no paint between); a patch that cannot run renders in full */
+  function patchChatRowsAroundTip(addrs) {
+    const tip = wordTip && wordTip.parentNode === list ? wordTip : null;
+    if (tip) tip.remove();
+    const patched = patchChatRows(list, state, addrs, opts);
+    if (tip && patched && !wordTipWatch) pumpWordTip();   // no MutationObserver → direct
+    return patched;
+  }
+  /* B-MINOR-6: observers only while a tip may come (cap, tips on, a word not done). Most users keep one word open, so
+     r2 MINOR-3: the callback reads nothing unless a tip is shown or held, or a list record ADDS a request / empty state. */
+  const wordTipPlaceNode = (n) => n.nodeType === 1 && (n.classList.contains('c-contact-request') || n.classList.contains('c-empty-state'));
+  function wordTipRecords(records) {
+    if (wordTip || wordTipHeld) { pumpWordTip(); return; }
+    for (const r of records) {
+      if (r.target !== list) continue;
+      for (const n of r.addedNodes) if (wordTipPlaceNode(n)) { pumpWordTip(); return; }
+    }
+  }
+  let wordTipWatch = null;
+  function syncWordTipWatch() {
+    const want = wordTipsOn && !wordTipsAllDone();   // wordTipsOn carries the cap
+    if (want && !wordTipWatch) {
+      try {
+        wordTipWatch = new MutationObserver(wordTipRecords);
+        wordTipWatch.observe(list, { childList: true });              // a re-render · a patch
+        wordTipWatch.observe(chatsCardSlot, { childList: true });     // a glass hint / the update card in or out
+        wordTipWatch.observe(document.body, { childList: true });     // a sheet in or out (every sheet mounts on body)
+      } catch (e) { wordTipWatch = null; }   // no MutationObserver → the tip follows the setHints push and the nudge close only
+    } else if (!want && wordTipWatch) {
+      wordTipWatch.disconnect();
+      wordTipWatch = null;
+    }
+  }
+
   setNavBadge(nav, 'chats', navUnreadTotal());
 
   /* —— chats render pipeline ————————————————————————————————————————————————
@@ -9156,7 +9405,7 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
       chatsPatchQueue.clear();
       if (chatsRenderQueued) return;                          // the queued full render paints these rows too
       if (chatsFlushing && !chatsFlushStalled) return;        // the flush's clearChatsDone renders once
-      if (!patchChatRows(list, state, addrs, opts)) { renderChatsNow(); return; }
+      if (!patchChatRowsAroundTip(addrs)) { renderChatsNow(); return; }   // ★ V1A-M (M2): around the word tip
       if (opts.onModelChange) opts.onModelChange(state);      // nav badge + chip counts (the full render's tail)
     });
   }
@@ -10564,6 +10813,16 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
    * selectTab push, so it goes stale. showView is the single chokepoint every path
    * goes through, so the nudge gate reads its own value. */
   let nudgeTabId = 'chats';
+  /* ★ V1A-M (M1): the "What is IXI?" latches — above showView (a boot-time tab switch runs it first) */
+  let ixiHelpWanted = false;           // Wallet visible + the cap
+  let ixiHelpAsked = false;            // once per document
+  /* r2 MINOR-1: no ixihelp ask before this document's first wallet flush (it sets firstIxiWanted); a bounded wait for an
+     exe that never sends clearPaymentActivityDone */
+  let walletFlushedOnce = false;
+  let ixiHelpFlushWaited = false;
+  let ixiHelpFlushTimer = 0;
+  const IXIHELP_FLUSH_WAIT_MS = 2000;
+  let ixiHelpHold = false;             // after firstixi's Back up: wait for the next Wallet entry (B-MINOR-2)
   function showView(navId) {
     const isChats = navId === 'chats';
     const isWallet = navId === 'wallet';
@@ -10597,6 +10856,8 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
     if (isWallet) attachWallet(); else detachWallet();
     if (!placeholderView.hidden) setPlaceholder(navId);
     nudgeTabId = navId;
+    ixiHelpWanted = isWallet && bridge.cap('ixihelp');   // ★ V1A-M: THE cap guard (caps are add-only)
+    if (isWallet) ixiHelpHold = false;
     pumpNudges();                       // a tab change can unblock a queued nudge
     pumpMoment();                       // ★ S17 F (#1340): …and a waiting moment (Chats or Wallet)
     pumpHint();                         // ★ S11 A (#1262): …and a hint waits for the Chats tab
@@ -10741,15 +11002,21 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
     return Date.now() >= nudgeReadyAt;
   }
   function pumpMoment() {
-    try { tryFirstIxiMoment(); } catch (e) { return; }   // declared further down than a boot-time tab switch
+    try { tryFirstIxiMoment(); tryIxiHelpMoment(); } catch (e) { return; }   // declared further down than a boot-time tab switch
     try { if (!momentWaiting.length || !momentContextClear()) return; } catch (e) { return; }
-    const m = momentWaiting.shift();
+    /* ★ V1A-M (M1): ixihelp shows only over the Wallet (and not while held); when both wait, the first IXI goes first —
+       the normal order is set at the ask (tryIxiHelpMoment) */
+    let at = momentWaiting.findIndex((w) => w.id === 'firstixi');
+    if (at < 0) at = momentWaiting.findIndex((w) => w.id !== 'ixihelp' || (nudgeTabId === 'wallet' && !ixiHelpHold));
+    if (at < 0) return;
+    const m = momentWaiting.splice(at, 1)[0];
     nudgeOpen = 'moment';
     showMomentSheet({
       id: m.id, host: document.body, strings, ctx: m.ctx,
       onClose: (v) => {
         closeNudge();
-        if (m.id === 'firstixi' && v === 'backup') { nudgeQueue.length = 0; bridge.send('ixian:backup'); }   // Settings › Backup
+        if (m.id === 'firstixi' && v === 'backup') { nudgeQueue.length = 0; ixiHelpHold = true; bridge.send('ixian:backup'); }   // Settings › Backup (★ V1A-M: a waiting ixihelp waits for the next Wallet entry)
+        if (m.id === 'ixihelp' && v === 'address') openWalletAddressSheet();   // ★ V1A-M (M1): the zero-state's own sheet
       },
     });
   }
@@ -10774,6 +11041,31 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
       pumpMoment();
     });
   }
+  /* ★★ V1A-M (M1, P31; dial title A + the coin art) — "What is IXI?" on the first Wallet open of the document (caps
+     `ixihelp` + `moments`): on a clear screen, once; C# decides and stores seen; it respects the session, never takes it.
+     Asked only after the first wallet flush and never once the first IXI is wanted (r2 MINOR-1); after the paint and after
+     ixian:tab:tab2 (iOS-34, r2 NIT-6); a document born on the Wallet asks at the next entry. The one cap guard = showView. */
+  function tryIxiHelpMoment() {
+    if (!ixiHelpWanted || ixiHelpAsked || nudgeTabId !== 'wallet') return;
+    if (!moments.on()) return;
+    if (moments.seen('ixihelp')) { ixiHelpAsked = true; return; }   // latch (r2 NIT-4)
+    if (!walletFlushedOnce && !ixiHelpFlushWaited) {                 // wait for the flush (r2 MINOR-1)
+      if (!ixiHelpFlushTimer) ixiHelpFlushTimer = setTimeout(() => { ixiHelpFlushWaited = true; pumpMoment(); }, IXIHELP_FLUSH_WAIT_MS);
+      return;
+    }
+    if (firstIxiWanted) { ixiHelpAsked = true; return; }              // never beside the first IXI
+    if (!momentContextClear()) return;
+    ixiHelpAsked = true;
+    deferToPaint(() => setTimeout(() => {
+      if (firstIxiWanted) return;                                   // stays "asked": the safety sheet alone
+      /* the screen moved on before the paint: the next clear pump asks */
+      if (nudgeTabId !== 'wallet' || !momentContextClear()) { ixiHelpAsked = false; return; }
+      momentAfterResult(moments, 'ixihelp', '', () => {
+        if (!momentWaiting.some((w) => w.id === 'ixihelp')) momentWaiting.push({ id: 'ixihelp', ctx: {} });
+        pumpMoment();
+      });
+    }, 0));
+  }
   /* a mini app's first open (the Apps tab) — the confirm step: Open = go(), Cancel / back = stay */
   function appMoment(app, go) {
     momentBeforeAction(moments, {
@@ -10786,7 +11078,7 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
   function closeNudge() {
     nudgeOpen = null;
     nudgeReadyAt = Date.now() + NUDGE_GAP_MS;
-    setTimeout(() => { pumpNudges(); pumpMoment(); pumpHint(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint · ★ S17 F: a waiting moment
+    setTimeout(() => { pumpNudges(); pumpMoment(); pumpHint(); pumpWordTip(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint · ★ S17 F: a waiting moment · ★ V1A-M: a held word tip
   }
 
   function pumpNudges() {
@@ -10855,7 +11147,7 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
    * children (both takeovers and every sheet mount to document.body). pumpNudges
    * early-returns on an empty queue, so this costs nothing in the normal case. */
   try {
-    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); if (momentWaiting.length || (firstIxiWanted && !firstIxiAsked)) pumpMoment(); })
+    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); if (momentWaiting.length || (firstIxiWanted && !firstIxiAsked) || (ixiHelpWanted && !ixiHelpAsked)) pumpMoment(); })
       .observe(document.body, { childList: true, attributes: true, attributeFilter: ['data-overlay-open'] });
   } catch (_) { /* no MutationObserver → nudges still fire on push / tab change */ }
 
@@ -10894,7 +11186,7 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
       if (!!c.selected !== want) { c.selected = want; changed.push(c.address); }
     }
     // ★ #1166 P-03: the two rows whose highlight moved, in place; the full render when they cannot be patched
-    if (changed.length && !patchChatRows(list, state, changed, opts)) renderChatsList(list, state, opts);
+    if (changed.length && !patchChatRowsAroundTip(changed)) renderChatsList(list, state, opts);   // ★ V1A-M (M2): around the word tip
   }
   let selectedAddress = '';   // remembered so a re-render (clearChatsDone) can re-apply
 
@@ -11442,7 +11734,9 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
       commitWalletIncoming();      // ★ #1133 lever 2b
       walletZero.open();
       scheduleWalletRender();
+      walletFlushedOnce = true;    // ★ V1A-M: the first IXI is known now
       maybeFirstIxiMoment();       // ★ S17 F (#1340)
+      pumpMoment();                // ★ V1A-M: a waiting Wallet entry decides now
     },
     /* ★ S17 F (#1340, 🟡 NEW push, P28 · flag S17Moments + cap `moments`): {"seen":[ids],"apps":[app ids],"lang":"","session":bool}
        — pushed at load and again when a moment is granted on another page (session = true: home holds its cards back). */
@@ -11904,10 +12198,17 @@ html:root .c-app-item[data-layout="grid"][data-pressfade]:hover .c-app-item__ope
       }
       hintsState = st;
       hintsAt = Date.now();
+      /* ★ V1A-M (M2): the RAW push (parseHintsState drops word ids); the ONE `wordtips` guard */
+      if (bridge.cap('wordtips')) {
+        wordTipsOn = !st.off;
+        for (const w of wordTipsDone(String(json))) wordTipsDoneSet.add(w);
+      }
+      syncWordTipWatch();
       if (!hintsSettled && !hintSettleTimer) {
-        hintSettleTimer = setTimeout(() => { hintsSettled = true; pumpHint(); }, HINT_SETTLE_MS);
+        hintSettleTimer = setTimeout(() => { hintsSettled = true; pumpHint(); pumpWordTip(); }, HINT_SETTLE_MS);
       }
       pumpHint();
+      pumpWordTip();
     },
 
     // A11 (#302). C# pushes toggleAnimatedSlider("backup-prompt") from

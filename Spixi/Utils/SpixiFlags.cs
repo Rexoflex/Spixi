@@ -17,6 +17,8 @@ namespace SPIXI
         public const string S17MomentsKey = "flagS17Moments";               // int pref; absent = default (1) — ★ S17 F (#1340, P28)
         public const string S20FileSizeKey = "flagS20FileSize";             // int pref; absent = default (1) — ★ S20 E (#1376, P29)
         public const string S20GKey = "flagS20G";                           // int pref; absent = default (1) — ★ S20G F-1 + P0 (P30)
+        public const string V1IxiHelpKey = "flagV1IxiHelp";                 // int pref; absent = default (1) — ★ V1A-M M1 (P31)
+        public const string V1HintsKey = "flagV1Hints";                     // int pref; absent = default (1) — ★ V1A-M M2 (P31)
 
         /** L8: the wallet password lives in SecureStorage (WalletPassStore). OFF = the legacy plaintext preference. */
         public static bool SecureWalletPass { get; private set; } = true;
@@ -44,10 +46,19 @@ namespace SPIXI
          *  OFF = exactly the old behaviour. (The delete-account wipe of the kept folders is NOT behind it: privacy.) */
         public static bool S20G { get; private set; } = true;
 
+        /** ★ V1A-M M1 (P31): the "What is IXI?" moment — the `ixihelp` cap on home (with S17Moments) and the
+         *  `ixian:moment:ixihelp` ask (V1AMRules). OFF = no cap; the ask is ignored (nothing answered, nothing logged). */
+        public static bool V1IxiHelp { get; private set; } = true;
+
+        /** ★ V1A-M M2 (P31): the word tips — the `wordtips` cap on home and `ixian:hint:done:<word id>` (V1AMRules,
+         *  S11HintRules.WordIds). OFF = no cap; every word-id hint verb is ignored. */
+        public static bool V1Hints { get; private set; } = true;
+
         public static void init()
         {
             bool dev = false;
             int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1, sg = 1;
+            int vi = 1, vh = 1;   // ★ V1A-M M1 / M2
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -57,6 +68,8 @@ namespace SPIXI
                 sm = Preferences.Default.Get(S17MomentsKey, 1);
                 fs = Preferences.Default.Get(S20FileSizeKey, 1);
                 sg = Preferences.Default.Get(S20GKey, 1);
+                vi = Preferences.Default.Get(V1IxiHelpKey, 1);
+                vh = Preferences.Default.Get(V1HintsKey, 1);
             }
             catch (Exception ex)
             {
@@ -75,6 +88,10 @@ namespace SPIXI
             Logging.info(S11MediaRules.fileSizeFlagLine(S20FileSize));
             S20G = S16PassRules.effectiveFlag(dev, sg);
             Logging.info(S20GRules.flagLine(S20G));
+            V1IxiHelp = S16PassRules.effectiveFlag(dev, vi);
+            Logging.info(V1AMRules.flagLineIxiHelp(V1IxiHelp));
+            V1Hints = S16PassRules.effectiveFlag(dev, vh);
+            Logging.info(V1AMRules.flagLineHints(V1Hints));
         }
     }
 }

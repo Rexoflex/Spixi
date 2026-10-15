@@ -1330,6 +1330,13 @@
       backLabel: (s.back || 'Back') + (unreadElsewhere ? ', ' + (s.unreadElsewhere || 'Unread messages') : ''),
       actions,
     });
+    /* ★ V1A-M C-2 (#46 r1/r2): channel mode titles the CHANNEL, but the avatar is the bot's. With the M3 flag ON and the
+       two names' emoji differing, re-make the avatar with the bot's name (createTopbar's other args). Flag OFF = untouched. */
+    const SpA = window.Spixi;
+    if (botChannels && SpA && SpA.v1Flag && SpA.v1Flag('groupavatars') && SpA.groupEmojiOf('# ' + (channelState.name || '')) !== SpA.groupEmojiOf(identityTitle())) {
+      const chAv = tb.querySelector('.c-topbar__identity-wrap > .c-avatar');
+      if (chAv) chAv.replaceWith(SpA.createAvatar({ src: identity.avatar || null, name: identityTitle(), address: identity.address || identity.name || '', size: 40, online: false, group: !!mode.isMulti }));
+    }
 
     // Inject the chevron (and an any-channel-unread dot) into the title so the
     // channel-as-title reads as a dropdown affordance. Done here (not in the

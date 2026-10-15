@@ -1023,5 +1023,12 @@
   "slide2Copy2": "Terenkripsi pasca-kuantum di perangkat Anda dan dikirim peer-to-peer. Hanya orang yang Anda kirimi pesan yang bisa membacanya.",
   "slide4Title2": "Bermain dan berencana bersama.",
   "slide4Copy2": "Mini app seperti Blitz Chess dan Split terbuka langsung di obrolan Anda.",
-  "welcomeOpenSource": "Sumber terbuka"
+  "welcomeOpenSource": "Sumber terbuka",
+  "momentIxiHelpTitle": "Apa itu IXI?",
+  "momentIxiHelpBody": "IXI adalah token jaringan Ixian. Teman dapat mengirimi Anda IXI: bagikan alamat Anda kepada mereka. Pembayaran tidak dapat dibatalkan.",
+  "momentShowAddress": "Tampilkan alamat saya",
+  "wordTipRequest": "Permintaan kontak berarti seseorang ingin mengobrol dengan Anda. Anda yang memilih: terima atau tolak.",
+  "wordTipPhonebook": "Spixi tidak memiliki buku telepon. Tambahkan orang melalui alamat Spixi atau kode QR mereka.",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

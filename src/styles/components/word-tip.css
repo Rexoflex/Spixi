@@ -1,0 +1,60 @@
+/* c-word-tip — ★ V1A-M (M2): the new-word tip on the Chats screen (word-tip.js). Damir's dial 2026-10-15 = style A, the
+   QUIET card: the card ground + a hairline outline, the info glyph in the info ink, body-sm text, a ✕ with a 44×44 hit
+   area (padding + negative margin — the card stays compact). Semantic tokens only. */
+
+.c-word-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+  /* #46 r1 B-NIT-5: logical properties — the ✕ keeps the narrow side in RTL too */
+  margin-block: var(--spacing-4) var(--spacing-12);
+  margin-inline: var(--spacing-16);
+  padding-block: var(--spacing-12);
+  padding-inline: var(--spacing-12) var(--spacing-4);
+  background: var(--surface-card);
+  border: 1px solid var(--outline-neutral-01);
+  border-radius: var(--radius-12);
+  text-align: start;
+}
+/* inside the empty Chats state (a centred column): full width of the column, its own side gutter */
+.c-empty-state > .c-word-tip { align-self: stretch; margin-inline: 0; }
+/* #46 r1 B-NIT-5: on desktop the rows and the request cards sit in an 8 px gutter (chatlist-item.css) — the tip under a
+   card takes the same inset, so its edges line up with the card above it */
+:root[data-desktop] .c-chats-list > .c-word-tip { margin-inline: var(--spacing-8); }
+
+.c-word-tip__glyph {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-info);
+}
+.c-word-tip__text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  color: var(--text-neutral-01);
+  overflow-wrap: anywhere;
+}
+.c-word-tip__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;                      /* sanctioned: minimum touch target (the glass-card ✕ precedent) */
+  height: 44px;
+  margin-block: calc(-1 * var(--spacing-12));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--icon-neutral-02);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* hover guarded per #43 (AND-18 pointer: fine) */
+@media (hover: hover) and (pointer: fine) {
+  .c-word-tip__close:hover { background: var(--surface-interactive-hover); }
+}
+.c-word-tip__close:active { background: var(--surface-interactive-pressed); }

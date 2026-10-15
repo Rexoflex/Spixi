@@ -1125,5 +1125,12 @@
   "slide2Copy2": "Enkriptohen post-kuantik në pajisjen tuaj dhe dërgohen drejtpërdrejt. Vetëm personi të cilit i shkruani mund t'i lexojë.",
   "slide4Title2": "Luani dhe planifikoni së bashku.",
   "slide4Copy2": "Mini-aplikacione si Blitz Chess dhe Split hapen drejt në bisedat tuaja.",
-  "welcomeOpenSource": "Burim i hapur"
+  "welcomeOpenSource": "Burim i hapur",
+  "momentIxiHelpTitle": "Çfarë është IXI?",
+  "momentIxiHelpBody": "IXI është tokeni i rrjetit Ixian. Miqtë mund t'ju dërgojnë IXI: ndajeni adresën tuaj me ta. Pagesat nuk mund të kthehen mbrapsht.",
+  "momentShowAddress": "Shfaq adresën time",
+  "wordTipRequest": "Një kërkesë kontakti do të thotë se dikush dëshiron të bisedojë me ju. Ju zgjidhni: ta pranoni ose ta refuzoni.",
+  "wordTipPhonebook": "Spixi nuk ka numërator telefonik. Shtoni njerëz me adresën e tyre Spixi ose kodin QR.",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

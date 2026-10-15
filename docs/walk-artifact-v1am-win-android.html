@@ -1,0 +1,274 @@
+<title>Spixi V1A-M Walk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one narrow column of phases (build → copy → compile-risk → your account by area → create → restore → Drop 2), a sticky tally bar.
+   Tokens follow the Spixi walk Artifacts (ink neutrals, the Spixi blue); iPhone and Mac get their own result chips. */
+:root{
+  --bg:#f3f5f7; --card:#ffffff; --ink:#131415; --ink-2:#5b6470; --line:#e3e7ec;
+  --brand:#2160c2; --brand-soft:#e6eefb; --code-bg:#eef1f5; --warn:#8a5a00; --warn-soft:#fbf1dc;
+  --pass:#1f7a45; --pass-soft:#e3f3e9; --fail:#b12525; --fail-soft:#f8e5e3; --na:#6b7280; --na-soft:#eceef1;
+  --font:"Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417; --warn:#f2c46b; --warn-soft:#33270f;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e10; --card:#1a1c1f; --ink:#e8e9ea; --ink-2:#9aa0a6; --line:#2a2d31;
+  --brand:#98b5fc; --brand-soft:#1a2440; --code-bg:#121417; --warn:#f2c46b; --warn-soft:#33270f;
+  --pass:#7fd6a0; --pass-soft:#16301f; --fail:#f49c92; --fail-soft:#3a1715; --na:#a3a9b1; --na-soft:#24272b; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+.wrap{max-width:820px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 120px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:23px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;margin:10px 0 0;text-wrap:balance}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:65ch}
+nav.jump{display:flex;gap:6px;flex-wrap:wrap}
+nav.jump a{font:600 12px var(--font);color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:4px 10px;text-decoration:none;font-variant-numeric:tabular-nums}
+nav.jump a:focus-visible,button:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin:0;font-weight:600}
+.box ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.warnbox{background:var(--warn-soft);border-color:transparent}
+.warnbox h3{color:var(--warn)}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl button,.cmd button{font:600 12px var(--font);border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--card)}
+.phase{display:flex;flex-direction:column;gap:10px;scroll-margin-top:12px}
+.lead{color:var(--ink-2);margin:0;max-width:65ch;font-size:14px}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.row[data-done="1"]{opacity:.82}
+.head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.num{font:600 12px var(--mono);color:var(--ink-2);font-variant-numeric:tabular-nums;min-width:2.2em}
+.rid{font:700 14px var(--mono);overflow-wrap:anywhere}
+.tag{font:600 11px var(--font);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);color:var(--ink-2);border-radius:999px;padding:1px 8px}
+.tag.new{color:var(--warn);border-color:var(--warn)}
+.lbl{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin-top:2px}
+.txt{margin:0;min-width:0;overflow-wrap:anywhere}
+.note{font-size:13px;color:var(--ink-2);margin:0;overflow-wrap:anywhere}
+code{font:13px var(--mono);background:var(--code-bg);border:1px solid var(--line);border-radius:5px;padding:0 4px;overflow-wrap:anywhere}
+.res{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.leg{display:flex;gap:4px;align-items:center}
+.leg b{font:700 12px var(--font);width:1.6em;color:var(--ink-2)}
+.leg button{font:600 12px var(--font);min-width:44px;min-height:34px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;cursor:pointer}
+.leg button[aria-pressed="true"][data-v="P"]{background:var(--pass-soft);border-color:var(--pass);color:var(--pass)}
+.leg button[aria-pressed="true"][data-v="F"]{background:var(--fail-soft);border-color:var(--fail);color:var(--fail)}
+.leg button[aria-pressed="true"][data-v="N"]{background:var(--na-soft);border-color:var(--na);color:var(--na)}
+textarea{width:100%;min-height:38px;resize:vertical;font:14px var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.empty{color:var(--ink-2);font-style:italic;margin:0}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));padding-top:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar .in{max-width:820px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.tally{font:600 13px var(--font);font-variant-numeric:tabular-nums;display:flex;gap:14px;flex-wrap:wrap}
+.tally .p{color:var(--pass)}.tally .f{color:var(--fail)}.tally .n{color:var(--na)}
+.sync{font-size:12px;color:var(--ink-2)}
+#out{width:100%;min-height:140px;font:12px var(--mono)}
+@media (prefers-reduced-motion:no-preference){.leg button{transition:background .12s,border-color .12s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Spixi V1A-M Walk</h1>
+    <p class="sub">Windows F5 + Android Debug: the What is IXI? moment, the word tips, the group emoji, the restore question in German. Results save as you tap. <span id="syncline" class="sync"></span></p>
+  </header>
+
+  <div class="box">
+    <h3>Show rows for</h3>
+    <div class="ctl" role="group" aria-label="Platform filter">
+      <button type="button" data-f="all" aria-pressed="true">Windows + Android</button>
+      <button type="button" data-f="I" aria-pressed="false">Windows only</button>
+      <button type="button" data-f="M" aria-pressed="false">Android only</button>
+      <button type="button" id="hidedone" aria-pressed="false">Hide finished rows</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>Set-up</h3>
+    <ul>
+      <li>Apply <code>session-v1am-drop2.patch</code> on the Drop 1 commit and commit (the delivery message has the lines).</li>
+      <li>Windows: close Visual Studio, wipe <code>Spixi\bin</code> + <code>Spixi\obj</code>, then F5 (never <code>dotnet build</code>). Android: wipe obj / bin, then <code>dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug -t:Run</code>.</li>
+      <li>Developer mode ON. Before EACH M1 row: Developer › Reset moment sheets, then restart Spixi.</li>
+      <li>M2-EMPTY needs a test account with no chats (rename <code>Documents\Spixi</code> first, see <code>docs/walk-v1am.md</code> set-up d).</li>
+      <li>A word tip shows about 4 s after Chats opens. Logs: <code>[FLAGS]</code>, <code>[MO]</code>.</li>
+    </ul>
+  </div>
+
+  <div class="box warnbox">
+    <h3>★ Copy the data first (L149)</h3>
+    <p class="txt">Close Spixi and copy <code>Documents\\Spixi</code> before the first row. Android: a test phone or a test account only.</p>
+  </div>
+
+  <nav class="jump" id="jump" aria-label="Phases"></nav>
+  <main id="phases"></main>
+
+  <div class="box">
+    <h3>Send the results to Claude</h3>
+    <p class="txt">Results are saved in this page for Claude to read. If the sync line above says "this browser only", tap Copy and paste the text in the chat.</p>
+    <div class="ctl"><button type="button" id="copy">Copy results as text</button><span id="copied" class="sync" role="status"></span></div>
+    <textarea id="out" readonly hidden aria-label="Results text"></textarea>
+  </div>
+</div>
+
+<div class="bar"><div class="in">
+  <div class="tally" id="tally" aria-live="polite"></div>
+  <div class="sync" id="left"></div>
+</div></div>
+
+<script>
+const DATA = [{"key": "p0", "title": "BUILD · this build only", "lead": "", "rows": [{"id": "V1AM-BUILD", "pl": "both", "steps": "1) Build (set-up b / c). 2) Account › Developer › the Release flags card. 3) Read the log.", "exp": "2: two new rows \"What is IXI moment (V1A)\" and \"New-word tips (V1A)\", both ON (only this build). 3: `[FLAGS] v1ixihelp=1` and `[FLAGS] v1hints=1` after the `s20g=1` line.", "note": "this build only", "src": "V1A-M"}]}, {"key": "p1", "title": "M1 · \"What is IXI?\"", "lead": "", "rows": [{"id": "M1-IXI", "pl": "both", "steps": "1) Set-up (e). 2) Open the Wallet tab. 3) Read the sheet. 4) Tap \"Show my address\". 5) Close it. Restart Spixi; open the Wallet again. 6) Dark: repeat 1–3.", "exp": "2–3: a sheet with the coin art, \"What is IXI?\", \"IXI is the Ixian network's token. Friends can send you IXI: share your address with them. Payments cannot be undone.\", \"Show my address\" and \"Got it\". Log `[MO] ask id=ixihelp d=grant why=ok`. 4: the address sheet (QR + address). 5: no sheet.", "note": "#1448", "src": "V1A-M"}, {"id": "M1-GOTIT", "pl": "both", "steps": "1) Set-up (e). 2) Open Wallet. 3) Tap \"Got it\".", "exp": "The sheet closes; nothing else opens.", "note": "", "src": "V1A-M"}, {"id": "M1-PAY", "pl": "both", "steps": "1) Set-up (e). 2) Open Wallet; \"Got it\". 3) Wallet › Send: pick a contact, an amount, Review.", "exp": "3: \"Before you pay\" still shows (the IXI sheet does not use up the session, #1450).", "note": "#1450", "src": "V1A-M"}, {"id": "M1-OFF", "pl": "both", "steps": "1) Developer › \"What is IXI moment (V1A)\" OFF. 2) Restart. 3) Set-up (e). 4) Open Wallet. 5) Turn it ON again; restart.", "exp": "2: log `[FLAGS] v1ixihelp=0`. 4: no sheet; no `[MO] ask id=ixihelp` line.", "note": "flag OFF = today", "src": "V1A-M"}]}, {"key": "p2", "title": "M2 · word tips", "lead": "", "rows": [{"id": "M2-REQ", "pl": "both", "steps": "1) A peer that is NOT your contact sends you a contact request. 2) Chats: look under the request card (light, then dark). 3) Windows: Tab to the tip's ✕, press Enter. Android: tap ✕. 4) Restart Spixi.", "exp": "2: a quiet card with an info icon: \"A contact request means someone wants to chat with you. You choose: accept or decline.\" 3: the tip goes; the keyboard focus is on the request CARD, never on Accept / Decline. 4: no tip again.", "note": "#1448", "src": "V1A-M"}, {"id": "M2-SEARCH", "pl": "both", "steps": "1) With the tip of M2-REQ on screen (before ✕, or a second request on a test account): type in the chats search. 2) Clear the search.", "exp": "1: the tip hides. 2: it comes back.", "note": "r1 B-NIT-3", "src": "V1A-M"}, {"id": "M2-EMPTY", "pl": "both", "steps": "1) Set-up (d): a test account with no chats. 2) Look at Chats. 3) Tap ✕.", "exp": "2: under \"No chats yet\" and its text: \"Spixi has no phone book. Add people with their Spixi address or QR code.\" 3: gone; the focus is on the \"No chats yet\" title, not on a button.", "note": "#1448", "src": "V1A-M"}, {"id": "M2-TIPSOFF", "pl": "both", "steps": "1) Settings › Notifications › \"Tips on the Chats screen\" OFF. 2) A request card on Chats.", "exp": "No word tip. Turn it ON again.", "note": "the user's switch", "src": "V1A-M"}, {"id": "M2-OFF", "pl": "both", "steps": "1) Developer › \"New-word tips (V1A)\" OFF. 2) Restart. 3) Chats with a request card. 4) ON again; restart.", "exp": "2: `[FLAGS] v1hints=0`. 3: no tip.", "note": "flag OFF = today", "src": "V1A-M"}]}, {"key": "p3", "title": "M3 · group emoji (Debug builds only)", "lead": "", "rows": [{"id": "M3-EMOJI", "pl": "both", "steps": "1) New chat › Create group: \"Weekend 🏔️\". 2) Another: \"🎸 Band\". 3) Another: \"Family\". 4) Look at the chats list, the chat header and chat info (light + dark). 5) A contact whose nickname starts with an emoji. 6) Windows: a group \"Trip 🇸🇮\".", "exp": "4: Weekend shows 🏔️, Band shows 🎸, Family shows the people icon — on the list, the header and chat info. 5: the contact keeps its initials / person icon. 6: the Slovenian flag, not the letters \"SI\".", "note": "#1448 · a Release build shows the people icon (#1449)", "src": "V1A-M"}]}, {"key": "p4", "title": "M4 · the restore question in your language", "lead": "", "rows": [{"id": "M4-DE", "pl": "I", "steps": "Only if you walk S20G P0-ASK again (its set-up): Language › Deutsch first, then the restore.", "exp": "The native question reads \"Kontakte auf diesem Gerät ersetzen?\" with \"Abbrechen\" / \"Wiederherstellen\" — the button text fits.", "note": "optional", "src": "V1A-M"}]}];
+const LS = 'spixi-v1am-walk';
+let filter = 'all', hideDone = false;
+let state = {};             // id -> {I,M,note}
+let db = null, col = null;
+try { const s = JSON.parse(localStorage.getItem(LS) || '{}'); if (s && typeof s === 'object') state = s.rows || {}; filter = s.filter || 'all'; hideDone = !!s.hideDone; } catch (e) {}
+function saveLocal(){ try { localStorage.setItem(LS, JSON.stringify({rows:state, filter, hideDone})); } catch (e) {} }
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmt(s){
+  let h = esc(s);
+  h = h.replace(/``\s?(.+?)\s?``/g, (m,a)=>'<code>'+a+'</code>');
+  h = h.replace(/`([^`]+)`/g, (m,a)=>'<code>'+a+'</code>');
+  h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  return h;
+}
+const legsOf = pl => pl === 'both' ? ['I','M'] : (pl === 'I' ? ['I'] : ['M']);
+const NAMES = {I:'Windows', M:'Android'};
+
+function render(){
+  const jump = document.getElementById('jump'), main = document.getElementById('phases');
+  jump.textContent = ''; main.textContent = '';
+  let n = 0;
+  for (const ph of DATA){
+    const a = document.createElement('a'); a.href = '#ph-' + ph.key; a.textContent = ph.title.split(' · ')[0] + ' ' + (ph.title.split(' · ')[1] || '').replace('Your account — ','');
+    jump.appendChild(a);
+    const sec = document.createElement('section'); sec.className = 'phase'; sec.id = 'ph-' + ph.key;
+    sec.innerHTML = '<h2>' + esc(ph.title) + '</h2>' + (ph.lead ? '<p class="lead">' + fmt(ph.lead) + '</p>' : '');
+    if (!ph.rows.length){ const p = document.createElement('p'); p.className = 'empty'; p.textContent = 'No rows yet. Claude adds them after Drop 2.'; sec.appendChild(p); }
+    for (const r of ph.rows){
+      n++;
+      const legs = legsOf(r.pl);
+      if (filter !== 'all' && !legs.includes(filter)) continue;
+      const st = state[r.id] || {};
+      const done = legs.every(l => st[l]);
+      if (hideDone && done) continue;
+      const el = document.createElement('article'); el.className = 'row'; el.dataset.id = r.id; el.dataset.done = done ? '1' : '0';
+      el.innerHTML =
+        '<div class="head"><span class="num">' + n + '</span><span class="rid">' + esc(r.id) + '</span>' +
+        '<span class="tag">' + (r.pl === 'both' ? 'Windows + Android' : NAMES[r.pl]) + '</span>' +
+        '<span class="tag' + (r.src === 'new' ? ' new' : '') + '">' + esc(r.src === 'new' ? 'new today' : r.src) + '</span></div>' +
+        '<div class="lbl">Steps</div><p class="txt">' + fmt(r.steps) + '</p>' +
+        '<div class="lbl">Expected</div><p class="txt">' + fmt(r.exp) + '</p>' +
+        (r.note ? '<p class="note">' + fmt(r.note) + '</p>' : '');
+      const res = document.createElement('div'); res.className = 'res';
+      for (const l of legs){
+        const g = document.createElement('div'); g.className = 'leg'; g.setAttribute('role','group'); g.setAttribute('aria-label', r.id + ' ' + NAMES[l]);
+        g.innerHTML = '<b>' + (l === 'I' ? 'W' : 'A') + '</b>';
+        for (const v of ['P','F','N']){
+          const b = document.createElement('button'); b.type = 'button'; b.dataset.v = v; b.dataset.leg = l;
+          b.textContent = v === 'N' ? 'N/A' : v; b.setAttribute('aria-pressed', st[l] === v ? 'true' : 'false');
+          b.setAttribute('aria-label', NAMES[l] + ' ' + (v === 'P' ? 'pass' : v === 'F' ? 'fail' : 'not applicable'));
+          b.addEventListener('click', () => setLeg(r.id, l, st[l] === v ? '' : v));
+          g.appendChild(b);
+        }
+        res.appendChild(g);
+      }
+      el.appendChild(res);
+      const ta = document.createElement('textarea'); ta.id = 'note-' + r.id; ta.placeholder = 'Note (what you saw, log lines)'; ta.value = st.note || '';
+      ta.setAttribute('aria-label', r.id + ' note');
+      let tmr = null;
+      ta.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(() => setNote(r.id, ta.value), 700); });
+      ta.addEventListener('blur', () => { clearTimeout(tmr); if ((state[r.id]||{}).note !== ta.value) setNote(r.id, ta.value); });
+      el.appendChild(ta);
+      sec.appendChild(el);
+    }
+    main.appendChild(sec);
+  }
+  tally();
+}
+
+function tally(){
+  const t = {I:{P:0,F:0,N:0,all:0}, M:{P:0,F:0,N:0,all:0}};
+  for (const ph of DATA) for (const r of ph.rows) for (const l of legsOf(r.pl)){ t[l].all++; const v = (state[r.id]||{})[l]; if (v) t[l][v]++; }
+  const el = document.getElementById('tally'); el.textContent = '';
+  for (const l of ['I','M']){
+    const s = document.createElement('span');
+    s.innerHTML = NAMES[l] + ' <span class="p">' + t[l].P + ' P</span> · <span class="f">' + t[l].F + ' F</span> · <span class="n">' + t[l].N + ' N/A</span>';
+    el.appendChild(s);
+  }
+  const left = (t.I.all - t.I.P - t.I.F - t.I.N) + (t.M.all - t.M.P - t.M.F - t.M.N);
+  document.getElementById('left').textContent = left + ' legs left';
+}
+
+async function persist(id){
+  saveLocal();
+  if (!col) return;
+  const st = state[id] || {};
+  try { await col.doc(id).set({I: st.I || '', M: st.M || '', note: st.note || '', t: Date.now()}); setSync('Saved for Claude'); }
+  catch (e) { setSync('Not saved for Claude (' + (e && e.code || 'error') + ') — use Copy'); }
+}
+function setLeg(id, l, v){ state[id] = Object.assign({}, state[id], {[l]: v}); persist(id); render(); }
+function setNote(id, v){ state[id] = Object.assign({}, state[id], {note: v}); persist(id); }
+function setSync(s){ document.getElementById('syncline').textContent = s + '.'; }
+
+function asText(){
+  const lines = ['V1A-M WALK (Windows F5 + Android Debug) results'];
+  for (const ph of DATA){
+    const rows = ph.rows.filter(r => { const st = state[r.id]; return st && (st.I || st.M || st.note); });
+    if (!rows.length) continue;
+    lines.push('', '## ' + ph.title);
+    for (const r of rows){
+      const st = state[r.id];
+      const legs = legsOf(r.pl).map(l => (l === 'I' ? 'W' : 'A') + ' ' + (st[l] === 'N' ? 'N/A' : (st[l] || '—'))).join(' · ');
+      lines.push(r.id + ': ' + legs + (st.note ? ' — ' + st.note.replace(/\s+/g,' ').trim() : ''));
+    }
+  }
+  return lines.join('\n');
+}
+
+document.querySelectorAll('[data-f]').forEach(b => {
+  b.setAttribute('aria-pressed', b.dataset.f === filter ? 'true' : 'false');
+  b.addEventListener('click', () => { filter = b.dataset.f; document.querySelectorAll('[data-f]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); saveLocal(); render(); });
+});
+const hd = document.getElementById('hidedone'); hd.setAttribute('aria-pressed', hideDone ? 'true' : 'false');
+hd.addEventListener('click', () => { hideDone = !hideDone; hd.setAttribute('aria-pressed', hideDone ? 'true' : 'false'); saveLocal(); render(); });
+document.getElementById('copy').addEventListener('click', () => {
+  const txt = asText(), out = document.getElementById('out'), msg = document.getElementById('copied');
+  out.value = txt; out.hidden = false;
+  try { navigator.clipboard.writeText(txt).then(() => { msg.textContent = 'Copied.'; }, () => { out.select(); msg.textContent = 'Select the text below and copy it.'; }); }
+  catch (e) { out.select(); msg.textContent = 'Select the text below and copy it.'; }
+});
+
+setSync('Saving in this browser only until the page connects');
+render();
+(async () => {
+  try {
+    db = window.claude && window.claude.use ? await window.claude.use('db') : null;
+    if (!db){ setSync('Saving in this browser only — use Copy at the end'); return; }
+    col = db.collection('results');
+    setSync('Connected — results are saved for Claude');
+    let first = true;
+    col.onSnapshot(snap => {
+      const docs = snap.docs || [];
+      let changed = false;
+      for (const d of docs){
+        const v = typeof d.data === 'function' ? d.data() : d.data;
+        if (!v) continue;
+        const id = d.id;
+        const cur = state[id] || {};
+        if (cur.I !== (v.I||'') || cur.M !== (v.M||'') || (cur.note||'') !== (v.note||'')){
+          const active = document.activeElement && document.activeElement.id === 'note-' + id;
+          state[id] = {I: v.I || '', M: v.M || '', note: active ? cur.note : (v.note || '')};
+          changed = true;
+        }
+      }
+      if (first){
+        first = false;
+        // push rows saved locally before the connection that the store does not have yet
+        const have = new Set(docs.map(d => d.id));
+        for (const id of Object.keys(state)) if (!have.has(id)) persist(id);
+      }
+      if (changed){ saveLocal(); const a = document.activeElement; const aid = a && a.id; render(); if (aid){ const n = document.getElementById(aid); if (n) n.focus(); } }
+    }, err => setSync('Live sync stopped (' + (err && err.code || 'error') + ') — use Copy'));
+  } catch (e) { setSync('Saving in this browser only — use Copy at the end'); }
+})();
+</script>

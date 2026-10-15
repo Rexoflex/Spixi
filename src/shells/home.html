@@ -93,6 +93,7 @@
 <link rel="stylesheet" href="../styles/components/empty-state.css"><!-- shared zero state (chats · wallet · contacts · apps) — ONE link: build-shells INLINES each href, so a second one shipped a duplicate copy of the whole file -->
 <link rel="stylesheet" href="../styles/components/whats-new.css"><!-- ★ S17 A (#1338): the What's new spotlight card -->
 <link rel="stylesheet" href="../styles/components/moment-sheet.css"><!-- ★ S17 F (#1340): the Moment sheets (first IXI · mini app · first payment) -->
+<link rel="stylesheet" href="../styles/components/word-tip.css"><!-- ★ V1A-M (M2): the new-word tips on the Chats screen (word-tip.js) -->
 <link rel="stylesheet" href="../styles/components/illo.css"><!-- ★ S11 B (#1262): the inline illustration set's one-entrance motion (the art renders static without it) -->
 <link rel="stylesheet" href="../styles/components/chats-shell.css">
 <link rel="stylesheet" href="../styles/components/chats-header.css">
@@ -518,6 +519,7 @@
     showBackupNudge, showRatingNudge,
     createWhatsNew, whatsNewSlides,       // ★ S17 A (#1338): the What's new card — rides the SAME queue, at its head
     showMomentSheet, createMomentClient, momentBeforeAction, momentAfterResult,   // ★ S17 F (#1340): the Moment sheets
+    createWordTip, wordTipsDone, WORD_TIP_IDS,   // ★ V1A-M (M2): the new-word tips (cap `wordtips`)
     attachPressFeedback,
     formatIxiAmount, groupAmountDisplay,   // ★ I-6 (#360): locale-aware amount display (money.js)
     fiatLine,                              // ★ #1040: one fiat display rule (2 dp, sub-cent = "<$0.01")
@@ -2075,6 +2077,141 @@
 
   scroller.insertBefore(chatsCardSlot, list);   // ★ S11 A (#1262): the glass cards sit above the list, under the search + chips
 
+  /* ★★ V1A-M (M2, P31; dial style A) — THE NEW-WORD TIPS (word-tip.js): `wordrequest` under the FIRST incoming request
+   * card, `wordphonebook` under the empty Chats state's body. Cap `wordtips` + setHints off:false + not done. One at a
+   * time; never beside a glass hint / the update card / a nudge or moment sheet / a search query, nor before the hint
+   * settle. ✕ = gone + `ixian:hint:done:<id>` once; never `shown`. ONE node: the observer puts it back after a re-render
+   * (same task, no flicker); the #1166 patch steps around it (patchChatRowsAroundTip). */
+  let wordTipsOn = false;              // set only with the cap (setHints): off:false
+  const wordTipsDoneSet = new Set();   // done word ids: C#'s pushes ∪ this document's ✕
+  let wordTip = null;                  // the one tip element on screen (or null)
+  let wordTipFocus = null;             // the control the user focused in the tip
+  let wordTipRestoring = false;        // our give-back is not a user focus
+  let wordTipHeld = false;             // a place exists but the tip is held back
+  const wordTipsAllDone = () => WORD_TIP_IDS.every((w) => wordTipsDoneSet.has(w));
+  function wordTipBlocked() {
+    try {
+      return nudgeOpen !== null                                       // backup · rating · What's new · a moment (pumpMoment)
+        || !!hintCard                                                 // a glass hint card
+        || (!!updateCard && chatsView.contains(updateCard))           // the update card on the Chats screen
+        || !!document.querySelector('.c-moment__sheet');              // a confirm-step moment (app · pay) — outside the queue
+    } catch (e) { return true; }   // the nudge queue is declared further down — before it exists, nothing shows
+  }
+  /* direct list children only; a done id is never looked for */
+  function wordTipPlace() {
+    if (!wordTipsDoneSet.has('wordrequest')) {
+      const card = list.querySelector(':scope > .c-contact-request');
+      if (card) return { id: 'wordrequest', after: card };
+    }
+    if (wordTipsDoneSet.has('wordphonebook')) return null;
+    const empty = list.querySelector(':scope > .c-empty-state');      // the TRUE zero state only (a filter miss is .c-chats-empty)
+    const body = empty ? empty.querySelector('.c-empty-state__body') : null;
+    return body ? { id: 'wordphonebook', after: body } : null;
+  }
+  function dropWordTip() {
+    if (!wordTip) return;
+    wordTip.remove();
+    wordTip = null;
+    wordTipFocus = null;
+  }
+  function pumpWordTip() {
+    /* the place first, so a HELD tip is known (the observer pumps sheet / card changes only then, r2 MINOR-3) */
+    const at = (wordTipsOn && !wordTipsAllDone()) ? wordTipPlace() : null;
+    if (!at) { wordTipHeld = false; dropWordTip(); return; }
+    /* never on a search result (B-NIT-3) */
+    if (!hintsSettled || (state.query || '').trim() || wordTipBlocked()) { wordTipHeld = true; dropWordTip(); return; }
+    wordTipHeld = false;
+    if (!wordTip || wordTip.dataset.tip !== at.id) {
+      dropWordTip();
+      const tip = createWordTip({ id: at.id, strings, onClose: wordTipClosed });
+      if (!tip) return;
+      /* B-MINOR-5: the control the USER focused; a re-render detaches silently, a real focus move forgets it */
+      tip.addEventListener('focusin', (e) => { if (!wordTipRestoring) wordTipFocus = e.target; });
+      tip.addEventListener('focusout', (e) => {
+        if (e.relatedTarget && tip.contains(e.relatedTarget)) return;
+        Promise.resolve().then(() => {
+          if (wordTip !== tip || (tip.isConnected && !tip.contains(document.activeElement))) wordTipFocus = null;
+        });
+      });
+      wordTip = tip;
+    }
+    if (at.after.nextSibling !== wordTip) {
+      at.after.after(wordTip);
+      /* give it back after a rebuild — once per user focus (r2 NIT-2), only from <body> */
+      const ae = document.activeElement;
+      const f = wordTipFocus;
+      if (f && wordTip.contains(f) && (!ae || ae === document.body)) {
+        wordTipFocus = null;
+        wordTipRestoring = true;
+        try { f.focus({ preventScroll: true }); } catch (e) {}
+        wordTipRestoring = false;
+      }
+    }
+  }
+  /* a non-interactive landing spot for the focus (tabindex -1: focusable by script, not in the Tab order) */
+  function wordTipFocusSpot(el) {
+    if (!el) return null;
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+    return el;
+  }
+  function wordTipClosed(id, info) {
+    const tip = wordTip;
+    /* r2 MINOR-2 (SAFETY): the focus goes to the card itself / the empty state's title — never Accept / Decline or any
+       action (Decline is one tap, no confirm) */
+    let next = null;
+    if (tip && info && info.hadFocus) {
+      if (id === 'wordrequest') {
+        const prev = tip.previousElementSibling;
+        next = prev && prev.classList.contains('c-contact-request') ? wordTipFocusSpot(prev) : null;
+      } else {
+        const empty = tip.closest('.c-empty-state');
+        next = empty ? wordTipFocusSpot(empty.querySelector('.c-empty-state__title') || empty.querySelector('.c-empty-state__body')) : null;
+      }
+    }
+    dropWordTip();
+    /* no spot → the engine's <body>; a VoiceOver activation sets no DOM focus (hadFocus false) (r2 NIT-3) */
+    if (next) { try { next.focus({ preventScroll: true }); } catch (e) {} }
+    if (!wordTipsDoneSet.has(id)) {
+      wordTipsDoneSet.add(id);
+      bridge.send('ixian:hint:done:' + id);
+    }
+    syncWordTipWatch();
+  }
+  /* #1166 P-03 matches the list's children 1:1 against the timeline — the tip steps out for the patch and the observer
+     puts it back (the same task's microtask: no paint between); a patch that cannot run renders in full */
+  function patchChatRowsAroundTip(addrs) {
+    const tip = wordTip && wordTip.parentNode === list ? wordTip : null;
+    if (tip) tip.remove();
+    const patched = patchChatRows(list, state, addrs, opts);
+    if (tip && patched && !wordTipWatch) pumpWordTip();   // no MutationObserver → direct
+    return patched;
+  }
+  /* B-MINOR-6: observers only while a tip may come (cap, tips on, a word not done). Most users keep one word open, so
+     r2 MINOR-3: the callback reads nothing unless a tip is shown or held, or a list record ADDS a request / empty state. */
+  const wordTipPlaceNode = (n) => n.nodeType === 1 && (n.classList.contains('c-contact-request') || n.classList.contains('c-empty-state'));
+  function wordTipRecords(records) {
+    if (wordTip || wordTipHeld) { pumpWordTip(); return; }
+    for (const r of records) {
+      if (r.target !== list) continue;
+      for (const n of r.addedNodes) if (wordTipPlaceNode(n)) { pumpWordTip(); return; }
+    }
+  }
+  let wordTipWatch = null;
+  function syncWordTipWatch() {
+    const want = wordTipsOn && !wordTipsAllDone();   // wordTipsOn carries the cap
+    if (want && !wordTipWatch) {
+      try {
+        wordTipWatch = new MutationObserver(wordTipRecords);
+        wordTipWatch.observe(list, { childList: true });              // a re-render · a patch
+        wordTipWatch.observe(chatsCardSlot, { childList: true });     // a glass hint / the update card in or out
+        wordTipWatch.observe(document.body, { childList: true });     // a sheet in or out (every sheet mounts on body)
+      } catch (e) { wordTipWatch = null; }   // no MutationObserver → the tip follows the setHints push and the nudge close only
+    } else if (!want && wordTipWatch) {
+      wordTipWatch.disconnect();
+      wordTipWatch = null;
+    }
+  }
+
   setNavBadge(nav, 'chats', navUnreadTotal());
 
   /* —— chats render pipeline ————————————————————————————————————————————————
@@ -2155,7 +2292,7 @@
       chatsPatchQueue.clear();
       if (chatsRenderQueued) return;                          // the queued full render paints these rows too
       if (chatsFlushing && !chatsFlushStalled) return;        // the flush's clearChatsDone renders once
-      if (!patchChatRows(list, state, addrs, opts)) { renderChatsNow(); return; }
+      if (!patchChatRowsAroundTip(addrs)) { renderChatsNow(); return; }   // ★ V1A-M (M2): around the word tip
       if (opts.onModelChange) opts.onModelChange(state);      // nav badge + chip counts (the full render's tail)
     });
   }
@@ -3563,6 +3700,16 @@
    * selectTab push, so it goes stale. showView is the single chokepoint every path
    * goes through, so the nudge gate reads its own value. */
   let nudgeTabId = 'chats';
+  /* ★ V1A-M (M1): the "What is IXI?" latches — above showView (a boot-time tab switch runs it first) */
+  let ixiHelpWanted = false;           // Wallet visible + the cap
+  let ixiHelpAsked = false;            // once per document
+  /* r2 MINOR-1: no ixihelp ask before this document's first wallet flush (it sets firstIxiWanted); a bounded wait for an
+     exe that never sends clearPaymentActivityDone */
+  let walletFlushedOnce = false;
+  let ixiHelpFlushWaited = false;
+  let ixiHelpFlushTimer = 0;
+  const IXIHELP_FLUSH_WAIT_MS = 2000;
+  let ixiHelpHold = false;             // after firstixi's Back up: wait for the next Wallet entry (B-MINOR-2)
   function showView(navId) {
     const isChats = navId === 'chats';
     const isWallet = navId === 'wallet';
@@ -3596,6 +3743,8 @@
     if (isWallet) attachWallet(); else detachWallet();
     if (!placeholderView.hidden) setPlaceholder(navId);
     nudgeTabId = navId;
+    ixiHelpWanted = isWallet && bridge.cap('ixihelp');   // ★ V1A-M: THE cap guard (caps are add-only)
+    if (isWallet) ixiHelpHold = false;
     pumpNudges();                       // a tab change can unblock a queued nudge
     pumpMoment();                       // ★ S17 F (#1340): …and a waiting moment (Chats or Wallet)
     pumpHint();                         // ★ S11 A (#1262): …and a hint waits for the Chats tab
@@ -3740,15 +3889,21 @@
     return Date.now() >= nudgeReadyAt;
   }
   function pumpMoment() {
-    try { tryFirstIxiMoment(); } catch (e) { return; }   // declared further down than a boot-time tab switch
+    try { tryFirstIxiMoment(); tryIxiHelpMoment(); } catch (e) { return; }   // declared further down than a boot-time tab switch
     try { if (!momentWaiting.length || !momentContextClear()) return; } catch (e) { return; }
-    const m = momentWaiting.shift();
+    /* ★ V1A-M (M1): ixihelp shows only over the Wallet (and not while held); when both wait, the first IXI goes first —
+       the normal order is set at the ask (tryIxiHelpMoment) */
+    let at = momentWaiting.findIndex((w) => w.id === 'firstixi');
+    if (at < 0) at = momentWaiting.findIndex((w) => w.id !== 'ixihelp' || (nudgeTabId === 'wallet' && !ixiHelpHold));
+    if (at < 0) return;
+    const m = momentWaiting.splice(at, 1)[0];
     nudgeOpen = 'moment';
     showMomentSheet({
       id: m.id, host: document.body, strings, ctx: m.ctx,
       onClose: (v) => {
         closeNudge();
-        if (m.id === 'firstixi' && v === 'backup') { nudgeQueue.length = 0; bridge.send('ixian:backup'); }   // Settings › Backup
+        if (m.id === 'firstixi' && v === 'backup') { nudgeQueue.length = 0; ixiHelpHold = true; bridge.send('ixian:backup'); }   // Settings › Backup (★ V1A-M: a waiting ixihelp waits for the next Wallet entry)
+        if (m.id === 'ixihelp' && v === 'address') openWalletAddressSheet();   // ★ V1A-M (M1): the zero-state's own sheet
       },
     });
   }
@@ -3773,6 +3928,31 @@
       pumpMoment();
     });
   }
+  /* ★★ V1A-M (M1, P31; dial title A + the coin art) — "What is IXI?" on the first Wallet open of the document (caps
+     `ixihelp` + `moments`): on a clear screen, once; C# decides and stores seen; it respects the session, never takes it.
+     Asked only after the first wallet flush and never once the first IXI is wanted (r2 MINOR-1); after the paint and after
+     ixian:tab:tab2 (iOS-34, r2 NIT-6); a document born on the Wallet asks at the next entry. The one cap guard = showView. */
+  function tryIxiHelpMoment() {
+    if (!ixiHelpWanted || ixiHelpAsked || nudgeTabId !== 'wallet') return;
+    if (!moments.on()) return;
+    if (moments.seen('ixihelp')) { ixiHelpAsked = true; return; }   // latch (r2 NIT-4)
+    if (!walletFlushedOnce && !ixiHelpFlushWaited) {                 // wait for the flush (r2 MINOR-1)
+      if (!ixiHelpFlushTimer) ixiHelpFlushTimer = setTimeout(() => { ixiHelpFlushWaited = true; pumpMoment(); }, IXIHELP_FLUSH_WAIT_MS);
+      return;
+    }
+    if (firstIxiWanted) { ixiHelpAsked = true; return; }              // never beside the first IXI
+    if (!momentContextClear()) return;
+    ixiHelpAsked = true;
+    deferToPaint(() => setTimeout(() => {
+      if (firstIxiWanted) return;                                   // stays "asked": the safety sheet alone
+      /* the screen moved on before the paint: the next clear pump asks */
+      if (nudgeTabId !== 'wallet' || !momentContextClear()) { ixiHelpAsked = false; return; }
+      momentAfterResult(moments, 'ixihelp', '', () => {
+        if (!momentWaiting.some((w) => w.id === 'ixihelp')) momentWaiting.push({ id: 'ixihelp', ctx: {} });
+        pumpMoment();
+      });
+    }, 0));
+  }
   /* a mini app's first open (the Apps tab) — the confirm step: Open = go(), Cancel / back = stay */
   function appMoment(app, go) {
     momentBeforeAction(moments, {
@@ -3785,7 +3965,7 @@
   function closeNudge() {
     nudgeOpen = null;
     nudgeReadyAt = Date.now() + NUDGE_GAP_MS;
-    setTimeout(() => { pumpNudges(); pumpMoment(); pumpHint(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint · ★ S17 F: a waiting moment
+    setTimeout(() => { pumpNudges(); pumpMoment(); pumpHint(); pumpWordTip(); }, NUDGE_GAP_MS + 20);   // ★ S11 A2: …then a displaced hint · ★ S17 F: a waiting moment · ★ V1A-M: a held word tip
   }
 
   function pumpNudges() {
@@ -3854,7 +4034,7 @@
    * children (both takeovers and every sheet mount to document.body). pumpNudges
    * early-returns on an empty queue, so this costs nothing in the normal case. */
   try {
-    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); if (momentWaiting.length || (firstIxiWanted && !firstIxiAsked)) pumpMoment(); })
+    new MutationObserver(() => { if (nudgeQueue.length) pumpNudges(); if (momentWaiting.length || (firstIxiWanted && !firstIxiAsked) || (ixiHelpWanted && !ixiHelpAsked)) pumpMoment(); })
       .observe(document.body, { childList: true, attributes: true, attributeFilter: ['data-overlay-open'] });
   } catch (_) { /* no MutationObserver → nudges still fire on push / tab change */ }
 
@@ -3893,7 +4073,7 @@
       if (!!c.selected !== want) { c.selected = want; changed.push(c.address); }
     }
     // ★ #1166 P-03: the two rows whose highlight moved, in place; the full render when they cannot be patched
-    if (changed.length && !patchChatRows(list, state, changed, opts)) renderChatsList(list, state, opts);
+    if (changed.length && !patchChatRowsAroundTip(changed)) renderChatsList(list, state, opts);   // ★ V1A-M (M2): around the word tip
   }
   let selectedAddress = '';   // remembered so a re-render (clearChatsDone) can re-apply
 
@@ -4441,7 +4621,9 @@
       commitWalletIncoming();      // ★ #1133 lever 2b
       walletZero.open();
       scheduleWalletRender();
+      walletFlushedOnce = true;    // ★ V1A-M: the first IXI is known now
       maybeFirstIxiMoment();       // ★ S17 F (#1340)
+      pumpMoment();                // ★ V1A-M: a waiting Wallet entry decides now
     },
     /* ★ S17 F (#1340, 🟡 NEW push, P28 · flag S17Moments + cap `moments`): {"seen":[ids],"apps":[app ids],"lang":"","session":bool}
        — pushed at load and again when a moment is granted on another page (session = true: home holds its cards back). */
@@ -4903,10 +5085,17 @@
       }
       hintsState = st;
       hintsAt = Date.now();
+      /* ★ V1A-M (M2): the RAW push (parseHintsState drops word ids); the ONE `wordtips` guard */
+      if (bridge.cap('wordtips')) {
+        wordTipsOn = !st.off;
+        for (const w of wordTipsDone(String(json))) wordTipsDoneSet.add(w);
+      }
+      syncWordTipWatch();
       if (!hintsSettled && !hintSettleTimer) {
-        hintSettleTimer = setTimeout(() => { hintsSettled = true; pumpHint(); }, HINT_SETTLE_MS);
+        hintSettleTimer = setTimeout(() => { hintsSettled = true; pumpHint(); pumpWordTip(); }, HINT_SETTLE_MS);
       }
       pumpHint();
+      pumpWordTip();
     },
 
     // A11 (#302). C# pushes toggleAnimatedSlider("backup-prompt") from

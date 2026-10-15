@@ -1099,5 +1099,12 @@
   "slide2Copy2": "Postkvantno šifrovano na vašem uređaju i poslato direktno. Samo osoba kojoj pišete može to da pročita.",
   "slide4Title2": "Igrajte i planirajte zajedno.",
   "slide4Copy2": "Mini aplikacije kao što su Blitz Chess i Split otvaraju se pravo u vašim razgovorima.",
-  "welcomeOpenSource": "Otvoreni kod"
+  "welcomeOpenSource": "Otvoreni kod",
+  "momentIxiHelpTitle": "Šta je IXI?",
+  "momentIxiHelpBody": "IXI je token mreže Ixian. Prijatelji vam mogu poslati IXI: podelite sa njima svoju adresu. Plaćanja se ne mogu poništiti.",
+  "momentShowAddress": "Prikaži moju adresu",
+  "wordTipRequest": "Zahtev za kontakt znači da neko želi da ćaska sa vama. Vi birate: prihvatite ili odbijte.",
+  "wordTipPhonebook": "Spixi nema telefonski imenik. Dodajte ljude preko njihove Spixi adrese ili QR koda.",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

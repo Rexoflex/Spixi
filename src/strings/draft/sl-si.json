@@ -1100,5 +1100,12 @@
   "slide2Copy2": "Postkvantno šifrirano na vaši napravi in poslano neposredno. Prebere ga lahko le oseba, ki ji pišete.",
   "slide4Title2": "Igrajte in načrtujte skupaj.",
   "slide4Copy2": "Mini aplikacije, kot sta Blitz Chess in Split, se odprejo kar v vaših klepetih.",
-  "welcomeOpenSource": "Odprta koda"
+  "welcomeOpenSource": "Odprta koda",
+  "momentIxiHelpTitle": "Kaj je IXI?",
+  "momentIxiHelpBody": "IXI je žeton omrežja Ixian. Prijatelji vam lahko pošljejo IXI: delite z njimi svoj naslov. Plačil ni mogoče razveljaviti.",
+  "momentShowAddress": "Pokaži moj naslov",
+  "wordTipRequest": "Zahteva za stik pomeni, da želi nekdo klepetati z vami. Izbira je vaša: sprejmite ali zavrnite.",
+  "wordTipPhonebook": "Spixi nima telefonskega imenika. Ljudi dodajte z njihovim naslovom Spixi ali kodo QR.",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

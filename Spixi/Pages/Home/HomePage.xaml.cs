@@ -956,6 +956,17 @@ namespace SPIXI
                  * argument travels; the version is C#'s own. Ignored with the flag OFF. */
                 markWhatsNewSeen();
             }
+            else if (V1AMRules.parseWordTipVerb(current_url, out string wordAction, out string wordId))
+            {
+                /* ★ V1A-M M2 (P31): `ixian:hint:<shown|done>:<word id>` — a word tip (S11HintRules.WordIds), taken HERE before the
+                 * S11 branch below (which therefore never sees a word id). `done` → the S11 done list; `shown` is dropped
+                 * ALWAYS (a word tip never moves lastShown, the weekly tip rotation); with SpixiFlags.V1Hints OFF everything is
+                 * dropped. The grammar is the S11 one (parseVerb: fixed action pair, whitelisted id); nothing is logged. */
+                if (V1AMRules.wordTipMarksDone(SpixiFlags.V1Hints, wordAction))
+                {
+                    SHints.markDone(wordId);
+                }
+            }
             else if (current_url.StartsWith("ixian:hint:", StringComparison.Ordinal))
             {
                 /* ★ S11 A (#1262, 🟡 NEW verb): `ixian:hint:<shown|done>:<tip id>` from the Chats-list hint card. The action
@@ -2843,7 +2854,9 @@ namespace SPIXI
             // ★ S12 A (#1267): + hintHelp — this exe handles ixian:hintHelp:<id> (a hint card's web Learn more).
             // ★ S17 (#1338, P26): + whatsnew — this exe pushes setWhatsNew and handles ixian:whatsnew:done (flag SpixiFlags.S17Bridge).
             // ★ S17 F (#1340, P28): + moments — setMoments / momentAnswer and the ixian:moment:* verbs (flag SpixiFlags.S17Moments).
-            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp,hintHelp" + (SpixiFlags.S17Bridge ? ",whatsnew" : "") + (SpixiFlags.S17Moments ? ",moments" : ""));
+            // ★ V1A-M M1 (P31): + ixihelp — the "What is IXI?" moment (an S17 moment: both flags). M2: + wordtips — the word tips'
+            //   ixian:hint:done:<word id> (flag SpixiFlags.V1Hints).
+            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp,hintHelp" + (SpixiFlags.S17Bridge ? ",whatsnew" : "") + (SpixiFlags.S17Moments ? ",moments" : "") + (SpixiFlags.S17Moments && SpixiFlags.V1IxiHelp ? ",ixihelp" : "") + (SpixiFlags.V1Hints ? ",wordtips" : ""));
             pushHints();
             pushWhatsNew();
             SMoments.pushTo(this);   // ★ S17 F (#1340): the moment state (no-op with the flag OFF)

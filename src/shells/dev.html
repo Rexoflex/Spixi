@@ -262,6 +262,7 @@
   let flagsDev = null;   // [securePassOn, mediaGateOn] once C# told us
   let flagsDevS20 = null;   // ★ S20 (P29): the S20FileSize switch, its own push (setFlagsDev stays at 4 digits)
   let flagsDevS20G = null;   // ★ S20G (P30, #46 r1 A-4): the S20G switch, its own push the same way
+  let flagsDevV1 = null;     // ★ V1A-M (P31): [ixihelp, hints] — the V1IxiHelp + V1Hints switches, their own push "<0|1>,<0|1>"
   const RESET_QUIET_MS = 1000;   // ★ S19 F8 (#1371): taps on Reset moment sheets inside this window after one are ignored
   let lastResetAt = -1e9;
   function mountFlagsDev() {
@@ -284,6 +285,10 @@
     if (flagsDev.length > 3) rows.push(['s17m', strings.devFlagsS17m || 'Moment sheets (S17)']);   // ★ S17 F (P28)
     if (flagsDevS20 !== null) rows.push(['s20size', strings.devFlagsS20Size || 'File size on sent files (S20)', flagsDevS20]);   // ★ S20 E (P29)
     if (flagsDevS20G !== null) rows.push(['s20g', strings.devFlagsS20G || 'Restore keeps contacts, Account closes the chat (S20G)', flagsDevS20G]);   // ★ S20G (P30)
+    if (flagsDevV1 !== null) {   // ★ V1A-M (P31): the "What is IXI?" moment (M1) + the new-word tips (M2)
+      rows.push(['v1ixihelp', strings.devFlagsV1IxiHelp || 'What is IXI moment (V1A)', flagsDevV1[0]]);
+      rows.push(['v1hints', strings.devFlagsV1Hints || 'New-word tips (V1A)', flagsDevV1[1]]);
+    }
     rows.forEach(([name, label, own], i) => {
       const row = document.createElement('div');
       row.className = 'c-settings__row c-settings__row--static';
@@ -396,6 +401,14 @@
       const w = String(v || '');
       if (w !== '0' && w !== '1') return;
       flagsDevS20G = w === '1';
+      mountFlagsDev();
+    },
+    /* ★ V1A-M (P31): the V1IxiHelp + V1Hints switches ("<ixihelp 0|1>,<hints 0|1>", exactly); C# pushes it after
+       setFlagsDevS20G. Anything else is ignored. */
+    setFlagsDevV1(v) {
+      const m = /^([01]),([01])$/.exec(String(v || ''));
+      if (!m) return;
+      flagsDevV1 = [m[1] === '1', m[2] === '1'];
       mountFlagsDev();
     },
   };

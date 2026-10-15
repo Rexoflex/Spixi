@@ -79,6 +79,7 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P29](P29-file-size.md) | S20 E: the file size on the file card in both directions (flag `S20FileSize`) | LOW | no | `addFile` arg 20 widened · 1 dev verb, 1 dev push | built, flag ON · ⚠ uncompiled | 3 |
 | [P30](P30-restore-keeps-contacts.md) | S20G P0 + F-1: a restore never deletes an earlier contact list (kept as `restore-previous/<stamp>`, ask first, delete account wipes it); Account closes the open chat (flag `S20G`) | MEDIUM | no | 0 new verbs to the app shells · 1 dev verb, 1 dev push · 4 C# alert keys | built, flag ON · ⚠ uncompiled | 3 |
 | P30 | not built — the S20 notification strip: no OS notification carries message text (Node.cs per-type line), so nothing to strip | — | — | — | — | — |
+| [P31](P31-v1am-moments-and-tips.md) | V1A-M M1 + M2: the "What is IXI?" moment (id `ixihelp`, home only; obeys the session rule, never takes it) and two word tips on the Chats screen (ids `wordrequest`, `wordphonebook` on the S11 hint verb) (flags `V1IxiHelp`, `V1Hints`) | LOW | no | 1 new moment id · 2 new hint ids · 2 caps · 2 dev verbs, 1 dev push · 2 prefs | built, flags ON · ⚠ uncompiled | 3 |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

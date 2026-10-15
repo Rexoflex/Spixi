@@ -378,10 +378,10 @@ intro-new-walletexists-title = Račun že obstaja
 intro-new-walletexists-text = Na tej napravi račun že obstaja, zato tukaj ni mogoče ustvariti novega. Znova zaženite Spixi, da nadaljujete z obstoječim računom.
 intro-restore-walletexists-title = Račun je že na tej napravi
 intro-restore-walletexists-text = Na tej napravi račun že obstaja. Če ga želite uporabiti, znova zaženite Spixi. Če želite obnoviti drug račun: znova zaženite Spixi, odprite Račun › Izbriši podatke… › Trajno izbriši račun in nato znova odprite Obnovi račun.
-intro-restore-replace-title = Replace the contacts on this device?
-intro-restore-replace-text = This device still has contacts from an account whose wallet file is missing. Restore replaces them with the contacts in the backup. A copy of the current contacts is kept in the Spixi data folder.
-intro-restore-replace-confirm = Restore
-intro-restore-stashbusy-text = This is a Spixi account backup, but it could not be restored: a copy of earlier contacts on this device could not be moved aside. Nothing was changed. Restart Spixi, then try again.
+intro-restore-replace-title = Želite zamenjati stike na tej napravi?
+intro-restore-replace-text = Na tej napravi so še stiki računa, katerega datoteka denarnice manjka. Obnovitev jih zamenja s stiki iz varnostne kopije. Kopija trenutnih stikov ostane shranjena v mapi s podatki aplikacije Spixi.
+intro-restore-replace-confirm = Obnovi
+intro-restore-stashbusy-text = To je varnostna kopija računa Spixi, vendar je ni bilo mogoče obnoviti: kopije prejšnjih stikov na tej napravi ni bilo mogoče umakniti. Nič ni bilo spremenjeno. Znova zaženite Spixi in poskusite ponovno.
 
 ; Intro Restore Screen
 intro-restore-title = Obnovi račun

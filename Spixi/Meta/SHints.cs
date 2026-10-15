@@ -10,7 +10,8 @@ namespace SPIXI.Meta
     /// C# only STORES; the home shell decides which tip shows (glass-card.js pickHint) from the <c>setHints</c> push.
     ///
     /// Never a <c>spixi.*</c> WebView key (the mini-app partition hazard, #383). The ids written are
-    /// <see cref="S11HintRules.TipIds"/> constants only (the verb is validated first, S11HintRules.parseVerb). Wiped with
+    /// <see cref="S11HintRules.TipIds"/> / ★ V1A-M <see cref="S11HintRules.WordIds"/> constants only (S11HintRules.isTipId
+    /// admits both; the verb is validated first, S11HintRules.parseVerb / V1AMRules.parseWordTipVerb). Wiped with
     /// the account: the keys live in the SAME file, so <c>SLocalOnlyStore.clearAll()</c> (SettingsPage's wipe line)
     /// deletes them — nothing to add there. Writes ride <c>setDeferred</c> (the verbs arrive on the UI thread; one
     /// background write coalesces a burst). Lines carry exception TYPES only. Never throws.

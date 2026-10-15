@@ -39,6 +39,7 @@ const FILES = [
   'src/components/disc.js',         // #170: per-glyph disc gradient index (pure fn)
   'src/components/flags.js',        // ★ L15: LANGUAGES + flagSvg — no deps; BOTH language pickers read it
   'src/components/timestamp.js',
+  'src/components/v1-flags.js',     // ★ V1A-M M3: v1Flag + V1_RELEASE_DEFAULTS (no deps) — before avatar.js, its first consumer
   'src/components/avatar.js',
   'src/components/pressable.js',        // #343 shared press feedback (no component deps)
   'src/components/chatlist-item.js',
@@ -131,6 +132,7 @@ const FILES = [
   'src/components/rating-nudge.js',     // rate-app prompt (legacy #ratingModal replacement — showRatingPrompt mirror)
   'src/components/whats-new.js',        // ★ S17 A (#1338): the What's new spotlight carousel (overlay + illustrations)
   'src/components/moment-sheet.js',     // ★ S17 F (#1340): the Moment sheets + their ask / answer client
+  'src/components/word-tip.js',         // ★ V1A-M (M2): the new-word tips on the Chats screen (strings-runtime + icons)
   'src/bridge/native.js',               // Phase 3 #173: real-bridge transport core (in the bundle so smoke can drive it; demos stay mock-wired)
   'src/bridge/scan-page.js',            // Phase 3 #173: scan real-bridge adapter (first repoint target) — after scan-shell + native
   'src/bridge/lock-page.js',            // Phase 3 #173: lock/encpass real-bridge adapters — after lock-shell + native

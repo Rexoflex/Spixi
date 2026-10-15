@@ -1101,5 +1101,12 @@
   "slide4Copy2": "Мини-приложения вроде Blitz Chess и Split открываются прямо в ваших чатах.",
   "welcomeOpenSource": "Открытый исходный код",
   "proceed": "Разблокировать",
-  "unlock": "Разблокировать"
+  "unlock": "Разблокировать",
+  "momentIxiHelpTitle": "Что такое IXI?",
+  "momentIxiHelpBody": "IXI является токеном сети Ixian. Друзья могут отправлять вам IXI: поделитесь с ними своим адресом. Платежи нельзя отменить.",
+  "momentShowAddress": "Показать мой адрес",
+  "wordTipRequest": "Запрос на добавление в контакты означает, что кто-то хочет переписываться с вами. Решать вам: принять или отклонить.",
+  "wordTipPhonebook": "В Spixi нет телефонной книги. Добавляйте людей по их адресу Spixi или QR-коду.",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

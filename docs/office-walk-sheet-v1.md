@@ -427,7 +427,7 @@ Walk on the S20G build. ★ FIRST COMPILE of the S20G C# on iOS / Mac: `RestoreM
 
 Created V1A-M Drop 1. The same run as the Artifact "Spixi Office Walk 2026-10-15" (results go into the Artifact; paste them here or tell Claude). Build = the S20G commit (`2a469442`) + `session-v1am-drop1.patch`, or the V1A-M commit if Drop 2 is committed. Rows from §7–§15 are walked as written there (the ID points to the row); the new rows (`OW-*`) are written in full below. S20-B1 is replaced by OW-B1. §0–§6 rows stay owed (not in this run).
 
-Rows: 145 · iPhone legs 113 · Mac legs 115. ★ L149: OW-COPY before phase 4; phases 11–12 delete the account (the copy / backup is the only way back; OW-UNDO at the end).
+Rows: 149 · iPhone legs 117 · Mac legs 119 (incl. the 4 Drop 2 rows). ★ L149: OW-COPY before phase 4; phases 11–12 delete the account (the copy / backup is the only way back; OW-UNDO at the end).
 
 ### 1 · Build and first start
 
@@ -648,9 +648,14 @@ The account is deleted here. OW-COPY must be done.
 
 ### 13 · Drop 2 rows (V1A-M features)
 
-Filled after Drop 2 is built and walked on Windows + Android. Empty until then.
+Walk only if Damir committed Drop 2 (V1A-M) before leaving; else N/A. Windows + Android rows: `docs/walk-v1am.md`.
 
-(none yet — Drop 2)
+| ID | Pl | Steps | Expected | P/F/N/A | Note |
+|---|---|---|---|---|---|
+| OW-V1-BUILD | both | Only if Damir committed Drop 2 (V1A-M). 1) Account › Developer › the Release flags card. 2) Read the first-start log. | 1: rows "What is IXI moment (V1A)" and "New-word tips (V1A)", both ON (only this build). 2: `[FLAGS] v1ixihelp=1` and `[FLAGS] v1hints=1`. | | V1A-M · first I / M compile of the V1A-M C# (SpixiFlags, V1AMRules, SMoments, HomePage, DevPage) |
+| OW-V1-IXI | both | 1) Developer › Reset moment sheets; restart. 2) Open the Wallet tab. 3) Tap "Show my address". 4) Reset + restart again; open Wallet; tap "Got it"; then Wallet › Send → Review. | 2: the coin art + "What is IXI?" (wait up to ~2 s after the tab opens). 3: the address sheet. 4: "Before you pay" still shows. | | V1A-M M1 · #1450 |
+| OW-V1-TIP | both | 1) A non-contact peer sends a contact request. 2) Chats: look under the request card (light + dark). 3) I: tap ✕ with VoiceOver ON. M: Tab to ✕, press Return. | 2: the quiet tip card "A contact request means someone wants to chat with you. You choose: accept or decline." 3: the tip goes; the focus is on the request card, never on Accept / Decline. | | V1A-M M2 |
+| OW-V1-EMOJI | both | 1) Groups "Weekend 🏔️", "🎸 Band", "Family", "Trip 🇸🇮", "👨‍👩‍👧 Home". 2) Chats list, chat header, chat info; light + dark. M: the desktop list in Dense density. | Each emoji group shows its emoji large on its colour (the flag as a flag, the family as one picture); Family shows the people icon; nothing is cut at the top / bottom of the disc. | | V1A-M M3 · Debug build only (data-p1) |
 
 ### New rows (OW-*)
 
@@ -671,6 +676,6 @@ Filled after Drop 2 is built and walked on Windows + Android. Empty until then.
 | OW-BACKUP | both | 1) Account › Backup: make a backup file. 2) Keep it and its password (the restore rows need it). 3) Account › Delete data… › Delete account. | 3: the welcome screen. | | walk order step 3–4 · the restore rows use this file |
 | OW-DELETE2 | both | 1) Account › Delete data… › Delete account (the account made in ON-C4). | The welcome screen. | | walk order step 5 |
 | OW-UNDO | both | Mac: 1) Quit Spixi. 2) Rename the walk's `Spixi` folder to `Spixi-walk-2026-10-15`. 3) Rename `Spixi-copy-2026-10-15` back to `Spixi`. 4) Start Spixi. iPhone: 5) Restore your real account from your real backup file (welcome › Restore). | 4: your own account, contacts and chats. 5: your account and contacts (chats do not come back, #1420). | | end of the walk · L149 |
-| OW-DROP2-BUILD | both | Only if Damir committed Drop 2: open the screen named in the Drop 2 section's build row. | Filled in Drop 2 (a thing only the V1A-M build has). If Drop 2 is not committed: N/A. | | Drop 2 |
+| OW-DROP2-BUILD | both | Only if Damir committed Drop 2: Account › Developer › the Release flags card. | Two rows "What is IXI moment (V1A)" and "New-word tips (V1A)" (only the V1A-M build has them). If Drop 2 is not committed: N/A. | | Drop 2 |
 
 **Result line for DECISIONS:** `WALK #n (office 2026-10-15, iPhone + Mac): n P · n F · n N/A` — list the F rows; each F = mechanism first (#294).

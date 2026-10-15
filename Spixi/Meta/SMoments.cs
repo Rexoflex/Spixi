@@ -33,7 +33,7 @@ namespace SPIXI.Meta
     /// </summary>
     public static class SMoments
     {
-        private static bool sessionMoment;      // a moment sheet was granted in this session (firstixi excepted)
+        private static bool sessionMoment;      // a moment sheet was granted in this session (the ids takesSession excepts: firstixi, lang, ixihelp, the install moment)
         private static bool sessionCard;        // home reported a hint / update / backup / rating card on screen
         private static long sessionSince;       // wall-clock ms of the first moment / card of this session (0 = none; #46 r2 NIT-3: a
                                                 // phone's monotonic clock stops in sleep, so "6 h" would be days)
@@ -136,6 +136,9 @@ namespace SPIXI.Meta
                 return true;
             }
             if (!S17MomentRules.parseAsk(url, out string id, out string arg)) return true;   // refused silently, never logged
+            /* ★ V1A-M M1 (P31): the "What is IXI?" moment with its flag OFF — ignored before anything is read: no answer, no
+             * seen, no log line (the shell never asks without the `ixihelp` cap) */
+            if (id == V1AMRules.IxiHelpId && !SpixiFlags.V1IxiHelp) return true;
             /* ★ S19 F5: App details may ask `app:<its own app id>` and nothing else — refused silently, never logged */
             if (page is AppDetailsPage details && !S17MomentRules.appDetailsAsk(id, arg, details.selectedAppId)) return true;
 #pragma warning disable CS4014
@@ -207,6 +210,12 @@ namespace SPIXI.Meta
                         }
                     case "pay":
                         eligible = (page is HomePage || page is SingleChatPage || page is ContactDetails) ? S17MomentRules.Eligible.Yes : S17MomentRules.Eligible.Wait;
+                        break;
+                    case V1AMRules.IxiHelpId:
+                        /* ★ V1A-M M1 (P31): the "What is IXI?" moment — home only (the Wallet tab's first open), flag on; it obeys
+                           the once-per-id + one-per-session + no-card rule (not exempt) but never TAKES the session (#46 r1:
+                           S17MomentRules.takesSession — the pay sheet and home's cards are never held back by it) */
+                        eligible = V1AMRules.ixiHelpEligible(SpixiFlags.V1IxiHelp, page is HomePage);
                         break;
                     default:
                         return;

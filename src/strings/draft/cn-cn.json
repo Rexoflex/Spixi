@@ -1022,5 +1022,12 @@
   "slide2Copy2": "后量子加密在您的设备上完成，并以点对点方式发送。只有您发送的对象才能阅读。",
   "slide4Title2": "一起玩，一起规划。",
   "slide4Copy2": "Blitz Chess 和 Split 等迷你应用，直接在聊天中打开。",
-  "welcomeOpenSource": "开源"
+  "welcomeOpenSource": "开源",
+  "momentIxiHelpTitle": "什么是 IXI？",
+  "momentIxiHelpBody": "IXI 是 Ixian 网络的代币。朋友可以给你发送 IXI：把你的地址分享给他们。付款无法撤销。",
+  "momentShowAddress": "显示我的地址",
+  "wordTipRequest": "联系人请求表示有人想和你聊天。由你决定：接受或拒绝。",
+  "wordTipPhonebook": "Spixi 没有通讯录。通过对方的 Spixi 地址或 QR 码添加联系人。",
+  "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
+  "devFlagsV1Hints": "New-word tips (V1A)"
 }

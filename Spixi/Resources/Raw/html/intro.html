@@ -714,6 +714,56 @@ button.c-topbar__identity-wrap:active { background: var(--surface-interactive-pr
   border: var(--outline-width-2) solid var(--surface-screen);
 }
 
+/* ★ V1A-M M3 — the GROUP EMOJI avatar (avatar.js renderPlaceholder, behind v1Flag('groupavatars')).
+   A group whose name starts or ends with an emoji wears it on the same gradient disc, in place of the
+   `users` glyph. Centred by the disc's own inline-flex; the disc box is fixed, so there is no layout
+   shift between the glyph and the emoji. Scale ≈ 0.52 × the disc, read from --c-avatar-px: the size token
+   per known data-size below (the list equals AV_EMOJI_SIZES in avatar.js); any other size stamps its own px
+   on the span. The colour emoji fonts come first so a platform text font never draws a monochrome glyph.
+   sanctioned-block: 28 / 36 / 44 / 64 / 80 have no --size-avatar-* token (by design, avatar.css above and
+   createAvatar's inline width/height fallback) — each px literal IS the disc's own size, the same number
+   createAvatar writes inline; a token per step would be five names for five numbers nobody else reads. */
+.c-avatar[data-size="24"] { --c-avatar-px: var(--size-avatar-24); }
+.c-avatar[data-size="28"] { --c-avatar-px: 28px; }   /* sanctioned: no token — the disc's own px (see above) */
+.c-avatar[data-size="32"] { --c-avatar-px: var(--size-avatar-32); }
+.c-avatar[data-size="36"] { --c-avatar-px: 36px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="40"] { --c-avatar-px: var(--size-avatar-40); }
+.c-avatar[data-size="44"] { --c-avatar-px: 44px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-48); }
+.c-avatar[data-size="56"] { --c-avatar-px: var(--size-avatar-56); }
+.c-avatar[data-size="64"] { --c-avatar-px: 64px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="80"] { --c-avatar-px: 80px; }   /* sanctioned: no token — the disc's own px */
+.c-avatar[data-size="96"] { --c-avatar-px: var(--size-avatar-96); }
+/* the desktop list densities shrink the 48 row disc in chatlist-item.css (40 / 32) — the emoji follows */
+:root[data-desktop][data-row-density="compact"] .c-chatlist-item .c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-40); }
+:root[data-desktop][data-row-density="dense"] .c-chatlist-item .c-avatar[data-size="48"] { --c-avatar-px: var(--size-avatar-32); }
+
+/* ★ #46 r1 C-1: the emoji never paints outside its disc. The name is peer-made: a sequence the platform
+   font lacks renders as 2–3 glyphs side by side, and the row's own name text is clipped while the disc is
+   `overflow: visible` (for the presence dot). So the SPAN clips: no wider than the disc, one line, hidden
+   overflow. line-height 1.25 (not 1) gives the colour-emoji fonts' ascent + descent (≈ 1.17–1.25 em) room
+   inside that clip, so a normal emoji is never cut at the top or bottom. */
+.c-avatar__emoji {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font-ui);
+  font-size: calc(var(--c-avatar-px, var(--size-avatar-48)) * 0.52);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.25;
+  letter-spacing: 0;
+  user-select: none;
+  -webkit-user-select: none; /* WebKit honors only the prefixed form */
+}
+/* Windows (#flag font, tokens.css :root[data-flag-font]): Segoe UI Emoji draws a flag as two letters —
+   the bundled flag face (unicode-range = the regional indicators only) goes first there. */
+:root[data-flag-font] .c-avatar__emoji {
+  font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font-ui);
+}
+
 </style>
 <style data-src="../styles/components/overlay.css">
 /* Overlay layer: scrim + c-sheet + c-modal (docs/overlays-spec.md, DECISIONS #56).

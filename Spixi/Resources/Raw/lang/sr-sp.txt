@@ -378,10 +378,10 @@ intro-new-walletexists-title = Nalog već postoji
 intro-new-walletexists-text = Na ovom uređaju već postoji nalog, pa ovde nije moguće kreirati novi. Ponovo pokrenite Spixi da nastavite sa postojećim nalogom.
 intro-restore-walletexists-title = Nalog već postoji na ovom uređaju
 intro-restore-walletexists-text = Na ovom uređaju već postoji nalog. Da biste ga koristili, ponovo pokrenite Spixi. Da biste vratili drugi nalog: ponovo pokrenite Spixi, otvorite Nalog › Izbriši podatke… › Trajno izbriši nalog, a zatim ponovo otvorite Vrati nalog.
-intro-restore-replace-title = Replace the contacts on this device?
-intro-restore-replace-text = This device still has contacts from an account whose wallet file is missing. Restore replaces them with the contacts in the backup. A copy of the current contacts is kept in the Spixi data folder.
-intro-restore-replace-confirm = Restore
-intro-restore-stashbusy-text = This is a Spixi account backup, but it could not be restored: a copy of earlier contacts on this device could not be moved aside. Nothing was changed. Restart Spixi, then try again.
+intro-restore-replace-title = Zameniti kontakte na ovom uređaju?
+intro-restore-replace-text = Na ovom uređaju još postoje kontakti naloga čija datoteka novčanika nedostaje. Vraćanje ih zamenjuje kontaktima iz rezervne kopije. Kopija trenutnih kontakata čuva se u fascikli sa podacima aplikacije Spixi.
+intro-restore-replace-confirm = Vrati
+intro-restore-stashbusy-text = Ovo je rezervna kopija Spixi naloga, ali je nije bilo moguće vratiti: kopiju ranijih kontakata na ovom uređaju nije bilo moguće skloniti u stranu. Ništa nije promenjeno. Ponovo pokrenite Spixi, pa pokušajte ponovo.
 
 ; Intro Restore Screen
 intro-restore-title = Vrati nalog

@@ -160,7 +160,7 @@ export function illoAboutGlass(o = {}) {
 export function illoContribHeart(o = {}) {
   return { bg: buildIllo('heartBg', o.className), fg: buildIllo('heartFg', o.className) };
 }
-export const MOMENT_ART_KINDS = ['ai', 'autodl', 'offline', 'firstixi', 'mic', 'app', 'pay'];
+export const MOMENT_ART_KINDS = ['ai', 'autodl', 'offline', 'firstixi', 'mic', 'app', 'pay', 'addr'];   // ★ S20I: + addr (moAddr)
 /* the AI drawing: `hello` / `greet` are set with textContent (never markup); only the greeting LENGTH sizes its pill */
 export function illoMoment(kind, o = {}) {
   if (MOMENT_ART_KINDS.indexOf(kind) < 0) return null;

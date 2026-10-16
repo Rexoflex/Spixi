@@ -1107,5 +1107,9 @@
   "wordTipRequest": "Uma solicitação de contato significa que alguém quer conversar com você. Você escolhe: aceitar ou ignorar.",
   "wordTipPhonebook": "O Spixi não tem agenda telefônica. Adicione pessoas pelo endereço Spixi ou pelo código QR delas.",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "Meu endereço",
+  "myAddressRowSub": "Para adicionarem você",
+  "momentAddrHelpTitle": "Como encontram você",
+  "momentAddrHelpBody": "O Spixi não usa números de telefone. As pessoas adicionam você pelo seu endereço Ixian. Compartilhe-o ou deixe que escaneiem seu código QR. Ele fica em Meu endereço."
 }

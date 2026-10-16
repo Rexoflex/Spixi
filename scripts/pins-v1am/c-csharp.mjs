@@ -118,7 +118,7 @@ export default async function (h) {
     defaults: /public static bool V1IxiHelp \{ get; private set; \} = true;/.test(SF) && /public static bool V1Hints \{ get; private set; \} = true;/.test(SF),
     reads: /int vi = 1, vh = 1;/.test(init) && /vi = Preferences\.Default\.Get\(V1IxiHelpKey, 1\);/.test(init) && /vh = Preferences\.Default\.Get\(V1HintsKey, 1\);/.test(init)
       && at('vh = Preferences.Default.Get(V1HintsKey, 1);') < at('catch (Exception ex)'),
-    lines: /Logging\.info\(S20GRules\.flagLine\(S20G\)\);\s*V1IxiHelp = S16PassRules\.effectiveFlag\(dev, vi\);\s*Logging\.info\(V1AMRules\.flagLineIxiHelp\(V1IxiHelp\)\);\s*V1Hints = S16PassRules\.effectiveFlag\(dev, vh\);\s*Logging\.info\(V1AMRules\.flagLineHints\(V1Hints\)\);\s*\}$/.test(init),
+    lines: /Logging\.info\(S20GRules\.flagLine\(S20G\)\);\s*V1IxiHelp = S16PassRules\.effectiveFlag\(dev, vi\);\s*Logging\.info\(V1AMRules\.flagLineIxiHelp\(V1IxiHelp\)\);\s*V1Hints = S16PassRules\.effectiveFlag\(dev, vh\);\s*Logging\.info\(V1AMRules\.flagLineHints\(V1Hints\)\);(?:\s*S20AddrHelp = S16PassRules\.effectiveFlag\(dev, ah\);\s*Logging\.info\(S20IRules\.flagLineAddrHelp\(S20AddrHelp\)\);)?\s*\}$/.test(init),   // ★ S20I re-base: + the s20addrhelp line right after (P32)
   };
   ok(Object.values(f).every(Boolean),
     '★ V1A-M (P31): SpixiFlags — prefs flagV1IxiHelp / flagV1Hints (absent = ON), the S16 rule (a stored 0 acts only in dev mode), `[FLAGS] v1ixihelp=` then `[FLAGS] v1hints=` logged right after the S20G line — ' + JSON.stringify(f));

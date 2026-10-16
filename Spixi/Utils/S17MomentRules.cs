@@ -33,9 +33,10 @@ namespace SPIXI
         public const long MaxSessionMs = 6L * 60 * 60 * 1000;   // a session ends 6 h after its first moment / card
 
         /** The seven ids (MOMENTS.md) + ★ V1A-M M1 `ixihelp` (the "What is IXI?" moment, home only, flag SpixiFlags.V1IxiHelp —
-         *  V1AMRules; it obeys the session rule but never takes the session — takesSession). `lang` and `app` carry an
-         *  argument; the other six never do. */
-        public static readonly string[] Ids = { "lang", "autodl", "offline", "firstixi", "mic", "app", "pay", "ixihelp" };
+         *  V1AMRules; it obeys the session rule but never takes the session — takesSession) + ★ S20I `addrhelp` (the "How people
+         *  find you" moment, a Settings page on screen only, every account once, flag SpixiFlags.S20AddrHelp — S20IRules; the ixihelp session
+         *  rule). `lang` and `app` carry an argument; the others never do. */
+        public static readonly string[] Ids = { "lang", "autodl", "offline", "firstixi", "mic", "app", "pay", "ixihelp", "addrhelp" };
         /** The only names the app moment's answer may carry (MiniAppCapabilities minus SingleUser). */
         public static readonly string[] CapNames = { "MultiUser", "Authentication", "TransactionSigning", "RegisteredNamesManagement", "Storage" };
 
@@ -107,8 +108,8 @@ namespace SPIXI
          *  holds back the first-payment `pay` sheet, mic / app / autodl / offline or home's hint / rating cards. */
         public static bool takesSession(string id) => !exemptFromSession(id) && !respectsButNeverTakes(id);
 
-        /** ★ V1A-M #46 r1: the ids that obey the one-per-session + card rule but never take the session (only `ixihelp`). */
-        public static bool respectsButNeverTakes(string id) => id == "ixihelp";
+        /** ★ V1A-M #46 r1: the ids that obey the one-per-session + card rule but never take the session (`ixihelp` and ★ S20I `addrhelp`). */
+        public static bool respectsButNeverTakes(string id) => id == "ixihelp" || id == "addrhelp";   // ★ S20I: + addrhelp
 
         /** ★ S20 G (#1379, the S19 residual "the install moment takes the session, so an unmarked app re-asks later"): the app
          *  moment AT INSTALL — asked by App details (before Install, or before the Open pill of an app never opened) or the

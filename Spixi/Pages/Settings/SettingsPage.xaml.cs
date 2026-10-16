@@ -81,6 +81,12 @@ namespace SPIXI
         private static string pendingScreen = "";
         private static long pendingScreenAt = 0;   // #46 security r2 NIT-1: a pending screen older than 15 s is dropped (a refused push)
         private bool shellLoaded = false;
+        /* ★ S20I (P32): true while this Account page is really on screen — set by HomePage.onOverlayPresented (the fresh
+         * present AND the parked re-present), cleared by HomePage.onOverlayClosed (#46 r1: a closed page is parked HIDDEN).
+         * The phone warms Account HIDDEN at start (warmParkedOverlay), so a load alone is not "the user opened Account":
+         * the address moment (S20IRules) is granted only on a page the user sees. The legacy push fallback never sets it
+         * (fails closed: no moment there). */
+        public volatile bool shownToUser = false;
 
         internal static void openAt(string screen)
         {
@@ -293,6 +299,11 @@ namespace SPIXI
             if (SpixiFlags.S17Moments)
             {
                 caps += ",moments";
+                // ★ S20I (P32): the "How people find you" moment on the Account hub's first ON-SCREEN open — every account, once (S20IRules)
+                if (SpixiFlags.S20AddrHelp)
+                {
+                    caps += ",addrhelp";
+                }
             }
             topSurfaceKind = 0;   // ★ S17 (#1339): a fresh document starts on the hub (its own surface)
             /* ★ S9 (Session AD): the Developer row. The cap is granted ONLY while dev mode

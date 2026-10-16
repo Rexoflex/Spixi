@@ -36,8 +36,10 @@ import { createSheet, openSheet, closeSheet } from './sheet.js';
 
 /* ★ V1A-M (M1, Damir's dial 2026-10-15 title A + the coin art): + `ixihelp` — "What is IXI?", asked on the first Wallet open
    (home only; cap `ixihelp` = C# flag V1IxiHelp). The art is the `pay` moment's coin drawing. */
-export const MOMENT_IDS = ['lang', 'autodl', 'offline', 'firstixi', 'mic', 'app', 'pay', 'ixihelp'];
-const MO_ART_OF = { lang: 'ai', autodl: 'autodl', offline: 'offline', firstixi: 'firstixi', mic: 'mic', app: 'app', pay: 'pay', ixihelp: 'pay' };
+/* ★ S20I (Damir 2026-10-15 23:25): + `addrhelp` — "How people find you", asked on the Account hub's first open (settings only;
+   cap `addrhelp` = C# flag S20AddrHelp; every account once, Damir 23:38). The art = moAddr. */
+export const MOMENT_IDS = ['lang', 'autodl', 'offline', 'firstixi', 'mic', 'app', 'pay', 'ixihelp', 'addrhelp'];
+const MO_ART_OF = { lang: 'ai', autodl: 'autodl', offline: 'offline', firstixi: 'firstixi', mic: 'mic', app: 'app', pay: 'pay', ixihelp: 'pay', addrhelp: 'addr' };
 /* the capability rows of the app moment: the apps-details vocabulary (cap_* / capx_*), the same fallbacks */
 const MO_CAP_ORDER = ['Storage', 'MultiUser', 'Authentication', 'TransactionSigning', 'RegisteredNamesManagement'];
 const MO_CAP_GLYPH = { Storage: 'database', MultiUser: 'users', Authentication: 'user-circle', TransactionSigning: 'key', RegisteredNamesManagement: 'at' };
@@ -114,6 +116,12 @@ export function momentCopy(id, ctx = {}, strings = getStrings()) {
     case 'ixihelp': return {
       title: strings.momentIxiHelpTitle || 'What is IXI?',
       body: strings.momentIxiHelpBody || 'IXI is the Ixian network’s token. Friends can send you IXI: share your address with them. Payments cannot be undone.',
+      buttons: [['fill', strings.momentShowAddress || 'Show my address', 'address'], ['text', strings.whatsNewGotIt || 'Got it', 'dismiss']],
+    };
+    /* ★ S20I: "Show my address" = 'address' (settings opens the hub's own address sheet, the My address row) */
+    case 'addrhelp': return {
+      title: strings.momentAddrHelpTitle || 'How people find you',
+      body: strings.momentAddrHelpBody || 'Spixi uses no phone numbers. People add you with your Ixian address. Share it, or let them scan your QR code. You find it in My address.',
       buttons: [['fill', strings.momentShowAddress || 'Show my address', 'address'], ['text', strings.whatsNewGotIt || 'Got it', 'dismiss']],
     };
     default: return null;
@@ -320,8 +328,9 @@ export function createMomentClient({ bridge, onSessionEnd = null } = {}) {
         else if (state.seen.indexOf(id) < 0) state.seen.push(id);
         /* ★ #46 S19 N2: firstixi and lang never take the session (C#: S17MomentRules.takesSession, S19 F4)
            ★ V1A-M #46 r1 (A-MINOR-1 / B-MINOR-1): nor does ixihelp — it RESPECTS the session (C# refuses it after a moment or a
-           card) but never TAKES it, so "What is IXI?" holds back no pay / mic / app sheet and no hint or rating card */
-        if (id !== 'firstixi' && id !== 'lang' && id !== 'ixihelp' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
+           card) but never TAKES it, so "What is IXI?" holds back no pay / mic / app sheet and no hint or rating card
+           ★ S20I: addrhelp follows the same rule (C#: S17MomentRules.respectsButNeverTakes) */
+        if (id !== 'firstixi' && id !== 'lang' && id !== 'ixihelp' && id !== 'addrhelp' && !state.session) { state.session = true; armSession(MO_SESSION_MS); }
       }
       if (!w) return;
       waits.delete(k);

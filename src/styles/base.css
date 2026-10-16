@@ -254,7 +254,7 @@ img, svg { display: block; max-width: 100%; }
    bottom-nav labels were selectable, chat-row long-press popped the iOS text
    callout). Nav, rows, topbars, chips and the FAB are controls, not content —
    suppress selection AND the callout on TOUCH surfaces only (iOS-33 grammar:
-   :root:not([data-desktop]) keeps desktop drag-select alive). Message TEXT keeps
+   :root:not([data-desktop]) — desktop has its own block, S20I below). Message TEXT keeps
    its decided behavior (message-bubble.css iOS-33/41 — menu-copy on mobile);
    deliberately selectable content (settings dev log / link urls, both explicit
    -webkit-user-select:text) wins on its own elements — -webkit-user-select
@@ -282,7 +282,7 @@ img, svg { display: block; max-width: 100%; }
    `text` rules (settings dev log · link urls — settings-app.css:117/230) still
    win over the inherited none, and iOS-33's message-text policy is unchanged
    (bubbles were already none on mobile; menu Copy is the copy path). Desktop
-   keeps full drag-select (the :root guard). The component list above stays —
+   is the S20I block below (body none, text on fields / message text / addresses). The component list above stays —
    harmless, and it documents the surfaces that PROMPTED each pass. */
 :root:not([data-desktop]) body {
   -webkit-touch-callout: none;
@@ -314,6 +314,51 @@ img, svg { display: block; max-width: 100%; }
   -webkit-touch-callout: default;
   -webkit-user-select: text;
   user-select: text;
+}
+
+/* ★ S20I OW-X-SELECT (office walk 2026-10-15, Damir 22:48: "ability to click drag select half
+   screen is annoying, we need to fix it"). The two touch-only blocks above were scoped
+   :root:not([data-desktop]) ON PURPOSE, to keep free drag-select of message text on desktop —
+   which left EVERYTHING selectable there: an accidental click-drag on the rail painted blue
+   blocks over the rail, the section headings, the chat rows and the welcome slides.
+   Same move as #322, for desktop: the app chrome is not document content, so selection is off
+   at the BODY and back on ONLY where selecting is the point — typed fields, the message text
+   (+ a photo / album caption — #46 r3: the sender's own text, not in .c-bubble__text — and a
+   file's name), the FULL addresses and ids (send review, tx sheet incl. the #1041 tx id,
+   member sheet, pending contacts; the address sheet's full value has its own `text` rule in
+   wallet-receive.css) and a mini app's URL (an inherited `none` loses to an element's own
+   `text`, so the explicit `text` rules already in settings-app.css / wallet-receive.css keep
+   working unchanged). #46 r1 M1 / r2 M1: NOT the middle-truncated address displays (chat
+   info, the Account header, the declined list, the sheet's folded "8 … 8") — a drag-copied
+   "425Hqz…XyZ12" is not an address; their Copy / QR buttons are the copy path (#1012).
+   Not on mobile (the blocks above own it). No -webkit-user-drag change: dragging a chat photo
+   out of the window stays possible. */
+:root[data-desktop] body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+:root[data-desktop] input,
+:root[data-desktop] textarea,
+:root[data-desktop] [contenteditable],
+:root[data-desktop] [contenteditable] *,
+:root[data-desktop] .c-bubble__text,
+:root[data-desktop] .c-mgrid__caption,
+:root[data-desktop] .c-fbubble__name,
+:root[data-desktop] .c-txsheet__addrvalue,
+:root[data-desktop] .c-txsheet__rowvalue--id,
+:root[data-desktop] .c-member__addr-text,
+:root[data-desktop] .c-sendreview__addr,
+:root[data-desktop] .c-contacts-pending__addr,
+:root[data-desktop] .c-app-details__urlvalue {
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* W9-④ (chat-select.css) must still win DURING a desktop row drag: the re-enabled message text
+   above outranks its plain `[data-dragselect] *`, so restate it at equal specificity, later. */
+:root[data-desktop] [data-dragselect],
+:root[data-desktop] [data-dragselect] * {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* ——— PRESS FEEDBACK (#343) — one rule set for every pressable surface —————————

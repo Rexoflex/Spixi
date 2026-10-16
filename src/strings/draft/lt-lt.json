@@ -1030,5 +1030,9 @@
   "wordTipRequest": "Kontakto prašymas reiškia, kad kažkas nori su jumis susirašinėti. Jūs renkatės: priimti arba atmesti.",
   "wordTipPhonebook": "Spixi neturi telefonų knygos. Pridėkite žmones pagal jų Spixi adresą ar QR kodą.",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "Mano adresas",
+  "myAddressRowSub": "Kad jus pridėtų",
+  "momentAddrHelpTitle": "Kaip jus randa",
+  "momentAddrHelpBody": "Spixi nenaudoja telefono numerių. Žmonės jus prideda pagal jūsų Ixian adresą. Pasidalykite juo arba leiskite nuskaityti jūsų QR kodą. Jį rasite skiltyje „Mano adresas“."
 }

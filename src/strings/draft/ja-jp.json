@@ -1031,5 +1031,9 @@
   "wordTipRequest": "連絡先リクエストは、誰かがあなたとチャットしたいという意味です。承認するか無視するかは、あなたが選べます。",
   "wordTipPhonebook": "Spixi には電話帳がありません。相手の Spixi アドレスまたは QR コードで追加しましょう。",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "自分のアドレス",
+  "myAddressRowSub": "追加してもらう方法",
+  "momentAddrHelpTitle": "見つけてもらう方法",
+  "momentAddrHelpBody": "Spixi は電話番号を使いません。相手はあなたの Ixian アドレスであなたを追加します。アドレスを共有するか、QR コードをスキャンしてもらいましょう。「自分のアドレス」で確認できます。"
 }

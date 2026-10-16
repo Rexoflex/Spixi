@@ -128,7 +128,7 @@ export default async function (h) {
     b.cap100 = /public const int MaxAskLines = 100;/.test(RU) && /askLines = 0;/.test(reset);
     b.words = /private static readonly string\[\] WhyWords = \{ "seen", "wait", "session", "card", "ok" \};/.test(RU)
       && /public static string decisionWord\(Decision d\) => d == Decision\.Grant \? "grant" : d == Decision\.Consume \? "consume" : "refuse";/.test(RU)
-      && /public static readonly string\[\] Ids = \{ "lang", "autodl", "offline", "firstixi", "mic", "app", "pay", "ixihelp" \};/.test(RU);   // ★ V1A-M re-base: + ixihelp (M1, csh V1AMTests)
+      && /public static readonly string\[\] Ids = \{ "lang", "autodl", "offline", "firstixi", "mic", "app", "pay", "ixihelp", "addrhelp" \};/.test(RU);   // ★ V1A-M re-base: + ixihelp (M1, csh V1AMTests) · ★ S20I re-base: + addrhelp (P32, csh S20ITests)
     b.csh = /public void AskLine_WhyMatchesDecide_FixedWordsOnly\(\)/.test(rd('scripts/csh/S17MomentTests.cs'));
   } catch (er) { b.err = er.message; }
   ok(Object.values(b).every((x) => x === true),

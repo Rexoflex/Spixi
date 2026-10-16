@@ -67,7 +67,7 @@ export default async function (h) {
   /* (d) every decorative dot twinkles: the motion class (+ its --i) on the <use> or on the <g> that wraps it */
   const DOTS = { welcome1: 2, welcome2: 3, welcome3: 2, welcome4: 3, restore: 3, chatsEmpty: 3, contactsEmpty: 3, addContact: 3, appsEmpty: 3, explore: 2,
     backup: 3, rating: 3, walletEmptyA: 4, walletEmptyB: 4, wnHeroFg: 4, wnReplyFg: 3, wnVoiceFg: 3, wnPhotosFg: 3, wnPrivacyFg: 3, wnAppsFg: 3,
-    moAutodl: 2, moFirstixi: 2, moMic: 2, moApp: 1, moPay: 2, heartBg: 6, 'moAi#0': 3, 'moAi#4': 3, 'moAi#12': 3, 'moAi#40': 3 };
+    moAutodl: 2, moFirstixi: 2, moMic: 2, moApp: 1, moAddr: 1 /* ★ S20I: the moApp grammar */, moPay: 2, heartBg: 6, 'moAi#0': 3, 'moAi#4': 3, 'moAi#12': 3, 'moAi#40': 3 };
   const MOTION = /class="(?:il-tw|rn-tw|mo-tw wn-loop|ct-tw wn-loop)" (?:[^>]*?)?style="[^"]*--i:\d/;
   const twBad = [];
   for (const k of names) {
@@ -76,5 +76,5 @@ export default async function (h) {
     const moving = uses.filter((m) => MOTION.test(m[1]) || MOTION.test((/<g [^>]*>$/.exec(b.slice(Math.max(0, m.index - 160), m.index)) || [''])[0]));
     if (uses.length !== (DOTS[k] || 0) || moving.length !== uses.length) twBad.push(k + ' ' + moving.length + '/' + uses.length + ' (want ' + (DOTS[k] || 0) + ')');
   }
-  ok(twBad.length === 0, '★ #1357: every decorative twinkle became a bokeh dot and kept its motion class + --i (78 dots in 27 drawings; il-tw · rn-tw · mo-tw · ct-tw) — off: ' + (twBad.join(', ') || 'none'));
+  ok(twBad.length === 0, '★ #1357: every decorative twinkle became a bokeh dot and kept its motion class + --i (79 dots in 28 drawings — ★ S20I + moAddr; il-tw · rn-tw · mo-tw · ct-tw) — off: ' + (twBad.join(', ') || 'none'));
 }

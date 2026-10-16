@@ -5536,6 +5536,9 @@ namespace SPIXI
         {
             if (overlay is SettingsPage)
             {
+                /* ★ S20I #46 r1 (security MINOR-1): a closed Account page is parked HIDDEN (#315) — it is no longer on
+                 * screen, so the address moment must wait again until the next present (onOverlayPresented sets it) */
+                ((SettingsPage)overlay).shownToUser = false;
                 // Same refresh the (push-era) fromSettings branch below does.
                 Utils.sendUiCommand(this, "setTheme", ThemeManager.getResolvedAppearanceName());
                 Utils.sendUiCommand(this, "loadAvatar", Utils.imageToDataUri(IxianHandler.localStorage.getOwnAvatarPath()));   // X1
@@ -5671,6 +5674,13 @@ namespace SPIXI
                  * until the Account page is really visible — this is that moment (fresh present AND
                  * the parked re-present, representParkedOverlay). A fixed verb, no payload. */
                 Utils.sendUiCommand(this, "onSettingsShown");
+                /* ★ S20I (P32): the Account page is on screen NOW — the address moment may be granted from here on, and the
+                 * page re-reads its moment state (a warm page asked while hidden and was told to wait) */
+                if (SpixiFlags.S17Moments && SpixiFlags.S20AddrHelp)
+                {
+                    ((SettingsPage)overlay).shownToUser = true;
+                    SMoments.pushTo(overlay);
+                }
                 return;
             }
             if (overlay is SingleChatPage presentedChat)

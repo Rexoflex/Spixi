@@ -1030,5 +1030,9 @@
   "wordTipRequest": "联系人请求表示有人想和你聊天。由你决定：接受或拒绝。",
   "wordTipPhonebook": "Spixi 没有通讯录。通过对方的 Spixi 地址或 QR 码添加联系人。",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "我的地址",
+  "myAddressRowSub": "别人这样添加你",
+  "momentAddrHelpTitle": "别人如何找到你",
+  "momentAddrHelpBody": "Spixi 不使用电话号码。别人通过你的 Ixian 地址添加你。分享地址，或让对方扫描你的 QR 码。你可以在“我的地址”中找到它。"
 }

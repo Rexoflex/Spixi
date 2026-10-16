@@ -1107,5 +1107,9 @@
   "wordTipRequest": "Une demande de contact signifie que quelqu’un veut discuter avec vous. À vous de choisir : accepter ou ignorer.",
   "wordTipPhonebook": "Spixi n’a pas de répertoire téléphonique. Ajoutez des personnes avec leur adresse Spixi ou leur code QR.",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "Mon adresse",
+  "myAddressRowSub": "Pour qu’on vous ajoute",
+  "momentAddrHelpTitle": "Comment on vous trouve",
+  "momentAddrHelpBody": "Spixi n’utilise pas de numéros de téléphone. On vous ajoute avec votre adresse Ixian. Partagez-la ou faites scanner votre code QR. Vous la trouvez dans Mon adresse."
 }

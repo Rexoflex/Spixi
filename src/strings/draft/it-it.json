@@ -1038,5 +1038,9 @@
   "wordTipRequest": "Una richiesta di contatto significa che qualcuno vuole chattare con te. Scegli tu: accettare o rifiutare.",
   "wordTipPhonebook": "Spixi non ha una rubrica telefonica. Aggiungi le persone con il loro indirizzo Spixi o QR code.",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "Il mio indirizzo",
+  "myAddressRowSub": "Per farti aggiungere",
+  "momentAddrHelpTitle": "Come ti trovano",
+  "momentAddrHelpBody": "Spixi non usa numeri di telefono. Le persone ti aggiungono con il tuo indirizzo Ixian. Condividilo o fai scansionare il tuo codice QR. Lo trovi in “Il mio indirizzo”."
 }

@@ -1630,7 +1630,11 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   const hdrText = hdr && hdr.querySelector('.c-settings__addr-text');
   const hdrBtns = hdr ? Array.from(hdr.querySelectorAll('button')) : [];
   const qrBtn = hdrBtns.find((b) => b.dataset.addr === 'qr');
-  ok(!addrRow, '★ #1007 (was #575): the "Spixi address — Tap to view" ROW is gone');
+  /* ★ S20I RE-BASE (Damir 2026-10-15 23:25, user testing: "return the my address to be a row above the contacts"): the row
+     is BACK — ONE "My address" row above Contacts, opening the same ONE sheet (pins-s20i/f-addrhelp proves the order, the
+     line and the sheet). What #575 / #1007 protected still holds: the full base58 is never at rest on the hub (above). */
+  ok(!!addrRow && /My address/.test(addrRow.textContent) && !addrRow.textContent.includes('425HqzWpMkV3dTgJnS85CQen'),
+    '★ S20I (was #1007 "the row is gone"): the "My address" ROW is back, and it never shows the raw address');
   ok(!!hdrText && hdrText.textContent === S.truncateAddressMiddle('425HqzWpMkV3dTgJnS85CQen')
      && hdrText.textContent !== '425HqzWpMkV3dTgJnS85CQen' && hdrText.title === '425HqzWpMkV3dTgJnS85CQen',
     '★ #1007: the profile header shows the address MIDDLE-TRUNCATED (#211 canon) — the full value only in `title`');
@@ -7115,7 +7119,7 @@ console.log('#314 — polish batch (selectability · mention pill · toast/CTA �
 
   /* chrome selectability sweep */
   ok(/:root:not\(\[data-desktop\]\) \.c-bottomnav,[\s\S]{0,600}?\.fab \{[\s\S]{0,200}?-webkit-touch-callout: none;[\s\S]{0,100}?-webkit-user-select: none;/.test(baseCss),
-    '#314 sweep: nav/rows/topbars/chips/FAB suppress selection AND the iOS callout on touch surfaces only (desktop drag-select intact; message TEXT rules untouched)');
+    '#314 sweep: nav/rows/topbars/chips/FAB suppress selection AND the iOS callout on touch surfaces only (desktop: the S20I block — body none, text on fields / message text / addresses, pins-s20i/e-select; message TEXT rules untouched)');
 
   /* backup badge — the REFRESH gap (C-9 cleared storage; iOS fires none of the 3 listeners) */
   /* ★ Session AD (S2): the 2 s stamp poll is RETIRED — the status is a C# push now
@@ -40769,7 +40773,9 @@ console.log('#1086 — the office-walk fix round (A1, B1–B15)');
     const hp = stripCode(rdX('Spixi/Pages/Home/HomePage.xaml.cs'));
     const scp = stripCode(rdX('Spixi/Utils/SpixiContentPage.cs'));
     const ovp = hp.slice(hp.indexOf('public override void onOverlayPresented(SpixiContentPage overlay)'));
-    ok(/if \(overlay is SettingsPage\)\s*\{\s*Utils\.sendUiCommand\(this, "onSettingsShown"\);\s*return;\s*\}/.test(ovp.slice(0, 600))
+    /* ★ S20I re-base: the address moment's two lines (shownToUser + the setMoments re-push, P32) sit between the verb and the
+       return — the verb still comes FIRST and the branch still returns (pins-s20i/f-addrhelp pins the two lines) */
+    ok(/if \(overlay is SettingsPage\)\s*\{\s*Utils\.sendUiCommand\(this, "onSettingsShown"\);(?:\s*(?:\/\*[\s\S]*?\*\/)?\s*if \(SpixiFlags\.S17Moments && SpixiFlags\.S20AddrHelp\)\s*\{\s*\(\(SettingsPage\)overlay\)\.shownToUser = true;\s*SMoments\.pushTo\(overlay\);\s*\})?\s*return;\s*\}/.test(ovp.slice(0, 1200))
        && /holdBackExit: returnTo === 'account' \? \(release\) => holdForAccount\(release\) : null,/.test(home)
        && /onSettingsShown\(\) \{\s*const r = accountHoldRelease;\s*if \(r\) requestAnimationFrame\(\(\) => \{ if \(accountHoldRelease === r\) releaseAccountHold\(\); \}\);\s*\},/.test(home)   /* r2 NIT: the frame releases THIS hold only */
        && /accountHoldTimer = setTimeout\(releaseAccountHold, ACCOUNT_HOLD_BACKSTOP_MS\);/.test(home)
@@ -42502,6 +42508,7 @@ for (const mod of ['c-n1', 'c-code', 'c-accent', 'c-focus', 'c-chip', 'l-autopla
 for (const mod of ['a-list', 'a-plan', 'b-titlebar', 'c-density', 'd-pinned']) await (await import(new URL('./pins-dt1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ DT-1 (the desktop uplift, P1, #1380–#1399) — a = the chat list polish (sections + fold, hover actions = the row menu's actions, inset rows, desktop-only CSS, the patch path, the phone unchanged) · b = the Windows title bar (S20 #1395: the `maui` / `colors` ways deleted, `off` = the only way)
 for (const mod of ['c-csharp', 'h-ixihelp', 'h-wordtips', 'a-groupemoji', 's-restore-keys']) await (await import(new URL('./pins-v1am/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ V1A-M Drop 2 (#1447–#1452) — c = the C# wiring (flags, caps, word verbs, the ixihelp OFF gate) · h = the home shell (the What is IXI? moment, the word tips) · a = the group emoji avatar (M3) · s = the restore keys in 13 locales + the L146 claims lexicon
 for (const mod of ['x-keys', 'a-desktop', 'b-launch', 'c-icons', 'd-claims']) await (await import(new URL('./pins-s20h/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20H Drop A — x = X-1 every C# _SL key exists (the blank lock alert, m009) + X-2 no iOS location purpose strings · a = F-A the desktop Account root may shrink (Chat appearance cut at narrow windows); the real layout = pins-s20h/a-sweep.mjs (Chromium, not in smoke) · b = Drop B F-B + ⑪ (b-sweep.mjs) · c = F-C + ⑦ + ⑨ · d = Drop C the request note keeps the claims scope (no money / funds word)
+for (const mod of ['e-select', 'f-addrhelp']) await (await import(new URL('./pins-s20i/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20I Drop D — e = OW-X-SELECT the desktop app chrome is not drag-selectable (fields, message text, addresses stay); the real drags = pins-s20i/e-sweep.mjs (Chromium, not in smoke) · f = the My address row back above Contacts + the "How people find you" moment (P32, flag S20AddrHelp)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

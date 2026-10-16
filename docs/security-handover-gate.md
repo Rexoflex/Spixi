@@ -2134,3 +2134,15 @@ No packet (no C#, no flag): shell JS / CSS / strings / icons only.
 | #1423 ⑦ ⑨ ⑪ — one string (14 locales), one token, two `performance.now()` reads | none | ours, safe |
 
 Surface counts: verbs +0 · `spixi.*` keys +0 · pushes +0 · log lines +0 · string keys +1 (`checkMismatch`).
+
+## Session 20I Drop D (#1461 · #1462) — desktop selection, the My address row, the address moment (2026-10-15)
+
+Packet: [P32](be-review-pack/P32-s20i-address-moment.md) (the moment's C#). The selection fix and the row are shell CSS / JS only.
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| OW-X-SELECT — `base.css` `:root[data-desktop] body { user-select: none }` + `text` again on fields, the message text (`.c-bubble__text`, `.c-mgrid__caption`), a file name, 4 full-address classes (tx sheet, member sheet, send review, pending contacts), the tx id and a mini app's URL; truncated address displays and the card hint stay off; W9-④ restated | CSS only. Less surface: desktop chrome text is no longer selectable; message text, inputs and full addresses still select | ours, safe |
+| The "My address" row above Contacts (settings-shell.js) | none — opens the existing ONE address sheet (#527); the row shows no address (the full value only in the sheet) | ours, safe |
+| `addrhelp` moment — `S17MomentRules.Ids` + 1, `respectsButNeverTakes` + 1, `SMoments` (flag-off return + the check), `SettingsPage.shownToUser` (a page bool), `HomePage.onOverlayPresented` (sets it + one extra `setMoments`) / `onOverlayClosed` (clears it, #46 r1), SettingsPage cap `addrhelp`, flag `S20AddrHelp` + `[FLAGS] s20addrhelp` line | 1 new ask id on the existing S17 verb (fixed set, no argument, validated first) · 1 cap · 1 int pref · the existing capped `[MO] ask` line · no new store key (`moments.seen`) · a chat / hidden page gets `Wait` (stores nothing) | ours, safe (P32) |
+
+Surface counts: verbs +0 (1 id on an existing verb) · `spixi.*` keys +0 · prefs +1 (`flagS20AddrHelp`) · pushes +0 (one more `setMoments` call) · log lines +1 (`[FLAGS] s20addrhelp`) · string keys +4.

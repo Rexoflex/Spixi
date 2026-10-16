@@ -33,7 +33,7 @@ namespace SPIXI.Meta
     /// </summary>
     public static class SMoments
     {
-        private static bool sessionMoment;      // a moment sheet was granted in this session (the ids takesSession excepts: firstixi, lang, ixihelp, the install moment)
+        private static bool sessionMoment;      // a moment sheet was granted in this session (the ids takesSession excepts: firstixi, lang, ixihelp, addrhelp, the install moment)
         private static bool sessionCard;        // home reported a hint / update / backup / rating card on screen
         private static long sessionSince;       // wall-clock ms of the first moment / card of this session (0 = none; #46 r2 NIT-3: a
                                                 // phone's monotonic clock stops in sleep, so "6 h" would be days)
@@ -139,6 +139,8 @@ namespace SPIXI.Meta
             /* ★ V1A-M M1 (P31): the "What is IXI?" moment with its flag OFF — ignored before anything is read: no answer, no
              * seen, no log line (the shell never asks without the `ixihelp` cap) */
             if (id == V1AMRules.IxiHelpId && !SpixiFlags.V1IxiHelp) return true;
+            /* ★ S20I (P32): the "How people find you" moment with its flag OFF — the same: ignored before anything is read */
+            if (id == S20IRules.AddrHelpId && !SpixiFlags.S20AddrHelp) return true;
             /* ★ S19 F5: App details may ask `app:<its own app id>` and nothing else — refused silently, never logged */
             if (page is AppDetailsPage details && !S17MomentRules.appDetailsAsk(id, arg, details.selectedAppId)) return true;
 #pragma warning disable CS4014
@@ -216,6 +218,11 @@ namespace SPIXI.Meta
                            the once-per-id + one-per-session + no-card rule (not exempt) but never TAKES the session (#46 r1:
                            S17MomentRules.takesSession — the pay sheet and home's cards are never held back by it) */
                         eligible = V1AMRules.ixiHelpEligible(SpixiFlags.V1IxiHelp, page is HomePage);
+                        break;
+                    case S20IRules.AddrHelpId:
+                        /* ★ S20I (P32): "How people find you" — a Settings page that is ON SCREEN (shownToUser: the phone warms
+                           Account hidden at start), flag on; every account, once (Damir 23:38). The ixihelp session rule. */
+                        eligible = S20IRules.addrHelpEligible(SpixiFlags.S20AddrHelp, page is SettingsPage sp && sp.shownToUser);
                         break;
                     default:
                         return;

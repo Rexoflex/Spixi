@@ -1109,5 +1109,9 @@
   "wordTipRequest": "Запрос на добавление в контакты означает, что кто-то хочет переписываться с вами. Решать вам: принять или отклонить.",
   "wordTipPhonebook": "В Spixi нет телефонной книги. Добавляйте людей по их адресу Spixi или QR-коду.",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "Мой адрес",
+  "myAddressRowSub": "Чтобы вас добавили",
+  "momentAddrHelpTitle": "Как вас находят",
+  "momentAddrHelpBody": "Spixi не использует номера телефонов. Вас добавляют по вашему адресу Ixian. Поделитесь им или дайте отсканировать ваш QR-код. Он находится в разделе «Мой адрес»."
 }

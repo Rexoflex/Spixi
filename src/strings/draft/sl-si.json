@@ -1108,5 +1108,9 @@
   "wordTipRequest": "Zahteva za stik pomeni, da želi nekdo klepetati z vami. Izbira je vaša: sprejmite ali zavrnite.",
   "wordTipPhonebook": "Spixi nima telefonskega imenika. Ljudi dodajte z njihovim naslovom Spixi ali kodo QR.",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "Moj naslov",
+  "myAddressRowSub": "Da vas dodajo",
+  "momentAddrHelpTitle": "Kako vas najdejo",
+  "momentAddrHelpBody": "Spixi ne uporablja telefonskih številk. Ljudje vas dodajo z vašim naslovom Ixian. Delite ga ali naj skenirajo vašo kodo QR. Najdete ga v razdelku »Moj naslov«."
 }

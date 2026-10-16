@@ -1,0 +1,21 @@
+Session 20I Drop D: desktop selection, the My address row, the "How people find you" moment
+
+- OW-X-SELECT (office walk, Damir "we need to fix it"): on desktop the app chrome (rail, headings, chat
+  rows, welcome slides) is no longer drag-selectable. base.css turns selection off at the body and back
+  on only for fields, message text and photo captions, file names, full addresses / ids (incl. the tx
+  id) and a mini app's URL; truncated address displays stay off; W9-4 restated. Phone unchanged.
+- The "My address" row is back in the Account hub, above Contacts ("How people add you"), opening the
+  address sheet (user testing: the header address was not understood).
+- The "How people find you" moment (id addrhelp, flag SpixiFlags.S20AddrHelp, review packet P32): once
+  per account, every account, only while the Account page is on screen (SettingsPage.shownToUser, set at
+  the present, cleared at the close; the phone warms and parks Account hidden); obeys the session rule,
+  never takes it; asked only on a clear hub, a late yes waits. New art moAddr; 4 strings in 13 drafts.
+- Pins scripts/pins-s20i (e-select, f-addrhelp; e-sweep.mjs Chromium, not in smoke); csh S20ITests;
+  re-based without weakening: smoke #1007 / #1086, pins-s4/nav, pins-s16/b-l8, pins-s17/k-sparkle-swap,
+  pins-s18/f-moments-dev, pins-s19/q-lang, pins-v1am/c-csharp, csh V1AMTests / S17MomentTests; ring
+  fixture recaptured.
+- Office walk record: WALK #1459, mechanisms doc docs/office-walk-2026-10-15-mechanisms.md (#1460);
+  the office walk Artifact source (photos, remove photo, quit / start steps).
+- Docs: DECISIONS #1459-#1463; docs/walk-s20i.md; P32 + README row; security gate section; handoff;
+  CLAUDE.md; status log; lessons L155.
+- #46: r1 (front-end + C# security) 0 MAJOR, r2 0 MAJOR, r3 0 MAJOR, r4 CLEAN.

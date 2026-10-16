@@ -34,7 +34,7 @@ public class V1AMTests
             Assert.AreEqual("", bi + ba, "a refused ask yields nothing: [" + bad + "]");
         }
         Assert.IsTrue(Array.IndexOf(S17MomentRules.Ids, "ixihelp") >= 0, "in the ONE fixed id set");
-        Assert.AreEqual(8, S17MomentRules.Ids.Length, "the seven S17 ids + ixihelp, nothing else");
+        Assert.AreEqual(9, S17MomentRules.Ids.Length, "the seven S17 ids + ixihelp + (S20I) addrhelp, nothing else");   // ★ S20I re-base: + addrhelp (S20ITests)
     }
 
     [TestMethod]
@@ -53,7 +53,7 @@ public class V1AMTests
             Assert.IsFalse(S17MomentRules.respectsButNeverTakes(other), other);
         }
         foreach (string id in S17MomentRules.Ids)
-            Assert.AreEqual(id == "ixihelp", S17MomentRules.respectsButNeverTakes(id), "only ixihelp: " + id);
+            Assert.AreEqual(id == "ixihelp" || id == "addrhelp", S17MomentRules.respectsButNeverTakes(id), "only ixihelp (+ S20I addrhelp, the same rule): " + id);
         // the walk case the audit found: "What is IXI?" granted (session NOT taken) → Send → the pay sheet still shows
         bool sessionMoment = false;
         Assert.AreEqual(S17MomentRules.Decision.Grant, S17MomentRules.decide("ixihelp", false, sessionMoment, false, Y));

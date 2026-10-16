@@ -118,7 +118,7 @@ export default async function (h) {
       /* ★ V1A-M #46 r1 re-base: takesSession may only NARROW further (`&& !respectsButNeverTakes(id)`, which is exactly
          id == "ixihelp") — lang still never takes the session (exemptFromSession(id) is unchanged, above) */
       && /public static bool takesSession\(string id\) => !exemptFromSession\(id\)(?: && !respectsButNeverTakes\(id\))?;/.test(RU)
-      && (!/respectsButNeverTakes/.test(RU) || /public static bool respectsButNeverTakes\(string id\) => id == "ixihelp";/.test(RU))
+      && (!/respectsButNeverTakes/.test(RU) || /public static bool respectsButNeverTakes\(string id\) => id == "ixihelp"(?: \|\| id == "addrhelp")?;/.test(RU))   /* ★ S20I re-base: + addrhelp (P32) — never lang */
       /* ★ re-based by S20 S (#1379 G): the 6-argument decide / why read exemptFromSession(id, installMoment), which keeps lang */
       && /if \(!exemptFromSession\(id, installMoment\) && \(sessionMoment \|\| sessionCard\)\) return Decision\.Refuse;/.test(RU)
       && /if \(!exemptFromSession\(id, installMoment\)\)\s*\{\s*if \(sessionMoment\) return Why\.Session;\s*if \(sessionCard\) return Why\.Card;/.test(RU)

@@ -1036,6 +1036,27 @@ export function createSettingsHub({
      #1007 retires it — `onAddressInfo` stays in the options as a no-op so an unrebuilt
      host that still passes it does not break. */
   /* ★ #1007: the "Spixi address" row is RETIRED — the address sits in the header now (above). */
+  /* ★★ S20I (Damir 2026-10-15 23:25, user testing): "return the my address to be a row above the contacts in the
+     account hub — user testing showed current solution is not visible / understandable". SUPERSEDES the #1007
+     retirement of the row: ONE "My address" row, above Contacts, with a line that says what it is FOR, opening the
+     same ONE address sheet (#527 — code, full address, copy, Share, explainer). The header line (#1007 / #1091)
+     stays as it is — whether it goes now that the row is back is a dial for Damir (DECISIONS, S20I). */
+  if (address) {
+    const ar = settingRow({
+      glyph: 'qrcode',
+      label: strings.myAddressRow || 'My address',
+      sub: strings.myAddressRowSub || 'How people add you',   // #46 r2 M2: ONE line in the 360px pane (#1007: never three lines)
+      key: 'address',
+      onClick: () => openAddressSheet({
+        address, strings, host: hostFor(),
+        name, avatar: avatarSrc,
+        onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
+      }),
+    });
+    const arBtn = ar.section.querySelector('.c-settings__row');
+    if (arBtn) arBtn.setAttribute('aria-haspopup', 'dialog');   // #46 r1 N4: it opens the address sheet, like the header controls
+    me.card.append(ar.section);
+  }
 
   /* ★ N42 (#443, Damir): a way to REACH the contact list from Account. It was only
      ever reachable from the chats topbar, which is not where someone looks for "my

@@ -1031,5 +1031,9 @@
   "wordTipRequest": "Permintaan kontak berarti seseorang ingin mengobrol dengan Anda. Anda yang memilih: terima atau tolak.",
   "wordTipPhonebook": "Spixi tidak memiliki buku telepon. Tambahkan orang melalui alamat Spixi atau kode QR mereka.",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "Alamat saya",
+  "myAddressRowSub": "Agar Anda ditambahkan",
+  "momentAddrHelpTitle": "Cara orang menemukan Anda",
+  "momentAddrHelpBody": "Spixi tidak memakai nomor telepon. Orang menambahkan Anda dengan alamat Ixian Anda. Bagikan alamat itu, atau biarkan mereka memindai kode QR Anda. Anda menemukannya di Alamat saya."
 }

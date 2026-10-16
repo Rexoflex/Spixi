@@ -457,6 +457,48 @@
     }
     momentAfterResult(moments, 'lang', code, () => showMomentSheet({ id: 'lang', host: document.body, strings, ctx: {} }));
   }
+  /* ★ S20I (Damir 2026-10-15 23:25, user testing; cap `addrhelp` = C# flag S20AddrHelp, P32): the "How people find you"
+     moment on the Account hub — C# grants it once (every account, Damir 23:38) and only while this page is on screen
+     (SettingsPage.shownToUser; the phone warms Account hidden). Asked only with the hub in view (phone: the hub itself; desktop pane: always), its
+     My address row present and the screen clear; "Show my address" opens that row's sheet (the ONE address sheet, #527). */
+  let addrHelpTimer = 0;
+  let addrHelpShowTimer = 0;
+  /* the hub is in view and nothing covers it (phone: the hub itself; the desktop pane: always) */
+  const addrHelpRow = () => (hubEl && hubEl.isConnected ? hubEl.querySelector('.c-settings__row[data-setting-key="address"]') : null);
+  const addrHelpClear = () => !exiting && !!addrHelpRow() && (paneMode || currentView === 'hub')
+    && document.body.dataset.overlayOpen === undefined && document.visibilityState === 'visible';
+  function askAddrHelp(tries) {
+    clearTimeout(addrHelpTimer);
+    if (!bridge.cap('addrhelp') || moments.seen('addrhelp')) return;
+    /* #46 r2 NIT: a present push while the hidden page's ask is still in flight retries (that answer may be a Wait) */
+    if (moments.pending('addrhelp') || !addrHelpClear()) {
+      if (tries < 40) addrHelpTimer = setTimeout(() => askAddrHelp(tries + 1), 500);
+      return;
+    }
+    /* #46 r3 N1: a late wait from an earlier ask can still hold the slot (up to 30 s) — the ask is then not sent: retry */
+    if (!momentAfterResult(moments, 'addrhelp', '', () => showAddrHelp(0)) && !moments.seen('addrhelp') && tries < 40) {
+      addrHelpTimer = setTimeout(() => askAddrHelp(tries + 1), 1000);
+    }
+  }
+  /* #46 r1 (M3): a yes can arrive late (late: true) — after the user left the hub or opened a sheet. C# already stored seen,
+     so the sheet WAITS for a clear hub (bounded: 120 × 500 ms) instead of stacking over a sub-screen with a dead button. */
+  function showAddrHelp(tries) {
+    clearTimeout(addrHelpShowTimer);
+    /* #46 r2 NIT: no early return on `exiting` — a parked page is re-presented (exiting resets), and C# already stored seen;
+       addrHelpClear() holds the sheet while exiting, within the bound */
+    if (!addrHelpClear()) {
+      if (tries < 120) addrHelpShowTimer = setTimeout(() => showAddrHelp(tries + 1), 500);
+      return;
+    }
+    showMomentSheet({
+      id: 'addrhelp', host: document.body, strings, ctx: {},
+      onClose: (v) => {
+        if (v !== 'address') return;
+        const r = addrHelpRow();
+        if (r) r.click();
+      },
+    });
+  }
   /* #343: ONE call lights up press feedback for every pressable surface in this
      shell (src/components/pressable.js). Delegated on document, so rows created
      later by a re-render are covered without re-attaching. A new shell needs
@@ -2374,6 +2416,9 @@
       moments.setState(String(json));
       const st = moments.state;
       if (st && st.lang) { clearTimeout(langMomentTimer); langMomentTimer = setTimeout(() => askLangMoment(st.lang, 0), 400); }
+      /* ★ S20I: "How people find you" — every push re-arms ONE ask (C# re-pushes when the Account page is really on screen;
+         a warm hidden page was told to wait) */
+      clearTimeout(addrHelpTimer); addrHelpTimer = setTimeout(() => askAddrHelp(0), 600);   // THE cap guard is askAddrHelp's (one copy)
     },
     /* ★ S17 F (#1340, 🟡 NEW push): C#'s answer to ixian:moment:lang:<code> */
     momentAnswer(id, arg, ok, caps) {

@@ -1107,5 +1107,9 @@
   "wordTipRequest": "Zahtev za kontakt znači da neko želi da ćaska sa vama. Vi birate: prihvatite ili odbijte.",
   "wordTipPhonebook": "Spixi nema telefonski imenik. Dodajte ljude preko njihove Spixi adrese ili QR koda.",
   "devFlagsV1IxiHelp": "What is IXI moment (V1A)",
-  "devFlagsV1Hints": "New-word tips (V1A)"
+  "devFlagsV1Hints": "New-word tips (V1A)",
+  "myAddressRow": "Moja adresa",
+  "myAddressRowSub": "Da vas dodaju",
+  "momentAddrHelpTitle": "Kako vas pronalaze",
+  "momentAddrHelpBody": "Spixi ne koristi brojeve telefona. Ljudi vas dodaju preko vaše Ixian adrese. Podelite je ili im dajte da skeniraju vaš QR kod. Nalazi se u odeljku „Moja adresa“."
 }

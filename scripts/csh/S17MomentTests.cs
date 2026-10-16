@@ -176,7 +176,7 @@ public class S17MomentTests
         Assert.AreEqual("[MO] ask id=firstixi d=grant why=ok", L("firstixi", false, true, true, Y));  // safety: the exception
         Assert.AreEqual("[MO] ask id=pay d=refuse why=session", L("pay", false, true, false, Y));
         // every combination: refuse ⇔ a why other than ok, and the line is exactly the fixed shape
-        var shape = new System.Text.RegularExpressions.Regex("^\\[MO\\] ask id=(lang|autodl|offline|firstixi|mic|app|pay|ixihelp) d=(grant|refuse|consume) why=(seen|wait|session|card|ok)$");
+        var shape = new System.Text.RegularExpressions.Regex("^\\[MO\\] ask id=(lang|autodl|offline|firstixi|mic|app|pay|ixihelp|addrhelp) d=(grant|refuse|consume) why=(seen|wait|session|card|ok)$");   // ★ S20I re-base: + addrhelp (the one fixed set)
         foreach (string id in S17MomentRules.Ids)
             foreach (var e in new[] { Y, W, C })
                 for (int b = 0; b < 8; b++)

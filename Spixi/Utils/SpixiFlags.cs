@@ -19,6 +19,7 @@ namespace SPIXI
         public const string S20GKey = "flagS20G";                           // int pref; absent = default (1) — ★ S20G F-1 + P0 (P30)
         public const string V1IxiHelpKey = "flagV1IxiHelp";                 // int pref; absent = default (1) — ★ V1A-M M1 (P31)
         public const string V1HintsKey = "flagV1Hints";                     // int pref; absent = default (1) — ★ V1A-M M2 (P31)
+        public const string S20AddrHelpKey = "flagS20AddrHelp";             // int pref; absent = default (1) — ★ S20I (P32)
 
         /** L8: the wallet password lives in SecureStorage (WalletPassStore). OFF = the legacy plaintext preference. */
         public static bool SecureWalletPass { get; private set; } = true;
@@ -54,11 +55,16 @@ namespace SPIXI
          *  S11HintRules.WordIds). OFF = no cap; every word-id hint verb is ignored. */
         public static bool V1Hints { get; private set; } = true;
 
+        /** ★ S20I (P32): the "How people find you" moment — the `addrhelp` cap on Settings (with S17Moments) and the
+         *  `ixian:moment:addrhelp` ask (S20IRules). OFF = no cap; the ask is ignored (nothing answered, nothing logged). */
+        public static bool S20AddrHelp { get; private set; } = true;
+
         public static void init()
         {
             bool dev = false;
             int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1, sg = 1;
             int vi = 1, vh = 1;   // ★ V1A-M M1 / M2
+            int ah = 1;           // ★ S20I
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -70,6 +76,7 @@ namespace SPIXI
                 sg = Preferences.Default.Get(S20GKey, 1);
                 vi = Preferences.Default.Get(V1IxiHelpKey, 1);
                 vh = Preferences.Default.Get(V1HintsKey, 1);
+                ah = Preferences.Default.Get(S20AddrHelpKey, 1);
             }
             catch (Exception ex)
             {
@@ -92,6 +99,8 @@ namespace SPIXI
             Logging.info(V1AMRules.flagLineIxiHelp(V1IxiHelp));
             V1Hints = S16PassRules.effectiveFlag(dev, vh);
             Logging.info(V1AMRules.flagLineHints(V1Hints));
+            S20AddrHelp = S16PassRules.effectiveFlag(dev, ah);
+            Logging.info(S20IRules.flagLineAddrHelp(S20AddrHelp));
         }
     }
 }

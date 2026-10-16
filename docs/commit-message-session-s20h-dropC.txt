@@ -1,0 +1,8 @@
+Session 20H Drop C: the payment request note without "money" or "funds" (6 languages)
+
+- requestIsMessage ("A request is a message. Nothing moves until they pay.") said money / funds in de (Geld),
+  ja (お金), ru (Деньги), lt (Pinigai), cn (资金) and id (dana) — against the claims rule (L146). Reworded in the
+  13 drafts' terms ("nothing is transferred / moves until they pay"); en unchanged.
+- Pin scripts/pins-s20h/d-claims.mjs: the note in all 14 locales (built dictionaries + drafts) has no money / funds /
+  invest / earn / buy stem and is translated.
+- Docs: DECISIONS #1458; docs/walk-s20h.md (row S20H-C-NOTE); the handoff, CLAUDE.md, status log.

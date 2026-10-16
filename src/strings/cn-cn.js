@@ -834,7 +834,7 @@ export const cncn = {
   requestCtaLabel: "向已选择的 {n} 位联系人请求 {a} IXI",
   requestFailed: "无法发送请求。请检查地址后重试。",
   requestFromWho: "向谁请求",
-  requestIsMessage: "请求就是一条消息。对方付款前不会转移任何资金。",
+  requestIsMessage: "请求就是一条消息。对方付款前不会有任何转移。",
   requestMaybeFailed: "如果没有任何反应，该地址可能已是联系人或无效。",
   requestName: "向 {name} 请求",
   requestPayment: "请求付款",

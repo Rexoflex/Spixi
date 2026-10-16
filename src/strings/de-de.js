@@ -834,7 +834,7 @@ export const dede = {
   requestCtaLabel: "{a} IXI von {n} ausgewählten anfordern",
   requestFailed: "Anforderung konnte nicht gesendet werden. Prüfe die Adresse und versuch es erneut.",
   requestFromWho: "Von wem anfordern",
-  requestIsMessage: "Eine Anforderung ist eine Nachricht. Geld fließt erst, wenn bezahlt wird.",
+  requestIsMessage: "Eine Anforderung ist eine Nachricht. Nichts wird übertragen, bis bezahlt wird.",
   requestMaybeFailed: "Wenn nichts passiert ist, ist die Adresse möglicherweise bereits ein Kontakt oder ungültig.",
   requestName: "Von {name} anfordern",
   requestPayment: "Anfordern",

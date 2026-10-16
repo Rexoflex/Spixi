@@ -834,7 +834,7 @@ export const idid = {
   requestCtaLabel: "Minta {a} IXI dari {n} yang dipilih",
   requestFailed: "Tidak dapat mengirim permintaan. Periksa alamat dan coba lagi.",
   requestFromWho: "Minta dari siapa",
-  requestIsMessage: "Permintaan adalah pesan. Tidak ada dana yang berpindah sampai mereka membayar.",
+  requestIsMessage: "Permintaan adalah pesan. Tidak ada yang berpindah sampai mereka membayar.",
   requestMaybeFailed: "Jika tidak terjadi apa-apa, alamat itu mungkin sudah menjadi kontak atau tidak valid.",
   requestName: "Minta dari {name}",
   requestPayment: "Minta",

@@ -39,3 +39,9 @@ Set-up as above, plus **(d) an empty account on Windows WITHOUT touching yours**
 | S20H-B-CHIP | A+W | 1) Chats › the filter chips (All / Unread …), light. 2) Dark. | 1: the selected chip is a plain light-blue fill with a blue outline (no visible change from before). 2: dark keeps its soft top shine. | | #1423 ⑨ |
 
 **Result line for DECISIONS:** `WALK #n (S20H Drop B, Windows F5 + Android Debug): n P · n F · n N/A`.
+
+## Drop C (apply `session-s20h-dropC.patch` on the Drop B commit)
+
+| ID | Pl | Steps | Expected | P/F/N/A | Note |
+|---|---|---|---|---|---|
+| S20H-C-NOTE | A+W | 1) Wallet › Request (the receive screen). 2) Read the note under the amount. 3) Language › Deutsch, then Русский; read it again. 4) Back to English. | English: "A request is a message. Nothing moves until they pay." German: "… Nichts wird übertragen, bis bezahlt wird." Russian: "… Ничего не списывается, пока получатель не заплатит." No "Geld" / "Деньги" (no money word). | | #1458 · claims rule L146 |

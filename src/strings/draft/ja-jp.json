@@ -474,7 +474,7 @@
   "requestCtaLabel": "選択した {n} 件に {a} IXI をリクエスト",
   "requestFailed": "リクエストを送信できませんでした。アドレスを確認して、もう一度お試しください。",
   "requestFromWho": "リクエストする相手",
-  "requestIsMessage": "リクエストはメッセージです。相手が支払うまでお金は動きません。",
+  "requestIsMessage": "リクエストはメッセージです。相手が支払うまで何も動きません。",
   "requestMaybeFailed": "何も起こらない場合、そのアドレスはすでに連絡先に登録されているか、無効な可能性があります。",
   "requestName": "{name} にリクエスト",
   "requestPickContacts": "連絡先を 1 件以上選択してください。",

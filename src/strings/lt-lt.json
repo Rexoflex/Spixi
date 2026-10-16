@@ -833,7 +833,7 @@
   "requestCtaLabel": "Prašyti {a} IXI iš {n} pasirinktų",
   "requestFailed": "Nepavyko išsiųsti prašymo. Patikrinkite adresą ir bandykite dar kartą.",
   "requestFromWho": "Iš ko prašyti",
-  "requestIsMessage": "Prašymas yra žinutė. Pinigai nejuda, kol nesumokama.",
+  "requestIsMessage": "Prašymas yra žinutė. Niekas nejuda, kol nesumokama.",
   "requestMaybeFailed": "Jei nieko neįvyko, tas adresas gali būti jau kontaktas arba netinkamas.",
   "requestName": "Prašyti iš {name}",
   "requestPayment": "Prašyti",

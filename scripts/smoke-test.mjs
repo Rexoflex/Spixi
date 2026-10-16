@@ -19347,6 +19347,10 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
  * a deterministic StackOverflow. All four leave sites now do sendLeave then
  * IMMEDIATE removeFriend; no site sets pendingDeletion any more. */
 {
+  /* ★ Session Safety (S-5, P35) re-rebase: the leave bodies moved, UNCHANGED, into `private void leaveRoomNow()` on both pages
+     (the branch now confirms natively first with SpixiFlags.NativeConfirm ON). The property is the same; the slice is the
+     dispatch branch (which must CALL leaveRoomNow) + that method's body. */
+  const leaveBodyOf = (t) => { const a = t.indexOf('private void leaveRoomNow()'); if (a < 0) return ''; const o = t.indexOf('{', a); let d = 0; for (let k = o; k < t.length; k++) { if (t[k] === '{') d++; else if (t[k] === '}' && --d === 0) return t.slice(o, k + 1); } return ''; };
   const sc567 = readFileSync(join(root, 'Spixi/Utils/SContacts.cs'), 'utf8');
   const cd567 = readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8');
   const scp567 = readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8');
@@ -19367,7 +19371,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
     && iSend567 > 0 && iCatch567 > iSend567 && iRem567 > iCatch567 && iFlag567 > iRem567
     && !/pendingDeletion = true/.test(sc567),
     '★ #567 ① (#797 · Session O): SContacts.leaveGroup = sendLeave (in a try) → catch → immediate removeFriend for group AND bot → the refresh flag; pendingDeletion is never set');
-  const cdLeave = cd567c.slice(cd567c.indexOf('current_url.Equals("ixian:leave"'), cd567c.indexOf('current_url.StartsWith("ixian:enableNotifications"'));
+  const cdLeaveBr = cd567c.slice(cd567c.indexOf('current_url.Equals("ixian:leave"'), cd567c.indexOf('current_url.StartsWith("ixian:enableNotifications"'));
+  const cdLeave = /leaveRoomNow\(\)/.test(cdLeaveBr) ? cdLeaveBr + leaveBodyOf(cd567c) : '';   // ★ Session Safety re-rebase
   ok(cdLeave.length > 0 && /SContacts\.leaveGroup\(friend\)/.test(cdLeave) && !/sendLeave\(/.test(cdLeave) && !/FriendList\.removeFriend\(/.test(cdLeave)
      && !/pendingDeletion = true/.test(cd567)
      && /SContacts\.removeContact\(friend, leaveShared, out removeBlockers\)/.test(cd567),
@@ -19377,7 +19382,8 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      bare-name StartsWith would have swallowed any future `ixian:leave*` verb from this
      shell. The slice anchor moves with it; the property asserted is unchanged. */
   const iScpLeave = scp567c.indexOf('current_url.Equals("ixian:leave", StringComparison.Ordinal)');
-  const scpLeave = iScpLeave < 0 ? '' : scp567c.slice(iScpLeave, scp567c.indexOf('current_url.StartsWith("ixian:openLink:"', iScpLeave));
+  const scpLeaveBr = iScpLeave < 0 ? '' : scp567c.slice(iScpLeave, scp567c.indexOf('current_url.StartsWith("ixian:openLink:"', iScpLeave));
+  const scpLeave = /leaveRoomNow\(\)/.test(scpLeaveBr) ? scpLeaveBr + leaveBodyOf(scp567c) : '';   // ★ Session Safety re-rebase
   ok(scpLeave.length > 0 && /SContacts\.leaveGroup\(friend\)/.test(scpLeave) && !/sendLeave\(/.test(scpLeave) && !/FriendList\.removeFriend\(/.test(scpLeave)
      && !/pendingDeletion = true/.test(scp567)
      && !/StartsWith\("ixian:leave"\)/.test(scp567c),
@@ -20990,11 +20996,17 @@ console.log('W5/W6/PA1 money pass (#522–#529) — compose live, quote-gated fe
      * GREEN, because `popPageAsync();` occurs FOUR times in this file and the alert was
      * never asserted at all. Anchor INSIDE the branch, and name the alert. */
     const ceilAt = scp619.indexOf('if (sleep_cnt >= 50)');
-    const ceilBody = ceilAt > 0 ? scp619.slice(ceilAt, ceilAt + 1400) : '';
-    ok(ceilAt > 0 && /return false;/.test(ceilBody)
+    /* ★ Session Safety (#46 r2 n-1, P35) re-base, not weaker: the branch grew a flag-ON leg (the alert through
+       displaySpixiAlert — the root page too — so it is counted / dropped while a native confirm is up), so the
+       body now runs from the ceiling to ITS OWN `return false;` instead of a fixed 1400 characters; the OFF leg
+       keeps the MainPage alert, and both legs name the two keys. */
+    const ceilEnd = ceilAt > 0 ? scp619.indexOf('return false;', ceilAt) : -1;
+    const ceilBody = ceilAt > 0 && ceilEnd > ceilAt ? scp619.slice(ceilAt, ceilEnd + 'return false;'.length) : '';
+    ok(ceilAt > 0 && ceilEnd > ceilAt && ceilEnd - ceilAt < 3000 && /return false;/.test(ceilBody)
        && (ceilBody.match(/popPageAsync\(\);/g) || []).length === 1
-       && /chat-bot-not-ready-title/.test(ceilBody) && /chat-bot-not-ready-body/.test(ceilBody)
-       && /Application\.Current\?\.MainPage\?\.DisplayAlert/.test(ceilBody),
+       && (ceilBody.match(/chat-bot-not-ready-title/g) || []).length === 2 && (ceilBody.match(/chat-bot-not-ready-body/g) || []).length === 2
+       && /Application\.Current\?\.MainPage\?\.DisplayAlert/.test(ceilBody)
+       && /if \(SpixiFlags\.NativeConfirm\)\s*\{[^}]*displaySpixiAlert\(SpixiLocalization\._SL\("chat-bot-not-ready-title"\)/.test(ceilBody),
       '★ #619 (V-18, rewritten): the 5 s ceiling pops AND says why, INSIDE the timeout branch — and the alert is shown on the page the user is actually looking at, because under load-then-move this page may never have been presented and an alert on an unattached page is silently lost');
     /* ⚠ comment-STRIPPED: the rationale block above the lambda QUOTES `Thread.Sleep(100)`
        as the thing it moved, so a raw-text negative matches its own explanation. */
@@ -28049,6 +28061,8 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
     const sc797 = stripCode(readFileSync(join(root, 'Spixi/Utils/SContacts.cs'), 'utf8'));
     const cd797 = stripCode(readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8'));
     const scp797 = stripCode(readFileSync(join(root, 'Spixi/Pages/Chat/SingleChatPage.xaml.cs'), 'utf8'));
+    /* ★ Session Safety (S-5, P35) re-rebase: the leave bodies moved, UNCHANGED, into `private void leaveRoomNow()` (see #567 ④). */
+    const leaveBodyOf797 = (t) => { const a = t.indexOf('private void leaveRoomNow()'); if (a < 0) return ''; const o = t.indexOf('{', a); let d = 0; for (let k = o; k < t.length; k++) { if (t[k] === '{') d++; else if (t[k] === '}' && --d === 0) return t.slice(o, k + 1); } return ''; };
     const lgAt = sc797.indexOf('public static bool leaveGroup(Friend group)');
     const lg = lgAt < 0 ? '' : sc797.slice(lgAt, sc797.indexOf('public static string removeContact(', lgAt));
     /* ★ Session O re-rebase: the catch NAMES its exception now (`catch (Exception ex)`), so
@@ -28081,7 +28095,8 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
       && !/Otherwise it's just normal navigation/.test(readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8')),
       '★ #797 ②: the tail re-allows ONLY a file: navigation (the shell\'s own load); an unknown ixian: verb stays on the page (the #335 OnboardPage rule) — the open "anything unmatched" else is gone');
     const cdLeaveAt = cd797.indexOf('current_url.Equals("ixian:leave", StringComparison.Ordinal)');
-    const cdLeave = cdLeaveAt < 0 ? '' : cd797.slice(cdLeaveAt, cd797.indexOf('ixian:enableNotifications', cdLeaveAt));
+    const cdLeaveBr = cdLeaveAt < 0 ? '' : cd797.slice(cdLeaveAt, cd797.indexOf('ixian:enableNotifications', cdLeaveAt));
+    const cdLeave = /leaveRoomNow\(\)/.test(cdLeaveBr) ? cdLeaveBr + leaveBodyOf797(cd797) : '';   // ★ Session Safety re-rebase (the body moved into leaveRoomNow, unchanged)
     /* ★ #46 r1 RE-REBASE — THIS PIN WENT RED AND IT WAS RIGHT TO. Round 1 made
        SContacts.leaveGroup REPORT the local removal (Session O ④), so both call sites now
        capture the answer (`bool left = false; try { left = … }`) and act on a refusal. The
@@ -28100,7 +28115,8 @@ console.log('Session M: the apps layout · the present signal on the DATA pages'
       '★★ #797 ③: the ContactDetails ixian:leave branch calls SContacts.leaveGroup inside its own try (the A-4 belt: never throw in onNavigating), CAPTURES what the one home reported, and branches on `if (!left)` — the inlined sendLeave + removeFriend pair that threw is gone from this page, and a refused removal no longer reads as a completed leave');
     /* ★ Session O re-rebase: the anchor is the EXACT-match dispatch now (see #567 ④). */
     const scpLeaveAt = scp797.indexOf('current_url.Equals("ixian:leave", StringComparison.Ordinal)');
-    const scpLeave = scpLeaveAt < 0 ? '' : scp797.slice(scpLeaveAt, scp797.indexOf('ixian:openLink:', scpLeaveAt));
+    const scpLeaveBr = scpLeaveAt < 0 ? '' : scp797.slice(scpLeaveAt, scp797.indexOf('ixian:openLink:', scpLeaveAt));
+    const scpLeave = /leaveRoomNow\(\)/.test(scpLeaveBr) ? scpLeaveBr + leaveBodyOf797(scp797) : '';   // ★ Session Safety re-rebase
     /* ★ #46 r1 RE-REBASE, the same repair as its ContactDetails twin one clause up: round 1
        gave leaveGroup a return value, both call sites capture it, and the discarded-result
        shape this matched is the code that fix removed. Same three-part property. */
@@ -42509,6 +42525,7 @@ for (const mod of ['a-list', 'a-plan', 'b-titlebar', 'c-density', 'd-pinned']) a
 for (const mod of ['c-csharp', 'h-ixihelp', 'h-wordtips', 'a-groupemoji', 's-restore-keys']) await (await import(new URL('./pins-v1am/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ V1A-M Drop 2 (#1447–#1452) — c = the C# wiring (flags, caps, word verbs, the ixihelp OFF gate) · h = the home shell (the What is IXI? moment, the word tips) · a = the group emoji avatar (M3) · s = the restore keys in 13 locales + the L146 claims lexicon
 for (const mod of ['x-keys', 'a-desktop', 'b-launch', 'c-icons', 'd-claims']) await (await import(new URL('./pins-s20h/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20H Drop A — x = X-1 every C# _SL key exists (the blank lock alert, m009) + X-2 no iOS location purpose strings · a = F-A the desktop Account root may shrink (Chat appearance cut at narrow windows); the real layout = pins-s20h/a-sweep.mjs (Chromium, not in smoke) · b = Drop B F-B + ⑪ (b-sweep.mjs) · c = F-C + ⑦ + ⑨ · d = Drop C the request note keeps the claims scope (no money / funds word)
 for (const mod of ['e-select', 'f-addrhelp']) await (await import(new URL('./pins-s20i/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20I Drop D — e = OW-X-SELECT the desktop app chrome is not drag-selectable (fields, message text, addresses stay); the real drags = pins-s20i/e-sweep.mjs (Chromium, not in smoke) · f = the My address row back above Contacts + the "How people find you" moment (P32, flag S20AddrHelp)
+for (const mod of ['a-miniapp', 'b-share', 'c-confirm', 'd-lock-win']) await (await import(new URL('./pins-safety/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Safety — a = mini-app paths (S-1 storage table · S-2 app id · S-3 picked name, P33) · b = the Android share folders (S-4, P34, no flag) · c = native confirms on chat + chat info (S-5, P35) + the six dev switches · d = delete-all behind the lock (S-6, P36) + the mini-app marker on Windows (O-02, P37)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

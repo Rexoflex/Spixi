@@ -138,6 +138,24 @@ namespace SPIXI
                 }
                 pushFlagsDev();
             }
+            else if (safetySwitchKey(current_url, out string safetyKey, out string safetyTail))
+            {
+                /* ★ Session Safety (#1312 rule 1, P33–P37, dev surface): `ixian:devflash:<name>:<0|1>` for the six names in
+                 * SafetyRules.DevSwitchNames (safeappid · safestorage · safepick · nativeconfirm · historylock · winappmarker) —
+                 * the v1hints switch's rules exactly: dev mode on and "0" / "1", or nothing is stored; acts at the next start. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false) && S16PassRules.parseFlagTail(safetyTail, out int value))
+                    {
+                        Preferences.Default.Set(safetyKey, value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: flag switch failed: " + ex.GetType().Name);
+                }
+                pushFlagsDev();
+            }
             else if (current_url.StartsWith("ixian:devflash:v1hints:", StringComparison.Ordinal))
             {
                 /* ★ V1A-M M2 (#1312 rule 1, P31, dev surface): `ixian:devflash:v1hints:<0|1>` — SpixiFlags.V1Hints (the word
@@ -374,6 +392,43 @@ namespace SPIXI
             // ★ V1A-M (P31): the two V1A-M switches, their own guarded push "<ixihelp 0|1>,<hints 0|1>" after the S20G one (an
             //   older dev.html ignores it)
             Utils.sendUiCommand(this, "window.setFlagsDevV1", V1AMRules.devFlagsArg(vi, vh));
+            // ★ Session Safety (P33–P37): the six safety switches, their own guarded push after the V1A-M one (an older dev.html
+            //   ignores it)
+            int xi = 1, xs = 1, xp = 1, xc = 1, xh = 1, xw = 1;
+            try
+            {
+                xi = Preferences.Default.Get(SpixiFlags.SafeAppIdKey, 1);
+                xs = Preferences.Default.Get(SpixiFlags.SafeStorageKey, 1);
+                xp = Preferences.Default.Get(SpixiFlags.SafePickKey, 1);
+                xc = Preferences.Default.Get(SpixiFlags.NativeConfirmKey, 1);
+                xh = Preferences.Default.Get(SpixiFlags.HistoryLockKey, 1);
+                xw = Preferences.Default.Get(SpixiFlags.WinAppMarkerKey, 1);
+            }
+            catch (Exception)
+            {
+            }
+            Utils.sendUiCommand(this, "window.setFlagsDevSafety", SafetyRules.devFlagsArg(xi, xs, xp, xc, xh, xw));
+        }
+
+        /** ★ Session Safety (P33–P37): `ixian:devflash:<name>:<tail>` for a name in SafetyRules.DevSwitchNames → the matching
+         *  SpixiFlags key (same order) and the tail; any other verb → false. */
+        private static bool safetySwitchKey(string url, out string key, out string tail)
+        {
+            string[] keys = { SpixiFlags.SafeAppIdKey, SpixiFlags.SafeStorageKey, SpixiFlags.SafePickKey,
+                SpixiFlags.NativeConfirmKey, SpixiFlags.HistoryLockKey, SpixiFlags.WinAppMarkerKey };
+            for (int i = 0; i < SafetyRules.DevSwitchNames.Length && i < keys.Length; i++)
+            {
+                string prefix = "ixian:devflash:" + SafetyRules.DevSwitchNames[i] + ":";
+                if (url.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    key = keys[i];
+                    tail = url.Substring(prefix.Length);
+                    return true;
+                }
+            }
+            key = "";
+            tail = "";
+            return false;
         }
 
         // #321 (R5 parity): share/save the CURRENT log. The share copy is a stable

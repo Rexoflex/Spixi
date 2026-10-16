@@ -803,14 +803,31 @@ namespace SPIXI
             else if (current_url.StartsWith("ixian:kick:"))
             {
                 string str_address = current_url.Substring("ixian:kick:".Length);
-                Address address = new Address(str_address);
-                onKickUser(address);
+                /* ★ Session Safety (S-5, m168, P35): a bot-room sender sheet sends this on ONE tap (chat.html, the member
+                 * sheet of a sender), from the WebView that renders the room's messages. Flag ON → a native OK / Cancel first
+                 * (SConfirm). OFF = the old two lines below, unchanged. */
+                if (SafetyRules.needsConfirm(SpixiFlags.NativeConfirm, SafetyRules.ConfirmVerb.Kick))
+                {
+                    confirmMemberAction(SafetyRules.ConfirmVerb.Kick, str_address);
+                }
+                else
+                {
+                    Address address = new Address(str_address);
+                    onKickUser(address);
+                }
             }
             else if (current_url.StartsWith("ixian:ban:"))
             {
                 string str_address = current_url.Substring("ixian:ban:".Length);
-                Address address = new Address(current_url.Substring("ixian:ban:".Length));
-                onBanUser(address);
+                if (SafetyRules.needsConfirm(SpixiFlags.NativeConfirm, SafetyRules.ConfirmVerb.Ban))   // ★ Session Safety (S-5, P35): as kick
+                {
+                    confirmMemberAction(SafetyRules.ConfirmVerb.Ban, str_address);
+                }
+                else
+                {
+                    Address address = new Address(current_url.Substring("ixian:ban:".Length));
+                    onBanUser(address);
+                }
             }
             else if (current_url.StartsWith("ixian:typing"))
             {
@@ -827,53 +844,15 @@ namespace SPIXI
                 if(friend.bot
                    || friend.type == FriendType.Group)
                 {
-                    /* ★ F5-2 r2 (#555, loop A-6): the THIRD leave path — currently
-                     * unreachable (chat.html routes info taps to ixian:details), but one
-                     * shell edit from live. Bracketed like the other two so the
-                     * diagnostic cannot exonerate a path it never watched. */
-                    IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: start (bot=" + friend.bot + ")");
-                    // ★ #567: one grammar for group AND bot (the pendingDeletion wait
-                    // fed the BE §1e-6 core crash). ★ #797: ONE HOME — SContacts.leaveGroup
-                    // (it survives a leave notice with no route; this inline copy did not).
-                    /* ★ #797 loop r2: report the LOCAL removal, as on ContactDetails.
-                     * A false result or a throw leaves the record in place, so the
-                     * page must not pop and the user must not read "Contact deleted." */
-                    bool left = false;
-                    try
+                    /* ★ Session Safety (S-5, m168, P35): flag ON → a native OK / Cancel first (SConfirm); the body is unchanged,
+                     * moved into leaveRoomNow(). OFF = it runs at once, as before. */
+                    if (SafetyRules.needsConfirm(SpixiFlags.NativeConfirm, SafetyRules.ConfirmVerb.Leave))
                     {
-                        left = SContacts.leaveGroup(friend);
-                    }
-                    catch (Exception)
-                    {
-                        Logging.error("ixian:leave failed");   // no ex.Message — Core formats the address into its text
-                    }
-                    if (!left)
-                    {
-                        IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: refused, staying on the page");
-                        IXICore.Meta.Logging.flush();
-                        // Generic strings: the dictionary has no leave-failure text.
-                        displaySpixiAlert(SpixiLocalization._SL("global-dialog-error"), SpixiLocalization._SL("settings-deleted-error-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        confirmLeave();
                     }
                     else
                     {
-                        IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: sent, presenting the alert");
-                        IXICore.Meta.Logging.flush();
-                        /* ★ #46 loop B, MAJOR-1 — TELL THE SHELL THE ROOM IS GONE.
-                         * The friend is removed and this branch pushed nothing, so every
-                         * localStorage key that carries this address survived: the user's own
-                         * unsent DRAFT first. `leaveGroupResult` is the command name
-                         * HomePage.onLeaveGroupFor already uses for this outcome — a second
-                         * call site, not a new push. The eval is queued on the main thread
-                         * before popPageAsync queues the teardown, so the sweep runs on a live
-                         * WebView. Success only: a refused leave keeps the record and the data.
-                         * ⚠ The emitter in chat.html is the retained-but-unreachable in-chat
-                         * info takeover (#249 loop C-3). This handler is wired for the day
-                         * that block is lit up again; it is not a live path today. */
-                        try { Utils.sendUiCommand(this, "leaveGroupResult", friend.walletAddress.ToString(), "left"); } catch (Exception) { }
-                        displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
-                        popPageAsync();
-                        homePage?.removeDetailContent();
-                        IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: teardown dispatched");
+                        leaveRoomNow();
                     }
                 }
             }
@@ -1557,7 +1536,16 @@ namespace SPIXI
                         {
                             try
                             {
-                                Microsoft.Maui.Controls.Application.Current?.MainPage?.DisplayAlert(SpixiLocalization._SL("chat-bot-not-ready-title"), SpixiLocalization._SL("chat-bot-not-ready-body"), SpixiLocalization._SL("global-dialog-ok"));
+                                if (SpixiFlags.NativeConfirm)
+                                {
+                                    // ★ Session Safety #46 r2 (n-1): through the counted / dropped alert path (the root page as
+                                    //   well), so a peer-timed alert can never stack on a native confirm
+                                    _ = displaySpixiAlert(SpixiLocalization._SL("chat-bot-not-ready-title"), SpixiLocalization._SL("chat-bot-not-ready-body"), SpixiLocalization._SL("global-dialog-ok"));
+                                }
+                                else
+                                {
+                                    Microsoft.Maui.Controls.Application.Current?.MainPage?.DisplayAlert(SpixiLocalization._SL("chat-bot-not-ready-title"), SpixiLocalization._SL("chat-bot-not-ready-body"), SpixiLocalization._SL("global-dialog-ok"));
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -4312,6 +4300,125 @@ namespace SPIXI
             {
                 pushPageLoaded(new AppDetailsPage(app, null, true, friend));   // load-then-move (N3)
             });
+        }
+
+        /* ★ Session Safety (S-5, P35): the room leave, moved out of onNavigating unchanged so the flag-ON path can run it after
+         * the native confirm. Callers: the ixian:leave branch (flag OFF: at once) and confirmLeave (after OK). */
+        private void leaveRoomNow()
+        {
+            /* ★ F5-2 r2 (#555, loop A-6): the THIRD leave path — currently
+             * unreachable (chat.html routes info taps to ixian:details), but one
+             * shell edit from live. Bracketed like the other two so the
+             * diagnostic cannot exonerate a path it never watched. */
+            IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: start (bot=" + friend.bot + ")");
+            // ★ #567: one grammar for group AND bot (the pendingDeletion wait
+            // fed the BE §1e-6 core crash). ★ #797: ONE HOME — SContacts.leaveGroup
+            // (it survives a leave notice with no route; this inline copy did not).
+            /* ★ #797 loop r2: report the LOCAL removal, as on ContactDetails.
+             * A false result or a throw leaves the record in place, so the
+             * page must not pop and the user must not read "Contact deleted." */
+            bool left = false;
+            try
+            {
+                left = SContacts.leaveGroup(friend);
+            }
+            catch (Exception)
+            {
+                Logging.error("ixian:leave failed");   // no ex.Message — Core formats the address into its text
+            }
+            if (!left)
+            {
+                IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: refused, staying on the page");
+                IXICore.Meta.Logging.flush();
+                // Generic strings: the dictionary has no leave-failure text.
+                displaySpixiAlert(SpixiLocalization._SL("global-dialog-error"), SpixiLocalization._SL("settings-deleted-error-text"), SpixiLocalization._SL("global-dialog-ok"));
+            }
+            else
+            {
+                IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: sent, presenting the alert");
+                IXICore.Meta.Logging.flush();
+                /* ★ #46 loop B, MAJOR-1 — TELL THE SHELL THE ROOM IS GONE.
+                 * The friend is removed and this branch pushed nothing, so every
+                 * localStorage key that carries this address survived: the user's own
+                 * unsent DRAFT first. `leaveGroupResult` is the command name
+                 * HomePage.onLeaveGroupFor already uses for this outcome — a second
+                 * call site, not a new push. The eval is queued on the main thread
+                 * before popPageAsync queues the teardown, so the sweep runs on a live
+                 * WebView. Success only: a refused leave keeps the record and the data.
+                 * ⚠ The emitter in chat.html is the retained-but-unreachable in-chat
+                 * info takeover (#249 loop C-3). This handler is wired for the day
+                 * that block is lit up again; it is not a live path today. */
+                try { Utils.sendUiCommand(this, "leaveGroupResult", friend.walletAddress.ToString(), "left"); } catch (Exception) { }
+                displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
+                popPageAsync();
+                homePage?.removeDetailContent();
+                IXICore.Meta.Logging.info("[CRASHDIAG] chatleave: teardown dispatched");
+            }
+        }
+
+        /** ★ Session Safety (S-5, P35): the leave after a native OK. Cancel = nothing (this page has no pending row). */
+        private async void confirmLeave()
+        {
+            try
+            {
+                var t = SConfirm.textsFor(SafetyRules.ConfirmVerb.Leave, friend.nickname, friend.walletAddress.ToString());   // ★ #46 r1 (R2 N-1): no "Leave Leave Group?"
+                if (!await SConfirm.askAsync(this, SafetyRules.ConfirmVerb.Leave, t.title, t.text, t.ok))
+                {
+                    return;
+                }
+                leaveRoomNow();
+            }
+            catch (Exception ex)
+            {
+                Logging.error("[CONFIRM] leave failed (" + ex.GetType().Name + ")");
+            }
+        }
+
+        /** ★ Session Safety (S-5, P35): kick / ban after a native OK. The address is parsed first (the A-4 rule: a malformed
+         *  payload is a fixed warn, never a throw); the dialog names the member by their declared nick, else the address. */
+        private async void confirmMemberAction(SafetyRules.ConfirmVerb verb, string str_address)
+        {
+            try
+            {
+                Address address;
+                try
+                {
+                    address = new Address(str_address);
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn(SafetyRules.verbWord(verb) + ": invalid address payload: " + ex.GetType().Name);
+                    return;
+                }
+                string nick = "";
+                try
+                {
+                    if (friend.users != null && friend.users.hasUser(address))
+                    {
+                        nick = friend.users.getUser(address)?.getNick() ?? "";
+                    }
+                }
+                catch (Exception)
+                {
+                }
+                var t = SConfirm.textsFor(verb, nick, address.ToString());
+                if (!await SConfirm.askAsync(this, verb, t.title, t.text, t.ok))
+                {
+                    return;
+                }
+                if (verb == SafetyRules.ConfirmVerb.Kick)
+                {
+                    onKickUser(address);
+                }
+                else
+                {
+                    onBanUser(address);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.error("[CONFIRM] " + SafetyRules.verbWord(verb) + " failed (" + ex.GetType().Name + ")");
+            }
         }
 
         private void onKickUser(Address address)

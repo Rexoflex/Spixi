@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = はい、チャットを消去
 contact-details-delete-contact-modal-title = 連絡先から削除
 contact-details-delete-contact-modal-subtitle = これにより相手が連絡先リストから削除されます。再追加するまでメッセージの送受信はできません。
 contact-details-delete-contact-modal-confirm = はい、連絡先を削除
+safety-confirm-removecontact-title = {0} を削除しますか？
+safety-confirm-removecontact-leave = この連絡先と共通のグループからも退出します（{0}）。
+safety-confirm-leave-title = {0} から退出しますか？
+safety-confirm-leave-text = このグループからのメッセージは届かなくなります。
 contact-details-cannotremovecontact-title = 連絡先を削除できません
 contact-details-cannotremovecontact-text = この連絡先はグループの参加者であるため、削除できません。
 

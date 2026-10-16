@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = Po, pastro bisedën
 contact-details-delete-contact-modal-title = Hiq nga kontaktet
 contact-details-delete-contact-modal-subtitle = Kjo do ta heqë kontaktin nga lista juaj. Nuk do të mund të dërgoni ose të merrni më mesazhe, përveç nëse e shtoni përsëri.
 contact-details-delete-contact-modal-confirm = Po, hiq kontaktin
+safety-confirm-removecontact-title = Të hiqet {0}?
+safety-confirm-removecontact-leave = Do të dilni edhe nga grupet që ndani me këtë kontakt ({0}).
+safety-confirm-leave-title = Të dilet nga {0}?
+safety-confirm-leave-text = Nuk do të merrni më mesazhe nga ky grup.
 contact-details-cannotremovecontact-title = Kontakti nuk mund të hiqet
 contact-details-cannotremovecontact-text = Ky kontakt nuk mund të hiqet sepse është pjesëmarrës në një grup.
 

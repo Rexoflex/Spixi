@@ -5,6 +5,7 @@
  * this branch's CI.
  */
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const dir = join(dirname(fileURLToPath(import.meta.url)), 'csh');
@@ -19,6 +20,10 @@ const cmp = (a, b) => { const x = num(a), y = num(b); for (let i = 0; i < 3; i++
 const newest = sdks.slice().sort(cmp).pop();
 const used = which.stdout.trim();
 console.log(`run-csh: SDK ${used}` + (newest && newest !== used ? ` (newest installed: ${newest} — a global.json pins ${used})` : ' (newest installed)'));
+// ★ Session Safety #46 r3 (n-6): csh.csproj compiles three Ixian-Core utils from the repo's SIBLING checkout (the same
+// layout Spixi.csproj imports IXICore.projitems from). Missing → one clear line and exit 3, like the no-SDK case.
+const ixiCore = join(dir, '..', '..', '..', 'Ixian-Core');
+if (!existsSync(ixiCore)) { console.log('run-csh: SKIPPED — Ixian-Core not found at ' + ixiCore + ' (check it out beside the Spixi repo). This gate is NOT passed.'); process.exit(3); }
 const r = spawnSync('dotnet', ['run', '--project', dir], { encoding: 'utf8', cwd: dir });
 const out = (r.stdout || '') + (r.stderr || '');
 const lines = out.split(/\r?\n/).filter((l) => /^\s+[✓✗]|CSH pass=|error/.test(l));

@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = Yes, Clear Chat
 contact-details-delete-contact-modal-title = Remove from contact
 contact-details-delete-contact-modal-subtitle = This will remove the contact from your list. You’ll no longer be able to send or receive messages unless you add them again.
 contact-details-delete-contact-modal-confirm = Yes, Remove Contact
+safety-confirm-removecontact-title = Remove {0}?
+safety-confirm-removecontact-leave = You also leave the groups you share with this contact ({0}).
+safety-confirm-leave-title = Leave {0}?
+safety-confirm-leave-text = You will stop getting messages from this group.
 contact-details-cannotremovecontact-title = Cannot Remove Contact
 contact-details-cannotremovecontact-text = This contact cannot be removed because they are a participant in a group.
 

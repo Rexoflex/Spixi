@@ -520,7 +520,12 @@ namespace SPIXI
             CoreWebView2 coreWebView2 = mauiWebView.CoreWebView2;
             if (coreWebView2 == null) return;
             coreWebView2.Settings.IsStatusBarEnabled = false;
-            coreWebView2.Settings.AreDevToolsEnabled = true;
+            /* ★ Session Safety (O-02, P37): this runs on EVERY navigation of every page's WebView — MiniAppPage subscribes
+             * it too — so it would turn DevTools back on after WindowsWebViewHandler dropped them for the mini app. Flag ON +
+             * the ClassId="miniapp" marker (the sender's or this page's WebView): kept OFF. Flag OFF / every shell = true. */
+            bool winMiniApp = SpixiFlags.WinAppMarker
+                && (SafetyRules.isMiniAppMarker((sender as WebView)?.ClassId) || SafetyRules.isMiniAppMarker(_webView.ClassId));
+            coreWebView2.Settings.AreDevToolsEnabled = !winMiniApp;
 #if SPIXI_DEV_COEXIST
             p1HookConsole(coreWebView2, (sender as WebView)?.ClassId == "miniapp" || _webView.ClassId == "miniapp");   // ★ P-1 (#1127) — TEMPORARY
 #endif
@@ -6272,15 +6277,30 @@ namespace SPIXI
 
         }
 
-        public Task<bool> displaySpixiAlert(string title, string message, string ok, string cancel)
+        /* ★ Session Safety #46 r1 (R2 MAJOR-2, P35): `nativeConfirm` = the call comes from SConfirm (the native confirm before a
+         * destructive verb). Every OTHER alert is dropped while a confirm is on screen (answers false / completes at once, one
+         * fixed log line), and is counted while it is up so SConfirm refuses to open over it — a page cannot stack OK-only
+         * alerts around the confirm and walk a repeated tap onto the destructive button. Flag NativeConfirm OFF = as before. */
+        public Task<bool> displaySpixiAlert(string title, string message, string ok, string cancel, bool nativeConfirm = false)
         {
             try
             {
                 var tcs = new TaskCompletionSource<bool>();
                 MainThread.BeginInvokeOnMainThread(async () =>
                 {
+                    long counted = 0;
                     try
                     {
+                        if (!nativeConfirm && SpixiFlags.NativeConfirm)
+                        {
+                            counted = SConfirm.tryNoteAlertOpened();   // ★ #46 r4: the drop test + the count in one step
+                            if (counted == 0)
+                            {
+                                Logging.warn("[CONFIRM] an alert was dropped while a confirm is up");
+                                tcs.TrySetResult(false);
+                                return;
+                            }
+                        }
                         // Route via the ROOT page: overlay pages (#225) are not in the
                         // navigation tree, and DisplayAlert on an unattached page is lost.
                         Page alertHost = (Application.Current?.MainPage) ?? (Page)this;
@@ -6291,6 +6311,10 @@ namespace SPIXI
                     {
                         Logging.error("Exception occured in displaySpixiAlert: " + ex);
                         tcs.TrySetException(ex);
+                    }
+                    finally
+                    {
+                        if (counted != 0) SConfirm.noteAlertClosed(counted);
                     }
                 });
                 return tcs.Task;
@@ -6311,9 +6335,40 @@ namespace SPIXI
                 {
                     try
                     {
-                        // Route via the ROOT page (see 4-arg overload — overlay pages).
-                        Page alertHost = (Application.Current?.MainPage) ?? (Page)this;
-                        var result = alertHost.DisplayAlert(title, message, cancel);
+                        // ★ Session Safety #46 r1 (R2 MAJOR-2): dropped while a native confirm is up; counted while up (see the
+                        //   4-arg overload). The count ends when the alert's own task ends.
+                        long counted = SpixiFlags.NativeConfirm ? SConfirm.tryNoteAlertOpened() : 0;   // ★ #46 r4: one step
+                        if (SpixiFlags.NativeConfirm && counted == 0)
+                        {
+                            Logging.warn("[CONFIRM] an alert was dropped while a confirm is up");
+                            tcs.TrySetResult(Task.CompletedTask);
+                            return;
+                        }
+                        Task result;
+                        try
+                        {
+                            // Route via the ROOT page (see 4-arg overload — overlay pages). ★ #46 r5 (NIT): resolved inside the
+                            // try, so a throw here never leaves the count up.
+                            Page alertHost = (Application.Current?.MainPage) ?? (Page)this;
+                            result = alertHost.DisplayAlert(title, message, cancel);
+                        }
+                        catch (Exception)
+                        {
+                            if (counted != 0) SConfirm.noteAlertClosed(counted);   // ★ #46 r2 (m-2): a synchronous throw never leaves the count up
+                            throw;
+                        }
+                        if (counted != 0)
+                        {
+                            long token = counted;
+                            if (result == null)
+                            {
+                                SConfirm.noteAlertClosed(token);   // ★ #46 r4 (NIT-2): no task, nothing to wait for
+                            }
+                            else
+                            {
+                                result.ContinueWith((_) => SConfirm.noteAlertClosed(token), TaskScheduler.Default);
+                            }
+                        }
                         tcs.TrySetResult(result);
                     }
                     catch (Exception ex)

@@ -255,7 +255,13 @@ namespace SPIXI
                 return (PickAppOutcome.Failed, null);
             }
 
-            string filepath = Path.Combine(Node.MiniAppManager.tmpPath, name + ".tmp");
+            /* ★ Session Safety (S-3, P33 — H-8): the name is the document provider's DISPLAY_NAME on Android (free text — a
+             * hostile provider chooses `../../../wallet.ixi`, and File.WriteAllBytes then wrote outside Tmp). Flag ON: C# names
+             * its own temp file (AuditRules.packageTempName, the installFromUrlAsync shape); the picked name builds no path.
+             * Flag OFF: the old name-derived path. */
+            string filepath = SpixiFlags.SafePick
+                ? Path.Combine(Node.MiniAppManager.tmpPath, AuditRules.packageTempName())
+                : Path.Combine(Node.MiniAppManager.tmpPath, name + ".tmp");
             try
             {
                 File.WriteAllBytes(filepath, _data);

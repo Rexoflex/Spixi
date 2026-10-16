@@ -65,7 +65,13 @@ namespace Spixi
             if (fileData == null)
                 return null; // User canceled file picking
 
-            SpixiImageData spixi_img_data = new SpixiImageData() { name = fileData.FileName, path = fileData.FullPath, stream = await fileData.OpenReadAsync() };
+            /* ★ Session Safety (S-3, P33 — H-8): FileName is the document provider's DISPLAY_NAME (free text; the other three
+             * platforms already take Path.GetFileName). Flag ON: the base name only (SafetyRules.safeBaseName — both
+             * separators, no control / bidi characters), so all four platforms agree; it is shown / sent, never a path C#
+             * writes (AppNewPage names its own temp file). A null name stays null (#46 r1: LaunchPage shows
+             * `pickedName ?? filepath`). Flag OFF: the provider's name as before. */
+            string? picked_name = SPIXI.SpixiFlags.SafePick && fileData.FileName != null ? SPIXI.SafetyRules.safeBaseName(fileData.FileName) : fileData.FileName;
+            SpixiImageData spixi_img_data = new SpixiImageData() { name = picked_name, path = fileData.FullPath, stream = await fileData.OpenReadAsync() };
 
             // Return Task object
             return spixi_img_data;

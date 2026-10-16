@@ -1,18 +1,43 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- ★ Session Safety (S-4, P34, H-10): the FileProvider publishes ONLY the folders C# opens or shares from. It used to
+     publish "." of all five trees (files, cache, external, external files, external cache), so a grant for the wallet
+     file itself was accepted.
+     ★ #46 r1 (R3 M-1): files-path is relative to getFilesDir(), and on .NET 10 Android Environment.SpecialFolder.Personal
+     = getFilesDir()/Documents (S14 #1281, backup_rules.xml header: the device log printed files/Documents/Spixi/MsgQueue/).
+     So Config.spixiUserFolder = files/Documents/Spixi, and the r0 roots "Spixi/Downloads/" and "Spixi/Sent/" named folders
+     that do not exist: no received or sent file opened. The roots now start "Documents/Spixi/", the SAME prefix as every
+     backup rule (pins-safety/b-share.mjs holds the two equal).
+       files-path Documents/Spixi/Downloads/  received files (TransferManager.downloadsPath = spixiUserFolder + "Downloads")
+       files-path Documents/Spixi/Sent/       my sent copies (PhotoRules.SentFolderName = "Sent", under spixiUserFolder)
+       files-path Spixi/Downloads/ + Spixi/Sent/  the same two folders on a runtime where Personal = getFilesDir() itself
+                                    (older Xamarin / .NET Android); a root whose folder does not exist grants nothing
+       cache-path share/            what Share grants: SFileOperations.shareFile stages a COPY in share/<random>/<leaf>
+                                    (one folder per share; folders older than an hour are removed on each share and once
+                                    at start), so the wallet backup, the account backup and the log zip still share
+       cache-path .                 kept (Damir, Safety Dials q3 = A): MAUI FilePicker copies and old sent rows live there
+     No external-* root and no files-path "." any more. A path outside these roots makes GetUriForFile throw; open()
+     already catches that (nothing opens).
+     ★ Recorded (#46 r1, R3 m-2): with no external-* root, an OLD sent row whose stored path is on external storage (the
+     picker handed a physical /storage/... path, Android 9 and below) no longer opens. Accepted; a walk row covers it.
+     NO runtime flag: this is a resource the provider reads at first use, the fallback is a revert of this file.
+     A custom spixiUserFolder (Config dataFolderPath / spixiUserFolder) moves Downloads and Sent outside these roots. -->
 <paths>
-	<external-path
-	  name="external"
-	  path="." />
-	<external-files-path
-	  name="external_files"
-	  path="." />
-	<cache-path
-	  name="cache"
-	  path="." />
-	<external-cache-path
-	  name="external_cache"
-	  path="." />
 	<files-path
-		name="files"
+		name="downloads"
+		path="Documents/Spixi/Downloads/" />
+	<files-path
+		name="sent"
+		path="Documents/Spixi/Sent/" />
+	<files-path
+		name="downloads_files"
+		path="Spixi/Downloads/" />
+	<files-path
+		name="sent_files"
+		path="Spixi/Sent/" />
+	<cache-path
+		name="share"
+		path="share/" />
+	<cache-path
+		name="cache"
 		path="." />
 </paths>

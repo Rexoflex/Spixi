@@ -53,6 +53,7 @@ namespace SPIXI.MiniApps
         }
 
         bool started = false;
+        bool loaded = false;   // ★ Session Safety #46 r4 (MINOR-2): appList holds what is on disk (set at the end of start()'s fill, under lock(appList))
 
         public MiniAppManager(string base_app_path)
         {
@@ -78,6 +79,11 @@ namespace SPIXI.MiniApps
             }
             started = true;
 
+            if (SpixiFlags.SafePick)
+            {
+                sweepTmpFiles();
+            }
+
             lock (appList)
             {
                 foreach (var path in Directory.EnumerateDirectories(appsPath))
@@ -90,12 +96,59 @@ namespace SPIXI.MiniApps
                     MiniApp app = new MiniApp(File.ReadAllLines(app_info_path));
                     if (app.id == "")
                     {
+                        /* ★ Session Safety (S-2, P33): flag ON — an unsafe id on disk reaches here as "" (the MiniApp ctor
+                         * refused it) and is skipped like an empty one; the line is fixed words (the path holds the folder
+                         * name, which a publisher chose). Flag OFF: the old line. */
+                        if (SpixiFlags.SafeAppId)
+                        {
+                            Logging.error("App id is empty or unsafe, the app folder was skipped");
+                            continue;
+                        }
                         Logging.error("App id is empty for {0}", app_info_path);
                         continue;
                     }
 
                     appList.Add(app.id, app);
                 }
+                loaded = true;
+            }
+        }
+
+        /* ★ Session Safety (S-3, P33 · #46 r1 R1 MINOR-3): with SafePick every picked package is a fresh C#-named file in Tmp
+         * (AuditRules.packageTempName), so a pick that never reached Install (the details screen closed, the app killed) left
+         * one more file each time. Nothing installs at start, so the FILES directly in Tmp are removed here (folders — the
+         * `<package>.dir` extracts — are left alone; installFromPath clears its own). Each delete is guarded; the line is fixed
+         * words + counts. Flag OFF: nothing is swept (today). */
+        private void sweepTmpFiles()
+        {
+            int removed = 0, kept = 0;
+            try
+            {
+                if (!Directory.Exists(tmpPath))
+                {
+                    return;
+                }
+                foreach (string file in Directory.EnumerateFiles(tmpPath))
+                {
+                    try
+                    {
+                        File.Delete(file);
+                        removed++;
+                    }
+                    catch (Exception)
+                    {
+                        kept++;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("MiniApp: the temp folder sweep failed (" + e.GetType().Name + ")");
+                return;
+            }
+            if (removed > 0 || kept > 0)
+            {
+                Logging.info("MiniApp: temp folder swept, removed=" + removed + " kept=" + kept);
             }
         }
 
@@ -113,6 +166,7 @@ namespace SPIXI.MiniApps
             {
                 // TODO maybe stop all apps
                 appList.Clear();
+                loaded = false;   // ★ #46 r4 (MINOR-2)
             }
         }
 
@@ -249,7 +303,8 @@ namespace SPIXI.MiniApps
                 return null;
             }
 
-            string app_name = installFromPath(source_app_file_path, fetchedAppInfo.url);
+            // ★ Session Safety (S-2, #46 r1): the package must carry the id the user saw on the details screen (SafeAppId ON)
+            string app_name = installFromPath(source_app_file_path, fetchedAppInfo.url, fetchedAppInfo.id);
             deleteQuietly(source_app_file_path);
             return app_name;
         }
@@ -266,6 +321,23 @@ namespace SPIXI.MiniApps
             catch (Exception e)
             {
                 Logging.warn("installFromUrl: the temp package was not deleted (" + e.GetType().Name + ")");
+            }
+        }
+
+        /* ★ Session Safety (S-2, P33): a refused install cleans its own extract in Tmp (C#-named, `<package>.dir`) — and (#46 r1)
+         * an orphan folder at the target — and never throws from the cleanup; the line is fixed words + the exception type. */
+        private static void deleteDirQuietly(string path)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    Directory.Delete(path, true);
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.warn("installFromPath: a folder was not deleted (" + e.GetType().Name + ")");
             }
         }
 
@@ -321,18 +393,48 @@ namespace SPIXI.MiniApps
             }
             catch (Exception e)
             {
-                Logging.error("Error extracting app info: " + e);
+                // ★ Session Safety (S-2, #46 r1): ON — the exception TYPE only (its message and stack carry paths). OFF: as before.
+                Logging.error(SpixiFlags.SafeAppId ? "Error extracting app info: " + e.GetType().Name : "Error extracting app info: " + e);
 
                 return null;
             }
         }
 
-        public string installFromPath(string source_path, string? url = null)
+        /* ★ Session Safety (S-2, #46 r1): `expected_id` = the id the user saw before Install (installFromUrlAsync passes the
+         * fetched app info's id; the picked-file path passes null = no check). SafeAppId ON: a package whose own appinfo.spixi
+         * names a DIFFERENT id is refused before any remove() / Move (a publisher could otherwise show app A and replace app B). */
+        /* ★ Session Safety #46 r3 (MINOR-2, P33): with SafeAppId ON one install runs at a time — the case-twin check, the orphan
+         * test, the Move and the Add form one critical section, so two installs racing on a case-insensitive file system
+         * (com.foo.app + COM.FOO.APP) can never both land in one folder. The orphan pre-delete also needs a STARTED manager
+         * (stopped, appList is empty and every installed app would look like an orphan — #46 r2 n-4). OFF = as before. */
+        private static readonly object installSync = new object();
+
+        public string installFromPath(string source_path, string? url = null, string? expected_id = null)
+        {
+            if (!SpixiFlags.SafeAppId)
+            {
+                return installFromPathCore(source_path, url, expected_id);
+            }
+            lock (installSync)
+            {
+                return installFromPathCore(source_path, url, expected_id);
+            }
+        }
+
+        private string installFromPathCore(string source_path, string? url, string? expected_id)
         {
             string app_name = "";
 
             string source_app_path = Path.Combine(tmpPath, source_path.Split('/').Last().Split('\\').Last() + ".dir");
             string target_app_path = "";
+            /* ★ Session Safety (S-2, P33 — MAJOR #10 / H-9): the target was Path.Combine(appsPath, app.id) and the catch
+             * deleted it recursively whenever it existed — a Move onto an EXISTING folder throws, so a package with id
+             * `../..` deleted the whole Spixi user folder (wallet.ixi, Acc/) in one Install tap. Flag ON: the id is checked
+             * (ctor) and re-checked here as ONE folder inside html/Apps (SafetyRules.childPath), and the catch deletes the
+             * target ONLY when this call created it (the Move succeeded) and it lies inside html/Apps. Read once per call.
+             * Flag OFF: the old target and the old catch. */
+            bool safe_app_id = SpixiFlags.SafeAppId;
+            bool created_target = false;
             try
             {
                 using (ZipArchive archive = ZipFile.Open(source_path, ZipArchiveMode.Read))
@@ -350,9 +452,54 @@ namespace SPIXI.MiniApps
                     MiniApp app = new MiniApp(File.ReadAllLines(Path.Combine(source_app_path, "appinfo.spixi")), url);
                     if (app.id == "")
                     {
+                        if (safe_app_id)
+                        {
+                            deleteDirQuietly(source_app_path);   // ★ S-2: a refused id leaves no extract behind
+                        }
                         return null;
                     }
-                    
+
+                    // ★ S-2 belt (flag ON): the target is ONE folder inside html/Apps, decided BEFORE an update removes the old copy
+                    string? safe_target_path = null;
+                    if (safe_app_id)
+                    {
+                        safe_target_path = SafetyRules.childPath(appsPath, app.id, false);
+                        if (safe_target_path == null)
+                        {
+                            Logging.warn("MiniApp: refused to install an app outside the apps folder");
+                            deleteDirQuietly(source_app_path);
+                            return null;
+                        }
+                        // ★ #46 r1: the package must be the app the user saw (installFromUrlAsync) — before any remove() / Move
+                        if (expected_id != null && !string.Equals(app.id, expected_id, StringComparison.Ordinal))
+                        {
+                            Logging.warn("MiniApp: refused a package whose id differs from the app info");
+                            deleteDirQuietly(source_app_path);
+                            return null;
+                        }
+                        /* ★ #46 r2 (M-A): Windows (NTFS) and the Mac (APFS) are case-INSENSITIVE, appList is not. `COM.FOO.APP`
+                         * would skip the update branch (no version check) and land in com.foo.app's own folder and storage. A
+                         * case variant of an installed id is refused outright. */
+                        string? caseTwin = null;
+                        lock (appList)
+                        {
+                            foreach (string k in appList.Keys)
+                            {
+                                if (!string.Equals(k, app.id, StringComparison.Ordinal) && string.Equals(k, app.id, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    caseTwin = k;
+                                    break;
+                                }
+                            }
+                        }
+                        if (caseTwin != null)
+                        {
+                            Logging.warn("MiniApp: refused a package whose id differs from an installed app only by case");
+                            deleteDirQuietly(source_app_path);
+                            return null;
+                        }
+                    }
+
                     if (appList.ContainsKey(app.id))
                     {
                         if (UpdateVerify.compareVersionsWithSuffix(appList[app.id].version, app.version) > 0)
@@ -382,10 +529,31 @@ namespace SPIXI.MiniApps
 
                     // TODO sig check
 
-                    target_app_path = Path.Combine(appsPath, app.id);
+                    target_app_path = safe_app_id ? safe_target_path! : Path.Combine(appsPath, app.id);
+
+                    /* ★ Session Safety (S-2, #46 r1 R1 MINOR-1): ON — a folder at the target that NO installed app owns (an
+                     * orphan, e.g. left by a remove() whose delete half-failed) would make every later Move throw, so the app
+                     * could never be installed again. It is removed first — only inside html/Apps, never Tmp, never the folder
+                     * of an app in the list (the catch below still never deletes a folder this call did not create). */
+                    bool isOrphan = false;
+                    if (safe_app_id)
+                    {
+                        lock (appList)   // ★ #46 r4 (MINOR-2): "not in the list" only means something once the list is loaded
+                        {
+                            isOrphan = loaded && !appList.Keys.Any(k => string.Equals(k, app.id, StringComparison.OrdinalIgnoreCase));   // ★ #46 r3: case-insensitive
+                        }
+                    }
+                    if (isOrphan && Directory.Exists(target_app_path) && SafetyRules.isInside(appsPath, target_app_path)
+                        && !string.Equals(app.id, SafetyRules.TmpFolderName, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(Path.GetFullPath(target_app_path), Path.GetFullPath(tmpPath), StringComparison.OrdinalIgnoreCase))
+                    {
+                        Logging.warn("MiniApp: removed an orphan app folder before the install");
+                        deleteDirQuietly(target_app_path);
+                    }
 
                     // move to apps directory
                     Directory.Move(source_app_path, target_app_path);
+                    created_target = true;   // ★ S-2: from here on the target is this call's own folder
 
                     lock (appList)
                     {
@@ -398,14 +566,23 @@ namespace SPIXI.MiniApps
             }
             catch (Exception e)
             {
-                Logging.error("Error installing app: " + e);
+                // ★ Session Safety (S-2, #46 r1): ON — the exception TYPE only (its message and stack carry paths). OFF: as before.
+                Logging.error(safe_app_id ? "Error installing app: " + e.GetType().Name : "Error installing app: " + e);
 
                 if (Directory.Exists(source_app_path))
                 {
                     Directory.Delete(source_app_path, true);
                 }
 
-                if (target_app_path != "" && Directory.Exists(target_app_path))
+                if (safe_app_id)
+                {
+                    // ★ S-2: never a folder that existed before this call (a failed Move), never one outside html/Apps
+                    if (created_target && SafetyRules.isInside(appsPath, target_app_path) && Directory.Exists(target_app_path))
+                    {
+                        Directory.Delete(target_app_path, true);
+                    }
+                }
+                else if (target_app_path != "" && Directory.Exists(target_app_path))
                 {
                     Directory.Delete(target_app_path, true);
                 }
@@ -425,7 +602,22 @@ namespace SPIXI.MiniApps
                     return false;
                 }
                 MiniApp app = appList[app_id];
-                Directory.Delete(Path.Combine(appsPath, app.id), true);
+                if (SpixiFlags.SafeAppId)
+                {
+                    /* ★ Session Safety (S-2, P33 — MAJOR #10): the recursive delete only for ONE folder inside html/Apps
+                     * (SafetyRules.childPath); anything else is refused and nothing is deleted. Flag OFF: the old delete. */
+                    string? app_path = SafetyRules.childPath(appsPath, app.id, false);
+                    if (app_path == null)
+                    {
+                        Logging.warn("MiniApp: refused to remove an app outside the apps folder");
+                        return false;
+                    }
+                    Directory.Delete(app_path, true);
+                }
+                else
+                {
+                    Directory.Delete(Path.Combine(appsPath, app.id), true);
+                }
                 appList.Remove(app_id);
                 return true;
             }
@@ -495,6 +687,12 @@ namespace SPIXI.MiniApps
         {
             if(getApp(app_id) != null)
             {
+                if (SpixiFlags.SafeAppId)
+                {
+                    // ★ Session Safety (S-2, P33): the entry point only inside the app's own folder under html/Apps; else null
+                    string? app_path = SafetyRules.childPath(appsPath, app_id, false);
+                    return app_path == null ? null : Path.Combine(app_path, "app", "index.html");
+                }
                 return Path.Combine(appsPath, app_id, "app", "index.html");
             }
             return null;
@@ -504,7 +702,21 @@ namespace SPIXI.MiniApps
         {
             if (getApp(app_id) != null)
             {
-                string path = Path.Combine(appsPath, app_id, "icon.png");
+                string path;
+                if (SpixiFlags.SafeAppId)
+                {
+                    // ★ Session Safety (S-2, P33): the icon only inside the app's own folder under html/Apps; else null
+                    string? app_path = SafetyRules.childPath(appsPath, app_id, false);
+                    if (app_path == null)
+                    {
+                        return null;
+                    }
+                    path = Path.Combine(app_path, "icon.png");
+                }
+                else
+                {
+                    path = Path.Combine(appsPath, app_id, "icon.png");
+                }
                 if (File.Exists(path))
                 {
                     return path;

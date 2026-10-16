@@ -6745,6 +6745,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
       const addr = String(address || '');
       const st = String(status || '');
       if (st === 'ok' || st === 'left') { forgetPeerStorage(addr, 'contact'); return; }
+      // ★ Session Safety (S-5, P35): Cancel in the native confirm — nothing changed, the sheet is already closed; no toast
+      if (st === 'cancelled') return;
       const groups = [];
       for (let i = 0; i + 1 < pairs.length; i += 2) groups.push({ name: String(pairs[i] || ''), address: String(pairs[i + 1] || '') });
       if (st === 'blocked') {

@@ -3330,6 +3330,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   let flagsDevS20 = null;   // ★ S20 (P29): the S20FileSize switch, its own push (setFlagsDev stays at 4 digits)
   let flagsDevS20G = null;   // ★ S20G (P30, #46 r1 A-4): the S20G switch, its own push the same way
   let flagsDevV1 = null;     // ★ V1A-M (P31): [ixihelp, hints] — the V1IxiHelp + V1Hints switches, their own push "<0|1>,<0|1>"
+  let flagsDevSafety = null; // ★ Session Safety (P33–P37): the six safety switches, their own push "a,b,c,d,e,f" (SafetyRules.devFlagsArg)
   const RESET_QUIET_MS = 1000;   // ★ S19 F8 (#1371): taps on Reset moment sheets inside this window after one are ignored
   let lastResetAt = -1e9;
   function mountFlagsDev() {
@@ -3355,6 +3356,14 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     if (flagsDevV1 !== null) {   // ★ V1A-M (P31): the "What is IXI?" moment (M1) + the new-word tips (M2)
       rows.push(['v1ixihelp', strings.devFlagsV1IxiHelp || 'What is IXI moment (V1A)', flagsDevV1[0]]);
       rows.push(['v1hints', strings.devFlagsV1Hints || 'New-word tips (V1A)', flagsDevV1[1]]);
+    }
+    if (flagsDevSafety !== null) {   // ★ Session Safety (P33–P37): one switch per fix; the names = SafetyRules.DevSwitchNames
+      rows.push(['safeappid', strings.devFlagsSafeAppId || 'Mini app id check (Safety S-2)', flagsDevSafety[0]]);
+      rows.push(['safestorage', strings.devFlagsSafeStorage || 'Mini app storage stays in its folder (Safety S-1)', flagsDevSafety[1]]);
+      rows.push(['safepick', strings.devFlagsSafePick || 'Picked file name is a base name (Safety S-3)', flagsDevSafety[2]]);
+      rows.push(['nativeconfirm', strings.devFlagsNativeConfirm || 'System confirm before remove, leave, kick, ban (Safety S-5)', flagsDevSafety[3]]);
+      rows.push(['historylock', strings.devFlagsHistoryLock || 'Delete all history or downloads asks to unlock (Safety S-6)', flagsDevSafety[4]]);
+      rows.push(['winappmarker', strings.devFlagsWinAppMarker || 'Windows mini app: no DevTools, no permissions (Safety O-02)', flagsDevSafety[5]]);
     }
     rows.forEach(([name, label, own], i) => {
       const row = document.createElement('div');
@@ -3476,6 +3485,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       const m = /^([01]),([01])$/.exec(String(v || ''));
       if (!m) return;
       flagsDevV1 = [m[1] === '1', m[2] === '1'];
+      mountFlagsDev();
+    },
+    /* ★ Session Safety (P33–P37): the six safety switches ("a,b,c,d,e,f", each 0 | 1, exactly — SafetyRules.devFlagsArg
+       order: safeappid, safestorage, safepick, nativeconfirm, historylock, winappmarker); C# pushes it after setFlagsDevV1.
+       Anything else is ignored. */
+    setFlagsDevSafety(v) {
+      const m = /^([01]),([01]),([01]),([01]),([01]),([01])$/.exec(String(v || ''));
+      if (!m) return;
+      flagsDevSafety = m.slice(1).map((x) => x === '1');
       mountFlagsDev();
     },
   };

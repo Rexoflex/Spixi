@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = Taip, išvalyti pokalbius
 contact-details-delete-contact-modal-title = Pašalinti iš kontaktų
 contact-details-delete-contact-modal-subtitle = Tai pašalins kontaktą iš jūsų sąrašo. Nebelauksite ir siųsti žinučių, kol vėl jo nepridėsite.
 contact-details-delete-contact-modal-confirm = Taip, pašalinti kontaktą
+safety-confirm-removecontact-title = Pašalinti {0}?
+safety-confirm-removecontact-leave = Taip pat paliksite grupes, kuriose esate kartu su šiuo kontaktu ({0}).
+safety-confirm-leave-title = Palikti {0}?
+safety-confirm-leave-text = Nebegausite žinučių iš šios grupės.
 contact-details-cannotremovecontact-title = Nepavyko pašalinti kontakto
 contact-details-cannotremovecontact-text = Šio kontakto negalima pašalinti, nes jis yra grupės dalyvis.
 

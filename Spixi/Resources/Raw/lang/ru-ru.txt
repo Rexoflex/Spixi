@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = Да, очистить чат
 contact-details-delete-contact-modal-title = Удалить из контактов
 contact-details-delete-contact-modal-subtitle = Контакт будет удалён из вашего списка. Вы не сможете отправлять или получать сообщения, пока не добавите его снова.
 contact-details-delete-contact-modal-confirm = Да, удалить контакт
+safety-confirm-removecontact-title = Удалить {0}?
+safety-confirm-removecontact-leave = Вы также покинете группы, общие с этим контактом ({0}).
+safety-confirm-leave-title = Покинуть {0}?
+safety-confirm-leave-text = Вы перестанете получать сообщения из этой группы.
 contact-details-cannotremovecontact-title = Невозможно удалить контакт
 contact-details-cannotremovecontact-text = Этот контакт нельзя удалить, так как он является участником группы.
 

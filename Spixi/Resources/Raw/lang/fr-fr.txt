@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = Oui, effacer le chat
 contact-details-delete-contact-modal-title = Supprimer le contact
 contact-details-delete-contact-modal-subtitle = Ce contact sera supprimé de votre liste. Vous ne pourrez plus envoyer ou recevoir de messages à moins de l’ajouter à nouveau.
 contact-details-delete-contact-modal-confirm = Oui, supprimer le contact
+safety-confirm-removecontact-title = Supprimer {0} ?
+safety-confirm-removecontact-leave = Vous quitterez aussi les groupes que vous partagez avec ce contact ({0}).
+safety-confirm-leave-title = Quitter {0} ?
+safety-confirm-leave-text = Vous ne recevrez plus de messages de ce groupe.
 contact-details-cannotremovecontact-title = Impossible de supprimer le contact
 contact-details-cannotremovecontact-text = Ce contact ne peut pas être supprimé car il est participant d’un groupe.
 

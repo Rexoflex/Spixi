@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = Ya, Bersihkan Obrolan
 contact-details-delete-contact-modal-title = Hapus dari kontak
 contact-details-delete-contact-modal-subtitle = Ini akan menghapus kontak dari daftar Anda. Anda tidak dapat mengirim atau menerima pesan kecuali Anda menambahkannya kembali.
 contact-details-delete-contact-modal-confirm = Ya, Hapus Kontak
+safety-confirm-removecontact-title = Hapus {0}?
+safety-confirm-removecontact-leave = Anda juga akan keluar dari grup yang Anda ikuti bersama kontak ini ({0}).
+safety-confirm-leave-title = Tinggalkan {0}?
+safety-confirm-leave-text = Anda tidak akan menerima pesan dari grup ini lagi.
 contact-details-cannotremovecontact-title = Tidak Dapat Menghapus Kontak
 contact-details-cannotremovecontact-text = Kontak ini tidak dapat dihapus karena merupakan peserta dalam grup.
 

@@ -159,7 +159,19 @@ namespace SPIXI.MiniApps
             StorageGetAction? sga = JsonConvert.DeserializeObject<StorageGetAction>(data);
             string table = sga.t;
             string key = sga.k;
-            byte[]? value = miniAppStorage.getStorageData(appId, table, key);
+            /* ★ Session Safety (S-1, P33 — H-6): `t` is the mini app's own string and named a FILE (AppsStorage/<id>/<t>);
+             * `../../wallet.ixi` or a rooted path left the app's folder. Flag ON: a table outside SafetyRules.isSafeTableName
+             * is not read — the answer is the one a missing key gets (r = "null", the request id), so the SDK's pending
+             * request resolves. Fixed-word log. Flag OFF: as before. */
+            byte[]? value = null;
+            if (SpixiFlags.SafeStorage && !SafetyRules.isSafeTableName(table))
+            {
+                Logging.warn("MiniAppActionHandler: refused an unsafe storage table");
+            }
+            else
+            {
+                value = miniAppStorage.getStorageData(appId, table, key);
+            }
             string strValue = "null";
             if (value != null)
             {
@@ -179,7 +191,17 @@ namespace SPIXI.MiniApps
             string table = ssa.t;
             string key = ssa.k;
             string value = ssa.v;
-            miniAppStorage.setStorageData(appId, table, key, Convert.FromBase64String(value));
+            /* ★ Session Safety (S-1, P33 — H-6): flag ON — a table outside SafetyRules.isSafeTableName is not written (no
+             * cache entry, nothing for the storage loop); the answer is the normal ack (r = the value, the request id), so the
+             * SDK's pending request resolves and the app does not hang. Fixed-word log. Flag OFF: as before. */
+            if (SpixiFlags.SafeStorage && !SafetyRules.isSafeTableName(table))
+            {
+                Logging.warn("MiniAppActionHandler: refused an unsafe storage table");
+            }
+            else
+            {
+                miniAppStorage.setStorageData(appId, table, key, Convert.FromBase64String(value));
+            }
             MiniAppActionResponse resp = new MiniAppActionResponse()
             {
                 r = value,

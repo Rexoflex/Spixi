@@ -1,4 +1,5 @@
 ﻿using IXICore;
+using IXICore.Meta;
 using IXICore.Utils;
 using System;
 using System.Collections.Generic;
@@ -65,6 +66,18 @@ namespace SPIXI.MiniApps
                         break;
 
                     case "id":
+                        /* ★ Session Safety (S-2, P33): the id names ONE folder under html/Apps — install, remove, the entry
+                         * point, the icon and the storage folder are all built from it. The publisher writes it (appinfo.spixi
+                         * in a package from a chat invite URL or a picked file) and start() re-reads it from disk at every
+                         * launch; `../..` used to resolve to the Spixi user folder (MAJOR #10 / H-9). Flag ON: an id outside
+                         * SafetyRules.isSafeAppId stays "" — every caller already treats "" as "not an app". The log line is
+                         * fixed words (never the id). Flag OFF: the id as written (the old path). */
+                        if (SpixiFlags.SafeAppId && !SafetyRules.isSafeAppId(value))
+                        {
+                            id = "";
+                            Logging.warn("MiniApp: refused an unsafe app id");
+                            break;
+                        }
                         id = value;
                         break;
 

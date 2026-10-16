@@ -560,47 +560,34 @@ namespace SPIXI
                  * leave flag alone: this page IS one contact.
                  * `ixian:remove` and the removeBlocked push are RETIRED with it. */
                 string leaveArg = current_url.Substring("ixian:removecontact:".Length).Trim();
-                bool leaveShared = leaveArg == "1";
-                List<string> removeBlockers = new List<string>();
-                string removeStatus = "fail";
-                try
+                /* ★ Session Safety (S-5, m168, P35): flag ON → a native OK / Cancel first (SConfirm); a Cancel answers
+                 * removeContactResult(<addr>, "cancelled") so the sheet puts the contact back with no error. The body is
+                 * unchanged, moved into removeContactNow(). OFF = it runs at once, as before. */
+                if (SafetyRules.needsConfirm(SpixiFlags.NativeConfirm, SafetyRules.ConfirmVerb.RemoveContact))
                 {
-                    removeStatus = SContacts.removeContact(friend, leaveShared, out removeBlockers);
+                    // ★ #46 r2 (m-4): with the leave flag the native text names how many shared groups are left too
+                    int alsoLeave = 0;
+                    if (leaveArg == "1" && !friend.bot && friend.type != FriendType.Group)
+                    {
+                        try { alsoLeave = SContacts.sharedGroups(friend).Count / 2; } catch (Exception) { alsoLeave = 0; }
+                    }
+                    confirmThen(SafetyRules.ConfirmVerb.RemoveContact, "removeContactResult", () => removeContactNow(leaveArg), alsoLeaveGroups: alsoLeave);
                 }
-                catch (Exception ex)
+                else
                 {
-                    // ★ Sweep G-3: no ex.Message. SContacts.removeContact builds an Address
-                    // from each shared-group id; that ctor is fenced inside SContacts today,
-                    // but the fence is in another file and the message answers nothing this
-                    // line needs.
-                    Logging.error("ixian:removecontact failed: " + ex.GetType().Name);
-                }
-                try
-                {
-                    List<string> args = new List<string> { friend.walletAddress.ToString(), removeStatus };
-                    args.AddRange(removeBlockers);   // name/address pairs on "blocked" — each arg transport-escaped
-                    Utils.sendUiCommand(this, "removeContactResult", args.ToArray());
-                }
-                catch (Exception) { }
-                if (removeStatus == "ok" || removeStatus == "left")
-                {
-                    UIHelpers.shouldRefreshContacts = true;
-                    popToRootAsync();
-                    var homePage = HomePage.Instance();
-                    homePage?.removeDetailContent();
-                    // iOS-28: the refresh flag is only consumed by the 2s tick, but that is
-                    // only consumed by the 2s updateUILoop tick (Node.cs:388 →
-                    // HomePage.updateScreen:2128) — so the deleted contact's chat row stayed
-                    // on screen for up to two seconds after the user popped back, reading as
-                    // "the delete did nothing". Flush NOW, exactly like onRemoveHistory
-                    // re-renders the live chat instead of trusting the tick (iOS-24, #283).
-                    // updateScreen() self-guards on the flag, so this is idempotent.
-                    homePage?.updateScreen();
+                    removeContactNow(leaveArg);
                 }
             }
             else if (current_url.Equals("ixian:removehistory", StringComparison.Ordinal))
             {
-                onRemoveHistory();
+                if (SafetyRules.needsConfirm(SpixiFlags.NativeConfirm, SafetyRules.ConfirmVerb.RemoveHistory))   // ★ Session Safety (S-5, P35)
+                {
+                    confirmThen(SafetyRules.ConfirmVerb.RemoveHistory, "removeHistoryResult", onRemoveHistory);
+                }
+                else
+                {
+                    onRemoveHistory();
+                }
             }
             else if (current_url.Equals("ixian:groupPhoto", StringComparison.Ordinal))
             {
@@ -952,74 +939,15 @@ namespace SPIXI
                 // (group AND bot: sendLeave + immediate removeFriend, #567).
                 if (friend.bot || friend.type == FriendType.Group)
                 {
-                    /* ★ F5-2 (#555, r2 per loop A-4/A-5) — BREADCRUMBS. The bot-group
-                     * removal crash reached no log. Each step logs BEFORE it runs, so
-                     * the last line in ixian.log brackets the crash site on the next
-                     * repro. No address in any line (the handover-gate log rule).
-                     * ⚠ ONE flush before the navigation work + one in the posted
-                     * drained-marker (A-5: Logging.flush is an unbounded spin on the
-                     * UI thread — the writer thread drains continuously anyway, the
-                     * flush is the belt, and four of them was ANR-shaped).
-                     * ⚠ "dispatched", not "done": popToRootAsync and the alert are
-                     * fire-and-forget — the async teardown runs on LATER main-thread
-                     * turns (A-4). The posted marker below is queued AFTER the nav
-                     * lambda, so it brackets that first async turn too; a crash after
-                     * it is in still-later navigation work. */
-                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: start (bot=" + friend.bot + ")");
-                    // ★ #567: ONE grammar for group AND bot — sendLeave + immediate
-                    // removeFriend (the pendingDeletion wait fed the BE §1e-6 core
-                    // crash). ★ #797: ONE HOME too — SContacts.leaveGroup, which now
-                    // survives a leave notice with no route (the group whose members
-                    // are not in contacts); this page inlined the pair and was the copy
-                    // that threw out of onNavigating. The try is the A-4 belt.
-                    /* ★ #797 loop r2: report the LOCAL removal. leaveGroup returns the
-                     * removeFriend result, and a throw here means we never learned it.
-                     * Both cases leave the record in place, so the page must not pop
-                     * and the user must not read "Contact deleted." */
-                    bool left = false;
-                    try
+                    /* ★ Session Safety (S-5, m168, P35): flag ON → a native OK / Cancel first (SConfirm); the body is
+                     * unchanged, moved into leaveRoomNow(). OFF = it runs at once, as before. */
+                    if (SafetyRules.needsConfirm(SpixiFlags.NativeConfirm, SafetyRules.ConfirmVerb.Leave))
                     {
-                        left = SContacts.leaveGroup(friend);
-                    }
-                    catch (Exception)
-                    {
-                        Logging.error("ixian:leave failed");   // no ex.Message — Core formats the address into its text
-                    }
-                    if (!left)
-                    {
-                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: refused, staying on the page");
-                        IXICore.Meta.Logging.flush();
-                        // Generic strings: the dictionary has no leave-failure text.
-                        displaySpixiAlert(SpixiLocalization._SL("global-dialog-error"), SpixiLocalization._SL("settings-deleted-error-text"), SpixiLocalization._SL("global-dialog-ok"));
+                        confirmThen(SafetyRules.ConfirmVerb.Leave, "leaveGroupResult", leaveRoomNow);
                     }
                     else
                     {
-                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: sent, presenting the alert");
-                        /* ★ #46 loop B, MAJOR-1 — TELL THE SHELL THE ROOM IS GONE.
-                         * This branch removed the friend and pushed nothing, so the shell
-                         * kept every localStorage key that carries this address: the user's
-                         * own unsent DRAFT first, then the eight per-conversation markers and
-                         * the address inside spixi.pins. `leaveGroupResult` is the command
-                         * name HomePage.onLeaveGroupFor already uses for this exact outcome,
-                         * so this is a second CALL SITE, not a new push.
-                         * ⚠ ORDER: sendUiCommand queues the eval on the main thread, and
-                         * popToRootAsync below queues the teardown after it. The sweep
-                         * therefore runs on a live WebView. This is the same order the
-                         * ixian:removecontact branch above uses.
-                         * ⚠ SUCCESS ONLY. A refused leave keeps the record, so the local data
-                         * must stay — the refusal branch above pushes nothing on purpose. */
-                        try { Utils.sendUiCommand(this, "leaveGroupResult", friend.walletAddress.ToString(), "left"); } catch (Exception) { }
-                        displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
-                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: popping to root");
-                        IXICore.Meta.Logging.flush();
-                        popToRootAsync();
-                        HomePage.Instance()?.removeDetailContent();
-                        IXICore.Meta.Logging.info("[CRASHDIAG] leave: teardown dispatched");
-                        MainThread.BeginInvokeOnMainThread(() =>
-                        {
-                            IXICore.Meta.Logging.info("[CRASHDIAG] leave: first async nav turn drained");
-                            IXICore.Meta.Logging.flush();
-                        });
+                        leaveRoomNow();
                     }
                 }
             }
@@ -1076,34 +1004,30 @@ namespace SPIXI
             }
             else if (current_url.StartsWith("ixian:kick:"))
             {
-                // #248: admin kick/ban — mirrors SingleChatPage.onKickUser/onBanUser.
-                // Loop fix A-4: the payload rides the WebView URL — parse defensively
-                // (a malformed/masked address must never throw in onNavigating).
-                string str_address = current_url.Substring("ixian:kick:".Length);
-                try
+                /* ★ Session Safety (S-5, m168, P35): flag ON → a native OK / Cancel first (SConfirm); the body is unchanged,
+                 * moved into kickNow(). OFF = it runs at once, as before. */
+                string kickArg = current_url.Substring("ixian:kick:".Length);
+                if (SafetyRules.needsConfirm(SpixiFlags.NativeConfirm, SafetyRules.ConfirmVerb.Kick))
                 {
-                    StreamProcessor.sendBotAction(friend, SpixiBotActionCode.kickUser, new Address(str_address).addressWithChecksum, 0, true);
-                    displaySpixiAlert(String.Format(SpixiLocalization._SL("chat-modal-kicked-title"), str_address), String.Format(SpixiLocalization._SL("chat-modal-kicked-body"), str_address), SpixiLocalization._SL("global-dialog-ok"));
+                    confirmMember(SafetyRules.ConfirmVerb.Kick, kickArg, () => kickNow(kickArg));
                 }
-                catch (Exception ex)
+                else
                 {
-                    // ★ HANDOVER SWEEP G-3: no ex.Message. The token comes from the group
-                    // roster the BOT supplies, and Ixian-Core's Address ctor formats the
-                    // whole base58 into its exception text (Address.cs).
-                    Logging.warn("kick: invalid address payload: " + ex.GetType().Name);
+                    kickNow(kickArg);
                 }
             }
             else if (current_url.StartsWith("ixian:ban:"))
             {
-                string str_address = current_url.Substring("ixian:ban:".Length);
-                try
+                /* ★ Session Safety (S-5, m168, P35): flag ON → a native OK / Cancel first (SConfirm); the body is unchanged,
+                 * moved into banNow(). OFF = it runs at once, as before. */
+                string banArg = current_url.Substring("ixian:ban:".Length);
+                if (SafetyRules.needsConfirm(SpixiFlags.NativeConfirm, SafetyRules.ConfirmVerb.Ban))
                 {
-                    StreamProcessor.sendBotAction(friend, SpixiBotActionCode.banUser, new Address(str_address).addressWithChecksum, 0, true);
-                    displaySpixiAlert(String.Format(SpixiLocalization._SL("chat-modal-banned-title"), str_address), String.Format(SpixiLocalization._SL("chat-modal-banned-body"), str_address), SpixiLocalization._SL("global-dialog-ok"));
+                    confirmMember(SafetyRules.ConfirmVerb.Ban, banArg, () => banNow(banArg));
                 }
-                catch (Exception ex)
+                else
                 {
-                    Logging.warn("ban: invalid address payload: " + ex.GetType().Name);   // sweep G-3: no ex.Message — carries the token
+                    banNow(banArg);
                 }
             }
             else if (current_url.Contains("ixian:txdetails:"))
@@ -1134,6 +1058,225 @@ namespace SPIXI
             }
             e.Cancel = true;
 
+        }
+
+        /* ★ Session Safety (S-5, P35): the ixian:removecontact body, moved out of onNavigating unchanged. */
+        private void removeContactNow(string leaveArg)
+        {
+            bool leaveShared = leaveArg == "1";
+            List<string> removeBlockers = new List<string>();
+            string removeStatus = "fail";
+            try
+            {
+                removeStatus = SContacts.removeContact(friend, leaveShared, out removeBlockers);
+            }
+            catch (Exception ex)
+            {
+                // ★ Sweep G-3: no ex.Message. SContacts.removeContact builds an Address
+                // from each shared-group id; that ctor is fenced inside SContacts today,
+                // but the fence is in another file and the message answers nothing this
+                // line needs.
+                Logging.error("ixian:removecontact failed: " + ex.GetType().Name);
+            }
+            try
+            {
+                List<string> args = new List<string> { friend.walletAddress.ToString(), removeStatus };
+                args.AddRange(removeBlockers);   // name/address pairs on "blocked" — each arg transport-escaped
+                Utils.sendUiCommand(this, "removeContactResult", args.ToArray());
+            }
+            catch (Exception) { }
+            if (removeStatus == "ok" || removeStatus == "left")
+            {
+                UIHelpers.shouldRefreshContacts = true;
+                popToRootAsync();
+                var homePage = HomePage.Instance();
+                homePage?.removeDetailContent();
+                // iOS-28: the refresh flag is only consumed by the 2s tick, but that is
+                // only consumed by the 2s updateUILoop tick (Node.cs:388 →
+                // HomePage.updateScreen:2128) — so the deleted contact's chat row stayed
+                // on screen for up to two seconds after the user popped back, reading as
+                // "the delete did nothing". Flush NOW, exactly like onRemoveHistory
+                // re-renders the live chat instead of trusting the tick (iOS-24, #283).
+                // updateScreen() self-guards on the flag, so this is idempotent.
+                homePage?.updateScreen();
+            }
+        }
+
+        /* ★ Session Safety (S-5, P35): the ixian:leave body (group AND bot), moved out of onNavigating unchanged. */
+        private void leaveRoomNow()
+        {
+            /* ★ F5-2 (#555, r2 per loop A-4/A-5) — BREADCRUMBS. The bot-group
+             * removal crash reached no log. Each step logs BEFORE it runs, so
+             * the last line in ixian.log brackets the crash site on the next
+             * repro. No address in any line (the handover-gate log rule).
+             * ⚠ ONE flush before the navigation work + one in the posted
+             * drained-marker (A-5: Logging.flush is an unbounded spin on the
+             * UI thread — the writer thread drains continuously anyway, the
+             * flush is the belt, and four of them was ANR-shaped).
+             * ⚠ "dispatched", not "done": popToRootAsync and the alert are
+             * fire-and-forget — the async teardown runs on LATER main-thread
+             * turns (A-4). The posted marker below is queued AFTER the nav
+             * lambda, so it brackets that first async turn too; a crash after
+             * it is in still-later navigation work. */
+            IXICore.Meta.Logging.info("[CRASHDIAG] leave: start (bot=" + friend.bot + ")");
+            // ★ #567: ONE grammar for group AND bot — sendLeave + immediate
+            // removeFriend (the pendingDeletion wait fed the BE §1e-6 core
+            // crash). ★ #797: ONE HOME too — SContacts.leaveGroup, which now
+            // survives a leave notice with no route (the group whose members
+            // are not in contacts); this page inlined the pair and was the copy
+            // that threw out of onNavigating. The try is the A-4 belt.
+            /* ★ #797 loop r2: report the LOCAL removal. leaveGroup returns the
+             * removeFriend result, and a throw here means we never learned it.
+             * Both cases leave the record in place, so the page must not pop
+             * and the user must not read "Contact deleted." */
+            bool left = false;
+            try
+            {
+                left = SContacts.leaveGroup(friend);
+            }
+            catch (Exception)
+            {
+                Logging.error("ixian:leave failed");   // no ex.Message — Core formats the address into its text
+            }
+            if (!left)
+            {
+                IXICore.Meta.Logging.info("[CRASHDIAG] leave: refused, staying on the page");
+                IXICore.Meta.Logging.flush();
+                // Generic strings: the dictionary has no leave-failure text.
+                displaySpixiAlert(SpixiLocalization._SL("global-dialog-error"), SpixiLocalization._SL("settings-deleted-error-text"), SpixiLocalization._SL("global-dialog-ok"));
+            }
+            else
+            {
+                IXICore.Meta.Logging.info("[CRASHDIAG] leave: sent, presenting the alert");
+                /* ★ #46 loop B, MAJOR-1 — TELL THE SHELL THE ROOM IS GONE.
+                 * This branch removed the friend and pushed nothing, so the shell
+                 * kept every localStorage key that carries this address: the user's
+                 * own unsent DRAFT first, then the eight per-conversation markers and
+                 * the address inside spixi.pins. `leaveGroupResult` is the command
+                 * name HomePage.onLeaveGroupFor already uses for this exact outcome,
+                 * so this is a second CALL SITE, not a new push.
+                 * ⚠ ORDER: sendUiCommand queues the eval on the main thread, and
+                 * popToRootAsync below queues the teardown after it. The sweep
+                 * therefore runs on a live WebView. This is the same order the
+                 * ixian:removecontact branch above uses.
+                 * ⚠ SUCCESS ONLY. A refused leave keeps the record, so the local data
+                 * must stay — the refusal branch above pushes nothing on purpose. */
+                try { Utils.sendUiCommand(this, "leaveGroupResult", friend.walletAddress.ToString(), "left"); } catch (Exception) { }
+                displaySpixiAlert(SpixiLocalization._SL("contact-details-removedcontact-title"), SpixiLocalization._SL("contact-details-removedcontact-text"), SpixiLocalization._SL("global-dialog-ok"));
+                IXICore.Meta.Logging.info("[CRASHDIAG] leave: popping to root");
+                IXICore.Meta.Logging.flush();
+                popToRootAsync();
+                HomePage.Instance()?.removeDetailContent();
+                IXICore.Meta.Logging.info("[CRASHDIAG] leave: teardown dispatched");
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    IXICore.Meta.Logging.info("[CRASHDIAG] leave: first async nav turn drained");
+                    IXICore.Meta.Logging.flush();
+                });
+            }
+        }
+
+        /* ★ Session Safety (S-5, P35): the ixian:kick body, moved out of onNavigating unchanged (the payload is the verb tail). */
+        private void kickNow(string verbArg)
+        {
+            // #248: admin kick/ban — mirrors SingleChatPage.onKickUser/onBanUser.
+            // Loop fix A-4: the payload rides the WebView URL — parse defensively
+            // (a malformed/masked address must never throw in onNavigating).
+            string str_address = verbArg;
+            try
+            {
+                StreamProcessor.sendBotAction(friend, SpixiBotActionCode.kickUser, new Address(str_address).addressWithChecksum, 0, true);
+                displaySpixiAlert(String.Format(SpixiLocalization._SL("chat-modal-kicked-title"), str_address), String.Format(SpixiLocalization._SL("chat-modal-kicked-body"), str_address), SpixiLocalization._SL("global-dialog-ok"));
+            }
+            catch (Exception ex)
+            {
+                // ★ HANDOVER SWEEP G-3: no ex.Message. The token comes from the group
+                // roster the BOT supplies, and Ixian-Core's Address ctor formats the
+                // whole base58 into its exception text (Address.cs).
+                Logging.warn("kick: invalid address payload: " + ex.GetType().Name);
+            }
+        }
+
+        /* ★ Session Safety (S-5, P35): the ixian:ban body, moved out of onNavigating unchanged (the payload is the verb tail). */
+        private void banNow(string verbArg)
+        {
+            string str_address = verbArg;
+            try
+            {
+                StreamProcessor.sendBotAction(friend, SpixiBotActionCode.banUser, new Address(str_address).addressWithChecksum, 0, true);
+                displaySpixiAlert(String.Format(SpixiLocalization._SL("chat-modal-banned-title"), str_address), String.Format(SpixiLocalization._SL("chat-modal-banned-body"), str_address), SpixiLocalization._SL("global-dialog-ok"));
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("ban: invalid address payload: " + ex.GetType().Name);   // sweep G-3: no ex.Message — carries the token
+            }
+        }
+
+        /** ★ Session Safety (S-5, m168, P35): run `act` only after a native OK (SConfirm, flag NativeConfirm). Cancel / busy /
+         *  a dialog error → `cancelPush` (when given) answers (<this contact's address>, "cancelled") through the verb's EXISTING
+         *  result push, so the shell restores its row with no error; an older shell reads it as a refusal. The dialog names the
+         *  contact / room by its nickname, or `name` (a member) with `fallback` (its address). */
+        private async void confirmThen(SafetyRules.ConfirmVerb verb, string? cancelPush, Action act, string? name = null, string? fallback = null, Action? onCancel = null, int alsoLeaveGroups = 0)
+        {
+            try
+            {
+                string who = name ?? friend.nickname;
+                // ★ #46 r1 (R2 N-1): with no nickname the dialog names the contact / room by its address, never "Remove ?"
+                var t = SConfirm.textsFor(verb, who, fallback ?? friend.walletAddress.ToString(), alsoLeaveGroups);
+                if (!await SConfirm.askAsync(this, verb, t.title, t.text, t.ok))
+                {
+                    if (cancelPush != null)
+                    {
+                        try { Utils.sendUiCommand(this, cancelPush, friend.walletAddress.ToString(), SafetyRules.CancelledStatus); } catch (Exception) { }
+                    }
+                    if (onCancel != null)
+                    {
+                        try { onCancel(); } catch (Exception) { }
+                    }
+                    return;
+                }
+                act();
+            }
+            catch (Exception ex)
+            {
+                Logging.error("[CONFIRM] " + SafetyRules.verbWord(verb) + " failed (" + ex.GetType().Name + ")");
+            }
+        }
+
+        /** ★ Session Safety (S-5, P35) + #46 r1 (R2 MAJOR-1): kick / ban parse the member address FIRST — a malformed payload is
+         *  the action's own fixed warn and NO dialog (a page cannot put its own text into a native dialog); the dialog names the
+         *  member by their declared nick, else the PARSED address. A Cancel re-sends the roster (R2 MINOR-1: the member sheet
+         *  removed the row when it sent the verb). */
+        private void confirmMember(SafetyRules.ConfirmVerb verb, string strAddress, Action act)
+        {
+            Address a;
+            try
+            {
+                a = new Address(strAddress);
+            }
+            catch (Exception ex)
+            {
+                Logging.warn(SafetyRules.verbWord(verb) + ": invalid address payload: " + ex.GetType().Name);
+                return;
+            }
+            string nick = "";
+            try
+            {
+                if (friend.users != null && friend.users.hasUser(a))
+                {
+                    nick = friend.users.getUser(a)?.getNick() ?? "";
+                }
+            }
+            catch (Exception)
+            {
+            }
+            confirmThen(verb, null, act, nick, a.ToString(), () =>
+            {
+                if (friend.users != null && !isDisposed)
+                {
+                    loadMembers(Utils.hidesParticipants(friend));
+                }
+            });
         }
 
         /* ★★ REMOVE-CONTACT SPEC §4: `onRemove()` and its `removeBlocked` push are GONE.

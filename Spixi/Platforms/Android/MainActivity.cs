@@ -433,6 +433,10 @@ public class MainActivity : MauiAppCompatActivity
         // No managed field: the dispatcher holds the Java callback, and the Android GC bridge keeps its managed peer alive with it.
         OnBackPressedDispatcher.AddCallback(this, new SpixiBackCallback(this));
 
+        // ★ Session Safety (S-4, P34; #46 r1): prune the Share staging folder (<cache>/share/: entries older than an hour) —
+        // once per process, never throws.
+        SFileOperations.sweepShareFolder(this);
+
 #if DEBUG
         // #334: make the app's WebViews visible to chrome://inspect (Debug builds
         // only) — the AND-16/20 keyboard measurement + AND-18/19 inspection need

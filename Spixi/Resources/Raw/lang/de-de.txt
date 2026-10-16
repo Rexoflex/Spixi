@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = Ja, Verlauf löschen
 contact-details-delete-contact-modal-title = Kontakt entfernen
 contact-details-delete-contact-modal-subtitle = Dieser Kontakt wird aus deiner Liste entfernt. Du kannst keine Nachrichten mehr senden oder empfangen, es sei denn, du fügst ihn erneut hinzu.
 contact-details-delete-contact-modal-confirm = Ja, Kontakt entfernen
+safety-confirm-removecontact-title = {0} entfernen?
+safety-confirm-removecontact-leave = Du verlässt auch die Gruppen, die du mit diesem Kontakt teilst ({0}).
+safety-confirm-leave-title = {0} verlassen?
+safety-confirm-leave-text = Du erhältst keine Nachrichten mehr aus dieser Gruppe.
 contact-details-cannotremovecontact-title = Kontakt kann nicht entfernt werden
 contact-details-cannotremovecontact-text = Dieser Kontakt kann nicht entfernt werden, da er Teilnehmer einer Gruppe ist.
 

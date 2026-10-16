@@ -92,6 +92,8 @@ The refusal logs the scheme only, never the peer-authored string.
 * **The one test that settles it,** and it is cheap: open any mini-app and, in the WebView2 dev tools on **that** WebView, evaluate `localStorage.length` and `localStorage.getItem('spixi.pins')`. Non-zero or non-null means this MAJOR is live off Android and iOS.
 * **`spixi.draft.*`** — the gate's own "ours, fix regardless" row — is still the user's own unsent plaintext in that partition. iOS is now safe by construction. Windows is not.
 
+**State (Session Safety, 2026-10-16; check S-7):** Android contained · iOS partitioned · **MacCatalyst partitioned by the same handler** (`iOSWebViewHandler` is registered for `IOS || MACCATALYST` since #1245 A-14; device check owed) · **Windows still OPEN = C-12, parked** (a separate WebView2 environment / profile for the mini app = size M; Damir, Safety Dials q4 = A). O-02 (P37) now drops DevTools, host objects, permissions, new windows and downloads for the Windows mini-app WebView, but it does NOT partition its storage.
+
 *(The original finding, unchanged, below.)*
 
 
@@ -140,6 +142,8 @@ Verify + sanitize at the transfer-accept boundary (be-cutover S16 residual).
 
 ⚠ **The classification ask in the last paragraph of this section STILL STANDS**: MiniAppPage's trust tier is now honoured by this one handler, by one marker, on two platforms. Windows and MacCatalyst read that marker NOWHERE (see the 2026-09-06 INHERITED section, row **D24 / D25**). Please rule on whether the marker is the contract, and if it is, honour it on all four platforms or delete the claim.
 
+**State (Session Safety, 2026-10-16):** (a) + (b) closed (unchanged). The marker is now honoured on **all four** platforms: MacCatalyst through the shared iOS handler (#1245 A-14) and **Windows through O-02** (`WindowsWebViewHandler.dropMiniAppPrivileges`, flag `WinAppMarker`, P37). The Windows storage partition (C-12) is still OPEN, parked.
+
 *(The original finding, for the record.)* 
 Two regressions from the iOS bring-up batch reached the **mini-app** WebView — the one surface that runs third-party, publisher-supplied HTML/JS (`MiniAppPage.xaml.cs:57-60` loads `"file://" + app_entry_point`). Both come from GLOBAL wiring: `iOSWebViewHandler` is registered for `typeof(WebView)` (`MauiProgram.cs:51`), so everything it does applies to every WebView in the app, mini-apps included.
 
@@ -161,9 +165,13 @@ Neither touches money or the chat wall directly; (a) is the actionable one — i
 
 The Android renderer sets `AllowFileAccess = true` + `AllowFileAccessFromFileURLs = true` for EVERY WebView (`Platforms/Android/WebViewRenderer.cs:370-371`; one compat renderer registered for `typeof(WebView)`, `MauiProgram.cs:46-48`), and the mini-app document is itself `file://` (`MiniAppPage.xaml.cs:57-58`). The resource gate passes every non-http(s) URL: `Utils.IsAllowedURL` (`Utils.cs:217-234`) returns true for anything not starting with http, so `ShouldInterceptRequest` (`WebViewRenderer.cs:76-85`) waves `file:///…/Spixi/wallet.ixi` (`Config.cs:20-22`) — and the account/chat-history files — straight through to publisher JS via fetch/XHR. **Strictly worse than MAJOR #4** (files, not localStorage keys) and Android-specific in this severity (iOS gates through a different mechanism). **Fix (C#, your review + on-device verify per #215):** gate `AllowFileAccessFromFileURLs` OFF for the `miniapp`-tagged WebView — but FIRST verify with a real mini-app that its own asset loading survives (relative same-directory loads may ride `AllowFileAccess` alone) — and/or extend `ShouldInterceptRequest` to reject `file://` targets outside `html/Apps/<id>/` for mini-app WebViews. Deliberately NOT landed this session: needs the real-mini-app verification you can run at the walkthrough.
 
+**State (Session Safety, 2026-10-16): still OPEN.** Ours to fix since #1313; it rides the https-origin lever (P17 #6). Session Safety S-1 (P33) closes the SDK storage path (H-6) only — it does **not** close this one: the mini-app WebView still has `AllowFileAccessFromFileURLs` on Android.
+
 ### ⚠ MAJOR #9 — ANDROID: `OnPermissionRequest` auto-grants mic/camera to EVERY WebView, mini-apps included (#334 pre-audit; PRE-EXISTING; logged, NOT fixed)
 
 `SpixiWebChromeClient.OnPermissionRequest` (`Platforms/Android/WebViewRenderer.cs:52-56`) calls `request.Grant(request.GetResources())` unconditionally, for every WebView on the shared renderer. Once the app holds RECORD_AUDIO/CAMERA (after the first call/scan), third-party mini-app JS calling `getUserMedia` gets the mic/camera **silently** — no prompt beyond the OS indicator dot. This is the Android twin of the MAJOR #6 trust-tier ask (and of the #293 `MediaCaptureUIDelegate` tally row). **Fix (C#, your review):** scope the auto-grant to trusted shells (scan is the only legitimate consumer today); deny — or route through a native prompt — for `miniapp`-tagged WebViews.
+
+**State (Session Safety, 2026-10-16):** fixed on Android by #1322 (VIDEO only, only the `ClassId="scan"` WebView; P07) — unchanged. The Windows twin is new: O-02 (P37) denies every WebView2 `PermissionRequested` for the mini app.
 
 ### ⚠ TRUST-SIGNAL — presence "online" stays green ~2 min after a peer quits (F4, iPhone F5 2026-08-04; DECISIONS #300/#301; BE/Ixian-Core — logged, deliberately NOT patched in the shell)
 
@@ -289,7 +297,7 @@ What to check hardest:
 | **W5** `ixian:signSend` | ~~HIGH~~ **BUILT (#523) — see §1c above.** The native-confirm contract it insisted on is exactly what shipped: re-validate + native OK/Cancel BEFORE signing, review-before-release. | §1c |
 | **C3** inline Pay on a request card | ~~Medium~~ **BUILT (#523) as `ixian:payRequest`** — the inline Pay now IS a native-confirm path (SPayments), not a signed inline path. Old exe keeps `ixian:viewPayment`. | §1c |
 | **C12** `attachData`/`attachClipboard` (WebView base64 → C# temp file → send) | Medium | C# names the temp file itself (never a WebView name → overwrite/traversal); cap payload size (DoS); validate MIME. New "WebView writes a file" ingress — no money, but new surface. |
-| **CH3** delete + history/media wipe verbs | Medium | Auth-gate consistently (§9.1: `deleteh` is not LockPage-gated like account/wallet deletion). |
+| **CH3** delete + history/media wipe verbs | Medium | Auth-gate consistently (§9.1: `deleteh` is not LockPage-gated like account/wallet deletion). **Built (Session Safety, 2026-10-16): S-6, P36** — `ixian:deleteh` and `ixian:deleted` present `LockPage(true)` first and act on success only (the `deletea` shape; flag `HistoryLock`). |
 | **S13** promote `openLink` to global | Low | Keep the URL validated; minor phishing vector from chat. |
 | **🟡 `ixian:aboutLink:<id>`** (SettingsPage, S14 #1285) — NEW verb, REPLACES SettingsPage's `ixian:openLink:<url>` (deleted) | Low (a reduction) | The WebView sends a fixed id only (website · network · source · help); C# maps it to its own `Config` constant (`SettingsPage.aboutLinkUrl`) and opens it through `Utils.openExternal`; unknown id → fixed-word warn + ignore. Android / Windows: the Account document has no other way to choose a URL. iOS: the pre-existing anchor hand-off stays (`Spixi/Platforms/iOS/iOSWebViewHandler.cs:112-167` — a main-frame `LinkActivated` http(s) navigation from a trusted host goes to `Utils.openExternal`; a script-clicked anchor may count). Approve the verb; nothing else to insist on. |
 | **`ixian:landtab:<id>[:<nick>]`** (SettingsPage, S14 #1284) — the S11 verb, grammar WIDENED | Low | ONE navigation now does land (`HomePage.landOnTab`, fixed id set) + the hand-off exit (the `ixian:handoff` cleanup) + optional nick save (the `ixian:apply:` path, `saveSettingsCore`). id = text before the first `:`; the nick (may hold `:`) is never logged. An unknown id still exits (no land). The shell sends this ONE verb with or without the `settingsApply` cap; a nick committed (`ixian:apply:`) < 1 s before an exit rides the exit again (`landtab:<id>:<nick>` / `save:<nick>`; `saveSettingsCore` broadcasts only a changed nick). SettingsPage runs ONE exit per present (`claimExit`, 2 s window, reset on load / re-present; a later exit verb = fixed-word warn). ⚠ Pre-existing: the nick round-trip is lossy (`HttpUtility.UrlDecode` of the whole URL, `SettingsPage.xaml.cs:319` — `+` → space), as for `apply:` / `save:`. |
@@ -411,6 +419,12 @@ if (!full.StartsWith(Path.GetFullPath(appsPath) + Path.DirectorySeparatorChar, S
 
 Same class as the `..`-traversal on downloads that #266 closed in
 `TransferManager.resolveDownloadPath`.
+
+**State (Session Safety, 2026-10-16): FIXED by S-2 (P33, flag `SafeAppId`)** — and a worse path closed with it: the
+install catch deleted `Path.Combine(appsPath, app.id)` whenever the Move failed, so one Install tap on a package with id
+`../..` deleted the whole Spixi folder (`wallet.ixi`, `Acc/`) with no earlier install. The id is checked once in the
+`MiniApp` constructor (`SafetyRules.isSafeAppId`), re-checked as one folder inside `html/Apps` at every sink, and the catch
+deletes only a folder the same call created.
 
 
 ---
@@ -604,6 +618,11 @@ separator, or an invalid file-name character. `Data/TransferManager.resolveDownl
 shape to copy — it is already in this tree and it is already fail-closed. Apply it to `appId` too
 (see H-9).
 
+**State (Session Safety, 2026-10-16): FIXED by S-1 (P33, flag `SafeStorage`)** — a table outside
+`SafetyRules.isSafeTableName` is neither read nor written (the SDK answer keeps its shape); `MiniAppStorage` re-checks the
+app id and the table, and containment in `AppsStorage`, before any cache entry exists. ⚠ MAJOR #8 (file READS from the
+mini-app WebView on Android) is a different path and stays OPEN.
+
 ### ⚠ H-7 — the mini-app install filename comes from a downloaded manifest URL, unvalidated
 
 `MiniApps/MiniAppManager.cs`, `installFromUrl` takes `contentUrl` — a free string in the fetched
@@ -639,6 +658,9 @@ outside `tmpPath`.
 **The ask.** Either apply `Path.GetFileName` in the Android picker so all four platforms agree, or
 name the temp file in C#. The second is better — the display name only builds a scratch path.
 
+**State (Session Safety, 2026-10-16): FIXED by S-3 (P33, flag `SafePick`)** — both: Add app names its temp file in C#
+(`AuditRules.packageTempName`), and the Android picker keeps the base name only (`SafetyRules.safeBaseName`, display / send).
+
 ### ⚠ H-9 — `MAJOR #10`'s unvalidated `app.id` reaches FOUR more sinks than the one filed
 
 `MiniApp.cs`, `case "id": id = value;` assigns it from `appinfo.spixi` with no validation. Besides
@@ -660,6 +682,10 @@ hostile INSTALLED id is already in that dictionary, which is exactly MAJOR #10's
 constructor, and every consumer is safe. **Fixing only `remove` leaves the entry point and the icon
 read open.**
 
+**State (Session Safety, 2026-10-16): FIXED by S-2 (P33, flag `SafeAppId`)** — the constructor refuses an unsafe id, and
+all five sinks (install, the install catch, `remove`, the entry point, the icon) plus the storage folder re-check it as one
+folder inside their root. Incl. the worse install-catch path (MAJOR #10 above).
+
 ### ⚠ H-10 — the Android FileProvider publishes the whole `files/` tree
 
 `Platforms/Android/Resources/xml/provider_paths.xml` declares `<files-path name="files" path="."
@@ -677,6 +703,11 @@ handed to whatever app the chooser picks**.
 **The ask.** Narrow `files-path` to the `Downloads` subtree the share and open flows actually need,
 **and** sanitise `transfer.fileName` at the accept boundary (the S16 residual fix). The two
 together close the amplification; either alone leaves half of it.
+
+**State (Session Safety, 2026-10-16): NARROWED by S-4 (P34; no runtime flag, a resource).** The S16 residual was closed
+by #1250. The provider now publishes only `files-path Documents/Spixi/Downloads/`, `Documents/Spixi/Sent/` (+ the
+`Spixi/…` twins), `cache-path share/` and `cache-path .` (kept, Safety Dials q3 = A); Share grants a staged copy in
+`cache/share/<guid>/`. Left: the cache root, MAUI Essentials' own provider, a custom `spixiUserFolder`.
 
 ## The log
 
@@ -719,6 +750,10 @@ See MAJOR #4 above, which now carries the per-platform state. Android is contain
 Windows and MacCatalyst have nothing, and the premise there is untested. One dev-tools line
 settles it.
 
+**State (Session Safety, 2026-10-16): OPEN on Windows — parked** (size M: a separate WebView2 environment / profile
+created before MAUI's `EnsureCoreWebView2Async`; Safety Dials q4 = A). MacCatalyst now gets the iOS handler (#1245 A-14),
+device check owed. O-02 (P37) drops the Windows mini app's privileges but does not partition its storage.
+
 ### ⚠ D24 / D25 — Apple targets: arbitrary loads allowed, and MacCatalyst has no handler at all
 
 * `NSAllowsArbitraryLoads = true` in **both** `Platforms/iOS/Info.plist` and
@@ -730,6 +765,10 @@ settles it.
 
 **Both inherited.** MacCatalyst does not ship today, which is why this is filed rather than fixed.
 ⚠ It must not ship before the handler exists.
+
+**State (Session Safety, 2026-10-16):** D25 closed by #1245 (A-14). **D24 parked** — removal looks safe (every C# URL is
+https, Core is raw TCP), but ATS also governs WKWebView subresources; it needs one iPhone + Mac walk first (tenor, giphy,
+apps.spixi.io, a public mini app).
 
 ### ⚠ I-1 (nuget) — the repo-local package feed is unscoped
 

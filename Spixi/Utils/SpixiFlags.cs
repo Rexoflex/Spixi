@@ -20,6 +20,12 @@ namespace SPIXI
         public const string V1IxiHelpKey = "flagV1IxiHelp";                 // int pref; absent = default (1) — ★ V1A-M M1 (P31)
         public const string V1HintsKey = "flagV1Hints";                     // int pref; absent = default (1) — ★ V1A-M M2 (P31)
         public const string S20AddrHelpKey = "flagS20AddrHelp";             // int pref; absent = default (1) — ★ S20I (P32)
+        public const string SafeAppIdKey = "flagSafeAppId";                 // int pref; absent = default (1) — ★ Safety S-2 (P33)
+        public const string SafeStorageKey = "flagSafeStorage";             // int pref; absent = default (1) — ★ Safety S-1 (P33)
+        public const string SafePickKey = "flagSafePick";                   // int pref; absent = default (1) — ★ Safety S-3 (P33)
+        public const string NativeConfirmKey = "flagNativeConfirm";         // int pref; absent = default (1) — ★ Safety S-5 (P35)
+        public const string HistoryLockKey = "flagHistoryLock";             // int pref; absent = default (1) — ★ Safety S-6 (P36)
+        public const string WinAppMarkerKey = "flagWinAppMarker";           // int pref; absent = default (1) — ★ Safety O-02 (P37)
 
         /** L8: the wallet password lives in SecureStorage (WalletPassStore). OFF = the legacy plaintext preference. */
         public static bool SecureWalletPass { get; private set; } = true;
@@ -59,12 +65,31 @@ namespace SPIXI
          *  `ixian:moment:addrhelp` ask (S20IRules). OFF = no cap; the ask is ignored (nothing answered, nothing logged). */
         public static bool S20AddrHelp { get; private set; } = true;
 
+        /* ★ Session Safety (#1312 rule 1, SafetyRules.cs, docs/safety-mechanisms.md): one flag per fix; OFF = the old path.
+         * S-4 (the Android share folders) has no flag: provider_paths.xml is read at install. */
+        /** S-2 (P33): a mini-app id must pass SafetyRules.isSafeAppId (MiniApp ctor → "" = refused everywhere an empty id is);
+         *  an install deletes only a folder it created. OFF = the id as written, the old error-path delete. */
+        public static bool SafeAppId { get; private set; } = true;
+        /** S-1 (P33): a storage table must pass SafetyRules.isSafeTableName and stay inside the app's folder. OFF = as before. */
+        public static bool SafeStorage { get; private set; } = true;
+        /** S-3 (P33): Add app names its temp file in C#; the Android picker keeps the base name only. OFF = as before. */
+        public static bool SafePick { get; private set; } = true;
+        /** S-5 (P35): a native OK / Cancel before removecontact · removehistory · leave · kick · ban on chat and chat info
+         *  (Safety Dials q1 = A; home keeps its page sheet). OFF = they act at once, as before. */
+        public static bool NativeConfirm { get; private set; } = true;
+        /** S-6 (P36): ixian:deleteh and ixian:deleted wait for LockPage(true) success, as ixian:deletea does. OFF = at once. */
+        public static bool HistoryLock { get; private set; } = true;
+        /** O-02 (P37): the Windows WebView handler reads ClassId="miniapp" and drops privileges for the mini app (DevTools,
+         *  permission requests, new windows). OFF = the mini app is treated like every other WebView, as before. */
+        public static bool WinAppMarker { get; private set; } = true;
+
         public static void init()
         {
             bool dev = false;
             int sp = 1, mg = 1, sb = 1, sm = 1, fs = 1, sg = 1;
             int vi = 1, vh = 1;   // ★ V1A-M M1 / M2
             int ah = 1;           // ★ S20I
+            int xi = 1, xs = 1, xp = 1, xc = 1, xh = 1, xw = 1;   // ★ Session Safety
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -77,6 +102,12 @@ namespace SPIXI
                 vi = Preferences.Default.Get(V1IxiHelpKey, 1);
                 vh = Preferences.Default.Get(V1HintsKey, 1);
                 ah = Preferences.Default.Get(S20AddrHelpKey, 1);
+                xi = Preferences.Default.Get(SafeAppIdKey, 1);
+                xs = Preferences.Default.Get(SafeStorageKey, 1);
+                xp = Preferences.Default.Get(SafePickKey, 1);
+                xc = Preferences.Default.Get(NativeConfirmKey, 1);
+                xh = Preferences.Default.Get(HistoryLockKey, 1);
+                xw = Preferences.Default.Get(WinAppMarkerKey, 1);
             }
             catch (Exception ex)
             {
@@ -101,6 +132,13 @@ namespace SPIXI
             Logging.info(V1AMRules.flagLineHints(V1Hints));
             S20AddrHelp = S16PassRules.effectiveFlag(dev, ah);
             Logging.info(S20IRules.flagLineAddrHelp(S20AddrHelp));
+            SafeAppId = S16PassRules.effectiveFlag(dev, xi);
+            SafeStorage = S16PassRules.effectiveFlag(dev, xs);
+            SafePick = S16PassRules.effectiveFlag(dev, xp);
+            NativeConfirm = S16PassRules.effectiveFlag(dev, xc);
+            HistoryLock = S16PassRules.effectiveFlag(dev, xh);
+            WinAppMarker = S16PassRules.effectiveFlag(dev, xw);
+            Logging.info(SafetyRules.flagsLine(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker));
         }
     }
 }

@@ -1,0 +1,7 @@
+caVersion = 0
+id = com.safetywalk.test
+publisher = Session Safety walk
+name = Safety walk test
+description = A test mini app for the Session Safety walk (docs/walk-safety.md). Not for release.
+version = 1.0.0
+capabilities = singleUser

@@ -226,6 +226,10 @@ contact-details-delete-history-modal-confirm = 是，清除聊天
 contact-details-delete-contact-modal-title = 从联系人中移除
 contact-details-delete-contact-modal-subtitle = 这将把联系人从您的列表中移除。在您重新添加之前，将无法发送或接收消息。
 contact-details-delete-contact-modal-confirm = 是，移除联系人
+safety-confirm-removecontact-title = 移除 {0}？
+safety-confirm-removecontact-leave = 你还将退出与此联系人共同所在的群组（{0}）。
+safety-confirm-leave-title = 退出 {0}？
+safety-confirm-leave-text = 你将不再收到此群组的消息。
 contact-details-cannotremovecontact-title = 无法移除联系人
 contact-details-cannotremovecontact-text = 无法移除此联系人，因为他们是某个群组的参与者。
 

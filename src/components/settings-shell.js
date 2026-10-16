@@ -1436,7 +1436,7 @@ export function createSettingsIgnored({
 export function createSettingsDanger({
   host,
   onBack,
-  onDeleteHistory,               // (ctrl) — ixian:deleteh (legacy UNGATED — §9 flag)
+  onDeleteHistory,               // (ctrl) — ixian:deleteh (C# LockPage gate, Session Safety S-6)
   onDeleteDownloads,             // (ctrl) — ixian:deleted
   onDeleteAccount,               // (ctrl) — ixian:deletea (C# LockPage gate)
   onDeleteWallet,                // (ctrl) — ixian:delete (C# LockPage gate → Launch)

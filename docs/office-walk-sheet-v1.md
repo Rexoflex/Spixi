@@ -668,6 +668,22 @@ Created S20H (DECISIONS #1455). Lock screen alert text (X-1), the iOS location k
 | OW-H-LOC | both | Mac Terminal, after the iOS DEVICE build (RuntimeIdentifier ios-arm64). 1) `cd Spixi/bin/Debug/net10.0-ios/ios-arm64/Spixi.app`. 2) `nm -um Spixi \| grep -i CLLocation` (the main binary). 3) `for f in Frameworks/*.framework; do nm -um "$f/$(basename "$f" .framework)" 2>/dev/null \| grep -qi CLLocation && echo "$f"; done` (the native frameworks only). 4) Later, on the first Release upload to App Store Connect / TestFlight: read the mail from Apple. | 2 and 3: NO output → P (keep the removal). Output in 2 or 3 → F: write the names; the two keys come back with an honest text next session. Do NOT count hits in the managed .dll files (a plain `grep -r` over the .app finds CLLocationManager in Microsoft.iOS.dll / the OneSignal binding — that is unused binding code, not a call). 4: no mail ITMS-90683 "Missing purpose string"; if it comes, the keys come back with an honest text. | | S20H X-2 · Info.plist (NSLocation* removed) · #46 r1 MINOR-1 + r2 MINOR-3 (only native code counts) |
 | OW-H-APPEAR-M | M | 1) Make the Spixi window narrow (about 500 px wide, also the smallest it allows). 2) Account › Chat appearance. 3) Scroll down through the screen. 4) With the screen open, drag the window wider (over 900 px), then narrow again. | 2–3: nothing is cut at the right edge: the preview, the slider row with the A and the number, the cards. The Canvas tiles scroll sideways inside their card. 4: wide = two columns (preview on the left); narrow = one column; no reload, nothing cut. | | S20H F-A · settings.html `:root[data-desktop] #settings-root { min-width: 0 }` · Damir 12:01 screenshot |
 
+### 15 · Session Safety rows (iPhone + Mac)
+
+Created Session Safety (DECISIONS #1465–#1470, packets P33–P36). Windows + Android rows: `docs/walk-safety.md` (the steps to build the three test packages are in its Set-up (5); AirDrop / copy the zips to the iPhone Files app and to the Mac). ★ L149: copy the data folder first (Mac `~/Documents/Spixi` → `Spixi-copy-safety`; iPhone: a backup) and use a TEST contact and a TEST group you own — never real ones. Developer mode ON; every "(Safety …)" flag ON (the default).
+
+| ID | Pl | Steps | Expected | P/F/N/A | Note |
+|---|---|---|---|---|---|
+| OW-S-BUILD | both | 1) Account › Developer › Release flags. 2) Read the first-start log. | 1: six rows ending "(Safety S-2)" … "(Safety O-02)", all ON. 2: `[FLAGS] safeappid=1 safestorage=1 safepick=1 nativeconfirm=1 historylock=1 winappmarker=1`. | | only this build |
+| OW-S1 | both | 1) Mini apps › Add › pick `safety-walk-good.zip` › Install › open it. 2) Tap 1, then 2. 3) Tap 3, wait 5 s, tap 4. 4) Mac: look in `~/Documents/Spixi`. | 2: "inside <time>". 3: "NOTHING STORED". 4: no file `safety-walk-outside`. | | P33 S-1 |
+| OW-S2 | both | 1) Add › pick `safety-walk-badid.zip`. 2) Add › pick `safety-walk-case.zip` › Install. 3) Open "Safety walk test" › tap 2. | 1: refused, nothing installs (Mac: no `SafetyWalkEscape` folder in `~/Documents/Spixi/html`). 2: refused. 3: still "inside <time>". | | P33 S-2 · APFS is case-insensitive |
+| OW-S-MAJOR4 | both | 1) In the test app tap 8. | iPhone + Mac: "0 named spixi.*" (the mini app has its own private store). Write the numbers. | | MAJOR #4 Mac device check (#1470) |
+| OW-S5 | both | 1) TEST contact › chat info › Delete history › confirm the page sheet. 2) The system dialog: Cancel. 3) Repeat; OK. 4) TEST group › chat info › the TEST member › Kick › Cancel. 5) TEST group chat › Leave › Cancel. | 2: nothing deleted, no error message. 3: deleted. 4–5: a system dialog each time; Cancel changes nothing. | | P35 |
+| OW-S5-KEY-M | M | 1) Open any system confirm. 2) Press Return at once. | Write down which button Return picks. P = Cancel or nothing; F = the destructive action runs. | | recorded #46 r1 MINOR-4 |
+| OW-S5-HOME | both | 1) Chats › the TEST contact's row menu › Delete history. | The PAGE sheet as before, no system dialog (D5). Cancel. | | D5 kept |
+| OW-S6 | both | 1) Settings › Delete all downloads › confirm. 2) The lock screen: go back. 3) Repeat; unlock. | 2: the downloads stay. 3: deleted. | | P36 |
+| OW-S-END | both | 1) Mini apps › Safety walk test › Uninstall. 2) Restore the TEST contact / member. | "The app was successfully removed." | | |
+
 ### New rows (OW-*)
 
 | ID | Pl | Steps | Expected | P/F/N/A | Note |

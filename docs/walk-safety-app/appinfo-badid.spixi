@@ -1,0 +1,7 @@
+caVersion = 0
+id = ../SafetyWalkEscape
+publisher = Session Safety walk
+name = Safety walk bad id
+description = A test package with an unsafe id (docs/walk-safety.md, row SW-S2-BADID). Flag ON must refuse it.
+version = 1.0.0
+capabilities = singleUser

@@ -1,8 +1,10 @@
 // csh — the C# harness (#46 r1 M2): compiles the REAL pure Spixi files below against these minimal Core/MAUI stubs and runs the MSTest classes + integration checks. Not the app; no MAUI workload needed. Run: node scripts/run-csh.mjs
 using System;
 using System.Collections.Generic;
-namespace IXICore { public static class Clock { public static long now = 10000; public static long getNetworkTimestamp() => now; }
+namespace IXICore { public static class Clock { public static long now = 10000; public static long getNetworkTimestamp() => now;
+    public static long getTimestampMillis() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); }   // ★ Session Safety (S-1): the REAL MiniAppStorage's write loop runs on wall time
   public class Address { string s; public Address(string s){this.s=s;} public override string ToString()=>s;
+    public Address(byte[] b){this.s=Convert.ToHexString(b);} public Address(Address a){this.s=a.s;}   // ★ Session Safety: Ixian-Core IxiUtils.copy (compiled for the REAL MiniApp* files)
     public byte[] addressNoChecksum => System.Text.Encoding.UTF8.GetBytes(s); }   // ★ #46 r1: Core Address.cs:62 (PushFetchProbe keys the id by its sender)
   /* ★ S8 (#1229) · ★ #46 r1 (A-MAJOR-1): Core's StreamMessage(byte[]) lives in namespace IXICore (Ixian-Core Streaming/StreamMessage.cs:20)
      — NOT IXICore.Streaming; the stub sits where the app sees it, so a file that forgets `using IXICore;` fails HERE too.
@@ -13,8 +15,9 @@ namespace IXICore { public static class Clock { public static long now = 10000; 
       int L = Math.Min(Math.Min((int)b[0], 4), b.Length - 1); if (L <= 0) return; id = new byte[L]; Array.Copy(b, 1, id, 0, L);
       if (b.Length > L + 1) sender = new Address("S" + b[L + 1]); } } }
 namespace IXICore.Meta { public static class Logging { public static List<string> lines = new List<string>();
-  public static void info(string f, params object[] a){ lines.Add(a.Length>0?string.Format(f,a):f);} public static void warn(string f, params object[] a){ warns.Add(a.Length>0?string.Format(f,a):f);} public static void error(string f, params object[] a){}
-  public static List<string> warns = new List<string>(); } }
+  public static void info(string f, params object[] a){ lines.Add(a.Length>0?string.Format(f,a):f);} public static void warn(string f, params object[] a){ warns.Add(a.Length>0?string.Format(f,a):f);} public static void error(string f, params object[] a){ string m = f; try { if (a.Length>0) m = string.Format(f,a); } catch (FormatException) { } lock (errors) { errors.Add(m); } }
+  public static List<string> warns = new List<string>();
+  public static List<string> errors = new List<string>(); } }   // ★ Session Safety #46 r1 (R1 MINOR-4): error lines are RECORDED (was a no-op; no test read it) so SafetyAppTests can check them for leaks; locked — the REAL MiniAppStorage loop logs from its own thread
 namespace Microsoft.Maui.ApplicationModel { public static class MainThread { public static bool IsMainThread => true; public static void BeginInvokeOnMainThread(Action a){ a(); } } }   // ★ P-1: P1Perf.framesAfter
 namespace IXICore.Streaming {
   public enum FriendType { Normal, Group, Bot }

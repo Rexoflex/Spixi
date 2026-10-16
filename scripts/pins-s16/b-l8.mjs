@@ -229,8 +229,9 @@ export default async function (h) {
        ★ re-based by S20 S (#1395 · #1376): the title bar line is GONE with the way switch; + the S20 file-size line
        ★ S20G re-base: + the S20G line (pins-s20g/h-csharp)
        ★ V1A-M re-base: + the v1ixihelp and v1hints lines (pins-v1am/c-csharp)
-       ★ S20I re-base: + the s20addrhelp line (P32; executed in csh S20ITests.flag_line_through_the_real_init) */
-    oneLine: (init.match(/Logging\.info\(/g) || []).length === 8 && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
+       ★ S20I re-base: + the s20addrhelp line (P32; executed in csh S20ITests.flag_line_through_the_real_init)
+       ★ Session Safety re-base: + the ONE safety line (P33–P37; executed in csh SafetyRulesTests.flags_line_and_dev_arg) */
+    oneLine: (init.match(/Logging\.info\(/g) || []).length === 9 && /Logging\.info\(SafetyRules\.flagsLine\(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker\)\);/.test(init) && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
       && /Logging\.info\(S17Rules\.flagLine\(S17Bridge\)\);/.test(init) && /Logging\.info\(S17MomentRules\.flagLine\(S17Moments\)\);/.test(init)
       && /Logging\.info\(S11MediaRules\.fileSizeFlagLine\(S20FileSize\)\);/.test(init) && /Logging\.info\(S20GRules\.flagLine\(S20G\)\);/.test(init) && !/DtTitleBar/.test(init)
       && /Logging\.info\(V1AMRules\.flagLineIxiHelp\(V1IxiHelp\)\);/.test(init) && /Logging\.info\(V1AMRules\.flagLineHints\(V1Hints\)\);/.test(init)

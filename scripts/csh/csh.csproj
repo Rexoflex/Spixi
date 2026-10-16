@@ -76,6 +76,8 @@
     <Compile Include="../../Spixi/Utils/S17Rules.cs" />   <!-- ★ S17 (#1338/#1339, P26): What's new + the bar ink rules (tests: S17Tests.cs) -->
     <Compile Include="../../Spixi/Utils/S17MomentRules.cs" />   <!-- ★ S17 F (#1340, P28): the Moment sheets rules (tests: S17MomentTests.cs) -->
     <Compile Include="../../Spixi/Utils/S20IRules.cs" />   <!-- ★ S20I (P32): the "How people find you" moment + its flag line (tests: S20ITests.cs; SpixiFlags.init calls it) -->
+    <Compile Include="../../Spixi/Utils/SafetyRules.cs" />   <!-- ★ Session Safety (P33–P37): the safety pass pure rules + its [FLAGS] line (tests: SafetyRulesTests.cs; SpixiFlags.init calls it) -->
+    <Compile Include="../../Spixi/Utils/ConfirmGate.cs" />   <!-- ★ Session Safety #46 r2 (P35): the native-confirm gate state machine (tests: ConfirmGateTests.cs) -->
     <Compile Include="../../Spixi/Utils/V1AMRules.cs" />   <!-- ★ V1A-M (P31): the "What is IXI?" moment + the word tips + the two flag lines (tests: V1AMTests.cs; SpixiFlags.init calls it) -->
     <Compile Include="../../Spixi/Utils/S19FetchRules.cs" />
     <Compile Include="../../Spixi/Utils/LinkRule.cs" />   <!-- ★ S20 F (#46 r1): the #1106 link rule — the format strip's step 0 (URLs opaque); its corpus test stays in Spixi-UnitTests -->
@@ -88,5 +90,8 @@
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />
+    <!-- ★ Session Safety (P33, Lane A): the REAL mini-app path code — S-1 storage table, S-2 app id — run over StubsSafety.cs in temp folders (tests: SafetyAppTests.cs) -->
+    <Compile Include="../../Spixi/MiniApps/MiniApp.cs" /><Compile Include="../../Spixi/MiniApps/MiniAppStorage.cs" /><Compile Include="../../Spixi/MiniApps/MiniAppManager.cs" />
+    <Compile Include="../../../Ixian-Core/Utils/IxiVarInt.cs" /><Compile Include="../../../Ixian-Core/Utils/IxiUtils.cs" /><Compile Include="../../../Ixian-Core/Utils/ByteArrayComparer.cs" />
   </ItemGroup>
 </Project>

@@ -75,8 +75,25 @@ namespace SPIXI.MiniApps
             catch (ThreadInterruptedException) { }
         }
 
-        private MiniAppDataCache getStorageCache(string appId, string table)
+        /* ★ Session Safety (S-1, P33 — H-6): the table name (and the app id) came straight from the mini app's SDK call
+         * (MiniAppActionHandler STORAGE_GET / STORAGE_SET) into Path.Combine, so `t = "../../wallet.ixi"` made the storage loop
+         * truncate and rewrite the wallet, and a rooted `t` read any file outside AppsStorage. The handler refuses first; this
+         * is the belt: flag ON, the file is `AppsStorage/<safe app id>/<safe table>` and lies inside AppsStorage, else null —
+         * checked BEFORE a cache entry exists, so a refused name never reaches the write loop. */
+        private string? safeTablePath(string appId, string table)
         {
+            string? appStoragePath = SafetyRules.childPath(appsStoragePath, appId, false);
+            string? tableStoragePath = appStoragePath == null ? null : SafetyRules.childPath(appStoragePath, table, true);
+            return tableStoragePath != null && SafetyRules.isInside(appsStoragePath, tableStoragePath) ? tableStoragePath : null;
+        }
+
+        private MiniAppDataCache? getStorageCache(string appId, string table)
+        {
+            if (SpixiFlags.SafeStorage && safeTablePath(appId, table) == null)
+            {
+                Logging.warn("MiniAppStorage: refused an unsafe storage name");   // ★ S-1: fixed words, never the name
+                return null;
+            }
             lock (appDataCache)
             {
                 MiniAppDataCache madc;
@@ -138,7 +155,22 @@ namespace SPIXI.MiniApps
 
         private void writeStorageData(string appId, string table)
         {
+            // ★ Session Safety (S-1, P33): flag ON — re-checked here, before the cache lookup and before any folder or file
+            string? safe_table_path = null;
+            if (SpixiFlags.SafeStorage)
+            {
+                safe_table_path = safeTablePath(appId, table);
+                if (safe_table_path == null)
+                {
+                    Logging.warn("MiniAppStorage: refused an unsafe storage name");
+                    return;
+                }
+            }
             var madc = getStorageCache(appId, table);
+            if (madc == null)
+            {
+                return;   // ★ S-1: refused (flag ON only)
+            }
             lock (madc)
             {
                 madc.firstRequestWrite = 0;
@@ -149,7 +181,7 @@ namespace SPIXI.MiniApps
                 {
                     Directory.CreateDirectory(appStoragePath);
                 }
-                using (var fs = File.Open(Path.Combine(appStoragePath, table), FileMode.Create))
+                using (var fs = File.Open(safe_table_path ?? Path.Combine(appStoragePath, table), FileMode.Create))
                 {
                     fs.WriteByte(0);
                     foreach (var entry in madc.data)
@@ -164,6 +196,10 @@ namespace SPIXI.MiniApps
         public byte[]? getStorageData(string appId, string table, string key)
         {
             var madc = getStorageCache(appId, table);
+            if (madc == null)
+            {
+                return null;   // ★ Session Safety (S-1): refused (flag ON only) — the answer a missing key gets
+            }
             lock (madc)
             {
                 if (madc.data.ContainsKey(key))
@@ -177,6 +213,10 @@ namespace SPIXI.MiniApps
         public void setStorageData(string appId, string table, string key, byte[] value)
         {
             var madc = getStorageCache(appId, table);
+            if (madc == null)
+            {
+                return;   // ★ Session Safety (S-1): refused (flag ON only) — nothing is cached, nothing is written
+            }
             lock (madc)
             {
                 if (madc.data.ContainsKey(key))

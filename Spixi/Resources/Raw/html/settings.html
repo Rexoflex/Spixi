@@ -9805,8 +9805,8 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
       case 'danger': return createSettingsDanger({
         host: document.body,
         onBack: showHub,
-        onDeleteHistory: (ctrl) => { bridge.send('ixian:deleteh'); ctrl.done(); },     // UNGATED C#-side (spec §8-2)
-        onDeleteDownloads: (ctrl) => { bridge.send('ixian:deleted'); ctrl.done(); },
+        onDeleteHistory: (ctrl) => { bridge.send('ixian:deleteh'); ctrl.done(); },     // C# LockPage auth gate (Session Safety S-6, flag HistoryLock; OFF = ungated as before)
+        onDeleteDownloads: (ctrl) => { bridge.send('ixian:deleted'); ctrl.done(); },   // the same C# LockPage gate (Session Safety S-6)
         onDeleteAccount: (ctrl) => { bridge.send('ixian:deletea'); ctrl.done(); },     // C# LockPage auth gate → the FULL wipe (#545)
         // ★ Batch C (#545) C2: onDeleteWallet is GONE — the delete-wallet row was redundant next
         // to the full wipe (#532, Damir); its verb is retired C#-side (an old shell's emit maps to

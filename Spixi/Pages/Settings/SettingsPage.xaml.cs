@@ -516,7 +516,17 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:deleteh", StringComparison.Ordinal))
             {
-                onDeleteHistory();
+                /* ★ Session Safety (S-6, P36): delete ALL history is as final as the account wipe, and the only thing in
+                 * front of it was the shell's own JS sheet — a script in this WebView (Windows DevTools) could send the
+                 * verb with no sheet at all. Flag ON: the deletea gate (LockPage(true), act on success only). OFF = at once. */
+                if (SafetyRules.needsLock(SpixiFlags.HistoryLock))
+                {
+                    deleteAllBehindLock(true);
+                }
+                else
+                {
+                    onDeleteHistory();
+                }
             }
             else if (S17Rules.isDoneVerb(current_url))
             {
@@ -534,7 +544,15 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:deleted", StringComparison.Ordinal))
             {
-                onDeleteDownloads();
+                // ★ Session Safety (S-6, P36): delete ALL downloads — the same gate as ixian:deleteh above. OFF = at once.
+                if (SafetyRules.needsLock(SpixiFlags.HistoryLock))
+                {
+                    deleteAllBehindLock(false);
+                }
+                else
+                {
+                    onDeleteDownloads();
+                }
             }
             /* ★ S12 B (#1267): About › Rate Spixi — the HomePage rating grammar (HomePage `ixian:rating:` branch), the
              * "yes" half only: the store page for this platform (compile-time Config constants), through the one
@@ -1878,6 +1896,76 @@ namespace SPIXI
             SAppJoins.clearAll(); SVoicePlayed.clearAll(); SPhotoGroups.clearAll();   // ★ S9 A3 (8-APP / 8-FACE) · A1 photo groups
             SContacts.deleteAllSentCopies();   // ★ S9 #46 r1 m-3: my durable Sent copies (no history names them any more)
             CoreMessageWriter.arrivals.clear();   // ★ P0 #1155: and every kept arrival
+        }
+
+        /* ★ Session Safety (S-6, P36): delete-all behind the lock — the `ixian:deletea` shape (LockPage(true) +
+         * authSucceeded, pushModalLoaded: #229 load-then-present on the root nav). Only `EventArgs<bool>(true)` acts (the
+         * #1322 F1 rule): the Cancel leg raises (false) and changes nothing — the shell already closed its own sheet when
+         * it sent the verb (ctrl.done()), so a Cancel leaves the Delete data / Downloads screen as it was, with nothing
+         * pending. A second verb while a lock for it is up is ignored (a double tap, or a queued repeat inside the ≤ 1.2 s
+         * staging window); the latch drops on either outcome — a LockPage(true) always ends in one raise (unlock, the
+         * biometric unlock or Cancel; back is swallowed). The work is POSTED twice, as onDeleteAccount does (the W14
+         * note): the raise runs inside the lock's WebView navigation callback, and the alert this work shows must land
+         * after the lock has closed, not on it. A throw in posted work is caught (type only) — it would end the app.
+         * Downloads: the Downloads screen's "Delete all" sends ixian:deleted THEN ixian:loadDownloads, so its list was
+         * answered before the lock even showed; the re-push here (no rescan) makes it converge. With no Downloads screen
+         * mounted the shell drops a clearFiles (downloadsEl is null). */
+        /* ★ #46 r1 (R2 MINOR-3): the latch is a TIMESTAMP (Environment.TickCount64 when the lock went up, 0 = none), not a
+         * bool — a LockPage dropped without a raise (a stale-modal disposal, a failed present) would otherwise leave the
+         * verb ignored until restart. A latch older than DeleteLockLatchMs no longer blocks; a throw from the present clears it. */
+        private long historyLockUp = 0;     // a lock for ixian:deleteh is up (UI thread only)
+        private long downloadsLockUp = 0;   // a lock for ixian:deleted is up (UI thread only)
+        private const long DeleteLockLatchMs = 120000;
+
+        private void deleteAllBehindLock(bool history)
+        {
+            long upAt = history ? historyLockUp : downloadsLockUp;
+            if (upAt != 0 && Environment.TickCount64 - upAt < DeleteLockLatchMs)
+            {
+                Logging.warn("SettingsPage: a delete-all lock is already up - the verb is ignored");
+                return;
+            }
+            if (history) { historyLockUp = Environment.TickCount64; } else { downloadsLockUp = Environment.TickCount64; }
+            var lockPage = new LockPage(true);
+            lockPage.authSucceeded += (s, e) =>
+            {
+                if (history) { historyLockUp = 0; } else { downloadsLockUp = 0; }
+                if (e == null || !e.Value)
+                {
+                    return;
+                }
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        try
+                        {
+                            if (history)
+                            {
+                                onDeleteHistory();
+                            }
+                            else
+                            {
+                                onDeleteDownloads();
+                                loadDownloads(false);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.error("SettingsPage: delete-all after the lock threw (" + ex.GetType().Name + ")");
+                        }
+                    });
+                });
+            };
+            try
+            {
+                pushModalLoaded(lockPage);   // #229 load-then-present; presents on root nav
+            }
+            catch (Exception ex)
+            {
+                if (history) { historyLockUp = 0; } else { downloadsLockUp = 0; }
+                Logging.error("SettingsPage: the delete-all lock did not present (" + ex.GetType().Name + ")");
+            }
         }
 
         public void onDeleteHistory()

@@ -1,0 +1,7 @@
+caVersion = 0
+id = COM.SAFETYWALK.TEST
+publisher = Session Safety walk
+name = Safety walk case twin
+description = A test package whose id differs from com.safetywalk.test only by case (docs/walk-safety.md, row SW-S2-CASE).
+version = 1.0.1
+capabilities = singleUser

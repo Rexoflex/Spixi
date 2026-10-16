@@ -2122,3 +2122,15 @@ No packet (no flag): a string-key correction and a plist removal close holes, no
 | F-A — `settings.html` `:root[data-desktop] #settings-root { min-width: 0; }` | CSS layout only | ours, safe |
 
 Surface counts: verbs +0 · `spixi.*` keys +0 · prefs +0 · pushes +0 · log lines +0 · iOS purpose strings −2.
+
+## Session 20H Drop B (#1456) — create step 2, the Account icons, the small fixes (2026-10-15)
+
+No packet (no C#, no flag): shell JS / CSS / strings / icons only.
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| F-B — the mismatch label in the check row (two textContent spans), the screen-reader line out of flow, `easeCard` (WAAPI on the form's ::before), `data-arrive` on create | none — textContent only; no storage key, verb, push or log; the passwords are still never trimmed (the easing value uses `replace`, the trim gate holds) | ours, safe |
+| F-C — 9 glyph swaps, `data-glyph` / `data-hue` on hub discs, 5 registry icons removed, the warning glyph in 3 error lines | static registry markup only (icons.js is generated from the SVG files; the C2PA manifest dropped, #868) | ours, safe |
+| #1423 ⑦ ⑨ ⑪ — one string (14 locales), one token, two `performance.now()` reads | none | ours, safe |
+
+Surface counts: verbs +0 · `spixi.*` keys +0 · pushes +0 · log lines +0 · string keys +1 (`checkMismatch`).

@@ -692,7 +692,7 @@
   --text-action-pressed: var(--primary-800);
   --text-chip-selected: var(--text-action-pressed);   /* ★ S20G N-2 (Damir 22:49 "white font in the selected chips … premiumize it", pick C): the selected chip's ink — light = the deep action ink (9.7 : 1 on the tonal fill, was 4.73); dark = white below */
   --highlight-chip-selected: rgba(255, 255, 255, 0.14);   /* ★ S20G N-2: the selected chip's 1 px top light (both themes) */
-  --chip-lift-ink: #ffffff;   /* ★ S20G r1 (GATE 64): the white the selected chip's 6 % top lift mixes toward (chip.css, shared-items.css) — both themes; a token so the component files carry no literal */
+  --chip-lift-ink: var(--surface-action-tonal-default);   /* ★ S20H ⑨ (#1454, Damir: plain in light, keep in dark): LIGHT mixes the tonal fill toward ITSELF = a plain fill at rest / pressed (hover: an invisible 6 % mix of hover toward rest) (the white 6 % lift was ~1 %, invisible — #1423 ⑨); the dark block keeps the white lift. A token, so chip.css / shared-items.css keep no [data-theme] selector (S20G r1 GATE 64) */
   --text-action-disabled: var(--neutral-400);
   /* ★ L18 (Damir, 2026-08-31): the SPIXI LOGOTYPE ink — its own role because the
      two themes want different answers and a component file never carries a
@@ -913,6 +913,7 @@
 :root[data-flag-font] { --font-ui: "Twemoji Country Flags", var(--font-ui-native); }
 
 [data-theme="dark"] {
+  --chip-lift-ink: #ffffff;   /* ★ S20G r1 → S20H ⑨: the white the selected chip's 6 % top lift mixes toward — DARK only (light = plain, :root) */
   /* ★ DARK SURFACE SATURATION (Damir, 2026-08-22) — re-point the neutral ramp at the
      saturated ink-* steps. Done HERE, at the ramp, rather than on --surface-neutral-01
      alone: that token is only one of seven dark surfaces fed by --neutral-900 (screen,

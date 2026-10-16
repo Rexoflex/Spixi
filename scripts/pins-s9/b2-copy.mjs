@@ -31,7 +31,8 @@ export default async function (h) {
     const labels = texts(v, '.c-launch__field-label');
     ok(!!v && JSON.stringify(labels) === JSON.stringify(['Nickname', 'Password', 'Confirm password']) && !/wallet password/i.test(v.textContent),
       '★ S9 #1246 O=A (S20 T re-base): the Create screen never says "Wallet password" — the fields say Nickname / Password / Confirm password — ' + JSON.stringify(labels));
-    const checks = texts(v, '.c-launch__check');
+    /* ★ S20H F-B (#1454): the match check carries a second, hidden label (the mismatch text) — read the label a reader sees at rest */
+    const checks = [...(v ? v.querySelectorAll('.c-launch__check') : [])].map((c) => ((c.querySelector('.c-launch__check-ok') || c).textContent || '').trim());
     ok(JSON.stringify(checks) === JSON.stringify(['10+ characters', 'Passwords match']),
       '★ S9 #1246 O=A (S20 T re-base): the length rule is shown UP FRONT, before any typing — the live check "10+ characters" (ENC_MIN), then the match check — ' + JSON.stringify(checks));
     const cTitle = (v && v.querySelector('.c-launch__banner-title') || {}).textContent;

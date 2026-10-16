@@ -5916,7 +5916,7 @@ function hintCopy(id, strings = getStrings()) {
   switch (id) {
     case 'backup': return { title: strings.hintBackupTitle || 'Your backup is your account', text: strings.hintBackupBody || 'Only your backup can restore a lost phone.' };
     /* ★ S11 A2 (#1263, R2 copy): a group chat cannot pay — the line names a CONTACT (a new key: a changed meaning) */
-    case 'wallet': return { title: strings.hintWalletTitle || 'Send IXI like a message', text: strings.hintWalletBody2 || 'Send IXI to a contact in a chat.' };
+    case 'wallet': return { title: strings.hintWalletTitle || 'Send IXI like a message', text: strings.hintWalletBody2 || 'Open a chat with a contact and pay from there.' };
     case 'apps': return { title: strings.hintAppsTitle || 'Mini apps in chats', text: strings.hintAppsBody || 'Play or work together inside a chat.' };
     case 'addcontact': return { title: strings.hintAddContactTitle || 'Add people in person', text: strings.hintAddContactBody || 'Scan a QR code when you meet.' };
     /* ★ S11 A2 (#1263, R2 copy): platform-neutral — a desktop opens the menu with a right-click, not a long-press */
@@ -8112,9 +8112,9 @@ function createComposer({
   /* ★ S20G r1 B-2: the pointer of the press that led to this click — a keyboard click has no pointerdown (and detail 0),
      so a stale touch press (pressed, dragged off, no click) older than 1.5 s never counts; consumed by the click. */
   let downType = '', downAt = 0;
-  action.addEventListener('pointerdown', (e) => { downType = e.pointerType || ''; downAt = Date.now(); });
+  action.addEventListener('pointerdown', (e) => { downType = e.pointerType || ''; downAt = performance.now(); });   // ★ S20H ⑪ (#1423): a monotonic clock — a wall-clock step back stretched the window
   action.addEventListener('click', (e) => {
-    const byTouch = e.detail > 0 && (downType === 'touch' || downType === 'pen') && Date.now() - downAt < 1500;
+    const byTouch = e.detail > 0 && (downType === 'touch' || downType === 'pen') && performance.now() - downAt < 1500;
     downType = '';
     const mode = action.dataset.mode;
     if (mode === 'mic') {
@@ -17065,7 +17065,7 @@ function createAppsAdd({ strings = getStrings(), discover = true, onFetchUrl, on
   err.setAttribute('role', 'alert');
   const errText = document.createElement('span');
   errText.className = 'c-apps-add__error-text';
-  err.append(icon('alert-small', { size: 20 }), errText);   // the glyph stays; setAddError swaps only the text
+  err.append(icon('alert-square-rounded', { size: 16 }), errText);   // ★ S20H F-C (#1454): one warning glyph app-wide   // the glyph stays; setAddError swaps only the text
   input.addEventListener('input', () => {
     err.hidden = true;
     input.removeAttribute('aria-invalid');
@@ -27406,7 +27406,7 @@ function createAddContact({
   err.hidden = true;
   group.append(err);
   // ★ #1360: the error line leads with the alert glyph (decorative, aria-hidden — the text is the message)
-  const errGlyph = icon('alert-small', { size: 20 });
+  const errGlyph = icon('alert-square-rounded', { size: 16 });   // ★ S20H F-C (#1454): one warning glyph app-wide
   errGlyph.classList.add('c-contacts-add__error-glyph');
 
   /* #435(b): the "you already know this address" affordance. NOT an error and NOT a
@@ -29258,7 +29258,10 @@ function settingsLabel(text) {
 function settingsDisc(glyph, hue, grad) {
   const d = document.createElement('span');
   d.className = 'c-disc';
-  d.dataset.hue = hue;
+  /* ★ S20H F-C (#1454): the hub's colours come from the row ORDER (spreadDiscs) or a pin; a `hue` is set only where it
+     means something — 'error' (Delete data: red, outside the spread). The dead per-row hue names were removed. */
+  if (hue) d.dataset.hue = hue;
+  d.dataset.glyph = glyph;   // ★ S20H F-C: the per-glyph optical fixes in settings-shell.css (wallet size, user-cancel centre)
   d.dataset.grad = String(grad || discGrad(glyph));
   /* ★ #1352 (Damir 2026-10-12 12:24): a row may PIN its slot — spreadDiscs keeps it (and still counts it, so the other
      rows keep their colours); About and Contributors take the colour of their own header */
@@ -30231,7 +30234,7 @@ function createSettingsHub({
      people". Opt-in: a host that cannot route there passes no handler and no row
      appears. ★ #575 moved it out of "Preferences" into this section. */
   if (onContacts) me.card.append(settingRow({
-    glyph: 'users', hue: 'info',
+    glyph: 'users',
     label: strings.contacts || 'Contacts', key: 'contacts',
     onClick: () => onContacts(),
   }).section);
@@ -30247,7 +30250,7 @@ function createSettingsHub({
       return strings[o.key] || o.label;
     };
     const t = settingRow({
-      glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme', key: 'theme',
+      glyph: 'sun-moon', label: strings.theme || 'Theme', key: 'theme',
       value: themeLabelFor(theme),
       onClick: () => { if (onThemeNav && onThemeNav()) return; settingsThemeSheet({
         current: theme, host: hostFor(), strings,
@@ -30266,7 +30269,7 @@ function createSettingsHub({
   if (onLanguage && languages.length) {
     const langLabelFor = (code) => (languages.find((l) => l.code === code) || {}).label || code;
     const lg = settingRow({
-      glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
+      glyph: 'world',             // #146 icon gap resolved — 'world' exported
       label: strings.language || 'Language', key: 'language',
       value: langLabelFor(language),
       onClick: () => { if (onLanguageNav && onLanguageNav()) return; settingsOptionSheet({
@@ -30287,7 +30290,7 @@ function createSettingsHub({
   }
 
   if (onChatAppearance) prefs.card.append(settingRow({
-    glyph: 'messages', hue: 'primary',
+    glyph: 'palette',
     label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
     // I-11 (#371): subs on SOME rows only — where the label alone does not say
     // what is inside (15c A14: one line, truncates; write to the width).
@@ -30296,7 +30299,7 @@ function createSettingsHub({
   }).section);
 
   if (capabilities.globalNotifications && onNotifications) prefs.card.append(settingRow({
-    glyph: 'bell', hue: 'warning',
+    glyph: 'bell',
     label: strings.notifications || 'Notifications', key: 'notifications',
     sub: strings.notificationsSub || 'Sounds, previews and badges',
     onClick: () => onNotifications(),
@@ -30309,7 +30312,7 @@ function createSettingsHub({
 
   /* app lock — switch row (#146⑦). ON optimistic, OFF pending-auth. */
   if (onLock) sec.card.append(authSwitchRow({
-    glyph: 'lock', hue: 'success',              // #146 icon gap resolved — 'lock' exported
+    glyph: 'lock',              // #146 icon gap resolved — 'lock' exported
     label: strings.appLock || 'App lock',
     sub: strings.appLockSub || 'Password on app open',   // I-11 (#371)
     checked: lockEnabled,
@@ -30324,7 +30327,7 @@ function createSettingsHub({
      asymmetry applies: ON optimistic, OFF = auth round-trip (weakening a
      security setting must cost an auth). Cascades from the #147 tiers. */
   if (capabilities.paymentAuth && onPaymentAuth) sec.card.append(authSwitchRow({
-    glyph: 'wallet', hue: 'warning',
+    glyph: 'wallet',
     label: strings.paymentAuth || 'Confirm payments',
     sub: strings.paymentAuthSub || 'Verify each payment',
     checked: paymentAuth,
@@ -30342,14 +30345,14 @@ function createSettingsHub({
   // tonal tint) while its sublevel is open, exactly like backup/downloads/theme/
   // language. Without it the row was the only sublevel opener that announced nothing.
   if (capabilities.changePassword && onChangePassword) sec.card.append(settingRow({
-    glyph: 'pencil', hue: 'primary', key: 'encpass',
+    glyph: 'key', key: 'encpass',
     label: strings.changePassword || 'Change Spixi password',
     sub: strings.changePasswordSub || 'Unlocks Spixi and your wallet',
     onClick: () => onChangePassword(),
   }).section);
 
   if (capabilities.securityTiers && onSecurity) sec.card.append(settingRow({
-    glyph: 'user-cog', hue: 'primary',
+    glyph: 'user-cog',
     label: strings.securityLevel || 'Security level',
     onClick: () => onSecurity(),
   }).section);
@@ -30360,7 +30363,7 @@ function createSettingsHub({
      Privacy screen — which is what it would have done before this row existed, since
      both §9 capabilities are unreachable today. */
   if ((capabilities.readReceipts || capabilities.typing || capabilities.mediaAutoload) && onPrivacy) sec.card.append(settingRow({
-    glyph: 'eye-off', hue: 'info', key: 'privacy',
+    glyph: 'eye-off', key: 'privacy',
     label: strings.privacy || 'Privacy',
     sub: strings.privacySub || 'Read receipts, typing, online status and media',   // ★ S8 r1 (#1234): names the screen, not 1 of its 5 rows
     onClick: () => onPrivacy(),
@@ -30371,7 +30374,7 @@ function createSettingsHub({
      SRequestIgnore); this row is where it is undone. CAP-GATED so an old exe (no list, no
      verb) never shows a screen whose button nothing handles. */
   if (capabilities.ignoredRequests && onIgnored) sec.card.append(settingRow({
-    glyph: 'user-cog', hue: 'neutral', key: 'ignored',
+    glyph: 'user-cancel', key: 'ignored',
     label: strings.declinedRequests || 'Declined requests',
     onClick: () => onIgnored(),
   }).section);
@@ -30379,7 +30382,7 @@ function createSettingsHub({
   /* backup row — the STANDING NUDGE (backup-ux-spec §3.1) */
   if (onBackup) {
     const b = settingRow({
-      glyph: 'shield-lock', hue: 'success',
+      glyph: 'file-export',
       label: strings.backup || 'Backup',
       sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup', key: 'backup',
       onClick: () => onBackup(),
@@ -30399,12 +30402,12 @@ function createSettingsHub({
   /* How to use + About — STATIC in-hub takeovers, zero-C# (no bridge verb),
      always available (ungated). */
   if (onHowTo) app.card.append(settingRow({
-    glyph: 'info-square-rounded', hue: 'info', grad: 2, label: strings.howToUse || 'How to use Spixi',   /* ★ #1352: swapped with About (Damir 12:24) — the orange */
+    glyph: 'book', grad: 2, label: strings.howToUse || 'How to use Spixi',   /* ★ #1352: swapped with About (Damir 12:24) — the orange */
     key: 'howto', sub: strings.howToUseSub || 'Chats, payments and apps',
     onClick: () => onHowTo(),
   }).section);
   if (onAbout) app.card.append(settingRow({
-    glyph: 'info-circle', hue: 'neutral', grad: 7, label: strings.about || 'About', key: 'about',   /* ★ #1352: the blue of About's own header (Damir 12:24) */
+    glyph: 'info-circle', grad: 7, label: strings.about || 'About', key: 'about',   /* ★ #1352: the blue of About's own header (Damir 12:24) */
     sub: strings.aboutSub || 'Links and legal',
     onClick: () => onAbout(),
   }).section);
@@ -30413,20 +30416,20 @@ function createSettingsHub({
      SettingsPage nav verb (be-cutover S8). Contributors is STATIC (component data,
      no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
-    glyph: 'download', hue: 'info', grad: 4, label: strings.downloads || 'Downloads', key: 'downloads',   /* ★ #1352: swapped with Contributors (Damir 12:24) — the green */
+    glyph: 'download', grad: 4, label: strings.downloads || 'Downloads', key: 'downloads',   /* ★ #1352: swapped with Contributors (Damir 12:24) — the green */
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
-    glyph: 'heart-handshake', hue: 'accent', grad: 9, label: strings.contributors || 'Contributors',   /* ★ #1352: the violet of Contributors' own header (Damir 12:24) */
+    glyph: 'award', grad: 9, label: strings.contributors || 'Contributors',   /* ★ #1352: the violet of Contributors' own header (Damir 12:24) */
     key: 'contributors',
     onClick: () => onContributors(),
   }).section);
   if (capabilities.dev && onDev) app.card.append(settingRow({
-    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer', key: 'dev',
+    glyph: 'code', label: strings.developer || 'Developer', key: 'dev',
     onClick: () => onDev(),
   }).section);
   if (version) app.card.append(settingRow({
-    glyph: 'info-circle', hue: 'neutral', label: strings.version || 'Version', value: version,
+    glyph: 'versions', label: strings.version || 'Version', value: version,
   }).section);
   if (app.card.childElementCount) body.append(app.wrap);
 
@@ -34135,6 +34138,14 @@ function show(st, view, silent) {
   } else {
     reveal();
   }
+  /* ★ S20H F-B (#1454): desktop has no subscreen slide (#704 — the swap is instant); CREATE arriving from the welcome
+     uses the step grammar instead (launch-form.css [data-arrive]: the card fades in, its rows slide in 24 px, the hero
+     fades). Only this one move (the ruling); restore keeps #704's instant swap (#46 r2 MINOR-3). */
+  if (changed && prev === 'welcome' && view === 'create' && nextNode && st.root.isConnected && onDesktop() && nextNode.classList.contains('c-launch__form')) {
+    clearTimeout(nextNode._arriveT);   // #46 r1 NIT: a quick re-entry keeps its own full arrival
+    nextNode.setAttribute('data-arrive', '');
+    nextNode._arriveT = setTimeout(() => nextNode.removeAttribute('data-arrive'), 400);   // > 220 ms
+  }
   if (changed && !silent && st.opts && st.opts.onViewChange) {
     try { st.opts.onViewChange(view); } catch { /* report only — never block the switch */ }
   }
@@ -34213,7 +34224,7 @@ const imeBusy = (e) => !!(e && (e.isComposing || e.keyCode === 229));
 function launchErrLine() {
   const err = errLine();
   err.classList.add('c-launch__ferr');
-  const glyph = icon('info-circle', { size: 16 });
+  const glyph = icon('alert-square-rounded', { size: 16 });   // ★ S20H F-C (#1454): warnings + field errors = alert-square-rounded app-wide ("i" = information only)
   glyph.setAttribute('aria-hidden', 'true');
   const msg = mk('span', 'c-launch__ferr-text');
   err.append(glyph, msg);
@@ -34408,6 +34419,7 @@ const twoColumn = () => onDesktop() && typeof matchMedia === 'function' && match
 const isShown = (e, top) => { for (let x = e; x && x !== top; x = x.parentElement) if (x.hidden) return false; return true; };
 function quietPx(e) {
   const cs = getComputedStyle(e);
+  if (cs.position === 'absolute' || cs.position === 'fixed') return 0;   // ★ S20H F-B: the screen-reader-only mismatch line takes no row
   const par = e.parentElement;
   const sib = par && [...par.children].some((c) => c !== e && !c.hidden);
   const gap = sib ? (parseFloat(getComputedStyle(par).rowGap) || 0) : 0;
@@ -34737,7 +34749,7 @@ function buildWelcome(st) {
      modality is the last input: pointerdown = pointer, keydown = keyboard, a focus with neither (AT) = keyboard.
      r2 M-2: the pointer modality is TIME-BOXED (1 s) — a screen reader's synthetic tap must not make every later AT focus count as pointer. */
   let ptrAt = 0;
-  const ptrNow = () => ptrAt > 0 && Date.now() - ptrAt < 1000;
+  const ptrNow = () => ptrAt > 0 && performance.now() - ptrAt < 1000;   // ★ S20H ⑪ (#1423): monotonic (performance.now)
   const inCar = (n) => !!n && (car.contains(n) || dots.contains(n));
   const pauseAuto = () => {
     if (!autoOn) return;
@@ -34753,7 +34765,7 @@ function buildWelcome(st) {
   // hidden welcome is pure waste (go() is view-gated anyway). Demo boots welcome.
   if (!reduced && (st.opts.view || 'welcome') === 'welcome') { autoOn = true; runAuto(); }
   /* any further touch / key on the welcome while paused re-arms the one resume timer (not the 7 s run) */
-  v.addEventListener('pointerdown', () => { ptrAt = Date.now(); }, true);
+  v.addEventListener('pointerdown', () => { ptrAt = performance.now(); }, true);
   v.addEventListener('keydown', () => { ptrAt = 0; }, true);
   v.addEventListener('pointerdown', () => { if (resumeT) pauseAuto(); });
   v.addEventListener('keydown', () => { if (resumeT) pauseAuto(); });
@@ -35224,6 +35236,10 @@ function buildCreate(st) {
   const sub2 = mk('p', 'c-launch__hero-copy');
   hero2.append(photo2.el, mk('h2', 'c-launch__hero-title', strings.create2Title || 'Protect your account'), sub2);
   const fields2 = mk('div', 'c-launch__fields');
+  /* ★ S20H F-B (#1454): the mismatch line no longer takes a row of its own — it pushed everything below the confirm field
+     down 26 px and back (Damir's walk remark on R3-STEP2), and the check row said "Passwords match" with a red ✕ at the
+     same time. The CHECK ROW now says it (chkMatch's second label, below); this line stays only for screen readers
+     (role="alert", visually hidden, absolutely placed = no flex row, no gap), so the message is still announced. */
   const mismatch = launchErrLine();
   mismatch.classList.add('c-launch__mismatch');
   const meter = mk('div', 'c-launch__meter');
@@ -35239,17 +35255,25 @@ function buildCreate(st) {
     strings.strengthStrong || 'Strong',
   ];
   const checks = mk('div', 'c-launch__checks');
-  const check = (text) => {
+  /* ★ S20H F-B: a check may carry a second label for its 'bad' state. Both labels sit in ONE grid cell (launch-form.css),
+     so the row is as wide as the longer one in every state: switching never re-wraps the row (0 px, any locale). */
+  const check = (text, badText) => {
     const c = mk('span', 'c-launch__check');
     c.dataset.state = 'idle';
     const b = mk('b');
     b.setAttribute('aria-hidden', 'true');
-    c.append(b, mk('span', null, text));
+    if (badText) {
+      const t = mk('span', 'c-launch__check-text');
+      t.append(mk('span', 'c-launch__check-ok', text), mk('span', 'c-launch__check-bad', badText));
+      c.append(b, t);
+    } else {
+      c.append(b, mk('span', null, text));
+    }
     checks.append(c);
     return { c, b };
   };
   const chkLen = check(fillIn(strings.checkLength || '{n}+ characters', { n: ENC_MIN }));
-  const chkMatch = check(strings.checkMatch || 'Passwords match');
+  const chkMatch = check(strings.checkMatch || 'Passwords match', strings.checkMismatch || 'Don’t match yet');   // ★ S20H #46 r1 (MINOR-1): a SHORT label — the long sentence reserved a second line on phones (the screen-reader line keeps mismatchYet)
   const setCheck = ({ c, b }, state) => {
     if (c.dataset.state === state) return;
     c.dataset.state = state;
@@ -35318,8 +35342,31 @@ function buildCreate(st) {
   /* —— the step switch (★ ON-1: one view, two panes; the progress, the label and the hero
      follow). Motion: the entering pane slides in (phone) / the card content slides and the
      hero cross-fades (desktop) — launch-shell.css; reduced motion = a short fade. —— */
+  /* ★ S20H F-B (#1454, Damir: "smoother moves"): on the two-column desktop the card is the form's ::before, spanning the
+     rows; its TOP is fixed (fitCard centres the step-2 card, S20F W-7), so a step change only moves its BOTTOM — which
+     jumped in one frame while the content slid. The card's bottom now eases from the old footer to the new one with
+     the slide (the same 220 ms, the standard easing). Only where an animation can target ::before (else the old
+     instant size, never the view's own margin); reduced motion = the size changes at once (the short fade stays). */
+  let cardAnim = null;
+  const easeCard = (oldBottom) => {
+    if (!(oldBottom > 0) || !onDesktop() || !twoColumn() || !v.isConnected || typeof v.animate !== 'function') return;
+    if (typeof KeyframeEffect === 'undefined' || !('pseudoElement' in KeyframeEffect.prototype)) return;
+    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (cardAnim) { try { cardAnim.cancel(); } catch { /* gone */ } cardAnim = null; }   // #46 r1 (MINOR-2): read the BASE margin, not an in-flight one
+    const foot = (st.createStep === 1 ? pane1 : pane2).querySelector('.c-launch__footer');
+    const end = parseFloat(getComputedStyle(v, '::before').marginBottom);
+    if (!foot || !Number.isFinite(end)) return;
+    const dh = foot.getBoundingClientRect().bottom - oldBottom;
+    if (Math.abs(dh) < 0.5) return;
+    const ease = (getComputedStyle(document.documentElement).getPropertyValue('--easing-standard') || '').replace(/^\s+|\s+$/g, '') || 'ease';   // no .trim(): the password-trim gate counts every .trim in this file
+    try {
+      cardAnim = v.animate([{ marginBottom: (end + dh) + 'px' }, { marginBottom: end + 'px' }], { duration: 220, easing: ease, pseudoElement: '::before' });
+    } catch { /* decoration only — the card simply has its new size */ }
+  };
   const goStep = (n, { animate = true, focus = true } = {}) => {
     const from = st.createStep;
+    const oldFoot = animate && from && from !== n ? (from === 1 ? pane1 : pane2).querySelector('.c-launch__footer') : null;
+    const oldBottom = oldFoot && oldFoot.getClientRects().length ? oldFoot.getBoundingClientRect().bottom : 0;
     st.createStep = n;
     v.dataset.createStep = String(n);   // the panes carry data-step; the view says which one is up
     pane1.hidden = n !== 1;
@@ -35339,6 +35386,7 @@ function buildCreate(st) {
     const pane = n === 1 ? pane1 : pane2;
     if (animate && from && from !== n && v.isConnected) {
       pane.dataset.enter = n > from ? 'fwd' : 'back';
+      easeCard(oldBottom);
       const done = () => { delete pane.dataset.enter; };
       pane.addEventListener('animationend', (e) => { if (e.target === pane || pane.contains(e.target)) done(); }, { once: true });
       setTimeout(done, 480);   // completes-never backstop (#326)

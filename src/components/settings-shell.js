@@ -66,7 +66,10 @@ function settingsLabel(text) {
 function settingsDisc(glyph, hue, grad) {
   const d = document.createElement('span');
   d.className = 'c-disc';
-  d.dataset.hue = hue;
+  /* ★ S20H F-C (#1454): the hub's colours come from the row ORDER (spreadDiscs) or a pin; a `hue` is set only where it
+     means something — 'error' (Delete data: red, outside the spread). The dead per-row hue names were removed. */
+  if (hue) d.dataset.hue = hue;
+  d.dataset.glyph = glyph;   // ★ S20H F-C: the per-glyph optical fixes in settings-shell.css (wallet size, user-cancel centre)
   d.dataset.grad = String(grad || discGrad(glyph));
   /* ★ #1352 (Damir 2026-10-12 12:24): a row may PIN its slot — spreadDiscs keeps it (and still counts it, so the other
      rows keep their colours); About and Contributors take the colour of their own header */
@@ -1039,7 +1042,7 @@ export function createSettingsHub({
      people". Opt-in: a host that cannot route there passes no handler and no row
      appears. ★ #575 moved it out of "Preferences" into this section. */
   if (onContacts) me.card.append(settingRow({
-    glyph: 'users', hue: 'info',
+    glyph: 'users',
     label: strings.contacts || 'Contacts', key: 'contacts',
     onClick: () => onContacts(),
   }).section);
@@ -1055,7 +1058,7 @@ export function createSettingsHub({
       return strings[o.key] || o.label;
     };
     const t = settingRow({
-      glyph: 'adjustments-alt', hue: 'accent', label: strings.theme || 'Theme', key: 'theme',
+      glyph: 'sun-moon', label: strings.theme || 'Theme', key: 'theme',
       value: themeLabelFor(theme),
       onClick: () => { if (onThemeNav && onThemeNav()) return; settingsThemeSheet({
         current: theme, host: hostFor(), strings,
@@ -1074,7 +1077,7 @@ export function createSettingsHub({
   if (onLanguage && languages.length) {
     const langLabelFor = (code) => (languages.find((l) => l.code === code) || {}).label || code;
     const lg = settingRow({
-      glyph: 'world', hue: 'info',             // #146 icon gap resolved — 'world' exported
+      glyph: 'world',             // #146 icon gap resolved — 'world' exported
       label: strings.language || 'Language', key: 'language',
       value: langLabelFor(language),
       onClick: () => { if (onLanguageNav && onLanguageNav()) return; settingsOptionSheet({
@@ -1095,7 +1098,7 @@ export function createSettingsHub({
   }
 
   if (onChatAppearance) prefs.card.append(settingRow({
-    glyph: 'messages', hue: 'primary',
+    glyph: 'palette',
     label: strings.chatAppearance || 'Chat appearance', key: 'chatappearance',
     // I-11 (#371): subs on SOME rows only — where the label alone does not say
     // what is inside (15c A14: one line, truncates; write to the width).
@@ -1104,7 +1107,7 @@ export function createSettingsHub({
   }).section);
 
   if (capabilities.globalNotifications && onNotifications) prefs.card.append(settingRow({
-    glyph: 'bell', hue: 'warning',
+    glyph: 'bell',
     label: strings.notifications || 'Notifications', key: 'notifications',
     sub: strings.notificationsSub || 'Sounds, previews and badges',
     onClick: () => onNotifications(),
@@ -1117,7 +1120,7 @@ export function createSettingsHub({
 
   /* app lock — switch row (#146⑦). ON optimistic, OFF pending-auth. */
   if (onLock) sec.card.append(authSwitchRow({
-    glyph: 'lock', hue: 'success',              // #146 icon gap resolved — 'lock' exported
+    glyph: 'lock',              // #146 icon gap resolved — 'lock' exported
     label: strings.appLock || 'App lock',
     sub: strings.appLockSub || 'Password on app open',   // I-11 (#371)
     checked: lockEnabled,
@@ -1132,7 +1135,7 @@ export function createSettingsHub({
      asymmetry applies: ON optimistic, OFF = auth round-trip (weakening a
      security setting must cost an auth). Cascades from the #147 tiers. */
   if (capabilities.paymentAuth && onPaymentAuth) sec.card.append(authSwitchRow({
-    glyph: 'wallet', hue: 'warning',
+    glyph: 'wallet',
     label: strings.paymentAuth || 'Confirm payments',
     sub: strings.paymentAuthSub || 'Verify each payment',
     checked: paymentAuth,
@@ -1150,14 +1153,14 @@ export function createSettingsHub({
   // tonal tint) while its sublevel is open, exactly like backup/downloads/theme/
   // language. Without it the row was the only sublevel opener that announced nothing.
   if (capabilities.changePassword && onChangePassword) sec.card.append(settingRow({
-    glyph: 'pencil', hue: 'primary', key: 'encpass',
+    glyph: 'key', key: 'encpass',
     label: strings.changePassword || 'Change Spixi password',
     sub: strings.changePasswordSub || 'Unlocks Spixi and your wallet',
     onClick: () => onChangePassword(),
   }).section);
 
   if (capabilities.securityTiers && onSecurity) sec.card.append(settingRow({
-    glyph: 'user-cog', hue: 'primary',
+    glyph: 'user-cog',
     label: strings.securityLevel || 'Security level',
     onClick: () => onSecurity(),
   }).section);
@@ -1168,7 +1171,7 @@ export function createSettingsHub({
      Privacy screen — which is what it would have done before this row existed, since
      both §9 capabilities are unreachable today. */
   if ((capabilities.readReceipts || capabilities.typing || capabilities.mediaAutoload) && onPrivacy) sec.card.append(settingRow({
-    glyph: 'eye-off', hue: 'info', key: 'privacy',
+    glyph: 'eye-off', key: 'privacy',
     label: strings.privacy || 'Privacy',
     sub: strings.privacySub || 'Read receipts, typing, online status and media',   // ★ S8 r1 (#1234): names the screen, not 1 of its 5 rows
     onClick: () => onPrivacy(),
@@ -1179,7 +1182,7 @@ export function createSettingsHub({
      SRequestIgnore); this row is where it is undone. CAP-GATED so an old exe (no list, no
      verb) never shows a screen whose button nothing handles. */
   if (capabilities.ignoredRequests && onIgnored) sec.card.append(settingRow({
-    glyph: 'user-cog', hue: 'neutral', key: 'ignored',
+    glyph: 'user-cancel', key: 'ignored',
     label: strings.declinedRequests || 'Declined requests',
     onClick: () => onIgnored(),
   }).section);
@@ -1187,7 +1190,7 @@ export function createSettingsHub({
   /* backup row — the STANDING NUDGE (backup-ux-spec §3.1) */
   if (onBackup) {
     const b = settingRow({
-      glyph: 'shield-lock', hue: 'success',
+      glyph: 'file-export',
       label: strings.backup || 'Backup',
       sub: ' ', badgeSlot: true, cls: 'c-settings__row--backup', key: 'backup',
       onClick: () => onBackup(),
@@ -1207,12 +1210,12 @@ export function createSettingsHub({
   /* How to use + About — STATIC in-hub takeovers, zero-C# (no bridge verb),
      always available (ungated). */
   if (onHowTo) app.card.append(settingRow({
-    glyph: 'info-square-rounded', hue: 'info', grad: 2, label: strings.howToUse || 'How to use Spixi',   /* ★ #1352: swapped with About (Damir 12:24) — the orange */
+    glyph: 'book', grad: 2, label: strings.howToUse || 'How to use Spixi',   /* ★ #1352: swapped with About (Damir 12:24) — the orange */
     key: 'howto', sub: strings.howToUseSub || 'Chats, payments and apps',
     onClick: () => onHowTo(),
   }).section);
   if (onAbout) app.card.append(settingRow({
-    glyph: 'info-circle', hue: 'neutral', grad: 7, label: strings.about || 'About', key: 'about',   /* ★ #1352: the blue of About's own header (Damir 12:24) */
+    glyph: 'info-circle', grad: 7, label: strings.about || 'About', key: 'about',   /* ★ #1352: the blue of About's own header (Damir 12:24) */
     sub: strings.aboutSub || 'Links and legal',
     onClick: () => onAbout(),
   }).section);
@@ -1221,20 +1224,20 @@ export function createSettingsHub({
      SettingsPage nav verb (be-cutover S8). Contributors is STATIC (component data,
      no verb needed) — un-gated by the shell since #240 (S10 verb obsolete). */
   if (capabilities.downloads && onDownloads) app.card.append(settingRow({
-    glyph: 'download', hue: 'info', grad: 4, label: strings.downloads || 'Downloads', key: 'downloads',   /* ★ #1352: swapped with Contributors (Damir 12:24) — the green */
+    glyph: 'download', grad: 4, label: strings.downloads || 'Downloads', key: 'downloads',   /* ★ #1352: swapped with Contributors (Damir 12:24) — the green */
     onClick: () => onDownloads(),
   }).section);
   if (capabilities.contributors && onContributors) app.card.append(settingRow({
-    glyph: 'heart-handshake', hue: 'accent', grad: 9, label: strings.contributors || 'Contributors',   /* ★ #1352: the violet of Contributors' own header (Damir 12:24) */
+    glyph: 'award', grad: 9, label: strings.contributors || 'Contributors',   /* ★ #1352: the violet of Contributors' own header (Damir 12:24) */
     key: 'contributors',
     onClick: () => onContributors(),
   }).section);
   if (capabilities.dev && onDev) app.card.append(settingRow({
-    glyph: 'settings', hue: 'neutral', label: strings.developer || 'Developer', key: 'dev',
+    glyph: 'code', label: strings.developer || 'Developer', key: 'dev',
     onClick: () => onDev(),
   }).section);
   if (version) app.card.append(settingRow({
-    glyph: 'info-circle', hue: 'neutral', label: strings.version || 'Version', value: version,
+    glyph: 'versions', label: strings.version || 'Version', value: version,
   }).section);
   if (app.card.childElementCount) body.append(app.wrap);
 

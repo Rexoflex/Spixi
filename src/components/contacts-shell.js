@@ -750,7 +750,7 @@ export function createAddContact({
   err.hidden = true;
   group.append(err);
   // ★ #1360: the error line leads with the alert glyph (decorative, aria-hidden — the text is the message)
-  const errGlyph = icon('alert-small', { size: 20 });
+  const errGlyph = icon('alert-square-rounded', { size: 16 });   // ★ S20H F-C (#1454): one warning glyph app-wide
   errGlyph.classList.add('c-contacts-add__error-glyph');
 
   /* #435(b): the "you already know this address" affordance. NOT an error and NOT a

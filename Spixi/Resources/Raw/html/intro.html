@@ -2422,6 +2422,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   box-shadow: none;
 }
 .c-account .c-disc > svg { width: 20px; height: 20px; filter: var(--disc-hub-glyph-lift); }
+/* ★ S20H F-C (#1454): two OPTICAL fixes, measured as the ink box on the 24 grid (the icon audit). `wallet` draws 17.5 units
+   where the hub's other glyphs draw 19.5 → ×1.11 (Confirm payments only — the same file is the nav icon). Tabler's
+   `user-cancel` sits 2 units right of and 0.5 below centre (ink y 2.25–22.75) (the person left, the badge right) → moved back by its own
+   box (2 / 24 = 8.33 %, 0.5 / 24 = 2.08 %), so it holds at any size. */
+.c-account .c-disc[data-glyph='wallet'] > svg { transform: scale(1.11); }
+.c-account .c-disc[data-glyph='user-cancel'] > svg { transform: translate(-8.33%, -2.08%); }
 .c-account .c-disc[data-hue='primary'] { --disc-grad: var(--disc-hub-7); }
 .c-account .c-disc[data-hue='accent']  { --disc-grad: var(--disc-hub-8); }
 .c-account .c-disc[data-hue='info']    { --disc-grad: var(--disc-hub-6); }
@@ -3972,6 +3978,23 @@ html[dir="rtl"] .c-launch__meter i::after { transform-origin: right; }
 .c-launch__check[data-state="ok"] b { background: var(--launch-ok); box-shadow: none; color: var(--launch-on-tile); }
 .c-launch__check[data-state="bad"] { color: var(--launch-text-error); }
 .c-launch__check[data-state="bad"] b { box-shadow: inset 0 0 0 1.5px var(--launch-text-error); color: var(--launch-text-error); }
+/* ★ S20H F-B (#1454): the match check carries the mismatch message itself — both labels in one grid cell (the row keeps
+   the width of the longer label in every state: no re-wrap, 0 px movement), only the current one visible. The old
+   line under the confirm field stays for screen readers only (visually hidden, out of the flex flow = no row, no gap). */
+.c-launch__check-text { display: inline-grid; }
+.c-launch__check-text > span { grid-area: 1 / 1; }
+.c-launch__check-bad,
+.c-launch__check[data-state="bad"] .c-launch__check-ok { visibility: hidden; }
+.c-launch__check[data-state="bad"] .c-launch__check-bad { visibility: visible; }
+.c-launch__mismatch {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 /* the "write it down" banner (no outline) */
 .c-launch__banner {
@@ -4059,6 +4082,19 @@ html[dir="rtl"] .c-launch__meter i::after { transform-origin: right; }
 @keyframes c-launch-step-back { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
 html[dir="rtl"] .c-launch__step[data-enter="fwd"] { animation-name: c-launch-step-back; }
 html[dir="rtl"] .c-launch__step[data-enter="back"] { animation-name: c-launch-step-fwd; }
+/* ★ S20H F-B (#1454, Damir: one motion for welcome → step 1 → step 2): on DESKTOP a form view arriving from the welcome
+   (data-arrive, launch-shell.js show()) uses the step grammar — the card fades in, its rows slide in 24 px, the hero
+   fades — the same 220 ms the step change uses (the card's own height is eased by launch-shell.js easeCard) */
+:root[data-desktop] .c-launch__form[data-arrive]::before { animation: c-launch-fade-in 220ms var(--easing-standard) both; }
+:root[data-desktop] .c-launch__form[data-arrive] .c-launch__hero { animation: c-launch-fade-in 220ms var(--easing-standard) both; }
+:root[data-desktop] .c-launch__form[data-arrive] > .c-topbar,
+:root[data-desktop] .c-launch__form[data-arrive] > .c-launch__progress,
+:root[data-desktop] .c-launch__form[data-arrive] .c-launch__fields,
+:root[data-desktop] .c-launch__form[data-arrive] .c-launch__footer { animation: c-launch-step-fwd 220ms var(--easing-standard) both; }
+html[dir="rtl"]:root[data-desktop] .c-launch__form[data-arrive] > .c-topbar,
+html[dir="rtl"]:root[data-desktop] .c-launch__form[data-arrive] > .c-launch__progress,
+html[dir="rtl"]:root[data-desktop] .c-launch__form[data-arrive] .c-launch__fields,
+html[dir="rtl"]:root[data-desktop] .c-launch__form[data-arrive] .c-launch__footer { animation-name: c-launch-step-back; }
 @keyframes c-launch-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes c-launch-fade-out { from { opacity: 1; } to { opacity: 0; } }
 /* ★ ON-1: reduced motion = a SHORT FADE, not nothing — the welcome → create / restore
@@ -4071,6 +4107,17 @@ html[dir="rtl"] .c-launch__step[data-enter="back"] { animation-name: c-launch-st
   .c-launch__step[data-enter="fwd"],
   .c-launch__step[data-enter="back"],
   html[dir="rtl"] .c-launch__step[data-enter] { animation: c-launch-fade-in 140ms linear both; }
+  /* ★ S20H F-B: the desktop arrival = the same short fade (Damir: keep the short fade) */
+  :root[data-desktop] .c-launch__form[data-arrive]::before,
+  :root[data-desktop] .c-launch__form[data-arrive] .c-launch__hero,
+  :root[data-desktop] .c-launch__form[data-arrive] > .c-topbar,
+  :root[data-desktop] .c-launch__form[data-arrive] > .c-launch__progress,
+  :root[data-desktop] .c-launch__form[data-arrive] .c-launch__fields,
+  :root[data-desktop] .c-launch__form[data-arrive] .c-launch__footer,
+  html[dir="rtl"]:root[data-desktop] .c-launch__form[data-arrive] > .c-topbar,
+  html[dir="rtl"]:root[data-desktop] .c-launch__form[data-arrive] > .c-launch__progress,
+  html[dir="rtl"]:root[data-desktop] .c-launch__form[data-arrive] .c-launch__fields,
+  html[dir="rtl"]:root[data-desktop] .c-launch__form[data-arrive] .c-launch__footer { animation: c-launch-fade-in 140ms linear both; }
 }
 
 /* ══ ★ S20F welcome additions — here, not in launch-shell.css, so settings.html (which links that file for the

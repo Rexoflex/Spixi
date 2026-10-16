@@ -255,9 +255,9 @@ export function createComposer({
   /* ★ S20G r1 B-2: the pointer of the press that led to this click — a keyboard click has no pointerdown (and detail 0),
      so a stale touch press (pressed, dragged off, no click) older than 1.5 s never counts; consumed by the click. */
   let downType = '', downAt = 0;
-  action.addEventListener('pointerdown', (e) => { downType = e.pointerType || ''; downAt = Date.now(); });
+  action.addEventListener('pointerdown', (e) => { downType = e.pointerType || ''; downAt = performance.now(); });   // ★ S20H ⑪ (#1423): a monotonic clock — a wall-clock step back stretched the window
   action.addEventListener('click', (e) => {
-    const byTouch = e.detail > 0 && (downType === 'touch' || downType === 'pen') && Date.now() - downAt < 1500;
+    const byTouch = e.detail > 0 && (downType === 'touch' || downType === 'pen') && performance.now() - downAt < 1500;
     downType = '';
     const mode = action.dataset.mode;
     if (mode === 'mic') {

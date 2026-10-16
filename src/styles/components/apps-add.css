@@ -125,7 +125,7 @@
   line-height: var(--line-height-body-sm);
   color: var(--text-error);
 }
-.c-apps-add__error > svg { flex: none; margin-inline-start: -2px; color: var(--icon-error); }
+.c-apps-add__error > svg { flex: none; align-self: flex-start; margin-top: var(--spacing-2); color: var(--icon-error); }   /* ★ S20H F-C: the 16 px alert-square-rounded centred on the 20 px text line (the −2 px inset was alert-small's) */
 .c-apps-add__field .c-button { margin-top: var(--spacing-4); }
 
 /* —— trust line —— ★ #1359: a shield-lock caption, not a grey box */

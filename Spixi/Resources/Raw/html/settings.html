@@ -2073,6 +2073,12 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   box-shadow: none;
 }
 .c-account .c-disc > svg { width: 20px; height: 20px; filter: var(--disc-hub-glyph-lift); }
+/* ★ S20H F-C (#1454): two OPTICAL fixes, measured as the ink box on the 24 grid (the icon audit). `wallet` draws 17.5 units
+   where the hub's other glyphs draw 19.5 → ×1.11 (Confirm payments only — the same file is the nav icon). Tabler's
+   `user-cancel` sits 2 units right of and 0.5 below centre (ink y 2.25–22.75) (the person left, the badge right) → moved back by its own
+   box (2 / 24 = 8.33 %, 0.5 / 24 = 2.08 %), so it holds at any size. */
+.c-account .c-disc[data-glyph='wallet'] > svg { transform: scale(1.11); }
+.c-account .c-disc[data-glyph='user-cancel'] > svg { transform: translate(-8.33%, -2.08%); }
 .c-account .c-disc[data-hue='primary'] { --disc-grad: var(--disc-hub-7); }
 .c-account .c-disc[data-hue='accent']  { --disc-grad: var(--disc-hub-8); }
 .c-account .c-disc[data-hue='info']    { --disc-grad: var(--disc-hub-6); }

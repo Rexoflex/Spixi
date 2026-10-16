@@ -1,6 +1,6 @@
-# Walk S20H — Drop A (Windows F5 + Android Debug)
+# Walk S20H — Drop A + Drop B (Windows F5 + Android Debug)
 
-Added 2026-10-15 (Session 20H Drop A; DECISIONS #1453–#1455). Platforms: Android (A) · Windows (W) · A+W = both. iPhone + Mac rows: `docs/office-walk-sheet-v1.md` §16 phase 14 (the Artifact "Spixi Office Walk 2026-10-15"). Drop B rows are added when Drop B is delivered.
+Added 2026-10-15 (Session 20H Drop A; DECISIONS #1453–#1455). Platforms: Android (A) · Windows (W) · A+W = both. iPhone + Mac rows: `docs/office-walk-sheet-v1.md` §16 phase 14 (the Artifact "Spixi Office Walk 2026-10-15"). Drop B rows: the second table (they need the Drop B patch on top of Drop A).
 
 ## Set-up
 - **(0) ★ COPY YOUR DATA FIRST (L149).** These rows do not change account data (only the App lock switch). Still: close Spixi and copy the data folder before you start. Windows: `Copy-Item -Recurse "$env:USERPROFILE\Documents\Spixi" "$env:USERPROFILE\Documents\Spixi-copy-s20h"`.
@@ -19,3 +19,23 @@ Added 2026-10-15 (Session 20H Drop A; DECISIONS #1453–#1455). Platforms: Andro
 | S20H-A-PHONE | A | 1) Account › Chat appearance in portrait, then landscape. | As before (phones are not changed). | | F-A control |
 
 **Result line for DECISIONS:** `WALK #n (S20H Drop A, Windows F5 + Android Debug): n P · n F · n N/A`.
+
+## Drop B (apply `session-s20h-dropB.patch` on the Drop A commit)
+
+Set-up as above, plus **(d) an empty account on Windows WITHOUT touching yours** (for the create rows): after (0), close Spixi, RENAME `Documents\Spixi` to `Documents\Spixi-mine`, F5 → the welcome screen. When done: close Spixi, delete the test `Documents\Spixi`, rename `Spixi-mine` back. Android create rows: only on a phone / emulator WITHOUT your account, else N/A.
+
+| ID | Pl | Steps | Expected | P/F/N/A | Note |
+|---|---|---|---|---|---|
+| **BUILD · this build only** | | | | | |
+| S20H-B-BUILD | A+W | 1) Build. 2) Account (the hub). | 2: Theme = a sun-and-moon icon, Change Spixi password = a key, Version = stacked cards (only this build). | | F-C |
+| **F-C · Account icons** | | | | | |
+| S20H-B-ICONS | A+W | 1) Account hub, light. 2) The same in dark. 3) Look at each icon in its coloured square. | All icons WHITE, centred, the same size (Confirm payments' wallet as big as the others; Declined requests' person not pushed to the right). No two rows share an icon. The square colours are the same as before; Delete data is red. Icons: Theme sun-moon · Chat appearance palette · Change password key · Declined requests person with a "no" sign · Backup file with an arrow · How to use a book · Contributors a ribbon · Developer `</>` · Version stacked cards. | | #1454 · Damir: today's colours |
+| S20H-B-WARN | A+W | 1) New chat › Add contact › Enter or paste: type `abc def`; Send request. 2) Apps › Add app › Paste link: `apps.spixi.io/x`; Get app. 3) (W, set-up d) Create account: nickname `a:b`; Continue. | 1–3: the error line starts with the rounded-square "!" icon (not a bare "!" and not an "i"); the icon sits level with the text. | | one warning glyph |
+| **F-B · Create account** | | | | | |
+| S20H-B-JUMP | W (A: N/A unless no account) | Set-up d. 1) Create account; a nickname; Continue. 2) Password `abcdefghij1!`. 3) Confirm: `abcdefghij1?` (same length, wrong). 4) Fix the last character to `!`. 5) Repeat at a narrow window (about 500 px wide). | 3: NOTHING below the confirm field moves; the check line changes from an empty grey ring "Passwords match" to a red ✕ "Don't match yet"; the confirm field is red. 4: back to "Passwords match" with a green ✓; nothing moves. No separate red line under the confirm field any more. | | #1454 F-B option C · Damir R3-STEP2 remark |
+| S20H-B-MOTION | W | Set-up d, a window wider than 900 px. 1) Welcome › Create account. 2) Type a nickname › Continue. 3) Back. 4) Windows Settings › Accessibility › Visual effects › Animation effects OFF; repeat 1–3; turn it back ON. | 1: the card fades in and its rows slide in from the right (no instant jump). 2: the card GROWS smoothly to the step-2 size while the content slides in (before: the card snapped to the new size). 3: the card shrinks smoothly. 4: a short fade only; the card size changes at once. | | #1454 step grammar · reduced motion = short fade |
+| **⑦ ⑨ · small fixes** | | | | | |
+| S20H-B-TIP | A+W | A fresh account (set-up d on W): the wallet tip card on Chats (it rotates in; Developer › reset tips if present). Also Language › Deutsch. | Title "Send IXI like a message"; text "Open a chat with a contact and pay from there." (no "Send IXI" twice). German: "Öffne einen Chat mit einem Kontakt und bezahle dort." | | #1423 ⑦ |
+| S20H-B-CHIP | A+W | 1) Chats › the filter chips (All / Unread …), light. 2) Dark. | 1: the selected chip is a plain light-blue fill with a blue outline (no visible change from before). 2: dark keeps its soft top shine. | | #1423 ⑨ |
+
+**Result line for DECISIONS:** `WALK #n (S20H Drop B, Windows F5 + Android Debug): n P · n F · n N/A`.

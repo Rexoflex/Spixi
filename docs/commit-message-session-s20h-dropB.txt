@@ -1,0 +1,18 @@
+Session 20H Drop B: create step 2 without the jump, the Account icons, one warning glyph, three small fixes
+
+- F-B: the "passwords don't match yet" message lives in the match check (a second, short label `checkMismatch` in
+  the same grid cell, 14 locales) — nothing below the confirm field moves (0 px at 1126x710 / 390x844 / 320x568) and
+  the check row keeps its height in every locale; the old line stays for screen readers only (role=alert, out of flow).
+  Desktop: the card eases to its new size with the step slide (WAAPI on ::before, reduced motion = at once); welcome ->
+  create arrives with the same grammar; reduced motion keeps the short fade.
+- F-C: 9 new Account icons (sun-moon, palette, key, user-cancel, file-export, book, award, code, versions), today's
+  colours, the dead hue names removed, wallet and user-cancel optically corrected; field errors use
+  alert-square-rounded app-wide; 5 unused registry icons removed.
+- #1423 (7) wallet tip body "Open a chat with a contact and pay from there." (14 locales); (9) the invisible light
+  shine of the selected chip removed via its token (dark keeps it); (11) the two input time windows use
+  performance.now().
+- Pins: scripts/pins-s20h/b-launch.mjs, c-icons.mjs (smoke), b-sweep.mjs (Chromium); re-bases in pins-s9/b2-copy,
+  pins-s11/a-hints, pins-s18/a-add-app, pins-s18/b-add-contact, pins-s20f/l-card, smoke #710 + the trim gate; the
+  ring fixture recaptured.
+- Docs: DECISIONS #1456 (Drop B as built), #1457 (recorded / later); docs/walk-s20h.md (Drop B rows); the handoff
+  docs/handoff-2026-10-15-s20h.md; CLAUDE.md; status log; lessons L154.

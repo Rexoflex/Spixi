@@ -67,7 +67,7 @@ export function createAppsAdd({ strings = getStrings(), discover = true, onFetch
   err.setAttribute('role', 'alert');
   const errText = document.createElement('span');
   errText.className = 'c-apps-add__error-text';
-  err.append(icon('alert-small', { size: 20 }), errText);   // the glyph stays; setAddError swaps only the text
+  err.append(icon('alert-square-rounded', { size: 16 }), errText);   // ★ S20H F-C (#1454): one warning glyph app-wide   // the glyph stays; setAddError swaps only the text
   input.addEventListener('input', () => {
     err.hidden = true;
     input.removeAttribute('aria-invalid');

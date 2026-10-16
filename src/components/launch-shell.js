@@ -141,6 +141,14 @@ function show(st, view, silent) {
   } else {
     reveal();
   }
+  /* ★ S20H F-B (#1454): desktop has no subscreen slide (#704 — the swap is instant); CREATE arriving from the welcome
+     uses the step grammar instead (launch-form.css [data-arrive]: the card fades in, its rows slide in 24 px, the hero
+     fades). Only this one move (the ruling); restore keeps #704's instant swap (#46 r2 MINOR-3). */
+  if (changed && prev === 'welcome' && view === 'create' && nextNode && st.root.isConnected && onDesktop() && nextNode.classList.contains('c-launch__form')) {
+    clearTimeout(nextNode._arriveT);   // #46 r1 NIT: a quick re-entry keeps its own full arrival
+    nextNode.setAttribute('data-arrive', '');
+    nextNode._arriveT = setTimeout(() => nextNode.removeAttribute('data-arrive'), 400);   // > 220 ms
+  }
   if (changed && !silent && st.opts && st.opts.onViewChange) {
     try { st.opts.onViewChange(view); } catch { /* report only — never block the switch */ }
   }
@@ -219,7 +227,7 @@ const imeBusy = (e) => !!(e && (e.isComposing || e.keyCode === 229));
 function launchErrLine() {
   const err = errLine();
   err.classList.add('c-launch__ferr');
-  const glyph = icon('info-circle', { size: 16 });
+  const glyph = icon('alert-square-rounded', { size: 16 });   // ★ S20H F-C (#1454): warnings + field errors = alert-square-rounded app-wide ("i" = information only)
   glyph.setAttribute('aria-hidden', 'true');
   const msg = mk('span', 'c-launch__ferr-text');
   err.append(glyph, msg);
@@ -414,6 +422,7 @@ const twoColumn = () => onDesktop() && typeof matchMedia === 'function' && match
 const isShown = (e, top) => { for (let x = e; x && x !== top; x = x.parentElement) if (x.hidden) return false; return true; };
 function quietPx(e) {
   const cs = getComputedStyle(e);
+  if (cs.position === 'absolute' || cs.position === 'fixed') return 0;   // ★ S20H F-B: the screen-reader-only mismatch line takes no row
   const par = e.parentElement;
   const sib = par && [...par.children].some((c) => c !== e && !c.hidden);
   const gap = sib ? (parseFloat(getComputedStyle(par).rowGap) || 0) : 0;
@@ -743,7 +752,7 @@ function buildWelcome(st) {
      modality is the last input: pointerdown = pointer, keydown = keyboard, a focus with neither (AT) = keyboard.
      r2 M-2: the pointer modality is TIME-BOXED (1 s) — a screen reader's synthetic tap must not make every later AT focus count as pointer. */
   let ptrAt = 0;
-  const ptrNow = () => ptrAt > 0 && Date.now() - ptrAt < 1000;
+  const ptrNow = () => ptrAt > 0 && performance.now() - ptrAt < 1000;   // ★ S20H ⑪ (#1423): monotonic (performance.now)
   const inCar = (n) => !!n && (car.contains(n) || dots.contains(n));
   const pauseAuto = () => {
     if (!autoOn) return;
@@ -759,7 +768,7 @@ function buildWelcome(st) {
   // hidden welcome is pure waste (go() is view-gated anyway). Demo boots welcome.
   if (!reduced && (st.opts.view || 'welcome') === 'welcome') { autoOn = true; runAuto(); }
   /* any further touch / key on the welcome while paused re-arms the one resume timer (not the 7 s run) */
-  v.addEventListener('pointerdown', () => { ptrAt = Date.now(); }, true);
+  v.addEventListener('pointerdown', () => { ptrAt = performance.now(); }, true);
   v.addEventListener('keydown', () => { ptrAt = 0; }, true);
   v.addEventListener('pointerdown', () => { if (resumeT) pauseAuto(); });
   v.addEventListener('keydown', () => { if (resumeT) pauseAuto(); });
@@ -1230,6 +1239,10 @@ function buildCreate(st) {
   const sub2 = mk('p', 'c-launch__hero-copy');
   hero2.append(photo2.el, mk('h2', 'c-launch__hero-title', strings.create2Title || 'Protect your account'), sub2);
   const fields2 = mk('div', 'c-launch__fields');
+  /* ★ S20H F-B (#1454): the mismatch line no longer takes a row of its own — it pushed everything below the confirm field
+     down 26 px and back (Damir's walk remark on R3-STEP2), and the check row said "Passwords match" with a red ✕ at the
+     same time. The CHECK ROW now says it (chkMatch's second label, below); this line stays only for screen readers
+     (role="alert", visually hidden, absolutely placed = no flex row, no gap), so the message is still announced. */
   const mismatch = launchErrLine();
   mismatch.classList.add('c-launch__mismatch');
   const meter = mk('div', 'c-launch__meter');
@@ -1245,17 +1258,25 @@ function buildCreate(st) {
     strings.strengthStrong || 'Strong',
   ];
   const checks = mk('div', 'c-launch__checks');
-  const check = (text) => {
+  /* ★ S20H F-B: a check may carry a second label for its 'bad' state. Both labels sit in ONE grid cell (launch-form.css),
+     so the row is as wide as the longer one in every state: switching never re-wraps the row (0 px, any locale). */
+  const check = (text, badText) => {
     const c = mk('span', 'c-launch__check');
     c.dataset.state = 'idle';
     const b = mk('b');
     b.setAttribute('aria-hidden', 'true');
-    c.append(b, mk('span', null, text));
+    if (badText) {
+      const t = mk('span', 'c-launch__check-text');
+      t.append(mk('span', 'c-launch__check-ok', text), mk('span', 'c-launch__check-bad', badText));
+      c.append(b, t);
+    } else {
+      c.append(b, mk('span', null, text));
+    }
     checks.append(c);
     return { c, b };
   };
   const chkLen = check(fillIn(strings.checkLength || '{n}+ characters', { n: ENC_MIN }));
-  const chkMatch = check(strings.checkMatch || 'Passwords match');
+  const chkMatch = check(strings.checkMatch || 'Passwords match', strings.checkMismatch || 'Don’t match yet');   // ★ S20H #46 r1 (MINOR-1): a SHORT label — the long sentence reserved a second line on phones (the screen-reader line keeps mismatchYet)
   const setCheck = ({ c, b }, state) => {
     if (c.dataset.state === state) return;
     c.dataset.state = state;
@@ -1324,8 +1345,31 @@ function buildCreate(st) {
   /* —— the step switch (★ ON-1: one view, two panes; the progress, the label and the hero
      follow). Motion: the entering pane slides in (phone) / the card content slides and the
      hero cross-fades (desktop) — launch-shell.css; reduced motion = a short fade. —— */
+  /* ★ S20H F-B (#1454, Damir: "smoother moves"): on the two-column desktop the card is the form's ::before, spanning the
+     rows; its TOP is fixed (fitCard centres the step-2 card, S20F W-7), so a step change only moves its BOTTOM — which
+     jumped in one frame while the content slid. The card's bottom now eases from the old footer to the new one with
+     the slide (the same 220 ms, the standard easing). Only where an animation can target ::before (else the old
+     instant size, never the view's own margin); reduced motion = the size changes at once (the short fade stays). */
+  let cardAnim = null;
+  const easeCard = (oldBottom) => {
+    if (!(oldBottom > 0) || !onDesktop() || !twoColumn() || !v.isConnected || typeof v.animate !== 'function') return;
+    if (typeof KeyframeEffect === 'undefined' || !('pseudoElement' in KeyframeEffect.prototype)) return;
+    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (cardAnim) { try { cardAnim.cancel(); } catch { /* gone */ } cardAnim = null; }   // #46 r1 (MINOR-2): read the BASE margin, not an in-flight one
+    const foot = (st.createStep === 1 ? pane1 : pane2).querySelector('.c-launch__footer');
+    const end = parseFloat(getComputedStyle(v, '::before').marginBottom);
+    if (!foot || !Number.isFinite(end)) return;
+    const dh = foot.getBoundingClientRect().bottom - oldBottom;
+    if (Math.abs(dh) < 0.5) return;
+    const ease = (getComputedStyle(document.documentElement).getPropertyValue('--easing-standard') || '').replace(/^\s+|\s+$/g, '') || 'ease';   // no .trim(): the password-trim gate counts every .trim in this file
+    try {
+      cardAnim = v.animate([{ marginBottom: (end + dh) + 'px' }, { marginBottom: end + 'px' }], { duration: 220, easing: ease, pseudoElement: '::before' });
+    } catch { /* decoration only — the card simply has its new size */ }
+  };
   const goStep = (n, { animate = true, focus = true } = {}) => {
     const from = st.createStep;
+    const oldFoot = animate && from && from !== n ? (from === 1 ? pane1 : pane2).querySelector('.c-launch__footer') : null;
+    const oldBottom = oldFoot && oldFoot.getClientRects().length ? oldFoot.getBoundingClientRect().bottom : 0;
     st.createStep = n;
     v.dataset.createStep = String(n);   // the panes carry data-step; the view says which one is up
     pane1.hidden = n !== 1;
@@ -1345,6 +1389,7 @@ function buildCreate(st) {
     const pane = n === 1 ? pane1 : pane2;
     if (animate && from && from !== n && v.isConnected) {
       pane.dataset.enter = n > from ? 'fwd' : 'back';
+      easeCard(oldBottom);
       const done = () => { delete pane.dataset.enter; };
       pane.addEventListener('animationend', (e) => { if (e.target === pane || pane.contains(e.target)) done(); }, { once: true });
       setTimeout(done, 480);   // completes-never backstop (#326)

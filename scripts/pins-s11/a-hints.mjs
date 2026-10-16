@@ -205,7 +205,7 @@ export default async function (h) {
       const { d, W } = S;
       const c = hint(d);
       if (!c || c.dataset.tip !== 'wallet') return 'tip=' + (c && c.dataset.tip);
-      const copy = c.querySelector('.c-glass-card__text').textContent === 'Send IXI to a contact in a chat.';
+      const copy = c.querySelector('.c-glass-card__text').textContent === 'Open a chat with a contact and pay from there.';   // ★ S20H ⑦ (#1454): the body no longer repeats the title's "Send IXI"
       S.sent.length = 0;
       c.querySelector('.c-glass-card__link').dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
       await K.sleep(120);

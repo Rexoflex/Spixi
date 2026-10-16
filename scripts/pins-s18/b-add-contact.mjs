@@ -5,7 +5,7 @@
  *   · the label is a real <label> "Address" bound to the input (unique id), the placeholder is "Address";
  *   · the scan button is INSIDE the field box (the box draws the border);
  *   · a bad address ("abc def") → data-invalid on the box + a 2 px error border (rule-resolved) + aria-invalid, and the
- *     error line holds the alert-small glyph + the NEW key's text (addContactBadAddress, not Wallet's badAddress);
+ *     error line holds the alert-square-rounded glyph (S20H; was alert-small) + the NEW key's text (addContactBadAddress, not Wallet's badAddress);
  *   · a confirmed ✓ (onValidAddress) → data-valid + the ✓ disc INSIDE the field, before the separator, + the status line;
  *     the bad state is gone;
  *   · already a contact (onKnownAddress 'contact') → ONE row inside the card: a 32 px avatar (the roster's photo via
@@ -116,7 +116,7 @@ export default async function (h) {
     r.badBorder = width === '2px' && !!color && color === res(W, 'var(--outline-error)')
       && !field.matches(':focus-within') && !!bw && /\[data-invalid\]/.test(bw.sel);
     const errSvg = err && err.querySelector('svg');
-    const reg = W.SpixiIcons && W.SpixiIcons.icon ? W.SpixiIcons.icon('alert-small', { size: 20 }) : null;
+    const reg = W.SpixiIcons && W.SpixiIcons.icon ? W.SpixiIcons.icon('alert-square-rounded', { size: 16 }) : null;
     r.badLine = !!err && !err.hidden && err.getAttribute('role') === 'alert' && err.textContent === BAD_EN
       && !!errSvg && errSvg.getAttribute('aria-hidden') === 'true' && !!reg && paths(errSvg) === paths(reg) && paths(reg).length > 10
       && err.firstElementChild === errSvg;
@@ -224,7 +224,7 @@ export default async function (h) {
   clause('scanInField', '★ #1360: the scan button sits INSIDE the field box with the input (the box draws the border)');
   clause('badMarks', '★ #1360: a bad address ("abc def") marks the FIELD — data-invalid on the box + aria-invalid on the input');
   clause('badBorder', '★ #1360: the bad field draws a 2 px --outline-error border (rule-resolved; ★ #46 R2-MINOR-2: blurred, and the winning width rule is the [data-invalid] one — not :focus-within)');
-  clause('badLine', '★ #1360: the error line (role=alert) leads with the alert-small glyph (aria-hidden) and says "That doesn’t look like a Spixi address." — the NEW key addContactBadAddress');
+  clause('badLine', '★ #1360: the error line (role=alert) leads with the alert-square-rounded glyph (aria-hidden; S20H one warning glyph, was alert-small) and says "That doesn’t look like a Spixi address." — the NEW key addContactBadAddress');
   clause('badNotWallet', '★ #1360: this screen no longer says Wallet\'s "Ixian address" sentence (badAddress stays for Wallet › Send)');
   clause('valid', '★ #1360: a confirmed ✓ (ixian:checkAddress → onValidAddress) → data-valid + the ✓ disc INSIDE the field after the input and before the separator + "Looks like a valid Spixi address"; the bad state is gone');
   clause('known', '★ #1360: already a contact (onKnownAddress "contact") → ONE row inside the card: the 32 px avatar with the roster photo (avatarFor), the sentence, and the "View contact" text button; Send disabled; the ✓ retired');

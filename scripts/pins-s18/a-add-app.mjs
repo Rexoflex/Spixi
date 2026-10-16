@@ -10,7 +10,7 @@
  *   · Paste link → the field (a settings card) is shown and placed AFTER the tiles; the tile carries aria-expanded=true +
  *     data-selected (aria-controls = the field) and its rule-resolved ring / label ink are the action tokens; a 2nd tap keeps
  *     the field open and the tile selected (focus goes to the input, bound to the label by for/id);
- *   · showUrlError (bad link, then timeout) → the error line shows the text AND the alert-small glyph (the glyph survives the
+ *   · showUrlError (bad link, then timeout) → the error line shows the text AND the alert-square-rounded glyph (S20H; was alert-small) (the glyph survives the
  *     text change), the input is aria-invalid + aria-describedby the line; typing clears all three;
  *   · setScannedData (setAddUrl) and showUrlError (setAddError) on a FRESH mount also open the field and select the tile.
  * Deliberate breaks (#1359 report): Scan's hub 8 → 7 → the fill clause fails; the link tile's glyph 'link' → 'world' →
@@ -90,7 +90,7 @@ export default async function (h) {
     const err = add.querySelector('.c-apps-add__error');
     const input = add.querySelector('.c-apps-add__input');
     const svgs = err ? err.querySelectorAll('svg') : [];
-    return !!err && !err.hidden && (err.textContent || '').trim() === text && svgs.length === 1 && sameGlyph(W, svgs[0], 'alert-small')
+    return !!err && !err.hidden && (err.textContent || '').trim() === text && svgs.length === 1 && sameGlyph(W, svgs[0], 'alert-square-rounded')
       && input.getAttribute('aria-invalid') === 'true' && input.getAttribute('aria-describedby') === err.id && !!err.id;
   };
 

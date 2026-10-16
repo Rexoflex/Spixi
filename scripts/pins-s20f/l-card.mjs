@@ -54,7 +54,7 @@ export default async function (h) {
         const m = (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
         Object.defineProperty(e, 'offsetHeight', { configurable: true, get: () => (shown(e) ? 30 - m : 0) });
       }
-      const ownH = (x) => base(x) + [...x.querySelectorAll(QUIET)].filter(shown).length * 42;
+      const ownH = (x) => base(x) + [...x.querySelectorAll(QUIET)].filter((e) => shown(e) && realGCS(e).position !== 'absolute').length * 42;   // ★ S20H F-B: the screen-reader-only mismatch line (absolute) takes no row, as in Chromium
       /* ★ #46 r3 (N6): two panes laid out at once share grid rows 4 / 5 — an IN-FLOW block is stretched to the row,
          i.e. the taller of the two panes' blocks; only an out-of-flow (position: absolute) block keeps its own height */
       const blockH = (x) => {

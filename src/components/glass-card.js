@@ -65,7 +65,7 @@ export function hintCopy(id, strings = getStrings()) {
   switch (id) {
     case 'backup': return { title: strings.hintBackupTitle || 'Your backup is your account', text: strings.hintBackupBody || 'Only your backup can restore a lost phone.' };
     /* ★ S11 A2 (#1263, R2 copy): a group chat cannot pay — the line names a CONTACT (a new key: a changed meaning) */
-    case 'wallet': return { title: strings.hintWalletTitle || 'Send IXI like a message', text: strings.hintWalletBody2 || 'Send IXI to a contact in a chat.' };
+    case 'wallet': return { title: strings.hintWalletTitle || 'Send IXI like a message', text: strings.hintWalletBody2 || 'Open a chat with a contact and pay from there.' };
     case 'apps': return { title: strings.hintAppsTitle || 'Mini apps in chats', text: strings.hintAppsBody || 'Play or work together inside a chat.' };
     case 'addcontact': return { title: strings.hintAddContactTitle || 'Add people in person', text: strings.hintAddContactBody || 'Scan a QR code when you meet.' };
     /* ★ S11 A2 (#1263, R2 copy): platform-neutral — a desktop opens the menu with a right-click, not a long-press */

@@ -1,0 +1,18 @@
+Main chat 2026-11-12: Damir's rulings on the ORCH questions (DECISIONS 1500-1511)
+
+Docs only. No file under src/, Spixi/, scripts/ or .github/ is changed.
+
+- DECISIONS 1500-1511: the GitHub link for Claude (yes), the commit author of
+  a work session, row 1495 not adopted (Damir decides per pull request),
+  row 1474 in force (the affected pins between review rounds, one full smoke
+  after the last fix and before the push), the nightly task only after the
+  push proof, the merge method (a merge commit), the daily sync follows
+  howto rule 11, branch protection for redesign/frontend, docs-only sessions
+  and rule 1472, Session Tooling builds part A only, the operator exception,
+  the Tooling dials.
+- Status cells of rows 1474, 1495, 1496 and 1497: the ruling is added, no
+  text is removed.
+
+The rule texts (CLAUDE.md, docs/process.md, docs/orchestration.md, the
+templates, the decisions index) follow in a docs batch with its own review
+loop.

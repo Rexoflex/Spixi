@@ -1,0 +1,25 @@
+Session ORCH: adopt the orchestration (docs only)
+
+No file under src/, Spixi/, scripts/ or .github/ is changed.
+
+One main chat; a lead with agents by model; work branches with pull
+requests inside the fork; "go" = Ready.
+
+- CLAUDE.md: three new rules (one talk session; agents and models; commit
+  and push), "go" = Ready in the FORGE paragraph, loop steps 6-8, the doc
+  index, "Where we are now"
+- docs/orchestration.md (new): who runs what for Spixi - the main chat,
+  work sessions, models, the Ready queue, stop conditions, git rules,
+  what the account allows today, the probe result
+- docs/process.md: the interview in the main chat, the #46 loop before the
+  first push, export with a pull request and a status doc, ready /
+  walk-ready / done, working rules, Appendix B (the replaced texts of
+  CLAUDE.md and process.md, word for word)
+- docs/templates: the stand-alone work-session prompt, the agent contract
+  (new), the handoff with branch / pull request / CI lines
+- DECISIONS #1488-#1498 (#1495-#1497 are proposals, not in force);
+  #1097 and #1100 marked; decisions index; lesson L161; status-log entry
+- docs/handoff-2026-11-12-orch.md, docs/review-brief-orch.md
+
+A pull request is opened only inside the fork (Rexoflex/Spixi ->
+redesign/frontend), never to upstream.

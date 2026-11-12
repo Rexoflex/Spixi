@@ -77,7 +77,7 @@ namespace Spixi
                     return null;
                 }
                 // ★ S9 #46 r1 m-10: the header's size first — a source above ~100 MP is never decoded (PhotoRules.pixelsOk)
-                CGImageProperties? props = src.GetProperties(0);
+                CoreGraphics.CGImageProperties? props = src.GetProperties(0);
                 if (props != null && !SPIXI.PhotoRules.pixelsOk(props.PixelWidth ?? 0, props.PixelHeight ?? 0))
                 {
                     return null;

@@ -1,6 +1,6 @@
 /**
  * jsdom smoke test for the demo pages (#46 audit-loop step).
- * Run: npm i --no-save jsdom eslint globals && node scripts/smoke-test.mjs   (eslint + globals: the undeclared-identifier gate, Session X)
+ * Run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5 && node scripts/smoke-test.mjs   (eslint + globals: the undeclared-identifier gate, Session X)
  * Optional arg: repo root (default = script's parent dir) — lets the script run
  * from a location where jsdom resolves, e.g. `node /x/smoke-test.mjs /repo`.
  * Asserts against COMPUTED styles where it matters ([hidden] vs author display).
@@ -27,7 +27,7 @@ const readFileSync = (p, enc) => {
 const root = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)), '..');
 let JSDOM, VirtualConsole;
 try { ({ JSDOM, VirtualConsole } = await import('jsdom')); }
-catch { console.error('jsdom not installed — run: npm i --no-save jsdom'); process.exit(2); }
+catch { console.error('jsdom not installed — run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5   (jsdom 31 fails 6 rows, docs/lessons.md L160)'); process.exit(2); }
 
 const failures = [];
 let passes = 0;
@@ -13809,12 +13809,12 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
      * chatCanvasEl at its line; on the other 17 shells it reports nothing (zero noise). A
      * <script> inside an HTML comment is prose, not a script.
      * ⚠ The gate REFUSES to pass without its parser (#798): the header's install line is
-     * `npm i --no-save jsdom eslint globals`. A missing parser is one honest red line. */
+     * `npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5`. A missing parser is one honest red line. */
     {
       let ESLintX = null, globalsX = null, loadErr = null;
       try { ESLintX = (await import('eslint')).ESLint; globalsX = (await import('globals')).default; } catch (e) { loadErr = e; }
       if (!ESLintX || !globalsX) {
-        ok(false, '★★ UNDECLARED-IDENTIFIER GATE: parser missing — run `npm i --no-save jsdom eslint globals` (' + (loadErr && loadErr.message) + ')');
+        ok(false, '★★ UNDECLARED-IDENTIFIER GATE: parser missing — run `npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5` (' + (loadErr && loadErr.message) + ')');
       } else {
         /* ★ Session Y (#46 loop on Session X, MAJOR-1 / MINOR-3/4/6/7): the gate is a FUNCTION of a
          * directory so a FIXTURE can prove it, and four holes the review proved are closed:
@@ -42526,6 +42526,7 @@ for (const mod of ['c-csharp', 'h-ixihelp', 'h-wordtips', 'a-groupemoji', 's-res
 for (const mod of ['x-keys', 'a-desktop', 'b-launch', 'c-icons', 'd-claims']) await (await import(new URL('./pins-s20h/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20H Drop A — x = X-1 every C# _SL key exists (the blank lock alert, m009) + X-2 no iOS location purpose strings · a = F-A the desktop Account root may shrink (Chat appearance cut at narrow windows); the real layout = pins-s20h/a-sweep.mjs (Chromium, not in smoke) · b = Drop B F-B + ⑪ (b-sweep.mjs) · c = F-C + ⑦ + ⑨ · d = Drop C the request note keeps the claims scope (no money / funds word)
 for (const mod of ['e-select', 'f-addrhelp']) await (await import(new URL('./pins-s20i/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20I Drop D — e = OW-X-SELECT the desktop app chrome is not drag-selectable (fields, message text, addresses stay); the real drags = pins-s20i/e-sweep.mjs (Chromium, not in smoke) · f = the My address row back above Contacts + the "How people find you" moment (P32, flag S20AddrHelp)
 for (const mod of ['a-miniapp', 'b-share', 'c-confirm', 'd-lock-win']) await (await import(new URL('./pins-safety/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Safety — a = mini-app paths (S-1 storage table · S-2 app id · S-3 picked name, P33) · b = the Android share folders (S-4, P34, no flag) · c = native confirms on chat + chat info (S-5, P35) + the six dev switches · d = delete-all behind the lock (S-6, P36) + the mini-app marker on Windows (O-02, P37)
+for (const mod of ['a-thumb-type']) await (await import(new URL('./pins-hk1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session HK1 (housekeeping) — a = the iOS / Mac SThumbnail compile fix: `CGImageProperties` is never used bare in a .cs file of Spixi/ or Spixi-PushService/ that has CoreGraphics AND ImageIO in scope, and the SThumbnail read keeps a type that compiles + its guard (a source pin with its own comment mask: the smoke cannot compile for iOS / Mac)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

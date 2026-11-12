@@ -1,0 +1,176 @@
+# CI for the redesign branch (the fork only). Upstream's dotnet.yml is left as it is: it runs on master / development
+# and checks out Ixian-Core at the same branch name, which does not exist for redesign/frontend.
+# Mirrors the cloud twin: Ixian-Core as a sibling at the pinned commit, the ONE npm line (versions pinned), smoke + CSH
+# + the --check gates. Failure details go out as ::error annotations, so they can be read without signing in to GitHub.
+# Not covered: no macOS job, so the iPhone / Mac sources are NOT compiled here (scripts/pins-hk1 is a source pin only).
+name: redesign-ci
+
+on:
+  push:
+    branches: [ 'redesign/frontend' ]
+  pull_request:
+    branches: [ 'redesign/frontend' ]
+  workflow_dispatch:
+
+concurrency:
+  group: redesign-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IXIAN_CORE_REF: 097341acba9be1855383acf8215d779ca96efa02   # the pinned Ixian-Core (xcore-0.9.8k); change it here when the pin moves
+
+jobs:
+  smoke:
+    name: smoke + CSH + gates
+    if: github.repository == 'Rexoflex/Spixi'   # the fork only: a copy of this file in another repository does nothing
+    runs-on: ubuntu-latest
+    timeout-minutes: 120   # the full smoke alone took 43 minutes in the cloud twin (2026-11-11, 2 cores); the limit is more than 2x that, plus CSH and the gates. The first value (30) would always time out.
+    defaults:
+      run:
+        working-directory: Spixi
+        shell: bash
+    steps:
+    - name: Checkout Spixi
+      uses: actions/checkout@v7
+      with:
+        path: Spixi
+        persist-credentials: false
+
+    - name: Checkout Ixian-Core (pinned)
+      uses: actions/checkout@v7
+      with:
+        repository: ixian-platform/Ixian-Core
+        ref: ${{ env.IXIAN_CORE_REF }}
+        path: Ixian-Core
+        persist-credentials: false
+
+    - name: Setup Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: '22'
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: List the .NET SDKs (CSH uses the newest one)
+      run: dotnet --list-sdks
+
+    # Every version is pinned to what the 2026-11-11 run used. jsdom MUST stay pinned: jsdom 31.0.0 (2026-11-05) fails
+    # 6 smoke rows (#346 x5, N19) that pass on 29.1.1 on the same tree (docs/lessons.md L160). Move a pin only together
+    # with a full smoke run on the new version.
+    - name: Install test tools (the ONE npm line, versions pinned)
+      run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5
+
+    - name: Gate - build-shells --check
+      id: gate_shells
+      run: node scripts/build-shells.mjs --check 2>&1 | tee ../gate-shells.log
+
+    - name: Gate - build-locales --check
+      id: gate_locales
+      run: node scripts/build-locales.mjs --check 2>&1 | tee ../gate-locales.log
+
+    - name: Smoke
+      id: smoke
+      timeout-minutes: 100   # below the job limit (120): a hung smoke ends as a plain step failure, so the annotation and upload steps still run
+      run: |
+        set -o pipefail
+        node scripts/smoke-test.mjs 2>&1 | tee ../smoke.log
+
+    - name: CSH (C# harness)
+      id: csh
+      if: ${{ !cancelled() }}
+      run: |
+        set -o pipefail
+        node scripts/run-csh.mjs 2>&1 | tee ../csh.log
+
+    # Only for a step that itself failed (or was cut by a time limit): the smoke's own FAILED: / ABSENT block and the
+    # last 5 lines of that step's log (passing rows left out), at most 10 annotations per step. Nothing is published for
+    # a passing step. The 2 KNOWN rows are not in the FAILED: block; after a log that was CUT, the last 5 lines can be
+    # any rows the smoke had just printed, a KNOWN row included.
+    - name: Publish failure details as annotations
+      if: ${{ failure() || cancelled() }}
+      working-directory: .
+      env:
+        O_GATE_SHELLS: ${{ steps.gate_shells.outcome }}
+        O_GATE_LOCALES: ${{ steps.gate_locales.outcome }}
+        O_SMOKE: ${{ steps.smoke.outcome }}
+        O_CSH: ${{ steps.csh.outcome }}
+      run: |
+        esc() { local s="${1//'%'/'%25'}"; s="${s//$'\r'/}"; printf '%s' "$s"; }
+        publish() {   # $1 = the log's name, $2 = the outcome of the step that wrote it
+          local f="$1" o="$2" l
+          if [ "$o" != "failure" ] && [ "$o" != "cancelled" ]; then return 0; fi
+          if [ ! -f "$f.log" ]; then echo "::error title=$f ($o)::the step ended as $o and wrote no log"; return 0; fi
+          {
+            awk '/^FAILED:/ { b = 1; next } /^KNOWN pre-exister\(s\) ABSENT/ { b = 1 } b && NF' "$f.log" || true
+            tail -n 5 "$f.log" | grep -vE '^[[:space:]]*✓|^FAILED:$' || true
+          } | awk 'NF && !seen[$0]++' | head -n 10 > "$f.annotations" || true
+          while IFS= read -r l; do
+            echo "::error title=$f ($o)::$(esc "${l:0:900}")"
+          done < "$f.annotations"
+        }
+        publish gate-shells "$O_GATE_SHELLS"
+        publish gate-locales "$O_GATE_LOCALES"
+        publish smoke "$O_SMOKE"
+        publish csh "$O_CSH"
+        true
+
+    - name: Upload the logs (on failure)
+      if: ${{ failure() || cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: redesign-ci-logs
+        path: |
+          smoke.log
+          csh.log
+          gate-shells.log
+          gate-locales.log
+        if-no-files-found: ignore
+        retention-days: 14
+
+  # This job proves ONE thing: the Windows target compiles against the clean pinned Ixian-Core. It runs no test and
+  # starts no app; the walk on a device stays the proof of behaviour (Windows = F5 on Damir's PC, #663).
+  windows-build:
+    name: Windows MAUI build (compile only)
+    if: github.repository == 'Rexoflex/Spixi'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: Spixi
+    steps:
+    - name: Checkout Spixi
+      uses: actions/checkout@v7
+      with:
+        path: Spixi
+        persist-credentials: false
+
+    - name: Checkout Ixian-Core (pinned)
+      uses: actions/checkout@v7
+      with:
+        repository: ixian-platform/Ixian-Core
+        ref: ${{ env.IXIAN_CORE_REF }}
+        path: Ixian-Core
+        persist-credentials: false
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: List the .NET SDKs
+      run: dotnet --list-sdks
+
+    - name: Install MAUI workload
+      run: dotnet workload install maui
+
+    - name: Restore
+      run: dotnet restore Spixi/Spixi.csproj
+
+    - name: Build Spixi (Windows)
+      run: dotnet build Spixi/Spixi.csproj -f net10.0-windows10.0.19041.0 -p:Platform=x64 -v:m

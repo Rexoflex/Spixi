@@ -1,0 +1,22 @@
+Session HK1 (c): documents - the 2026-11-11 rulings, the Perf-R rows, handoff
+
+Documents only. DECISIONS #1471-#1487; #352 marked superseded for the model.
+
+- DECISIONS.md: #1471 the #46 reviewers run on Claude Fable 5.2 (supersedes #352 for the model; fresh read-only
+  instances, the builder's context never reviews; no fallback to another model - stop and tell Damir) -
+  #1472 no new build session while more than one batch is unwalked - #1473 the speed plan amended -
+  #1474 full smoke once per #46 loop, a proposal only (the Hard rule wins until Damir's yes) -
+  #1475-#1477 Perf-R bookkeeping - #1478 every change that ships behind a switch keeps its own switch -
+  #1479 launch target = when ready - #1480 the two open security items - #1481 this patch -
+  #1482-#1487 the six Perf-R verdict rows, still proposed (#1314-#1319 stay reserved, #1320).
+- CLAUDE.md: #1478 in the Bridge-protocol ground rule, #1472 in "How a session runs", step 5 numbers, step 6
+  (the reviewer model), "Where we are now".
+- docs/lessons.md (L23, new L160), docs/process.md (the reviewer model, the pinned install line, the CI rows),
+  docs/decisions-index.md, docs/templates/session-prompt.md,
+  docs/release-readiness.md (F-6; new row G-10 for the pre-launch condition of #1480).
+- docs/handoff-2026-11-11-hk1.md, docs/review-brief-hk1.md, docs/status-log.md, the three commit messages.
+
+#46 CLEAN at round 2 (reviewers: Claude Fable 5.2; the verdict is in docs/review-brief-hk1.md). Smoke BASELINE OK
+6298 / the 2 KNOWN (#136, B3), CSH 506.
+Still owed, as the documents say: the first Apple compile of line 80, the first run of the workflow on GitHub, the
+Windows + Android walk of the earlier drops, Damir's yes or no on the provisional row #1474.

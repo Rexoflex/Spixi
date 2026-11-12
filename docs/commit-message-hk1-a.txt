@@ -1,0 +1,23 @@
+Session HK1 (a): the iOS / Mac SThumbnail compile fix and its pin
+
+No app behaviour change. DECISIONS #1481.
+
+- Spixi/Platforms/iOS/SThumbnail.cs, Spixi/Platforms/MacCatalyst/SThumbnail.cs (line 80): the type of the
+  header-size read is written with its namespace, CoreGraphics.CGImageProperties. The bare name is in CoreGraphics
+  and in ImageIO, so the iPhone and the Mac targets did not compile (4 errors each; office walk #1459).
+- scripts/pins-hk1/a-thumb-type.mjs (new, 3 checks): in each file the one read is typed in a spelling that compiles
+  (CoreGraphics. with or without ?, global::CoreGraphics. or var) and its pixelsOk guard follows it; no bare
+  CGImageProperties and nothing declared as ImageIO.CGImageProperties in any .cs file of Spixi/ or
+  Spixi-PushService/ that has both namespaces in scope (a using in the file, a global using in the project or its
+  project file, implicit usings). A source pin with its own comment mask - the smoke cannot compile for Apple
+  targets. 31 deliberate breaks (docs/review-brief-hk1.md): all caught but one documented survivor (a bare use
+  after a raw string literal with an odd quote); one documented false red (the name inside a string literal).
+- scripts/smoke-test.mjs: loads the pin after pins-safety; the install hints (lines 3, 30, 13812, 13817) name the
+  pinned install line (jsdom 31 fails 6 smoke rows, docs/lessons.md L160).
+
+Smoke BASELINE OK 6298 / the 2 KNOWN (#136, B3) = 6295 + 3 (jsdom 29.1.1). #46 CLEAN at round 2 (reviewers: Claude
+Fable 5.2).
+Still owed for this part: the first compile of the two C# lines (the next iPhone / Mac build; no CI job compiles
+them).
+Row #1481, the review brief, lesson L160 and the baseline numbers in CLAUDE.md arrive with commit c; push the three
+commits together.

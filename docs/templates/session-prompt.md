@@ -39,7 +39,8 @@ Do not start until I say "go".
 Design choices with real alternatives: three options (renders on the BUILT shell, both themes, for visual dials),
 graded (docs/process.md §G1), Damir picks, a DECISIONS row. Code: every gate in docs/process.md §G2 — mechanism first,
 bundle BEFORE shells, pins that pass the deliberate-break test, smoke BASELINE OK <n> / the 2 KNOWN (#136 · B3).
-Review: write docs/review-brief-<batch>.md; in-session Opus #46 loop until CLEAN, BEFORE delivery; verdict into the brief.
+Review: write docs/review-brief-<batch>.md; in-session #46 loop until CLEAN (every reviewer on Claude Fable 5.2, #1471:
+fresh read-only instances; the builder's context never reviews; no fallback to another model — stop and tell Damir), BEFORE delivery; verdict into the brief.
 
 ## Export (E)
 DECISIONS rows · the docs/release-readiness.md rows this session changed · walk sheet (docs/templates/walk-sheet.md) · handoff (docs/templates/handoff.md) · one status-log entry ·

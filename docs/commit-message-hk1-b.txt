@@ -1,0 +1,22 @@
+Session HK1 (b): CI for redesign/frontend (smoke, CSH, the --check gates, a Windows compile)
+
+Adds .github/workflows/redesign-ci.yml (only in Rexoflex/Spixi; upstream dotnet.yml unchanged). dotnet.yml runs
+only on master / development and checks out Ixian-Core at the same branch name, so redesign/frontend never had a
+CI run. DECISIONS #1481.
+
+- smoke job (ubuntu, limit 120 minutes, the Smoke step 100 - the smoke alone takes 43 minutes in the cloud twin): Ixian-Core as a
+  sibling at the pin 097341a, Node 22, .NET 10.0.x, the test tools pinned (jsdom 29.1.1, eslint 10.14.0,
+  globals 17.14.0, tree-sitter 0.25.1, tree-sitter-c-sharp 0.23.5), build-shells --check, build-locales --check,
+  smoke, CSH. For a step that failed or was cut by a limit: its FAILED / ABSENT block and last 5 log lines as
+  annotations (at most 10; nothing for a passing step), and the logs as an artifact (this job only).
+- windows-build job: MAUI workload, restore, the Windows target. It proves compile only.
+- Both jobs: persist-credentials false, dotnet --list-sdks, actions on their node24 majors (checkout v7,
+  setup-node v7, setup-dotnet v6, upload-artifact v7).
+
+Still owed for this part: the first run on GitHub (Actions must be turned on for the fork; the push needs a
+credential with the workflow scope); no macOS job, so the iPhone / Mac sources are not compiled by CI; the Windows
+job compiles the clean Ixian-Core pin; the transitive npm packages of the test tools are not pinned (a lockfile
+later).
+#46 CLEAN at round 2 (reviewers: Claude Fable 5.2).
+Row #1481, the review brief, lesson L160 and the baseline numbers in CLAUDE.md arrive with commit c; push the three
+commits together.

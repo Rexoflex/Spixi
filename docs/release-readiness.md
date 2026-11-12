@@ -65,7 +65,7 @@ Prompt part 0b(c) = the office walk = S2 (E-OW); it is not an S1 row.
 | F-5d | Tap: link → link-confirm; downloaded file → open verb; else jump to the message | walk row | Damir | BUILT — 🟡 walk | #1106; `ContactDetails` ixian:sharedOpen |
 | F-5-SEC | The WebView sends back only a message id; links show address + domain, no preview fetch; no URL/name/address logged; a security-gate section exists | pin + gate section | us | BUILT — gate section "Session 1"; pins | `security-handover-gate.md` § Session 1 |
 | F-5b-a…e | Downloads: newest first · size per row · sort date/name/size · "from <contact>" + filter (never guessed) · "Show in chat"; `resolveDownloadPath` kept, the WebView sends a name/id only | pin + walk row | us → Damir | BUILT — (a)(b)(d)(e); (c) sort DROPPED by Damir (#1111); sender filter = one From chip + sheet; 🟡 walk | #1107, #1111 |
-| F-6 | Opus #46 loop CLEAN before delivery → FULL pipeline → smoke BASELINE OK → Windows + Android walk rows (legacy peer for F-1; links + files + images for F-5) | review + pin + walk row | us → Damir | OPEN | prompt item 6 |
+| F-6 | #46 loop (reviewers on Claude Fable 5.2 since #1471 — fresh read-only instances; the builder's context never reviews; no fallback to another model — stop and tell Damir; was Opus, #352) CLEAN before delivery → FULL pipeline → smoke BASELINE OK → Windows + Android walk rows (legacy peer for F-1; links + files + images for F-5) | review + pin + walk row | us → Damir | OPEN | prompt item 6 |
 
 ## S2 · The office walk (Mac + iPhone) and its fix round
 
@@ -206,6 +206,7 @@ L6 opens this stage (#933, #937). The audit rows here are the ruled set in the h
 | G-7 | The BE engineer's docs carry no closed or mis-owned row: `be-cutover-brief.md` § Blockers (C16 `:726`, W11 `:727`, #234 `:739` still "YES"; L6 `:728` listed as his, ours per #927/#928; the "still says 15" lines `:28` and `:719`; the 15→17 count), `android-findings.md` AND-25/27, `ios-sim-findings.md` re-verify rows; "MAJOR #8" split into two IDs (B-3, B-6) | doc check | us | OPEN | `be-cutover-brief.md:714-742`; `android-findings.md:50-52`; `ios-sim-findings.md:48`, `:139` |
 | G-7b | The BE handoff doc (finalization-roadmap Phase 4 item 4) exists, lists every T1 row and the inherited gate rows, and Damir has sent it | doc check | us → Damir | OPEN — no such doc | `docs/finalization-roadmap.md:94-97`; today only `be-cutover-brief.md` + `security-review-for-be-engineer.md` |
 | B-2 | A3: the BE security walkthrough with Damir is held and recorded in one DECISIONS row | BE sign-off | BE + Damir | OPEN — never held | `archive/handoff-post-freeze.md:119` |
+| G-10 | The full-code security review confirms that NO untrusted string reaches the settings WebView — the pre-launch condition for moving the native change-password dialog to v1.0.x | review (the full-code #46, security lens) + its verdict | us | OPEN | #1480; Mission Control `n-20261016-native-changepass` |
 
 ## S11 · Merge
 

@@ -1,0 +1,27 @@
+Main chat 2026-11-13: rulings and the home walk as DECISIONS rows (1512-1519, 1530-1543)
+
+Docs only. No file under src/, Spixi/, scripts/ or .github/ is changed.
+
+- DECISIONS 1512-1518 (2026-11-12): no hash sign before a number in commit
+  and pull request texts, speed scope C, a script may pass number rows of a
+  walk, Android and Windows first with walk debt per platform phase, the
+  early WebKit check, speed work stops by budget, the history view in two
+  steps.
+- DECISIONS 1519 and 1530-1533 (2026-11-13): review round 6 for batch
+  tooling, the repeatability rule of the adb walk, the record that BE agrees
+  to the review format and the gate controls, the walk order before speed
+  batch 1a, Opus where a batch changes no app file.
+- DECISIONS 1534-1538: speed batch 1a (P-12, P-11, P-13, the dev image
+  seed), the push proof by this docs commit, P-11 with two switches, the
+  session Speed lean, the session Walk steps 2.
+- DECISIONS 1539: the dials of Session 20I (Dial 1 = B, Dial 2 = OK).
+- DECISIONS 1540: WALK 1540, the home walk on Windows and the Galaxy A52s:
+  92 legs, 83 P, 7 F, 2 N/A.
+- DECISIONS 1541-1543: the Safety fail SW-S5-ENTER is fixed before the
+  launch and does not block the speed batches, the kick and ban rows move to
+  a bot room, this docs commit is unsigned.
+
+Rows 1512-1519 are placed after row 1511; rows 1530-1543 are at the end.
+The rule texts (CLAUDE.md, docs/process.md, docs/orchestration.md, the
+templates, the decisions index) follow in a docs batch with its own review
+loop.

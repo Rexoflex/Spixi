@@ -1,0 +1,33 @@
+Session Tooling: the adb walk for the Galaxy A52s (scripts only)
+
+No app file is changed: nothing under Spixi/, src/ or .github/. No smoke
+run was needed.
+
+One command on the PC drives the test phone over adb and writes a table of
+device numbers with the pulled logs into Claude outputs/adbwalk/<run>/
+(git-ignored), where a cloud session can read them.
+
+- scripts/device/adb-walk.ps1 (new): pre-flight, cold start x5, chat open
+  by the notification intent x5 and by a list tap x5, scroll x5, background
+  and resume x5 plus one 5-minute case, Wi-Fi off and on, memory of the app
+  and of its WebView renderer in three phases; one screenshot and one log
+  pull per repeat; -Calibrate takes the screenshots for the device map.
+  Every adb command passes an allowlist; the script drives only the dev
+  package; the log is filtered on the phone to timing lines; Wi-Fi and the
+  stay-awake setting are restored at the end.
+- scripts/device/adb-walk-parse.ps1 (new): run.json and the pulled files to
+  summary.md and summary.csv (n, median, min, max per step). A missing
+  line is "no data" and exit code 2, never a guessed number.
+- scripts/device/a52s.json (new): the device map of the SM-A528B (timing,
+  one tap, two swipes, the pixel probes of the two expected screens).
+- DECISIONS 1520-1523, decisions index, lessons L170-L174, status-log entry
+- docs/handoff-2026-11-13-tooling.md, docs/review-brief-tooling.md,
+  CLAUDE.md "Where we are now"
+
+Review: the 46 loop, security only, six rounds, each by one fresh
+read-only reader; 0 MAJOR in every round; CLEAN at round 6 (the sixth
+round by Damir's ruling, DECISIONS 1519). The three script files are
+committed exactly as the round-6 reader read them. Two runs agree by the
+rule of DECISIONS 1530.
+
+Windows PowerShell 5.1. The nightly Task Scheduler entry is not registered.

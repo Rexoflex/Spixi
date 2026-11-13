@@ -96,3 +96,7 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1493 | A pull request is opened only inside the fork (`Rexoflex/Spixi` → `redesign/frontend`); never to upstream; no push to upstream. |
 | #1494 | Each session gets its own DECISIONS and lessons number block and never writes outside it. |
 | #1495 🟡 · #1496 🟡 · #1497 🟡 | Proposals, not in force: merge only after the walk · #1474 again with CI · a nightly task for the top Ready item. |
+| #1520 | The adb walk (`scripts/device/adb-walk.ps1`) is the standard way to take Android device numbers; a missing line is "no data", never a guess; two runs agree by the rule of #1530 (medians < 20 %, or ≤ 17 ms, or ≤ 1 for a count). |
+| #1521 | No dev "go to" verb: the walk navigates only by calibrated coordinates and the existing `fa` notification intent. |
+| #1522 | The adb walk's safety rules: one pinned dev package, an adb allowlist, the log filtered on the phone, masks for folders / serial / seed addresses, focus checks, restores; the nightly task is not registered. |
+| #1523 | Session Tooling + Tooling R6 record: kept / cut, the unverified steps' results, the four done-when items (repeatability met by #1530), #46 CLEAN at r6 by #1519, the fallback delivery. |

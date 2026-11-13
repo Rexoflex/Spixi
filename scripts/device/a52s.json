@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "device": { "model": "SM-A528B", "width": 1080, "height": 2400 },
+  "package": "com.ixilabs.spixi.dev",
+  "timing": { "coldStartIdleSec": 10, "coldStartTimeoutSec": 45, "coldStartSettleSec": 6, "chatSettleMs": 3500,
+              "backSettleMs": 1500, "scrollSettleMs": 2500, "resumeWaitSec": 60, "resumeLongWaitSec": 300,
+              "memQuietSec": 20, "wifiOffSec": 30 },
+  "taps": { "chatRow1": { "x": 540, "y": 654 } },
+  "swipes": { "chatOlder": { "x1": 540, "y1": 900, "x2": 540, "y2": 1700, "ms": 350 },
+              "chatNewer": { "x1": 540, "y1": 1700, "x2": 540, "y2": 900, "ms": 350 } },
+  "screens": { "home": { "probes": [ { "x": 60, "y": 2300, "rgb": "#C9D5ED", "tol": 28 },
+                                     { "x": 840, "y": 318, "rgb": "#EDF0F2", "tol": 28 },
+                                     { "x": 912, "y": 2020, "rgb": "#3050BD", "tol": 28 } ], "minMatch": 3 },
+               "chat": { "probes": [ { "x": 954, "y": 2278, "rgb": "#0E7A55", "tol": 28 },
+                                     { "x": 1030, "y": 2278, "rgb": "#0E7A55", "tol": 28 } ], "minMatch": 2 } }
+}

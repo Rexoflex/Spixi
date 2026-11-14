@@ -7,9 +7,28 @@ Usage:
 
 Walk: pre-flight, then each step x Repeats (one screenshot + one DOTNET log pull per rep), run.json after
 every rep, then adb-walk-parse.ps1 -RunDir <run folder>; the exit code is the parser's.
+Steps (default order; the walk-steps-2 steps run after the old ones so the old rows keep their meaning):
+  coldstart, mem-home, chat-intent, chat-tap, scroll, resume, resume-long, network, mem-end, mem-trim,
+  resume-now, resume-3s (60 s in the background, then the chat tap at once / after 3 s; resume = after 2 s),
+  chatinfo (tap on the chat header of seed chat k-1), tab-apps, tab-wallet, tab-account (tap on the tab, then
+  Chats), history (seed chat k+4, swipes to older until 3 older pages were asked for).
+  scroll-image runs only when named in -Steps: it needs imageChatAddress in walk.local.json. imageChatAddress must be
+  the address of a dev-seed chat (Spixi/Utils/SDevSeed.cs), never a real contact; scroll-image keeps no screenshot.
+  New steps take a screenshot before the input too (shot-<step>-NN-pre.png): no input when that check fails
+  (except resume-now, resume-3s and scroll-image: a focus check only, as the old resume). A pre-check PNG that fails is
+  deleted. The tab steps wait for the app's own frames log lines (a count only): the first tab tap is gated by the
+  pre-check; the Chats tap by the tab's frames line (and for Account the SettingsPage line); the screenshot by the Chats
+  frames line (and for Account the SettingsPage close line). It is taken on Chats only and is deleted when its home
+  check fails: Wallet and Account data stay out of files. A tab rep that fails after its tab tap, or whose home check
+  fails, restarts the app (force-stop, am start -W: a cold start lands on Chats) so no later step meets Wallet or
+  Account; the same restart follows a failed cal-11. resume-now and resume-3s also delete a chat PNG that fails its check.
 -Calibrate: pre-flight, device.txt, cal-*.png, tries.txt (renderer lookup), calibrate.json (no numbers); exit 0.
+            It also tries each tap point of the new steps once (cal-08..13; no screenshot on Apps, Wallet, Account;
+            cal-11 and cal-12 use the same frames-line gates and screen checks; a cal-11, cal-12 or cal-13 PNG that is not
+            the expected screen is deleted; when cal-11 failed or was not confirmed, cal-12..13 are skipped).
 Inputs: a52s.json next to this script (timing, taps, swipes, screen probes; the package is pinned below);
-        <repo>\Claude outputs\adbwalk\walk.local.json (optional, never in git): { "seedAddresses": [...] }.
+        <repo>\Claude outputs\adbwalk\walk.local.json (optional, never in git): { "seedAddresses": [...],
+        "imageChatAddress": "..." (optional) }; both are masked in everything the script writes.
 Output: <repo>\Claude outputs\adbwalk\<yyyyMMdd-HHmm>\ (walk) or calibrate-<yyyyMMdd-HHmm>\.
 Exit:   0 ok - 1 driver failure (bad arguments, pre-flight, crash) - else the parser's code (2 no data, 3 no run.json).
 
@@ -35,15 +54,17 @@ Safety rules (Assert-AdbCommand is an allowlist of every command shape this scri
   truncated SHA-256 of the serial, not the serial itself) until it succeeded; the next run on THAT phone applies it first (closing the
   window skips the finally block). Hook runs use their own .lock.hook, restore-pending.hook.json and
   adb-walk-refused.hook.log.
-- left changed on the phone after a run: the dev app was force-stopped and cold-started and stays running in
-  front with the keyguard dismissed; the dev-seed chats were opened (their unread state changes); logcat buffer size 16M until reboot and a cleared
+- left changed on the phone after a run: the dev app stays running in front with the keyguard dismissed (it
+  was force-stopped and cold-started when the coldstart step or -Calibrate ran); the tabs Apps, Wallet and
+  Account were opened when a tab step ran; the dev-seed chats were opened (their unread state changes); logcat buffer size 16M until reboot and a cleared
   log buffer; with -Apk the build is replaced; with -KillRenderer the renderer may be killed.
 - no seed address and no serial in the files the SCRIPT writes (walk.log, run.json, calibrate.json, device.txt,
   tries.txt) and on the console (masked as <seed k> / <serial>, "seed k" / "serial" in notes); device text
   reaches them only through a strict capture or Get-SafeNote. meminfo files, pulled logs and screenshots are
   stored as the phone returns them.
-- local folders (run folder, output root, repo, APK folder, profile, local app data, temp) are replaced by
-  <path> in everything the script writes or prints; adb's own text of a failed pull or install
+- local folders (run folder, output root, repo, APK folder, profile, local app data, temp; only when the value
+  is an absolute path) are replaced by <path> in every file this script writes and every line it prints (the
+  parser's own console line names the summary.md path); adb's own text of a failed pull or install
   is never shown (only the exit code and a strict capture); a failed restore ends with exit 1
 - a value adb did not print is absent from run.json, never 0
 
@@ -69,9 +90,18 @@ $script:PinnedPackage = 'com.ixilabs.spixi.dev'
 $script:Inv = [System.Globalization.CultureInfo]::InvariantCulture
 $script:Utf8 = New-Object System.Text.UTF8Encoding($false)
 $script:Ws = [char[]]@(32, 9, 13, 10)
-$script:AllSteps = @('coldstart', 'mem-home', 'chat-intent', 'chat-tap', 'scroll', 'resume', 'resume-long', 'network', 'mem-end', 'mem-trim')
+$script:AllSteps = @('coldstart', 'mem-home', 'chat-intent', 'chat-tap', 'scroll', 'resume', 'resume-long', 'network', 'mem-end', 'mem-trim',
+    'resume-now', 'resume-3s', 'chatinfo', 'tab-apps', 'tab-wallet', 'tab-account', 'history', 'scroll-image')
+# Walk steps 2: the new steps run AFTER the old ones, so every old row keeps its place and its meaning. scroll-image
+# runs only when it is named in -Steps (it needs the local key imageChatAddress, the image seed of speed batch 1a).
+$script:DefaultSteps = @($script:AllSteps | Where-Object { $_ -cne 'scroll-image' })
+$script:TabNames = @{ 'tab-apps' = 'tabApps'; 'tab-wallet' = 'tabWallet'; 'tab-account' = 'tabAccount' }
+$script:TabFrames = @{ 'tab-apps' = 'apps'; 'tab-wallet' = 'wallet'; 'tab-account' = 'account' }
+$script:ImageSeed = -1
+$script:SeedAddrCount = 0
 $script:TimingKeys = @('coldStartIdleSec', 'coldStartTimeoutSec', 'coldStartSettleSec', 'chatSettleMs', 'backSettleMs',
-    'scrollSettleMs', 'resumeWaitSec', 'resumeLongWaitSec', 'memQuietSec', 'wifiOffSec')
+    'scrollSettleMs', 'resumeWaitSec', 'resumeLongWaitSec', 'memQuietSec', 'wifiOffSec',
+    'tabSettleMs', 'historySwipeMs', 'historyMaxSwipes', 'resumeLateTapMs')
 $script:PhoneShot = '/data/local/tmp/adbwalk-shot.png'
 $script:PhoneLog = '/data/local/tmp/adbwalk-log.txt'
 $script:PhoneFiles = @($script:PhoneShot, $script:PhoneLog)
@@ -79,6 +109,18 @@ $script:PhoneFiles = @($script:PhoneShot, $script:PhoneLog)
 $script:StampCmd = 'date +%m-%dT%H:%M:%S.%N'
 $script:LogCmd = 'logcat -d -v threadtime -s DOTNET:I'
 $script:PollCmd = $script:LogCmd + ' | grep -c -e P1..boot.hold -e P1..shell.boot'
+# Walk steps 2: the number of history pages the chat shell asked for (a count only, no line leaves the phone).
+$script:LoadPollCmd = $script:LogCmd + ' | grep -c -e P1..shell.send.loadmore'
+# Walk steps 2, tab steps: the frames lines of the app's own log (a count only, no line leaves the phone). The tab steps
+# tap and photograph only after the matching line shows that the view really changed.
+$script:FramePoll = @{
+    apps = ($script:LogCmd + ' | grep -c -e P1..shell.frames-tab-apps')
+    wallet = ($script:LogCmd + ' | grep -c -e P1..shell.frames-tab-wallet')
+    account = ($script:LogCmd + ' | grep -c -e P1..shell.frames-tab-account')
+    chats = ($script:LogCmd + ' | grep -c -e P1..shell.frames-tab-chats')
+    settings = ($script:LogCmd + ' | grep -c -e P1..frames.open-settingspage')
+    settingsclosed = ($script:LogCmd + ' | grep -c -e P1..close.settingspage.done')
+}
 # The ONE command that may hold quotes, brackets and a redirect: matched by exact string equality.
 $script:LogRe = '^[0-9]{2}-[0-9]{2} [0-9:.]{12} +[0-9]+ +[0-9]+ [A-Z] DOTNET *: [0-9]{2}-[0-9]{2} [0-9:.]{8,16}\|[A-Za-z]{1,10}\|[0-9]{1,6}: ((\[WEBVIEW\] [A-Z]{1,12} )?\[(P1|CDPERF)\] [a-z0-9_.=-]{1,40}( [a-z0-9_.=-]{1,40}){0,15}( \(file:///android_asset/html/[a-z.]{0,24}:[0-9]{1,6}\))?$|Starting Spixi [a-z0-9.-]{1,24} \([a-z0-9.-]{1,24}\)$|Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}$|Received Hello: Node version [0-9]{1,6}$)'
 $script:LogPullPrefix = 'logcat -d --pid='
@@ -122,6 +164,7 @@ $script:ErrStreak = 0
 $script:Halted = $false
 $script:HaltNote = 'run stopped after 3 failed reps (error or no-screen) in a row'
 $script:ScrollOpen = ''
+$script:ScrollWhat = ''
 $script:DrawingState = 0
 $script:CalShots = New-Object System.Collections.Generic.List[object]
 $script:TriesFile = ''
@@ -141,7 +184,9 @@ function Protect-Text([string]$Text) {
     $dirs = New-Object System.Collections.Generic.List[string]
     foreach ($d in @($script:RunDir, $script:Root, $script:RepoPath, $script:ApkDir, $env:USERPROFILE, $env:LOCALAPPDATA, $env:TEMP)) {
         if ($d) { $d2 = $d.TrimEnd([char]92, [char]47) } else { $d2 = '' }
-        if ($d2.Length -ge 4) {
+        # r6-1: only an absolute folder (drive letter, UNC, or a POSIX root) is replaced: a bare word (a relative TEMP,
+        # a provider-qualified -Apk) inside a seed address or the serial would cut the masks below.
+        if ($d2.Length -ge 4 -and (Test-RootedDir $d2)) {
             foreach ($v in @($d2, $d2.Replace([char]92, [char]47), $d2.Replace([char]47, [char]92))) { if (-not $dirs.Contains($v)) { $dirs.Add($v) } }
         }
     }
@@ -155,6 +200,10 @@ function Protect-Text([string]$Text) {
         if ($s) { $t = $t.Replace([string]$s, '<seed ' + $i + '>') }
     }
     return $t
+}
+
+function Test-RootedDir([string]$D) {
+    return ($D -cmatch '^[A-Za-z]:[\\/]' -or $D -cmatch '^[\\/]{2}[^\\/]' -or $D -cmatch '^[\\/][^\\/]')
 }
 
 function Remove-LocalFile([string]$Path) {
@@ -338,6 +387,13 @@ function Initialize-Allowlist {
     # Every piped command the script sends, as a whole string; nothing else may hold a "|".
     $script:PipedCmds = @(
         $script:PollCmd,
+        $script:LoadPollCmd,
+        $script:FramePoll['apps'],
+        $script:FramePoll['wallet'],
+        $script:FramePoll['account'],
+        $script:FramePoll['chats'],
+        $script:FramePoll['settings'],
+        $script:FramePoll['settingsclosed'],
         'dumpsys window | grep -e mCurrentFocus=',
         'dumpsys window | grep -e mDreamingLockscreen= -e isKeyguardShowing= -e mShowingLockscreen= -e mKeyguardShowing= -e mCurrentFocus=',
         'dumpsys activity activities | grep -e mKeyguardShowing=',
@@ -546,6 +602,8 @@ function Get-Seed([int]$K) {
 }
 
 function Get-SeedGap([int]$K) {
+    # Only the seedAddresses list counts here: the image chat address (after it in $script:Seeds) is no seed chat.
+    if ($K -ge $script:SeedAddrCount) { return ('walk.local.json has no seed address ' + $K) }
     if ($script:SeedNote.ContainsKey($K)) { return $script:SeedNote[$K] }
     if (-not (Get-Seed $K)) { return 'walk.local.json has no seed address' }
     return ''
@@ -618,6 +676,11 @@ function Get-StepGap([string]$Step) {
     elseif ($Step -eq 'chat-intent') { $need = @('screen:chat') }
     elseif ($Step -eq 'chat-tap' -or $Step -eq 'resume' -or $Step -eq 'resume-long') { $need = @('tap:chatRow1', 'screen:chat') }
     elseif ($Step -eq 'scroll') { $need = @('swipe:chatOlder', 'swipe:chatNewer', 'screen:chat', 'seed:0') }
+    elseif ($Step -eq 'resume-now' -or $Step -eq 'resume-3s') { $need = @('tap:chatRow1', 'screen:chat') }
+    elseif ($Step -eq 'chatinfo') { $need = @('tap:chatHeader', 'screen:chat', 'screen:chatinfo') }
+    elseif ($script:TabNames.ContainsKey($Step)) { $need = @(('tap:' + $script:TabNames[$Step]), 'tap:tabChats', 'screen:home') }
+    elseif ($Step -eq 'history') { $need = @('swipe:historyOlder', 'screen:chat', 'count:historyMaxSwipes') }
+    elseif ($Step -eq 'scroll-image') { $need = @('swipe:chatOlder', 'swipe:chatNewer', 'screen:chat', 'image:') }
     foreach ($n in $need) {
         $kind, $name = $n -split ':', 2
         $gap = ''
@@ -625,6 +688,8 @@ function Get-StepGap([string]$Step) {
         elseif ($kind -eq 'tap') { $gap = Get-TapGap $name }
         elseif ($kind -eq 'swipe') { $gap = Get-SwipeGap $name }
         elseif ($kind -eq 'seed') { $gap = Get-SeedGap ([int]$name) }
+        elseif ($kind -eq 'count') { if ($script:Tm[$name] -lt 1) { $gap = ('a52s.json timing.' + $name + ' is 0') } }
+        elseif ($kind -eq 'image') { if ($script:ImageSeed -lt 0) { $gap = 'walk.local.json has no valid imageChatAddress (the image seed of speed batch 1a)' } }
         if ($gap) { return $gap }
     }
     return ''
@@ -1031,7 +1096,7 @@ function Save-RunJson([bool]$Finished) {
 
 function Complete-Rep($Rec, [int]$Of) {
     $out = [ordered]@{ step = $Rec.step; rep = $Rec.rep; status = $Rec.status }
-    foreach ($k in @('t0', 'log', 'shot', 'screen', 'screenOk', 'am')) { if ($Rec.ContainsKey($k)) { $out[$k] = $Rec[$k] } }
+    foreach ($k in @('t0', 'log', 'shot', 'shotPre', 'screen', 'screenOk', 'swipes', 'am')) { if ($Rec.ContainsKey($k)) { $out[$k] = $Rec[$k] } }
     $full = ($Rec.notes -join ', ')
     $out['note'] = Get-SafeNote $full
     $script:Reps.Add($out)
@@ -1075,7 +1140,18 @@ function Invoke-EnsureHome {
     return $false
 }
 
-function Invoke-ShotCheck($Rec, [string]$Expect) {
+function Reset-AppToChats {
+    # After a tab rep that failed past its tab tap (or a cal-11 that failed): Wallet, Account or Apps may be in front,
+    # and the recovery BACK would only move the task to the back (am start -W then resumes the same view). A cold start
+    # always boots on the Chats tab. The coldstart pair of commands; Invoke-Shell, so this never throws on a failed exit.
+    [void](Invoke-Shell ('am force-stop ' + $script:Pkg))
+    [void](Invoke-Shell ('am start -W -n ' + $script:Comp) 60)
+    Wait-Sec $script:Tm['coldStartSettleSec'] 'coldStartSettleSec'
+    Say-Log '  tab step: the app was restarted after a failed tab rep (a cold start lands on Chats)'
+}
+
+function Invoke-ShotCheck($Rec, [string]$Expect, [switch]$DropOnFail) {
+    # -DropOnFail (tab steps): a PNG whose probe check fails is deleted and not recorded (it may show Wallet or Account).
     if ($Expect) { $Rec['screen'] = $Expect }
     # Focus BEFORE screencap: a foreign window is never photographed.
     if (-not (Test-AppFront)) {
@@ -1087,21 +1163,30 @@ function Invoke-ShotCheck($Rec, [string]$Expect) {
     $name = 'shot-' + $Rec.step + '-' + (Get-Nn $Rec.rep) + '.png'
     $local = Save-Shot $name
     if (-not (Test-AppFront)) {
-        if (-not (Remove-LocalFile $local)) { Add-Note $Rec 'local file not deleted' }
+        $gone = Remove-LocalFile $local
         if ($Expect) { $Rec['screenOk'] = $false }
         if ($Rec.status -eq 'ok') { $Rec.status = 'no-screen' }
-        Add-Note $Rec 'foreign window during the screenshot (PNG deleted)'
+        if ($gone) { Add-Note $Rec 'foreign window during the screenshot (PNG deleted)' }
+        else { Add-Note $Rec 'foreign window during the screenshot, local file not deleted' }
         return
     }
-    $Rec['shot'] = $name
+    $dropped = $false
+    if (-not $DropOnFail) { $Rec['shot'] = $name }
     if ($Expect) {
         $chk = Test-Screen $local $Expect
         $Rec['screenOk'] = [bool]$chk.Ok
         if (-not $chk.Ok) {
             if ($Rec.status -eq 'ok') { $Rec.status = 'no-screen' }
-            Add-Note $Rec $chk.Note
+            if ($DropOnFail) {
+                $dropped = $true
+                if (Remove-LocalFile $local) { Add-Note $Rec ('PNG deleted: ' + $chk.Note) }
+                else { Add-Note $Rec ($chk.Note + ', local file not deleted') }
+            } else {
+                Add-Note $Rec $chk.Note
+            }
         }
     }
+    if ($DropOnFail -and -not $dropped) { $Rec['shot'] = $name }
 }
 
 function Invoke-LogPull($Rec) {
@@ -1163,7 +1248,7 @@ function Invoke-ChatRep($Rec, [string]$How) {
 function Invoke-ScrollRep($Rec) {
     if ($script:ScrollOpen) {
         if ($Rec.rep -eq 1) { throw ('ADBWALK-REP: ' + $script:ScrollOpen) }
-        throw 'ADBWALK-SKIP: the chat of seed 0 did not open (see rep 1)'
+        throw ('ADBWALK-SKIP: ' + $script:ScrollWhat + ' did not open (see rep 1)')
     }
     [void](Invoke-ShellReq 'logcat -c')
     Assert-AppFront
@@ -1174,10 +1259,19 @@ function Invoke-ScrollRep($Rec) {
     [void](Invoke-ShellReq (Get-SwipeText 'chatNewer'))
     Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
     Invoke-ShotCheck $Rec 'chat'
+    if ($Rec.step -ceq 'scroll-image' -and $Rec.ContainsKey('shot')) {
+        # The image chat must be a dev-seed chat, but a wrong address would photograph a real contact: no PNG is kept.
+        $png = Join-Path $script:RunDir ([string]$Rec['shot'])
+        $Rec.Remove('shot')
+        if (Remove-LocalFile $png) { Add-Note $Rec 'PNG deleted (scroll-image keeps no screenshot until the image seed exists)' }
+        else { Add-Note $Rec 'PNG not deleted: local file not deleted' }
+    }
     Invoke-LogPull $Rec
 }
 
-function Invoke-ResumeRep($Rec, [int]$WaitSec) {
+function Invoke-ResumeRep($Rec, [int]$WaitSec, [int]$TapWaitMs, [switch]$DropOnFail) {
+    # $TapWaitMs: the wait between the resume and the chat tap; -1 = the old 2 s of the resume rows (unchanged).
+    # -DropOnFail (resume-now, resume-3s only): a chat PNG whose probe check fails is deleted (the tap may have hit Wallet).
     [void](Invoke-ShellReq 'input keyevent 3')
     Wait-Sec $WaitSec 'resume wait'
     [void](Invoke-ShellReq 'logcat -c')
@@ -1185,11 +1279,132 @@ function Invoke-ResumeRep($Rec, [int]$WaitSec) {
     $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
     Add-AmResult $Rec $am
     if ($am.Error) { throw ('ADBWALK-REP: am: ' + $am.Error) }
-    Wait-Sec 2 'after resume'
+    if ($TapWaitMs -lt 0) { Wait-Sec 2 'after resume' } else { Wait-Ms $TapWaitMs 'after resume' }
     Assert-AppFront
     $r2 = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-TapText 'chatRow1'))
     Set-RepStamp $Rec $r2.StdOut
     Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+    Invoke-ShotCheck $Rec 'chat' -DropOnFail:$DropOnFail
+    Invoke-LogPull $Rec
+    Invoke-BackReq
+    Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
+}
+
+function Invoke-PreCheck($Rec, [string]$Expect) {
+    # The screen check BEFORE the input: focus first, then one screenshot (shot-<step>-NN-pre.png) and its probes.
+    # A failed check stops the rep before any input (no-screen) and DELETES the PNG: the screen may be Wallet or
+    # Account. Only a PNG that passed is kept (shotPre). A failed check is re-calibrated with -Calibrate.
+    if (-not (Test-AppFront)) { throw 'ADBWALK-NOSCREEN: foreign window in front (no screenshot, input skipped)' }
+    $name = 'shot-' + $Rec.step + '-' + (Get-Nn $Rec.rep) + '-pre.png'
+    $local = Save-Shot $name
+    if (-not (Test-AppFront)) {
+        if (Remove-LocalFile $local) { throw 'ADBWALK-NOSCREEN: foreign window during the screenshot (PNG deleted)' }
+        throw 'ADBWALK-NOSCREEN: foreign window during the screenshot, local file not deleted'
+    }
+    $chk = Test-Screen $local $Expect
+    if (-not $chk.Ok) {
+        $left = ' (PNG deleted)'
+        if (-not (Remove-LocalFile $local)) { $left = ' (local file not deleted)' }
+        throw ('ADBWALK-NOSCREEN: before the input the ' + $Expect + ' screen check failed: ' + $chk.Note + $left)
+    }
+    $Rec['shotPre'] = $name
+}
+
+function Invoke-OpenSeedChat([int]$K) {
+    # A seed chat by the notification intent fa (the only entry besides a tap, DECISIONS 1521).
+    $r = Invoke-ShellReq ('am start -n ' + $script:Comp + ' --es fa ' + (Get-Seed $K))
+    $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
+    if ($am.Error) { throw ('ADBWALK-REP: am: ' + $am.Error) }
+    Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+}
+
+function Invoke-ChatInfoRep($Rec) {
+    # Seed chat k-1 by fa, the chat check, then the tap on the chat header: Chat info opens. Then BACK twice.
+    [void](Invoke-ShellReq 'logcat -c')
+    Invoke-OpenSeedChat ($Rec.rep - 1)
+    Invoke-PreCheck $Rec 'chat'
+    Assert-AppFront
+    $r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-TapText 'chatHeader'))
+    Set-RepStamp $Rec $r.StdOut
+    Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+    Invoke-ShotCheck $Rec 'chatinfo'
+    Invoke-LogPull $Rec
+    # A Chat info page that did not open gets no BACK of its own (a second BACK on home would leave the app).
+    if ($Rec['screenOk']) {
+        Invoke-BackReq
+        Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
+    }
+    Invoke-BackReq
+    Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
+}
+
+function Invoke-TabRep($Rec) {
+    # From Chats: the tap on one bottom tab (t0), then the tap on Chats. The screenshot is taken on Chats only:
+    # the tabs Apps, Wallet and Account show TEST account data. Each view change is confirmed by the app's own
+    # frames log line (no timer alone): the Chats tap goes out only after the tab (and for Account the SettingsPage)
+    # showed, the screenshot only after Chats came back, and a screenshot that fails the home check is deleted.
+    $tap = $script:TabNames[$Rec.step]
+    $key = $script:TabFrames[$Rec.step]
+    $to = 3 * $script:Tm['tabSettleMs']
+    [void](Invoke-ShellReq 'logcat -c')
+    Invoke-PreCheck $Rec 'home'
+    Assert-AppFront
+    $r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-TapText $tap))
+    # From here on the tab may be in front: a failure of any kind restarts the app (it boots on Chats), then rethrows.
+    $tapped = $true
+    $reset = $false
+    try {
+        Set-RepStamp $Rec $r.StdOut
+        if (-not (Wait-LogCount $key $to)) { throw ('ADBWALK-REP: the ' + $key + ' tab did not show (no frames line): no tap back, no screenshot') }
+        if ($key -eq 'account') {
+            if (-not (Wait-LogCount 'settings' $to)) { throw 'ADBWALK-REP: the account settings page did not show (no frames line): no tap back, no screenshot' }
+        }
+        Assert-AppFront
+        [void](Invoke-ShellReq (Get-TapText 'tabChats'))
+        if ($key -eq 'account') {
+            if (-not (Wait-LogCount 'settingsclosed' $to)) { throw 'ADBWALK-REP: the account settings page did not close (no close line): no screenshot' }
+        }
+        if (-not (Wait-LogCount 'chats' $to)) { throw 'ADBWALK-REP: Chats did not come back (no frames line): no screenshot' }
+        Wait-Ms 300 'after the Chats frames line'
+        Invoke-ShotCheck $Rec 'home' -DropOnFail
+        Invoke-LogPull $Rec
+        # The home check failed (the PNG is deleted, the rep is no-screen): the view is unknown, restart on Chats.
+        if ($Rec['screenOk'] -ne $true) { $reset = $true; Reset-AppToChats }
+    } catch {
+        if ($tapped -and -not $reset -and -not ([string]$_.Exception.Message).StartsWith('ADBWALK-STOP:')) { Reset-AppToChats }
+        throw
+    }
+}
+
+function Invoke-HistoryRep($Rec) {
+    # Seed chat k+4 (seeds 5..9: no other step opens them, so each rep starts at the newest page) by fa, the chat check,
+    # then swipes to older messages until the chat shell asked for 3 older pages or historyMaxSwipes is reached.
+    # t0 = the first swipe. The rep ends with BACK: the chat is closed after the rep.
+    [void](Invoke-ShellReq 'logcat -c')
+    Invoke-OpenSeedChat ($Rec.rep + 4)
+    Invoke-PreCheck $Rec 'chat'
+    $c0 = Get-LoadMoreCount
+    if ($null -eq $c0) { throw 'ADBWALK-REP: cannot count the page requests in the phone log' }
+    $k = 0
+    $got = 0
+    while ($k -lt $script:Tm['historyMaxSwipes']) {
+        Assert-AppFront
+        if ($k -eq 0) {
+            $r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-SwipeText 'historyOlder'))
+            Set-RepStamp $Rec $r.StdOut
+        } else {
+            [void](Invoke-ShellReq (Get-SwipeText 'historyOlder'))
+        }
+        $k++
+        $Rec['swipes'] = $k
+        Wait-Ms $script:Tm['historySwipeMs'] 'historySwipeMs'
+        $c = Get-LoadMoreCount
+        if ($null -eq $c) { throw 'ADBWALK-REP: cannot count the page requests in the phone log' }
+        $got = $c - $c0
+        if ($got -ge 3) { break }
+    }
+    if ($got -lt 3) { Add-Note $Rec ('only ' + $got + ' page requests after ' + $k + ' swipes') }
+    Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
     Invoke-ShotCheck $Rec 'chat'
     Invoke-LogPull $Rec
     Invoke-BackReq
@@ -1249,8 +1464,14 @@ function Invoke-RepBody($Rec) {
     elseif ($s -eq 'chat-intent') { Invoke-ChatRep $Rec 'intent' }
     elseif ($s -eq 'chat-tap') { Invoke-ChatRep $Rec 'tap' }
     elseif ($s -eq 'scroll') { Invoke-ScrollRep $Rec }
-    elseif ($s -eq 'resume') { Invoke-ResumeRep $Rec $script:Tm['resumeWaitSec'] }
-    elseif ($s -eq 'resume-long') { Invoke-ResumeRep $Rec $script:Tm['resumeLongWaitSec'] }
+    elseif ($s -eq 'resume') { Invoke-ResumeRep $Rec $script:Tm['resumeWaitSec'] (-1) }
+    elseif ($s -eq 'resume-long') { Invoke-ResumeRep $Rec $script:Tm['resumeLongWaitSec'] (-1) }
+    elseif ($s -eq 'resume-now') { Invoke-ResumeRep $Rec $script:Tm['resumeWaitSec'] 0 -DropOnFail }
+    elseif ($s -eq 'resume-3s') { Invoke-ResumeRep $Rec $script:Tm['resumeWaitSec'] $script:Tm['resumeLateTapMs'] -DropOnFail }
+    elseif ($s -eq 'chatinfo') { Invoke-ChatInfoRep $Rec }
+    elseif ($script:TabNames.ContainsKey($s)) { Invoke-TabRep $Rec }
+    elseif ($s -eq 'history') { Invoke-HistoryRep $Rec }
+    elseif ($s -eq 'scroll-image') { Invoke-ScrollRep $Rec }
     elseif ($s -eq 'network') { Invoke-NetworkRep $Rec }
     elseif ($s -eq 'killrenderer') { Invoke-KillRendererRep $Rec }
 }
@@ -1263,7 +1484,8 @@ function Invoke-Step([string]$Step, [int]$Count, [bool]$NeedsHome) {
         $skip = ''
         if ($script:Halted) { $skip = $script:HaltNote }
         elseif ($gap) { $skip = $gap }
-        elseif ($Step -eq 'chat-intent') { $skip = Get-SeedGap ($i - 1) }
+        elseif ($Step -eq 'chat-intent' -or $Step -eq 'chatinfo') { $skip = Get-SeedGap ($i - 1) }
+        elseif ($Step -eq 'history') { $skip = Get-SeedGap ($i + 4) }
         if ($skip) {
             $rec.status = 'skipped'
             Add-Note $rec $skip
@@ -1284,19 +1506,21 @@ function Invoke-Step([string]$Step, [int]$Count, [bool]$NeedsHome) {
     }
 }
 
-function Invoke-ScrollStep {
+function Invoke-ScrollStep([string]$Step, [int]$SeedK, [string]$What) {
+    # scroll: seed 0 (a 1000-message text chat); scroll-image: the local imageChatAddress (walk steps 2).
     $script:ScrollOpen = ''
+    $script:ScrollWhat = $What
     $opened = $false
-    if (-not (Get-StepGap 'scroll') -and -not $script:Halted) {
+    if (-not (Get-StepGap $Step) -and -not $script:Halted) {
         if (-not (Invoke-EnsureHome)) {
-            $script:ScrollOpen = 'the app is not in front: the chat of seed 0 was not opened'
+            $script:ScrollOpen = 'the app is not in front: ' + $What + ' was not opened'
         } else {
-            $r = Invoke-Shell ('am start -n ' + $script:Comp + ' --es fa ' + (Get-Seed 0))
+            $r = Invoke-Shell ('am start -n ' + $script:Comp + ' --es fa ' + (Get-Seed $SeedK))
             $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
             if ($r.ExitCode -ne 0 -or $r.TimedOut -or $am.Error) {
                 $why = $am.Error
                 if (-not $why) { $why = Get-AdbWhy $r }
-                $script:ScrollOpen = 'the chat of seed 0 did not open: ' + $why
+                $script:ScrollOpen = $What + ' did not open: ' + $why
                 $script:NeedRecover = $true; $script:LastFailed = $true
             } else {
                 $opened = $true
@@ -1304,10 +1528,10 @@ function Invoke-ScrollStep {
             }
         }
     }
-    Invoke-Step 'scroll' $script:RepeatsN $false
+    Invoke-Step $Step $script:RepeatsN $false
     if ($opened) {
         if (Invoke-Back) { Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs' }
-        else { Say-Log '  scroll: foreign window in front, BACK not sent'; $script:NeedRecover = $true; $script:LastFailed = $true }
+        else { Say-Log ('  ' + $Step + ': foreign window in front, BACK not sent'); $script:NeedRecover = $true; $script:LastFailed = $true }
     }
 }
 
@@ -1537,6 +1761,12 @@ function Get-EstimateSec {
         elseif ($s -eq 'mem-trim') { $sum += 11 }
         elseif ($s -eq 'network') { $sum += $t['wifiOffSec'] + 36 }
         elseif ($s -eq 'killrenderer') { $sum += 12 }
+        elseif ($s -eq 'resume-now') { $sum += $n * ($t['resumeWaitSec'] + ($t['chatSettleMs'] + $t['backSettleMs']) / 1000 + 8) }
+        elseif ($s -eq 'resume-3s') { $sum += $n * ($t['resumeWaitSec'] + ($t['resumeLateTapMs'] + $t['chatSettleMs'] + $t['backSettleMs']) / 1000 + 8) }
+        elseif ($s -eq 'chatinfo') { $sum += $n * ((2 * $t['chatSettleMs'] + 2 * $t['backSettleMs']) / 1000 + 10) }
+        elseif ($script:TabNames.ContainsKey($s)) { $sum += $n * (2 * $t['tabSettleMs'] / 1000 + 7) }
+        elseif ($s -eq 'history') { $sum += $n * (($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 10 * ($t['historySwipeMs'] / 1000 + 1) + 8) }
+        elseif ($s -eq 'scroll-image') { $sum += 5 + $n * (2 * $t['scrollSettleMs'] / 1000 + 6) }
     }
     return [int]$sum
 }
@@ -1551,7 +1781,14 @@ function Invoke-Walk {
         elseif ($s -eq 'mem-home') { Invoke-MemPhase 'home' }
         elseif ($s -eq 'chat-intent') { Invoke-Step 'chat-intent' $script:RepeatsN $true }
         elseif ($s -eq 'chat-tap') { Invoke-Step 'chat-tap' $script:RepeatsN $true }
-        elseif ($s -eq 'scroll') { Invoke-ScrollStep }
+        elseif ($s -eq 'scroll') { Invoke-ScrollStep 'scroll' 0 'the chat of seed 0' }
+        elseif ($s -eq 'resume-now' -or $s -eq 'resume-3s' -or $s -eq 'chatinfo' -or $script:TabNames.ContainsKey($s)) { Invoke-Step $s $script:RepeatsN $true }
+        elseif ($s -eq 'history') {
+            Invoke-Step 'history' $script:RepeatsN $true
+            # The step leaves the chat closed: after a failed rep, one bounded recovery.
+            if ($script:NeedRecover -and -not $script:Halted) { [void](Invoke-EnsureHome) }
+        }
+        elseif ($s -eq 'scroll-image') { Invoke-ScrollStep 'scroll-image' $script:ImageSeed 'the image chat' }
         elseif ($s -eq 'resume') { Invoke-Step 'resume' $script:RepeatsN $true }
         elseif ($s -eq 'resume-long') { Invoke-Step 'resume-long' 1 $true }
         elseif ($s -eq 'network') { Invoke-Step 'network' 1 $false }
@@ -1573,9 +1810,11 @@ function Save-CalShot([string]$Name, [string]$Expect, $Cal) {
             $local = Save-Shot $Name
             if (-not (Test-AppFront)) {
                 $entry['error'] = 'foreign window during the screenshot (PNG deleted)'
-                if (-not (Remove-LocalFile $local)) { $entry['error'] = 'foreign window during the screenshot, local file not deleted' }
+                $gone = Remove-LocalFile $local
+                if (-not $gone) { $entry['error'] = 'foreign window during the screenshot, local file not deleted' }
                 $local = $null
-                Say ('  ' + $Name + ' deleted: foreign window during the screenshot')
+                if ($gone) { Say ('  ' + $Name + ' deleted: foreign window during the screenshot') }
+                else { Say ('  ' + $Name + ' NOT deleted: foreign window during the screenshot') }
             } else {
                 $Cal.files.Add($Name)
                 Say ('  ' + $Name)
@@ -1600,6 +1839,182 @@ function Invoke-CalInput($Cal, [string]$Cmd, [string]$Label) {
     if (-not (Test-AppFront)) { $Cal.notes.Add($Label + ' skipped: foreign window in front'); return $false }
     [void](Invoke-Shell $Cmd)
     return $true
+}
+
+function Get-LoadMoreCount {
+    # The number of "[P1] shell send loadmore" lines since the last logcat -c; $null when unreadable.
+    $p = Invoke-Shell $script:LoadPollCmd
+    if ($p.TimedOut) { return $null }
+    if ((Get-Clean $p.StdOut) -cmatch '^([0-9]{1,9})\z') { return [int]$Matches[1] }
+    return $null
+}
+
+function Get-LogCount([string]$Key) {
+    # The number of lines of one frames-poll kind since the last logcat -c (a count only); $null when unreadable.
+    $cmd = $script:FramePoll[$Key]
+    if (-not $cmd) { return $null }
+    $p = Invoke-Shell $cmd
+    if ($p.TimedOut) { return $null }
+    if ((Get-Clean $p.StdOut) -cmatch '^([0-9]{1,9})\z') { return [int]$Matches[1] }
+    return $null
+}
+
+function Wait-LogCount([string]$Key, [int]$TimeoutMs, [int]$Above = 0) {
+    # Polls every 300 ms until the count is above $Above (0 = at least one line); $false at the timeout.
+    # At least one poll is made, also with a timeout of 0.
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($true) {
+        $c = Get-LogCount $Key
+        if ($null -ne $c -and $c -gt $Above) { Write-WalkLog ('frames line ' + $Key + ' after ' + $sw.ElapsedMilliseconds + ' ms'); return $true }
+        if ($sw.ElapsedMilliseconds -ge $TimeoutMs) { Write-WalkLog ('no frames line ' + $Key + ' within ' + $TimeoutMs + ' ms'); return $false }
+        Start-Sleep -Milliseconds 300
+    }
+}
+
+function Get-LastCalShot {
+    if ($script:CalShots.Count -eq 0) { return $null }
+    return $script:CalShots[$script:CalShots.Count - 1]
+}
+
+function Test-CalShotScreen($Shot, [string]$Expect) {
+    # The probe check of a calibration PNG at once; a screenshot that was not taken fails.
+    if ($null -eq $Shot -or -not $Shot.Path) { return $false }
+    # A screen that is not calibrated is never a confirmed screen.
+    if (Get-ScreenGap $Expect) { return $false }
+    $chk = Test-Screen $Shot.Path $Expect
+    return [bool]$chk.Ok
+}
+
+function Remove-CalShot($Cal, $Shot, [string]$Why) {
+    # A calibration PNG that is not the screen it was meant to be may show Wallet or Account: it is deleted.
+    $name = [string]$Shot.Entry['file']
+    if (Remove-LocalFile $Shot.Path) {
+        $Shot.Entry['error'] = $Why + ': PNG deleted'
+        $Shot.Path = $null
+        [void]$Cal.files.Remove($name)
+        Say ('  ' + $name + ' deleted: ' + $Why)
+    } else {
+        $Shot.Entry['error'] = $Why + ': local file not deleted'
+        Say ('  ' + $name + ' NOT deleted: ' + $Why)
+    }
+}
+
+function Invoke-CalNewTaps($Cal) {
+    # One try of each tap point and swipe of the walk-steps-2 steps; cal-log.txt then holds their log lines.
+    # No screenshot while Apps, Wallet or Account is in front: those tabs show TEST account data.
+    # The tab taps are gated like the walk (no logcat -c here: cal-log.txt keeps the earlier lines, so the count
+    # BEFORE the tap is read and a count above it is awaited), and a screen check comes before each later input.
+    $gapSeed0 = Get-SeedGap 0
+    if ($gapSeed0) { $Cal.notes.Add('cal-08..10 not taken: ' + $gapSeed0) }
+    elseif (Get-TapGap 'chatHeader') { $Cal.notes.Add('cal-08..10 not taken: ' + (Get-TapGap 'chatHeader')) }
+    else {
+        $seedI = Get-Seed 0
+        [void](Invoke-Shell ('am start -n ' + $script:Comp + ' --es fa ' + $seedI))
+        Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+        if (Invoke-CalInput $Cal (Get-TapText 'chatHeader') 'cal-08 tap') {
+            Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+            Save-CalShot 'cal-08-chatinfo.png' 'chatinfo' $Cal
+            if (Invoke-Back) { Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs' } else { $Cal.notes.Add('cal-09 BACK not sent: foreign window in front') }
+            Save-CalShot 'cal-09-chat-after-info.png' 'chat' $Cal
+        }
+        if (Invoke-Back) { Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs' } else { $Cal.notes.Add('cal-10 BACK not sent: foreign window in front') }
+        Save-CalShot 'cal-10-home-after-info.png' 'home' $Cal
+    }
+    # The last screenshot (cal-10, or cal-07 when cal-08..10 were not tried) must be the home screen: no tab tap otherwise.
+    $homeUp = Test-CalShotScreen (Get-LastCalShot) 'home'
+    # $skip12: why cal-12..13 are not tried. A cal-11 that failed (a tab tap that did not complete, or a PNG that is not
+    # home) or that was not tried because home was not confirmed leaves the screen unknown: no further input.
+    $skip12 = ''
+    if (Get-TapGap 'tabChats') { $Cal.notes.Add('cal-11 not taken: ' + (Get-TapGap 'tabChats')) }
+    elseif (-not $homeUp) {
+        $Cal.notes.Add('cal-11 not taken: the last screenshot is not a confirmed home screen')
+        $skip12 = 'the home screen was not confirmed before cal-11'
+    }
+    else {
+        $tabKeys = @{ 'tabApps' = 'apps'; 'tabWallet' = 'wallet'; 'tabAccount' = 'account' }
+        $to = 3 * $script:Tm['tabSettleMs']
+        $failed = $false
+        foreach ($tn in @('tabApps', 'tabWallet', 'tabAccount')) {
+            if (Get-TapGap $tn) { $Cal.notes.Add('cal-11 ' + $tn + ' not tried: ' + (Get-TapGap $tn)); continue }
+            $key = $tabKeys[$tn]
+            $b = Get-LogCount $key
+            $bs = 0
+            $bcl = 0
+            if ($key -eq 'account') { $bs = Get-LogCount 'settings'; $bcl = Get-LogCount 'settingsclosed' }
+            if ($null -eq $b -or $null -eq $bs -or $null -eq $bcl) { $Cal.notes.Add('cal-11 ' + $tn + ' not tried: cannot count the frames lines in the phone log'); $failed = $true; break }
+            if (-not (Invoke-CalInput $Cal (Get-TapText $tn) ('cal-11 ' + $tn))) { $failed = $true; break }
+            if (-not (Wait-LogCount $key $to $b)) { $Cal.notes.Add('cal-11 ' + $tn + ': no frames line, no tap back'); $failed = $true; break }
+            if ($key -eq 'account') {
+                if (-not (Wait-LogCount 'settings' $to $bs)) { $Cal.notes.Add('cal-11 ' + $tn + ': no SettingsPage frames line, no tap back'); $failed = $true; break }
+            }
+            $bc = Get-LogCount 'chats'
+            if ($null -eq $bc) { $Cal.notes.Add('cal-11 ' + $tn + ': cannot count the Chats frames lines, no tap back'); $failed = $true; break }
+            if (-not (Invoke-CalInput $Cal (Get-TapText 'tabChats') 'cal-11 tabChats')) { $failed = $true; break }
+            if ($key -eq 'account') {
+                if (-not (Wait-LogCount 'settingsclosed' $to $bcl)) { $Cal.notes.Add('cal-11 ' + $tn + ': the SettingsPage did not close (no close line)'); $failed = $true; break }
+            }
+            if (-not (Wait-LogCount 'chats' $to $bc)) { $Cal.notes.Add('cal-11 ' + $tn + ': Chats did not come back (no frames line)'); $failed = $true; break }
+            Wait-Ms 300 'after the Chats frames line'
+        }
+        if ($failed) {
+            $Cal.notes.Add('cal-11 screenshot not taken: a tab tap did not complete')
+            $skip12 = 'cal-11 did not complete'
+            # Wallet, Account or Apps may still be in front: restart the app (it boots on Chats) before anything else.
+            Reset-AppToChats
+            $Cal.notes.Add('cal-11 failed: the app was restarted (a cold start lands on Chats)')
+        } else {
+            Save-CalShot 'cal-11-home-after-tabs.png' 'home' $Cal
+            $s11 = Get-LastCalShot
+            if ($s11 -and $s11.Path -and -not (Test-CalShotScreen $s11 'home')) { Remove-CalShot $Cal $s11 'not home' }
+            if (-not (Test-CalShotScreen (Get-LastCalShot) 'home')) {
+                $skip12 = 'the cal-11 screenshot is not a confirmed home screen'
+                Reset-AppToChats
+                $Cal.notes.Add('cal-11 screenshot is not home: the app was restarted (a cold start lands on Chats)')
+            }
+        }
+    }
+    $gapSeed5 = Get-SeedGap 5
+    if ($skip12) { $Cal.notes.Add('cal-12..13 not taken: ' + $skip12) }
+    elseif ($gapSeed5) { $Cal.notes.Add('cal-12..13 not taken: ' + $gapSeed5) }
+    elseif (Get-SwipeGap 'historyOlder') { $Cal.notes.Add('cal-12..13 not taken: ' + (Get-SwipeGap 'historyOlder')) }
+    else {
+        $seedH = Get-Seed 5
+        [void](Invoke-Shell ('am start -n ' + $script:Comp + ' --es fa ' + $seedH))
+        Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+        # The chat screen must be up before any swipe; its PNG is kept (a chat or home screen), unless it is neither.
+        Save-CalShot 'cal-12a-history-before.png' 'chat' $Cal
+        $s12a = Get-LastCalShot
+        if (-not (Test-CalShotScreen $s12a 'chat')) {
+            if ($s12a -and $s12a.Path -and -not (Test-CalShotScreen $s12a 'home')) { Remove-CalShot $Cal $s12a 'not chat and not home' }
+            $Cal.notes.Add('cal-12..13 not taken: the chat screen was not confirmed before the swipes')
+        } else {
+            $c0 = Get-LoadMoreCount
+            $k = 0
+            $got = 0
+            if ($null -ne $c0) {
+                while ($k -lt $script:Tm['historyMaxSwipes']) {
+                    if (-not (Invoke-CalInput $Cal (Get-SwipeText 'historyOlder') 'cal-12 swipe')) { break }
+                    $k++
+                    Wait-Ms $script:Tm['historySwipeMs'] 'historySwipeMs'
+                    $c = Get-LoadMoreCount
+                    if ($null -eq $c) { break }
+                    $got = $c - $c0
+                    if ($got -ge 3) { break }
+                }
+            }
+            Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
+            $hres = 'ok'
+            if ($got -lt 3) { $hres = 'error' }
+            Add-CalTry $Cal 'history' $hres ('loadmore lines ' + $got + ' after ' + $k + ' swipes')
+            Save-CalShot 'cal-12-history.png' 'chat' $Cal
+            $s12 = Get-LastCalShot
+            if ($s12 -and $s12.Path -and -not (Test-CalShotScreen $s12 'chat') -and -not (Test-CalShotScreen $s12 'home')) { Remove-CalShot $Cal $s12 'not chat and not home' }
+            if (Invoke-Back) { Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs' } else { $Cal.notes.Add('cal-13 BACK not sent: foreign window in front') }
+            Save-CalShot 'cal-13-home-after-history.png' 'home' $Cal
+            $s13 = Get-LastCalShot
+            if ($s13 -and $s13.Path -and -not (Test-CalShotScreen $s13 'home')) { Remove-CalShot $Cal $s13 'not home' }
+        }
+    }
 }
 
 function Invoke-Calibrate {
@@ -1640,7 +2055,8 @@ function Invoke-Calibrate {
     [void](Invoke-Shell ('am start -W -n ' + $script:Comp) 60)
     Wait-Sec 12 'calibrate start'
     Save-CalShot 'cal-01-home.png' 'home' $cal
-    $seed0 = Get-Seed 0
+    $seed0 = $null
+    if (-not (Get-SeedGap 0)) { $seed0 = Get-Seed 0 }
     if ($seed0) {
         [void](Invoke-Shell ('am start -n ' + $script:Comp + ' --es fa ' + $seed0))
         Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
@@ -1667,6 +2083,7 @@ function Invoke-Calibrate {
     [void](Invoke-Shell ('am start -n ' + $script:Comp))
     Wait-Sec 3 'after am start'
     Save-CalShot 'cal-07-home-resumed.png' 'home' $cal
+    Invoke-CalNewTaps $cal
 
     Say '  renderer lookup (lines in tries.txt):'
     $fr = Find-Renderer
@@ -1812,7 +2229,7 @@ foreach ($stepArg in $Steps) {
         $want.Add($stepName)
     }
 }
-if ($want.Count -eq 0) { $script:StepsReq = @($script:AllSteps) }
+if ($want.Count -eq 0) { $script:StepsReq = @($script:DefaultSteps) }
 else { $script:StepsReq = @($script:AllSteps | Where-Object { $want -contains $_ }) }
 if ($KillRenderer) { $script:StepsReq = @($script:StepsReq) + @('killrenderer') }
 
@@ -1825,7 +2242,7 @@ $cfgPkg = [string](Get-Field $script:Cfg 'package')
 # The store app holds a real account: only the pinned package is ever driven.
 if ($cfgPkg -cne $script:PinnedPackage) { Exit-Usage ('a52s.json package "' + (Get-SafeNote $cfgPkg) + '" is not the pinned ' + $script:PinnedPackage + ': refused') }
 $script:Pkg = $script:PinnedPackage
-foreach ($scrName in @('home', 'chat')) {
+foreach ($scrName in @('home', 'chat', 'chatinfo')) {
     if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') $scrName) 'probes').Count -gt 16) { Exit-Usage ('a52s.json screens.' + $scrName + ' has more than 16 probes') }
 }
 $cdev = Get-Field $script:Cfg 'device'
@@ -1861,6 +2278,10 @@ if (Test-Path -LiteralPath $localJson) {
             else { $script:Seeds.Add($null); $script:SeedNote[$k] = ('walk.local.json seed ' + $k + ' is not a base58 address') }
             $k++
         }
+        $script:SeedAddrCount = $script:Seeds.Count
+        # Walk steps 2: the optional address of the image chat (the image seed of speed batch 1a). It is masked like a seed.
+        $img = [string](Get-Field $lj 'imageChatAddress')
+        if ($img -cmatch '^[1-9A-HJ-NP-Za-km-z]{30,60}\z') { $script:Seeds.Add($img); $script:ImageSeed = $script:Seeds.Count - 1 }
     } catch { Write-Host 'adb-walk: walk.local.json is unreadable: steps that need a seed address are skipped' }
 }
 

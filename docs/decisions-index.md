@@ -100,3 +100,7 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1521 | No dev "go to" verb: the walk navigates only by calibrated coordinates and the existing `fa` notification intent. |
 | #1522 | The adb walk's safety rules: one pinned dev package, an adb allowlist, the log filtered on the phone, masks for folders / serial / seed addresses, focus checks, restores; the nightly task is not registered. |
 | #1523 | Session Tooling + Tooling R6 record: kept / cut, the unverified steps' results, the four done-when items (repeatability met by #1530), #46 CLEAN at r6 by #1519, the fallback delivery. |
+| #1550 | The adb walk's seven new steps (resume-now, resume-3s, chatinfo, tab-apps / tab-wallet / tab-account, history) run after the old ones; scroll-image only with `-Steps` and the local key `imageChatAddress`; the tab steps never keep a Wallet or Account screenshot. |
+| #1551 | The parser rows of the new steps; the old rows stay byte-identical; one removed line = "no data", exit 2. |
+| #1552 | r6-1 of batch tooling fixed: `Protect-Text` replaces only absolute folder values. |
+| #1553 | Session Walk steps 2 record: PARTLY (block 2, the two full runs of #1530, owed); #46 CLEAN at r4; the cold start of the same install moved 2.2 s → 3.6 s (not explained). |

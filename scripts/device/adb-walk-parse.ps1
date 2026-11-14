@@ -4,6 +4,7 @@ adb-walk-parse.ps1 - turns the output folder of an adb-walk run into summary.md 
 Usage:   .\adb-walk-parse.ps1 -RunDir "<repo>\Claude outputs\adbwalk\<yyyyMMdd-HHmm>"
 Exit:    0 = every required row has data, 2 = at least one "no data" row, 3 = run.json missing or unreadable
          (1 = the script itself failed; should not happen).
+Steps added in batch walksteps2: chatinfo, tab-apps, tab-wallet, tab-account, history, resume-now, resume-3s, scroll-image.
 
 Safety rules (this script is read by a security reviewer):
 - Reads ONLY files named by run.json inside -RunDir (plain file names; any name with a path part is refused).
@@ -171,6 +172,16 @@ $script:L = @{
     Send    = @{ Gram = $true;  Label = 'shell send chat';             Rx = (New-Rx ($script:Cm + '\[P1\] shell send chat(?=\s)')) }
     Scroll  = @{ Gram = $true;  Label = 'shell scroll';                Rx = (New-Rx ($script:Cm + '\[P1\] shell scroll [a-z_]+(?=\s|$)')) }
     Long    = @{ Gram = $true;  Label = 'shell longtask';              Rx = (New-Rx ($script:Cm + '\[P1\] shell longtask [a-z_]+(?=\s|$)')) }
+    InfoPresent = @{ Gram = $true; Label = 'open contactdetails present';      Rx = (New-Rx ($script:Cm + '\[P1\] open contactdetails present(?=\s|$)')) }
+    InfoFrames  = @{ Gram = $true; Label = 'frames open-contactdetails';       Rx = (New-Rx ($script:Cm + '\[P1\] frames open-contactdetails(?=\s|$)')) }
+    SendDetails = @{ Gram = $true; Label = 'shell send details';               Rx = (New-Rx ($script:Cm + '\[P1\] shell send details(?=\s)')) }
+    TabApps     = @{ Gram = $true; Label = 'shell tab-apps';                   Rx = (New-Rx ($script:Cm + '\[P1\] shell tab-apps(?=\s)')) }
+    TabWallet   = @{ Gram = $true; Label = 'shell tab-wallet';                 Rx = (New-Rx ($script:Cm + '\[P1\] shell tab-wallet(?=\s)')) }
+    TabAccount  = @{ Gram = $true; Label = 'shell tab-account';                Rx = (New-Rx ($script:Cm + '\[P1\] shell tab-account(?=\s)')) }
+    TabAppsFr   = @{ Gram = $true; Label = 'shell frames-tab-apps';            Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-tab-apps(?=\s)')) }
+    TabWalletFr = @{ Gram = $true; Label = 'shell frames-tab-wallet';          Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-tab-wallet(?=\s)')) }
+    TabAccountFr = @{ Gram = $true; Label = 'shell frames-tab-account';        Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-tab-account(?=\s)')) }
+    Load        = @{ Gram = $true; Label = 'chat load';                        Rx = (New-Rx ($script:Cm + '\[P1\] chat load(?=\s|$)')) }
     # These two start directly after the colon (no WEBVIEW prefix); the address that follows is never read.
     Conn    = @{ Gram = $false; Label = 'Network client connected to'; Rx = (New-Rx '^[A-Za-z]{1,10}\|[0-9]{1,6}: Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}[ \t]*\z') }
     Hello   = @{ Gram = $false; Label = 'Received Hello:';             Rx = (New-Rx '^[A-Za-z]{1,10}\|[0-9]{1,6}: Received Hello: Node version [0-9]{1,6}[ \t]*\z') }
@@ -353,6 +364,32 @@ function X-Delta {
     return (New-Res 'value' $ms '')
 }
 
+function Get-MissingCount {
+    param($C, $LineDef, [int]$Have, [int]$Min)
+    return (New-Res 'missing' $null ($C.Label + ': only ' + $Have.ToString($script:Inv) + ' "' + $LineDef.Label + '" lines (needs ' + $Min.ToString($script:Inv) + ') in ' + $C.LogName))
+}
+
+function X-Count {
+    # Number of such lines in the window; fewer than $Min = missing (a real zero is never reported for a required count).
+    param($C, $LineDef, [int]$Min)
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    $hits = (Get-Hits $C $LineDef).Items
+    if ($hits.Count -lt $Min) { return (Get-MissingCount $C $LineDef $hits.Count $Min) }
+    return (New-Res 'value' ([double]$hits.Count) '')
+}
+
+function X-NthDelta {
+    # Own stamp of the N-th such line (1 = first) minus t0, in ms.
+    param($C, $LineDef, [int]$N)
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    $hits = (Get-Hits $C $LineDef).Items
+    if (($N -lt 1) -or ($hits.Count -lt $N)) { return (Get-MissingCount $C $LineDef $hits.Count $N) }
+    $ms = ($hits[$N - 1].Stamp - $C.T0).Ticks / 10000.0
+    return (New-Res 'value' $ms '')
+}
+
 function X-Token {
     # key=<int> of the FIRST such line.
     param($C, $LineDef, [string]$Key)
@@ -388,6 +425,29 @@ function X-Send {
         if (($null -ne $v) -and ($v -ge 0)) { return (New-Res 'value' ([double]$v) '') }
     }
     return (New-Res 'missing' $null ($C.Label + ': no "shell send chat" line with dt>=0 in ' + $C.LogName))
+}
+
+function X-SendLine {
+    # Like X-Send, for any "send" line definition: dt= of the first such line with dt >= 0.
+    param($C, $LineDef)
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    foreach ($h in (Get-Hits $C $LineDef).Items) {
+        $v = Get-Tok $h.Tail 'dt'
+        if (($null -ne $v) -and ($v -ge 0)) { return (New-Res 'value' ([double]$v) '') }
+    }
+    return (New-Res 'missing' $null ($C.Label + ': no "' + $LineDef.Label + '" line with dt>=0 in ' + $C.LogName))
+}
+
+function X-Field {
+    # A non-negative integer field of the run.json rep (only "swipes" for now). No log needed.
+    param($C, [string]$Name)
+    if (-not $C.Usable) { return (New-Res 'missing' $null $C.Why) }
+    if ($Name -eq 'swipes') {
+        if ($null -eq $C.Swipes) { return (New-Res 'missing' $null ($C.Label + ': no swipes in run.json')) }
+        return (New-Res 'value' ([double]$C.Swipes) '')
+    }
+    return (New-Res 'missing' $null ($C.Label + ': unknown field in run.json'))
 }
 
 function X-Scroll {
@@ -470,6 +530,12 @@ $script:OpenDefs = @(
 )
 $script:SendDef = (New-Def 'tap -> send dt=' 'ms' $true 'log' { param($c) X-Send $c })
 $script:AmOptDef = (New-Def 'am TotalTime' 'ms' $false 'run' { param($c) X-Am $c $true })
+# Scroll and long-task rows for the steps added in walksteps2 (the old 'scroll' entry below keeps its own copy).
+$script:ScrollDropDef = (New-Def 'scroll drops (sum)' 'count' $true 'log' { param($c) X-Scroll $c 'drops' })
+$script:ScrollGapDef = (New-Def 'scroll max gap (max)' 'ms' $true 'log' { param($c) X-Scroll $c 'gap' })
+$script:ScrollFramesDef = (New-Def 'scroll frames n (sum)' 'count' $true 'log' { param($c) X-Scroll $c 'frames' })
+$script:LongCountDef = (New-Def 'long tasks' 'count' $false 'log' { param($c) X-Long $c 'count' })
+$script:LongMaxDef = (New-Def 'longest long task' 'ms' $false 'log' { param($c) X-Long $c 'longest' })
 
 $script:StepTable = [ordered]@{
     'coldstart'   = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
@@ -500,6 +566,47 @@ $script:StepTable = [ordered]@{
             (New-Def 'wifi on -> first Hello' 'ms' $false 'log' { param($c) X-Delta $c $script:L.Hello })
         ) }
     'killrenderer' = @{ Kind = 'info-kill' }
+    'chatinfo'    = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
+            (New-Def 'tap -> present' 'ms' $true 'log' { param($c) X-Delta $c $script:L.InfoPresent }),
+            (New-Def 'present ms=' 'ms' $true 'log' { param($c) X-Token $c $script:L.InfoPresent 'ms' }),
+            (New-Def 'frames drop' 'count' $true 'log' { param($c) X-Token $c $script:L.InfoFrames 'drop' }),
+            (New-Def 'frames max gap' 'ms' $true 'log' { param($c) X-Token $c $script:L.InfoFrames 'max' }),
+            (New-Def 'tap -> send dt=' 'ms' $true 'log' { param($c) X-SendLine $c $script:L.SendDetails })
+        ) }
+    'tab-apps'    = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
+            (New-Def 'tap -> tab shown first=' 'ms' $true 'log' { param($c) X-Token $c $script:L.TabApps 'first' }),
+            (New-Def 'frames drop' 'count' $true 'log' { param($c) X-Token $c $script:L.TabAppsFr 'drop' }),
+            (New-Def 'frames max gap' 'ms' $true 'log' { param($c) X-Token $c $script:L.TabAppsFr 'max' })
+        ) }
+    'tab-wallet'  = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
+            (New-Def 'tap -> tab shown first=' 'ms' $true 'log' { param($c) X-Token $c $script:L.TabWallet 'first' }),
+            (New-Def 'frames drop' 'count' $true 'log' { param($c) X-Token $c $script:L.TabWalletFr 'drop' }),
+            (New-Def 'frames max gap' 'ms' $true 'log' { param($c) X-Token $c $script:L.TabWalletFr 'max' })
+        ) }
+    'tab-account' = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
+            (New-Def 'tap -> tab shown first=' 'ms' $true 'log' { param($c) X-Token $c $script:L.TabAccount 'first' }),
+            (New-Def 'frames drop' 'count' $true 'log' { param($c) X-Token $c $script:L.TabAccountFr 'drop' }),
+            (New-Def 'frames max gap' 'ms' $true 'log' { param($c) X-Token $c $script:L.TabAccountFr 'max' })
+        ) }
+    'history'     = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
+            (New-Def 'older pages loaded' 'count' $true 'log' { param($c) X-Count $c $script:L.Load 3 }),
+            (New-Def 'first swipe -> 3rd page' 'ms' $true 'log' { param($c) X-NthDelta $c $script:L.Load 3 }),
+            $script:ScrollGapDef,
+            $script:ScrollDropDef,
+            $script:ScrollFramesDef,
+            $script:LongCountDef,
+            $script:LongMaxDef,
+            (New-Def 'swipes' 'count' $true 'run' { param($c) X-Field $c 'swipes' })
+        ) }
+    'resume-now'  = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @() + $script:OpenDefs + @($script:SendDef, $script:AmOptDef) }
+    'resume-3s'   = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @() + $script:OpenDefs + @($script:SendDef, $script:AmOptDef) }
+    'scroll-image' = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
+            $script:ScrollDropDef,
+            $script:ScrollGapDef,
+            $script:ScrollFramesDef,
+            $script:LongCountDef,
+            $script:LongMaxDef
+        ) }
 }
 
 $script:MemDefs = @(
@@ -609,6 +716,7 @@ function New-Ctx {
     return [pscustomobject]@{
         Label = $Label; Present = $Present; Usable = $Usable; Why = $Why
         Am = $null
+        Swipes = $null
         T0 = $null; T0Why = ''
         LogName = ''; LogWhy = $null; Window = @()
         AppName = ''; RendName = ''
@@ -649,6 +757,10 @@ function New-RepCtx {
     $c.Note = $note
     $am = Get-Prop $Entry 'am'
     $c.Am = Get-Num (Get-Prop $am 'totalTime')
+    # swipes (history step): a whole number 0..1000, else $null.
+    $sw = Get-Num (Get-Prop $Entry 'swipes')
+    if (($null -ne $sw) -and (($sw -gt 1000) -or ($sw -ne [Math]::Floor($sw)))) { $sw = $null }
+    $c.Swipes = $sw
     $c.T0 = $T0
     $c.T0Why = $T0Why
     $logName = Get-Prop $Entry 'log'
@@ -1009,7 +1121,12 @@ function Invoke-Main {
         '- app PSS / renderer PSS: `TOTAL PSS:` of the `dumpsys meminfo` file (fallback: first number of the TOTAL row); the sum is both.',
         '- network rows (t0 = phone stamp taken with `svc wifi enable`): wifi on -> first node connected = own stamp of the first `Network client connected to` line minus t0; wifi on -> first Hello = the first `Received Hello:` line (optional). The address after "connected to" is never copied.',
         '- Log files are filtered on the phone to timing lines (`[P1] `, `[CDPERF] `, `Starting Spixi`, `Network client connected to`, `Received Hello`); an empty file means nothing matched.',
-        '- A rep window = lines whose own app stamp is >= the rep t0 and < the t0 of the next rep of the run. "no data" = a required value is missing for some rep; n/a = an optional value that no rep had.'
+        '- A rep window = lines whose own app stamp is >= the rep t0 and < the t0 of the next rep of the run. "no data" = a required value is missing for some rep; n/a = an optional value that no rep had.',
+        '- chat info: t0 = the tap on the chat header; the rows read the first `[P1] open contactdetails present ms=` line, the first `[P1] frames open-contactdetails n= drop= max=` line and `[P1] shell send details dt=`.',
+        '- tab-apps / tab-wallet / tab-account: t0 = the tap on the tab; `first=` of the shell line `[P1] shell tab-<name> first=` (ms from the tap to the second frame after the tab is shown, on the tap clock of the shell) and `drop=` / `max=` of `[P1] shell frames-tab-<name>`. Screenshots are taken only on the Chats tab.',
+        '- history: t0 = the first swipe to older messages; older pages loaded = number of `[P1] chat load` lines in the rep (C# answers one page request each; at least 3 are required); first swipe -> 3rd page = own stamp of the third such line minus t0; the scroll and long-task rows as for scroll; swipes = from run.json. A visible jump is NOT measured (no log line shows it).',
+        '- resume (unchanged since 2026-11-12): the chat tap goes 2 s after the resume. resume-now: at once (after the focus check). resume-3s: after 3 s. Neither new row replaces the resume row.',
+        '- scroll-image: the scroll rows in a chat with images (opened by the notification intent with the address of the local key imageChatAddress).'
     )
     foreach ($l in $legend) { [void]$md.Append($l + "`n") }
     [void]$md.Append("`nFiles`n`n")

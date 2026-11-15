@@ -26,6 +26,13 @@ namespace SPIXI
         public const string NativeConfirmKey = "flagNativeConfirm";         // int pref; absent = default (1) — ★ Safety S-5 (P35)
         public const string HistoryLockKey = "flagHistoryLock";             // int pref; absent = default (1) — ★ Safety S-6 (P36)
         public const string WinAppMarkerKey = "flagWinAppMarker";           // int pref; absent = default (1) — ★ Safety O-02 (P37)
+        public const string WarmOnIdleKey = "flagWarmOnIdle";               // int pref; absent = default (1) — ★ perfb1 P-12 (P38)
+        public const string SpareRearmKey = "flagSpareRearm";               // int pref; absent = default (1) — ★ perfb1 P-11 switch 1 (P39)
+        public const string SpareKeepShortSleepKey = "flagSpareKeepShortSleep";   // int pref; absent = default (0, opt-in) — ★ perfb1 P-11 switch 2 (P40)
+        public const string PhoneNoEmptyDetailKey = "flagPhoneNoEmptyDetail";     // int pref; absent = default (1) — ★ perfb1 P-13 (P41)
+
+        /** ★ perfb1: the four keys in PerfB1Rules.DevSwitchNames order (DevPage `ixian:devflash:<name>:<0|1>`). */
+        public static readonly string[] PerfB1DevKeys = { WarmOnIdleKey, SpareRearmKey, SpareKeepShortSleepKey, PhoneNoEmptyDetailKey };
 
         /** L8: the wallet password lives in SecureStorage (WalletPassStore). OFF = the legacy plaintext preference. */
         public static bool SecureWalletPass { get; private set; } = true;
@@ -83,6 +90,30 @@ namespace SPIXI
          *  permission requests, new windows). OFF = the mini app is treated like every other WebView, as before. */
         public static bool WinAppMarker { get; private set; } = true;
 
+        /* ★ perfb1 (Speed batch 1a, #1312 rule 1 / #1478, PerfB1Rules.cs): one flag per change; OFF = the old path. */
+        /** P-12 (P38): the spare warm waits for a quiet time with no touch (WarmIdleRules). OFF = exactly the old behaviour. */
+        public static bool WarmOnIdle { get; private set; } = true;
+        /** P-11 switch 1 (P39): the spare chat page is armed again after a drop. OFF = exactly the old behaviour. */
+        public static bool SpareRearm { get; private set; } = true;
+        /** P-11 switch 2 (P40), OPT-IN: the spare chat page is kept over a short sleep. A stored 1 acts only in dev mode
+         *  (PerfB1Rules.effectiveOptIn); absent = OFF. OFF = exactly the old behaviour. */
+        public static bool SpareKeepShortSleep { get; private set; } = false;
+        /** P-13 (P41): the phone "no empty detail" change. OFF = exactly the old behaviour. */
+        public static bool PhoneNoEmptyDetail { get; private set; } = true;
+
+        /** ★ perfb1 #46 r1 B-1 / S-5: leaving dev mode (HomePage `ixian:disableDevMode`, which also removes the four
+         *  PerfB1DevKeys) turns the OPT-IN off in THIS process too — init runs once, so without this the running app kept
+         *  the spare over a sleep until the next start, with nothing on screen showing it. The three ON flags need nothing:
+         *  a stored 0 acts only in dev mode at the NEXT start (S16PassRules.effectiveFlag) and the keys are removed, so the
+         *  next start has the defaults; until then a flag that is off only keeps the old path. Two callers: (1) that HomePage
+         *  branch, called BEFORE its dropSpareChat("devmode"), so a kept spare goes with the drop; (2) the account wipe
+         *  (SettingsPage.wipeEverything), right after the preference wipe and WalletPassStore.clear() — there a spare was already
+         *  dropped at the wipe's first step with the word `stop` (IxianHandler.shutdown() → HomePage.stop() → dropSpareChat("stop")). */
+        public static void leaveDevMode()
+        {
+            SpareKeepShortSleep = false;
+        }
+
         public static void init()
         {
             bool dev = false;
@@ -90,6 +121,7 @@ namespace SPIXI
             int vi = 1, vh = 1;   // ★ V1A-M M1 / M2
             int ah = 1;           // ★ S20I
             int xi = 1, xs = 1, xp = 1, xc = 1, xh = 1, xw = 1;   // ★ Session Safety
+            int pw = 1, pr = 1, pk = 0, pn = 1;   // ★ perfb1 (pk = the opt-in: absent = 0)
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -108,6 +140,10 @@ namespace SPIXI
                 xc = Preferences.Default.Get(NativeConfirmKey, 1);
                 xh = Preferences.Default.Get(HistoryLockKey, 1);
                 xw = Preferences.Default.Get(WinAppMarkerKey, 1);
+                pw = Preferences.Default.Get(WarmOnIdleKey, 1);
+                pr = Preferences.Default.Get(SpareRearmKey, 1);
+                pk = Preferences.Default.Get(SpareKeepShortSleepKey, 0);
+                pn = Preferences.Default.Get(PhoneNoEmptyDetailKey, 1);
             }
             catch (Exception ex)
             {
@@ -139,6 +175,11 @@ namespace SPIXI
             HistoryLock = S16PassRules.effectiveFlag(dev, xh);
             WinAppMarker = S16PassRules.effectiveFlag(dev, xw);
             Logging.info(SafetyRules.flagsLine(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker));
+            WarmOnIdle = S16PassRules.effectiveFlag(dev, pw);
+            SpareRearm = S16PassRules.effectiveFlag(dev, pr);
+            SpareKeepShortSleep = PerfB1Rules.effectiveOptIn(dev, pk);
+            PhoneNoEmptyDetail = S16PassRules.effectiveFlag(dev, pn);
+            Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));
         }
     }
 }

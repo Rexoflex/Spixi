@@ -1,0 +1,32 @@
+Main chat 2026-11-15: rulings and records as DECISIONS rows (1544-1549, 1595-1597)
+
+Docs only. No file under src/, Spixi/, scripts/ or .github/ is changed.
+
+- DECISIONS 1544-1546 (2026-11-13): the record of the push proof (a pushed
+  branch is clean, a pull request opened by a session is not), Damir's words
+  on the result, and the delivery mode of a work session: the session pushes
+  its branch, Damir opens the pull request with the compare link.
+- DECISIONS 1547 (2026-11-15): the record that session Walk steps 2 is
+  merged (pull request 5, a54808c6), that its operator block 2 ran, and the
+  first numbers of the new adb walk steps.
+- DECISIONS 1548: Damir's answers to nine launch items (store, claims,
+  signing, mini apps).
+- DECISIONS 1549: pull request 6 (speed batch 1a) is merged after green CI
+  and before its walk (b579ecb3); the measured sitting comes after the
+  toggle batch.
+- DECISIONS 1595: the answer to row 1569 is option B, the adb walk sets the
+  four switches of batch 1a by a launch intent extra (developer build only,
+  Developer mode on, four names, 0 or 1).
+- DECISIONS 1596: rows 1563, 1565 and 1568 are confirmed.
+- DECISIONS 1597: the dials of batch perfb1toggle.
+
+The status cells of rows 1563, 1565, 1568 and 1569 are changed (the old
+status stays in the cell after the word "was").
+
+All nine rows are placed after row 1543 and before row 1550, so that a work
+branch that adds rows at the end of the file merges without a conflict.
+Rows 1595-1597 are therefore not in number order.
+
+Not changed here: CLAUDE.md ("Where we are now" still shows rows 1563 and
+1568 as provisional and row 1569 as open) and the rule texts. They follow
+with the next session export and the docs batch.

@@ -87,6 +87,12 @@
     <Compile Include="../../Spixi/Utils/SpixiFlags.cs" /><Compile Include="../../Spixi/Meta/WalletPassStore.cs" />   <!-- ★ S16 #46 r1 (R4 MAJOR-4): the REAL walletpass shell, run end to end over StubsS16.cs (tests: S16StoreTests.cs) -->
     <Compile Include="../../Spixi/Utils/S16SecRules.cs" /><Compile Include="../../Spixi/Utils/GenericEventArgs.cs" />   <!-- ★ S16 a-sec (#1320 F1–F5, #1313 MAJOR #9): the security batch's pure rules + SPIXI.EventArgs<T> (tests: S16SecTests.cs) -->
     <Compile Include="../../Spixi/Utils/S16FixRules.cs" />   <!-- ★ S16 (#1311 (a)/(c)): the [THEME] words + the once-per-id re-arm (tests: S16FixTests.cs) -->
+    <Compile Include="../../Spixi/Utils/PerfB1Rules.cs" />   <!-- ★ perfb1 (P38–P41): the four switches' opt-in rule, [FLAGS] line, dev verb map (tests: PerfB1FlagsTests.cs; SpixiFlags.init calls it) -->
+    <Compile Include="../../Spixi/Utils/WarmIdleRules.cs" />   <!-- ★ perfb1 P-12 (WarmOnIdle): the input-idle gate in front of every hidden-WebView warm (tests: PerfB1WarmIdleTests.cs) -->
+    <Compile Include="../../Spixi/Utils/SpareRearmRules.cs" />   <!-- ★ perfb1 P-11 switch 1 (SpareRearm): the chat spare is armed again after a drop (tests: PerfB1SpareRearmTests.cs) -->
+    <Compile Include="../../Spixi/Utils/SpareKeepRules.cs" />   <!-- ★ perfb1 P-11 switch 2 (SpareKeepShortSleep): keep the spare over a short sleep; usable only when proven (tests: PerfB1SpareKeepTests.cs) -->
+    <Compile Include="../../Spixi/Utils/SDevSeedPlan.cs" />   <!-- ★ perfb1 seed: the dev seed's pure half — Seed 01–50 rules frozen, the image chats, the PNG made in code (tests: PerfB1SeedTests.cs) -->
+    <Compile Include="../../Spixi/Utils/EmptyDetailRules.cs" />   <!-- ★ perfb1 P-13 (PhoneNoEmptyDetail): no EmptyDetail page on a phone until the layout is wide (tests: PerfB1EmptyDetailTests.cs) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

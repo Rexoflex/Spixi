@@ -104,6 +104,17 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1551 | The parser rows of the new steps; the old rows stay byte-identical; one removed line = "no data", exit 2. |
 | #1552 | r6-1 of batch tooling fixed: `Protect-Text` replaces only absolute folder values. |
 | #1553 | Session Walk steps 2 record: PARTLY (block 2, the two full runs of #1530, owed); #46 CLEAN at r4; the cold start of the same install moved 2.2 s → 3.6 s (not explained). |
+| #1560 | Speed batch 1a's four switches: `WarmOnIdle`, `SpareRearm`, `PhoneNoEmptyDetail` (ON) and `SpareKeepShortSleep` — the first OPT-IN flag (absent = OFF; a stored 1 acts only in dev mode; OFF at once on both ways out of dev mode); one `[FLAGS]` line; four `ixian:devflash:` forms; no Developer row yet (#1569). |
+| #1561 | P-12 `WarmOnIdle` (P38): on Android a hidden WebView boots only after 1200 ms without a touch and 900 ms after the other hidden boot; the touch stamp is a time only; the warm after a chat close now waits too (the trade against #1147 (4)). |
+| #1562 · #1563 🟡 | P-11 switch 1 `SpareRearm` (P39): the spare chat page is armed again after a drop, never under a lock or in the background · a quiet resume schedules the warm at the resume itself + 1800 ms (a quiet resume has no chats flush) — Damir confirms. |
+| #1564 · #1565 🟡 | P-11 switch 2 `SpareKeepShortSleep` (P40, Android, opt-in): why the app drops the spare at sleep (`docs/perfb1-spare-drop-reason.md`); a kept spare is used only after a `document.readyState` proof at the return · dials: 3 minutes, 1000 ms. |
+| #1566 | P-13 `PhoneNoEmptyDetail` (P41): a phone display does not build the empty right pane at start; the first wide layout builds it once. |
+| #1567 | The dev image seed (P42): seed indexes 50, 51, 52 = Seed 51–53 with 46 photos; the album is in Seed 52; fixed times; files kept or deleted only by content proof; Seed 01–50 unchanged. |
+| #1568 🟡 | Five existing pins re-based because they count what the batch adds (outside the prompt's file-area line, on purpose) — Damir confirms. |
+| #1569 ❓ | How is a switch of batch 1a set on the phone? The Developer screen has no rows for the four switches (options A–D). |
+| #1570 | The measuring plan of batch 1a (`docs/walk-perfb1.md`): plan A three runs on one build, plan B two builds; which rows judge which switch; the before-number is run 0 of the same sitting. |
+| #1571 📝 · #1572 ❓ | Recorded: a second "heavy" seed after a restart can add old messages again (a candidate for the slow phone of 2026-11-13; "Remove, then Seed") · open: is a store-shape Android build debuggable? |
+| #1573 | Session Speed batch 1a record: WALK-READY by #1546 (the session pushed `work/perfb1`; Damir opens the pull request); #46 CLEAN at r4 (MAJOR 4 → 0 → 0 → 0; four NITs recorded); smoke 6341 / the 2 KNOWN (= 6298 + 43), CSH 583; C# UNCOMPILED; nothing measured on a device. |
 | #1580 | The first shell boot (787 ms) is the `load` event of the FIRST document of the process; about 700 ms are first-document costs; the 50 seed chats do not explain it; a parse line for the home shell is proposed. |
 | #1581 | P-09: the carrier gate and the line invariant are always on in `build-shells` and `strip-release` (no switch); the pixel gate is a lead-machine tool. |
 | #1582 | P-06: `SpixiLeanCss` (default OFF) packs every stylesheet without its comments; the strip changes only a removed comment and its own white space; it keeps what the browser keeps as text and refuses what it cannot read. |

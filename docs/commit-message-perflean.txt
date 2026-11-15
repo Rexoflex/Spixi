@@ -1,0 +1,104 @@
+Three commits on work/perflean (base: redesign/frontend at "Merge pull request 5
+from Rexoflex/work/walksteps2"). The text of each commit message follows; the
+files of each commit are named under it. Fallback use only: the session makes
+these commits itself (delivery mode 1546).
+
+=== Commit 1 ===
+Session Speed lean: the lean-build gates (P-09)
+
+Two gates that are always on, with no switch: they change no shipped byte.
+
+- The carrier gate: the multiset of *SL{key} carriers over the raw text of
+  every shell and every copied file must equal that of its sources. C#
+  replaces carriers at load time, also inside comments, so a transform that
+  drops or folds one breaks the shell on the device only.
+- The line invariant of spixi.bundle.js, spixi.strings.js, spixi.icons.js:
+  the same line count, known anchor lines on their numbers, every output
+  line a subsequence of its source line. Device logs cite these files by
+  line.
+- build-shells holds the writes of its generated artifacts until both gates
+  pass, and names them in the success line of the check mode.
+- scripts/pixel-gate.mjs: a lead-machine tool (Playwright; not in CI). 50
+  shots of two html folders must differ by 0 px and their CSS rule dumps
+  must be equal.
+
+Files:
+  scripts/lib/lean-gates.mjs (new)
+  scripts/lib/inline.mjs
+  scripts/build-shells.mjs
+  scripts/pixel-gate.mjs (new)
+
+=== Commit 2 ===
+Session Speed lean: the CSS comment strip behind SpixiLeanCss (P-06); the JS strip is parked
+
+No shipped byte changes with the build properties off: the package is
+today's package, byte for byte. No file under src/, no committed built html,
+no C# file and no .github file is changed.
+
+- P-06, MSBuild property SpixiLeanCss (default off): a Release build can
+  pack the three linked style sheets and every inline style block without
+  their comments (html 4,450,361 to 3,062,078 bytes). The strip removes a
+  comment and the white space that belonged to it, and nothing else; a line
+  without a removed comment stays byte for byte. A comment stays when it
+  holds a carrier, names a licence or a source, or stands where the browser
+  keeps author text (a custom-property value, a value block, not at a
+  statement boundary). Input that the strip cannot read with certainty
+  stops the build.
+- P-07, MSBuild property SpixiLeanJs: PARKED by Damir's ruling of
+  2026-11-15. The comment strip of the scripts is built, but the review
+  found a silent mis-strip on a contrived input in each of four rounds and
+  the last one is not fixed. The build refuses the property, so no build
+  can pack its output. The code, its pins and the script flag stay as tools
+  for the session that finishes P-07.
+- Until the ruling of the lean defaults the build accepts SpixiLeanCss only
+  in an Android dev build with the dev app id (com.ixilabs.spixi.dev); a
+  store build, a production-id build and every iOS, Mac or Windows build
+  refuse it. SpixiLeanCssFull is refused (not built).
+- strip-release.mjs: the lean modes of --out and --check (GATE 1, both
+  directions), --stats, --stdout; a lean --out is two-phase and refuses an
+  out folder inside the source folder. smoke-packaged.mjs: GATE 2 on a lean
+  package, judged against a written list of rows that are red by design.
+- Pins: scripts/pins-perflean (102 rows: a-gates 30, b-css 26, c-js 17,
+  d-package 29), a corpus of 474 inputs, a parser cross-check and an MSBuild
+  harness (lead-machine tools). One registration line in smoke-test.mjs.
+
+Files:
+  scripts/lib/lean-strip.mjs (new)
+  scripts/strip-release.mjs
+  scripts/smoke-packaged.mjs
+  scripts/smoke-test.mjs (one registration line)
+  scripts/pins-perflean/ (new: a-gates.mjs, b-css.mjs, c-js.mjs,
+    d-package.mjs, corpus/cases.mjs, lean-expected-reds.json,
+    x-parser-crosscheck.mjs, msbuild-harness/run.mjs)
+  Spixi/Spixi.csproj (two inserted blocks: the three properties, the two
+    guard targets, the lean swap target)
+
+=== Commit 3 ===
+Session Speed lean: the export docs
+
+- DECISIONS 1580-1589, decisions index, lessons L192-L197, one status-log
+  entry, CLAUDE.md "Where we are now"
+- docs/be-review-pack/P44-lean-css.md, P45-lean-js.md (parked), the pack
+  index; the section of this batch in docs/security-handover-gate.md
+- docs/contract-perflean.md, docs/review-brief-perflean.md (every finding
+  of the five review rounds and the verdict), docs/walk-perflean.md,
+  docs/handoff-2026-11-15-perflean.md, docs/commit-message-perflean.txt
+
+Review: the 46 loop with a security-only pass, five rounds; MAJOR per
+round 3, 5, 5, 2, 0. CLEAN at round 5 for the delivered scope (the gates,
+the CSS strip, the MSBuild switches, GATE 2 on a lean CSS package). Two
+MINOR findings of round 5 are recorded, not fixed. The JS strip is outside
+the verdict: parked, with one open MAJOR finding. The code files are
+committed exactly as the round-5 reader read them.
+Smoke: BASELINE OK, 6400 pass / the 2 KNOWN (6298 + 102), jsdom 29.1.1.
+GATE 2 on the lean CSS package: OK, 6395 pass, 5 red by design (listed),
+the 2 KNOWN. CSH pass=506 fail=0.
+
+Files:
+  DECISIONS.md, CLAUDE.md
+  docs/decisions-index.md, docs/lessons.md, docs/status-log.md
+  docs/security-handover-gate.md
+  docs/be-review-pack/README.md, P44-lean-css.md (new), P45-lean-js.md (new)
+  docs/contract-perflean.md (new), docs/review-brief-perflean.md (new)
+  docs/walk-perflean.md (new), docs/handoff-2026-11-15-perflean.md (new)
+  docs/commit-message-perflean.txt (new)

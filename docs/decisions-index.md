@@ -104,3 +104,13 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1551 | The parser rows of the new steps; the old rows stay byte-identical; one removed line = "no data", exit 2. |
 | #1552 | r6-1 of batch tooling fixed: `Protect-Text` replaces only absolute folder values. |
 | #1553 | Session Walk steps 2 record: PARTLY (block 2, the two full runs of #1530, owed); #46 CLEAN at r4; the cold start of the same install moved 2.2 s → 3.6 s (not explained). |
+| #1580 | The first shell boot (787 ms) is the `load` event of the FIRST document of the process; about 700 ms are first-document costs; the 50 seed chats do not explain it; a parse line for the home shell is proposed. |
+| #1581 | P-09: the carrier gate and the line invariant are always on in `build-shells` and `strip-release` (no switch); the pixel gate is a lead-machine tool. |
+| #1582 | P-06: `SpixiLeanCss` (default OFF) packs every stylesheet without its comments; the strip changes only a removed comment and its own white space; it keeps what the browser keeps as text and refuses what it cannot read. |
+| #1583 ⏸ | P-07 (`SpixiLeanJs`) is PARKED (Damir, 2026-11-15): the build refuses the switch; the hand-written JS scanner had a silent mis-read in each of four review rounds; the code stays as a tool. |
+| #1584 | The MSBuild switches: off = today's package; `SpixiLeanCss` only in an Android dev build with the dev app id until the ruling of the defaults; `SpixiLeanJs` and `SpixiLeanCssFull` refused; a stamp in `obj` stops a build when a switch changed. |
+| #1585 | GATE 2 on a lean package passes only when the red rows are exactly a written list; the plain `smoke-packaged` is red on four rows in any copy (found, not changed). |
+| #1586 🟡 | Not built (`SpixiLeanCssFull`, "emit ASCII") and the proposals: the next design of P-07 (a parser in the build path / a build-time proof / drop), the cross-check and the MSBuild harness in CI, the re-base of the listed rows, the end of the Android-dev-build rule. |
+| #1587 | Licence and source notices stay in a lean package (`keepReason`); three licence findings outside the strip's scope for the main chat. |
+| #1588 | Harness numbers, lean off against on (direction only): ready −50 to −80 ms with both switches at CPU × 4; the html folder 8.31 MB → 6.90 MB with CSS alone. |
+| #1589 | Session Speed lean record: PARTLY (item 4 parked); #46 CLEAN at round 5 for the delivered scope (MAJOR 3 → 5 → 5 → 2 → 0); Damir's two rulings in the session (the reader models; the park). |

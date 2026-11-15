@@ -1,0 +1,78 @@
+Speed batch 1a: four speed switches and the dev image seed (C# only)
+
+C# only: no file under src/, Spixi/Resources/Raw/html/, scripts/device/
+or .github/ is changed, and not Spixi/Spixi.csproj. No new bridge verb
+and no new push. Each change has its own switch with the old path as
+the fallback. The C# is UNCOMPILED: the Windows job of redesign-ci is
+the first compile; the Android build is the first compile of every
+Android-only arm.
+
+- The four switches (Spixi/Utils/SpixiFlags.cs, PerfB1Rules.cs,
+  Spixi/Pages/Dev/DevPage.xaml.cs): flagWarmOnIdle, flagSpareRearm,
+  flagPhoneNoEmptyDetail (ON by default; a stored 0 acts only in dev
+  mode) and flagSpareKeepShortSleep (opt-in: absent = OFF, a stored 1
+  acts only in dev mode, OFF at once on both ways out of dev mode). One
+  log line "[FLAGS] warmidle= sparerearm= sparekeep= noemptydetail=".
+  Four forms of the existing dev verb ixian:devflash. The Developer
+  screen has no rows for them yet (DECISIONS 1569).
+- P-12 WarmOnIdle (packet P38; WarmIdleRules.cs, MainActivity.cs,
+  SpixiContentPage.cs, HomePage.xaml.cs): on Android a hidden WebView
+  (the spare chat page, the parked Account page) starts its boot only
+  after 1200 ms without a touch and at least 900 ms after the other
+  hidden boot. The touch stamp is one static long that holds a time.
+- P-11 switch 1 SpareRearm (packet P39; SpareRearmRules.cs,
+  SpixiContentPage.cs, HomePage.xaml.cs): after a drop (sleep, theme,
+  language, reload, devmode) the spare chat page is armed again; a
+  quiet resume schedules the warm at the resume + 1800 ms; never under
+  a lock and never in the background.
+- P-11 switch 2 SpareKeepShortSleep (packet P40; SpareKeepRules.cs,
+  App.xaml.cs, SpixiContentPage.cs; Android only, opt-in): the spare
+  chat page is kept for up to 3 minutes in the background, never with
+  the app lock on, and is handed to a chat open only after a
+  document.readyState answer from its own WebView at the return. The
+  reason for the drop at sleep: docs/perfb1-spare-drop-reason.md.
+- P-13 PhoneNoEmptyDetail (packet P41; EmptyDetailRules.cs,
+  HomePage.xaml.cs): a phone display does not build the empty right
+  pane at start; the first wide layout builds it once.
+- The dev image seed (packet P42; SDevSeed.cs, SDevSeedPlan.cs, dev
+  builds only, inside the SPIXI_DEV_COEXIST symbol): seed indexes 50,
+  51, 52 = Seed 51-53 with 46 photos made in code; the album is in
+  Seed 52; fixed message times; a file is kept or deleted only with
+  proof by content; the log lines carry the exception type only (also
+  SettingsPage.xaml.cs). Seed 01-50 are unchanged. The account wipe
+  calls SpixiFlags.leaveDevMode().
+- Pins: scripts/pins-perfb1/ (six modules, 43 rows, each with a
+  deliberate break) and one registration line in scripts/smoke-test.mjs.
+  C# harness: scripts/csh/PerfB1*Tests.cs (77 tests) and the compile
+  lines in scripts/csh/csh.csproj.
+- Five existing pins re-based, because they count what the batch adds
+  (DECISIONS 1568): scripts/pins-s16/b-l8.mjs, scripts/pins-v1am/
+  c-csharp.mjs and three inline pins of scripts/smoke-test.mjs (the
+  latch clears of the one-shot trigger, the dropSpareChat call sites,
+  the sleep drop site).
+- Docs of the batch: docs/be-review-pack/P38 to P42 and the README
+  index, the section "Session Speed batch 1a" of
+  docs/security-handover-gate.md, docs/perfb1-spare-drop-reason.md,
+  docs/contract-perfb1.md, docs/review-brief-perfb1.md,
+  docs/walk-perfb1.md.
+
+Smoke: BASELINE OK 6341 / the 2 KNOWN (= 6298 + 43). C# harness:
+CSH pass=583 fail=0 (= 506 + 77).
+
+Review: the 46 loop, four rounds by fresh read-only Fable 5.2 readers
+(round 1: four, one of them security only; rounds 2 to 4: one each);
+MAJOR 4, 0, 0, 0; CLEAN at round 4. The code, the pins and the tests
+are committed as the round-4 reader read them.
+
+Owed: the first compile (redesign-ci, the Android build); the device
+sitting by docs/walk-perfb1.md, which decides keep or remove per
+switch; the rulings on DECISIONS 1563, 1565, 1568 and the question
+1569.
+
+----- second commit -----
+Speed batch 1a: DECISIONS 1560-1573, handoff, status log, lessons
+
+DECISIONS 1560-1573, the decisions index, lessons L184-L191, one
+status-log entry, docs/handoff-2026-11-15-perfb1.md,
+docs/commit-message-perfb1.txt, and CLAUDE.md: "Where we are now" and
+the current smoke and CSH numbers of loop step 5.

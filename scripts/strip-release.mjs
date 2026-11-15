@@ -49,12 +49,29 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, realpathSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+/* ★ perflean (docs/contract-perflean.md § 3.3) — the LEAN strips (P-06 CSS, P-07 JS) live in
+ * scripts/lib/lean-strip.mjs; the always-on gates (carrier multiset, line invariant) in
+ * scripts/lib/lean-gates.mjs. With no lean flag and no SPIXI_PACKAGED_LEAN every mode below
+ * runs exactly the code it ran before (the lean branch is taken first and exits), plus the
+ * always-on gates inside --check, which pass on equal files. */
+import { renameSync, unlinkSync, lstatSync, rmdirSync } from 'node:fs';
+import { relative, isAbsolute, sep } from 'node:path';
+import { performance } from 'node:perf_hooks';
+import { resolveLean, leanScope as leanScopeOf, stripCssLean, keepReason, lineOf } from './lib/lean-strip.mjs';
+import { carrierDiff, formatCarrierDiff, lineInvariant, EXTERNAL_JS, JS_LINE_ANCHORS } from './lib/lean-gates.mjs';
+export { stripJsComments, leanHtml, leanScope, stripCssLean, keepReason } from './lib/lean-strip.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const RAW = join(root, 'Spixi', 'Resources', 'Raw', 'html');
 
 /** The allowlist. Add a file here ONLY with its gate-2 run recorded in DECISIONS. */
 export const STRIP_ALLOWLIST = ['spixi.tokens.css'];
+function listCssFiles(dir) {
+  const out = [];
+  const walk = (d, pre) => { for (const nme of readdirSync(d)) { const q = join(d, nme); if (statSync(q).isDirectory()) walk(q, pre + nme + '/'); else if (/\.css$/.test(nme)) out.push(pre + nme); } };
+  if (existsSync(dir)) walk(dir, '');
+  return out.sort();
+}
 
 /** CSS comment strip that respects strings and url() — the whole transform. */
 export function stripCssComments(css) {
@@ -144,9 +161,53 @@ const isMainModule = (() => {
   try { return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]); }
   catch (_) { return false; }
 })();
+/* ★ perflean: under a packaged LEAN-CSS run (SPIXI_PACKAGED_LEAN = css or css,js — set by
+ * smoke-packaged.mjs) every linked stylesheet ships as strip(committed), so the list an IMPORTER
+ * sees (the smoke's Session F row) names every *.css under Raw/html. Off (no env) = the one entry
+ * above, unchanged.
+ * WHERE THE ENV IS READ (#46 r1 C-8 — exactly two places, nowhere else):
+ *   1. the line below, and only for an IMPORTER (not the CLI): the extended STRIP_ALLOWLIST;
+ *   2. the CLI's LEAN_MODE line further down, and only when the run IS a --check: `--check` is an
+ *      argument, no lean flag is given (a flag wins), and none of --out / --stats / --stdout is given
+ *      (--out together with --check is refused before that line, exit 2).
+ * So --out, --stats and --stdout never see the env (lead ruling 2026-11-13 — a developer shell that
+ * exports it must not change what a Release build packs), and --check in lean mode uses leanScope(),
+ * not this list. */
+const LEAN_ENV = resolveLean([], process.env.SPIXI_PACKAGED_LEAN);
+if (!isMainModule && LEAN_ENV.css) for (const f of listCssFiles(RAW)) if (!STRIP_ALLOWLIST.includes(f)) STRIP_ALLOWLIST.push(f);
 if (isMainModule) {
 const args = process.argv.slice(2);
 const flag = (name) => { const k = args.indexOf(name); return k >= 0 ? (args[k + 1] ?? '') : null; };
+// ★ perflean: an unknown --flag is a usage error (lead ruling 2026-11-13: a typo such as --lean-j
+// must not produce a tokens-only output that looks like success). The one change of the no-flag CLI.
+{
+  const KNOWN = ['--out', '--check', '--stats', '--stdout', '--lean-css', '--lean-js', '--in-place'];
+  const USAGE = 'strip-release: one of --out <dir> · --check <packagedDir> · --stats · --stdout <file>, optionally with --lean-css and / or --lean-js (and --in-place only with --out and a lean flag)';
+  const modes = [], seenVal = {};
+  for (let k = 0; k < args.length; k++) {
+    if (args[k] === '--stats') modes.push('--stats');
+    if (args[k] === '--out' || args[k] === '--check' || args[k] === '--stdout') { modes.push(args[k]); seenVal[args[k]] = (seenVal[args[k]] || 0) + 1; k++; continue; }
+    if (args[k].startsWith('--') && !KNOWN.includes(args[k])) { console.error('strip-release: unknown flag ' + args[k] + '\n' + USAGE); process.exit(2); }
+    // #46 r1 C-8: a token that is neither a known flag nor the value of --out / --check / --stdout (a one-dash
+    // `-lean-css`, a stray `lean-css`) is a usage error too — it would otherwise be ignored and give a no-flag output
+    if (!args[k].startsWith('--')) { console.error('strip-release: unexpected argument ' + JSON.stringify(args[k]) + ' (not a known flag, not the value of --out / --check / --stdout)\n' + USAGE); process.exit(2); }
+  }
+  // #46 r1 C-8: --out and --check are two runs; together they wrote and never checked
+  if (args.includes('--out') && args.includes('--check')) { console.error('strip-release: --out and --check cannot be given together (write the package, then check it in a second call)\n' + USAGE); process.exit(2); }
+  // #46 r2 C-3: one run = ONE mode, each value flag at most once — for EVERY invocation (no caller passes two: the csproj
+  // passes `--out "<dir>."`, the suite and the pins one of --check / --out / --stats / --stdout, GATE 44 nothing). Before,
+  // `--check X --stats` exited 0 without a check, `--check A --check B` checked A only, `--out A --out B` wrote A only.
+  for (const [f, c] of Object.entries(seenVal)) if (c > 1) { console.error('strip-release: ' + f + ' given ' + c + ' times (each of --out / --check / --stdout at most once)\n' + USAGE); process.exit(2); }
+  if (modes.length > 1) { console.error('strip-release: give exactly one of --out / --check / --stats / --stdout (got ' + modes.join(', ') + ')\n' + USAGE); process.exit(2); }
+  // #46 r2 S-2: --in-place (strip the source folder itself) is a lean --out option only
+  if (args.includes('--in-place') && !(modes[0] === '--out' && (args.includes('--lean-css') || args.includes('--lean-js')))) { console.error('strip-release: --in-place is valid only together with --out <dir> and --lean-css and / or --lean-js\n' + USAGE); process.exit(2); }
+}
+// ★ perflean: a lean mode takes its own branch and exits there. The flags select it; the env
+// SPIXI_PACKAGED_LEAN only when the run IS a --check (the in-suite GATE 1 runs --check with no flag) —
+// never with --stats / --stdout, which a --check argument would otherwise have let it reach (#46 r1 C-8)
+const LEAN_MODE = resolveLean(args, args.includes('--check') && !args.includes('--stats') && !args.includes('--stdout') ? process.env.SPIXI_PACKAGED_LEAN : undefined);
+if (LEAN_MODE.error) { console.error('strip-release: ' + LEAN_MODE.error); process.exit(2); }
+if (LEAN_MODE.source !== 'off') leanCli(args, flag, LEAN_MODE);
 
 function listShipped(dir) {
   const out = [];
@@ -275,6 +336,10 @@ const packaged = flag('--check');
 if (packaged !== null) {
   if (!packaged || !existsSync(packaged)) { console.error('strip-release --check: packaged dir not found: ' + packaged); process.exit(2); }
   const problems = [];
+  // ★ #46 r2 C-8 (added before the base loops, which stay as they were): an entry of the package that is not a regular
+  //   file or a directory (a FIFO, a socket, a dangling link, a link loop, a link to a directory) is reported and never
+  //   opened — the loops below would hang on a FIFO or die on a dangling link with a bare stack
+  { const bad = packageEntryProblems(packaged); if (bad.length) { console.error('strip-release --check: GATE 1 FAILED — the package holds entries that are not regular files (never opened)\n  ' + bad.join('\n  ')); process.exit(1); } }
   // (a) every allowlisted file in the package ≡ strip(committed)
   for (const f of STRIP_ALLOWLIST) {
     const p = join(packaged, f);
@@ -296,6 +361,14 @@ if (packaged !== null) {
   for (const f of listShipped(RAW).filter((x) => /\.(html|css|js)$/.test(x))) {
     if (!existsSync(join(packaged, f))) problems.push(f + ': committed but MISSING from the package');
   }
+  // ★ #46 r1 C-2: (c) above counts a DIRECTORY named like a shipped file as "there" (existsSync). Its lines stay
+  //   as they were at the base commit; this loop adds the rule that the path must be a regular FILE in the package.
+  for (const f of listShipped(RAW).filter((x) => /\.(html|css|js)$/.test(x))) {
+    const pf = join(packaged, f);
+    if (existsSync(pf) && !isFile(pf)) problems.push(f + ': in the package, but NOT a regular file (a directory or another kind of entry has its name)');
+  }
+  // ★ perflean: ALWAYS — the carrier multiset of every shipped file + the line invariant of the three external scripts
+  problems.push(...alwaysOnGates(packaged));
   if (problems.length) {
     console.error('strip-release --check: GATE 1 FAILED — packaged ≢ strip(committed)\n  ' + problems.join('\n  '));
     process.exit(1);
@@ -306,4 +379,253 @@ if (packaged !== null) {
 
 console.error('strip-release: one of --out <dir> · --check <packagedDir> · --stats · --stdout <file>');
 process.exit(2);
+}
+
+/* ═══════════════════════ ★ perflean — the lean CLI and the always-on gates ═══════════════════════ */
+
+function listShippedAll(dir) {
+  const out = [];
+  const walk = (d, pre) => { for (const nme of readdirSync(d)) { const q = join(d, nme); if (statSync(q).isDirectory()) walk(q, pre + nme + '/'); else out.push(pre + nme); } };
+  if (existsSync(dir)) walk(dir, '');
+  return out.sort();
+}
+
+/** #46 r2 C-8: walk the package with lstat; every entry must be a directory (not a link) or a regular file, or a link
+ *  that resolves (stat, the kernel follows it) to a regular file. A dangling link, a link loop, a link to a directory, a
+ *  FIFO, a socket or a device is a problem line; nothing here OPENS a file. → problem lines. */
+function packageEntryProblems(dir) {
+  const P = [];
+  const walk = (d, pre) => {
+    let names;
+    try { names = readdirSync(d); } catch (e) { P.push((pre || '.') + ': cannot be listed (' + (e && e.code) + ')'); return; }
+    for (const nme of names.sort()) {
+      const q = join(d, nme), rel = pre + nme;
+      let st;
+      try { st = lstatSync(q); } catch (e) { P.push(rel + ': cannot be read (' + (e && e.code) + ')'); continue; }
+      if (st.isDirectory()) { walk(q, rel + '/'); continue; }
+      if (st.isFile()) continue;
+      if (st.isSymbolicLink()) {
+        let t;
+        try { t = statSync(q); } catch (e) { P.push(rel + ': a ' + (e && e.code === 'ELOOP' ? 'link loop' : 'dangling link') + ' (' + (e && e.code) + ') — not a regular file'); continue; }
+        if (!t.isFile()) P.push(rel + ': a link to ' + (t.isDirectory() ? 'a directory (not followed)' : 'something that is not a regular file'));
+        continue;
+      }
+      P.push(rel + ': not a regular file (' + (st.isFIFO() ? 'a FIFO' : st.isSocket() ? 'a socket' : 'a device or another special file') + ')');
+    }
+  };
+  walk(dir, '');
+  return P;
+}
+
+/** A path counts as a shipped file only when it is a regular FILE (#46 r1 C-2: `existsSync` let a
+ *  directory named `spixi.bundle.js` stand in for the script). A symlink to a regular file counts
+ *  (stat follows it, as the packaging copy would). Never throws. */
+function isFile(p) {
+  try { return statSync(p).isFile(); } catch (_) { return false; }
+}
+
+/** The gates that run in EVERY --check (contract § 3.3), flags or not: for every shipped
+ *  html / css / js that is a regular file on both sides, the carrier multiset of the packaged file
+ *  equals the committed one (the message names the carrier); for the three external scripts, the
+ *  line invariant (count + anchors + subsequence). Returns one problem line per finding.
+ *  COUNT GUARD (#46 r1 C-2): each of the EXTERNAL_JS files must have been compared, or that is a
+ *  problem too — so "the 3 external scripts keep their lines" is never said of fewer than 3.
+ *  `seen` (optional) receives { ext: <the number of external scripts compared> }. */
+function alwaysOnGates(packagedDir, seen = {}) {
+  const problems = [];
+  const compared = new Set();
+  for (const f of listShippedAll(packagedDir).filter((x) => /\.(html|css|js)$/.test(x))) {
+    const c = join(RAW, f), pf = join(packagedDir, f);
+    if (!isFile(c) || !isFile(pf)) continue;         // (b) / the regular-file rules report it
+    const a = readFileSync(c, 'utf8'), b = readFileSync(pf, 'utf8');
+    const d = carrierDiff(a, b);
+    if (d.length) problems.push(...formatCarrierDiff(f, d).split('\n'));
+    if (EXTERNAL_JS.includes(f)) {
+      compared.add(f);
+      for (const p of lineInvariant(a, b, { anchors: JS_LINE_ANCHORS[f] || [], subsequence: true })) problems.push(f + ': line invariant — ' + p);
+    }
+  }
+  for (const f of EXTERNAL_JS) if (!compared.has(f)) problems.push(f + ': line invariant compared NOTHING (not a regular file in the package and in the committed tree) — ' + compared.size + ' of ' + EXTERNAL_JS.length + ' external scripts compared');
+  seen.ext = compared.size;
+  return problems;
+}
+
+/** The lean branch of the CLI (--lean-css / --lean-js, else SPIXI_PACKAGED_LEAN). Exits. */
+function leanCli(args, flag, mode) {
+  const scope = leanScopeOf(mode, { legacyTokensStrip: stripCssComments });   // #1478: tokens.css as today unless lean CSS is on
+  const modeLine = 'strip-release: lean mode ' + scope.label + ' (from ' + (mode.source === 'flags' ? 'the flags' : 'SPIXI_PACKAGED_LEAN') + ')';
+  const shipped = listShippedAll(RAW).filter((x) => /\.(html|css|js)$/.test(x));
+  const inScope = shipped.filter((x) => scope.inScope(x));
+  const kept = [];
+  const build = (rel, collect) => {
+    const src = readFileSync(join(RAW, rel), 'utf8');
+    const out = scope.transform(rel, src, collect ? (k) => kept.push({ file: rel, ...k }) : undefined);
+    scope.check(rel, src, out);                      // post-conditions: throw on the first problem
+    return { src, out };
+  };
+  const die = (code, msg) => { console.error(msg); process.exit(code); };
+  const val = (name) => { const v = flag(name); if (v !== null && (v === '' || v.startsWith('--'))) die(2, 'strip-release: ' + name + ' needs a value'); return v; };
+
+  if (args.includes('--stats')) {
+    console.log(modeLine);
+    const tot = { html: [0, 0], css: [0, 0], js: [0, 0] };
+    for (const f of inScope) {
+      let r;
+      try { r = build(f, true); } catch (e) { die(1, 'strip-release: FAILED — ' + e.message); }
+      const a = Buffer.byteLength(r.src, 'utf8'), b = Buffer.byteLength(r.out, 'utf8');
+      const k = f.split('.').pop();
+      tot[k][0] += a; tot[k][1] += b;
+      console.log(`  ${f}: ${a} → ${b} bytes (−${a ? Math.round((1 - b / a) * 1000) / 10 : 0} %)`);
+    }
+    let A = 0, B = 0;
+    for (const k of ['html', 'css', 'js']) { A += tot[k][0]; B += tot[k][1]; console.log(`  total ${k}: ${tot[k][0]} → ${tot[k][1]} bytes (−${tot[k][0] - tot[k][1]})`); }
+    const byReason = {};
+    let keptBytes = 0;
+    for (const k of kept) { const r = k.reason.split(':')[0]; byReason[r] = (byReason[r] || 0) + 1; keptBytes += Buffer.byteLength(k.text, 'utf8'); }
+    for (const k of kept) console.log(`  kept ${k.file}:${k.line} [${k.reason}] ${JSON.stringify(k.text.slice(0, 60))}`);
+    console.log(`  kept comments: ${kept.length} (${Object.entries(byReason).map(([r, n]) => r + ' ' + n).join(', ') || 'none'}), ${keptBytes} bytes`);
+    console.log(`strip-release --stats (lean ${scope.label}): ${A} → ${B} bytes over ${inScope.length} file(s)`);
+    process.exit(0);
+  }
+
+  const one = flag('--stdout');
+  if (one !== null) {
+    console.error(modeLine);
+    if (!inScope.includes(one)) die(2, 'strip-release: ' + one + ' is not in the lean ' + scope.label + ' scope');
+    let r;
+    try { r = build(one); } catch (e) { die(1, 'strip-release: FAILED — ' + e.message); }
+    process.stdout.write(r.out);
+    process.exit(0);
+  }
+
+  const outDir = val('--out');
+  if (outDir !== null) {
+    console.log(modeLine);
+    const t0 = performance.now();
+    // 1 · every transform and every post-condition first, in memory: a failure writes NOTHING
+    const plan = [];
+    for (const f of inScope) {
+      try { plan.push([f, build(f).out]); } catch (e) { die(1, 'strip-release: FAILED — ' + e.message + '\nstrip-release: nothing was written'); }
+    }
+    // #46 r1 C-4 — the write is two-phase, and a failure never deletes a file this run did not make:
+    //   (b) pre-flight · (c) phase 1: every temp file written and read back · (d) phase 2: every rename.
+    // (b) pre-flight: the out folder is a directory (or absent) and NOT a proper sub-folder of Raw/html (out == Raw/html
+    //     is allowed: smoke-packaged strips its copy in place); every target is absent or a regular file; every folder on
+    //     the way from the out folder to a target is absent or a real directory (never a file, never a link out of it).
+    const outAbs = resolve(outDir);
+    const realish = (q) => { const rest = []; let x = q; while (!existsSync(x)) { const up = dirname(x); if (up === x) break; rest.unshift(x.slice(up.length).replace(/^[\\/]/, '')); x = up; } let r = x; try { r = realpathSync(x); } catch (_) { /* keep */ } return join(r, ...rest); };
+    let rawReal = RAW;
+    try { rawReal = realpathSync(RAW); } catch (_) { /* keep */ }
+    const outReal = realish(outAbs);
+    const relToRaw = relative(rawReal, outReal);
+    // #46 r2 S-2: out == the source folder makes the stripped files "the committed tree" of every later gate — only on
+    // request (--in-place: smoke-packaged strips its temp COPY in place; the csproj's out folder is in obj and never is)
+    // #46 r3 B-4 / S "not proven": the path TEXT is not enough — a folder named `..lean` starts with `..` and is inside;
+    // on a file system that ignores letter case (macOS, Windows) `Raw/HTML` is the source folder under another spelling.
+    // So: `..` counts only as a whole path segment, and identity is also taken from the file system (device + inode).
+    const idOf = (q) => { try { const st = statSync(q); return st.ino ? st.dev + ':' + st.ino : null; } catch (_) { return null; } };
+    const rawId = idOf(rawReal);
+    const isSourceDir = relToRaw === '' || (rawId !== null && idOf(outReal) === rawId);
+    const outsideByText = relToRaw === '..' || relToRaw.startsWith('..' + sep) || isAbsolute(relToRaw);
+    let insideById = false;
+    if (rawId !== null && !isSourceDir) { for (let x = dirname(outReal); ; x = dirname(x)) { if (idOf(x) === rawId) { insideById = true; break; } if (dirname(x) === x) break; } }
+    if (isSourceDir && !args.includes('--in-place')) die(1, 'strip-release: REFUSED — the out folder ' + outAbs + ' is the source folder; a lean strip in place needs --in-place; nothing was written');
+    // #46 r4 B-2: the REAL path is not enough either — a link INSIDE the source folder that points out of it gives a real
+    // path outside, and the source walkers (and the csproj's Resources\Raw\** glob) follow such a link: what is written
+    // there is read as source by the next run. So the path AS WRITTEN (lexically, links not resolved) must be outside too.
+    const insideLexically = [RAW, rawReal].some((base) => { const rel = relative(resolve(base), outAbs); return rel !== '' && !(rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)); });
+    if (!isSourceDir && (!outsideByText || insideById || insideLexically)) die(1, 'strip-release: REFUSED — the out folder ' + outAbs + ' is inside the source folder ' + rawReal + ' (it would be read as source by the next run); nothing was written');
+    const pre = [];
+    const lst = (q) => { try { return lstatSync(q); } catch (e) { if (e && e.code === 'ENOENT') return null; throw e; } };
+    try {
+      const st0 = existsSync(outAbs) ? statSync(outAbs) : null;
+      if (st0 && !st0.isDirectory()) pre.push(outAbs + ': the out folder is not a directory');
+      for (const [f] of plan) {
+        const dest = join(outAbs, f);
+        const st = lst(dest);
+        if (st && !st.isFile()) pre.push(f + ': the target is ' + (st.isDirectory() ? 'a directory' : st.isSymbolicLink() ? 'a link' : 'not a regular file'));
+        for (let d = dirname(dest); d.length > outAbs.length; d = dirname(d)) { const sd = lst(d); if (sd && (!sd.isDirectory() || sd.isSymbolicLink())) { pre.push(f + ': ' + d + ' is not a real directory'); break; } }
+      }
+    } catch (e) { pre.push('pre-flight: ' + (e && e.message)); }
+    if (pre.length) die(1, 'strip-release: REFUSED — the out folder cannot take this package:\n  ' + pre.slice(0, 10).join('\n  ') + (pre.length > 10 ? '\n  … +' + (pre.length - 10) : '') + '\nstrip-release: nothing was written');
+    // (c) phase 1: a temp file next to each target, unique to this run (created with 'wx': it never existed), read back
+    const tag = '.strip-tmp-' + process.pid + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    const temps = [];       // the temp files THIS run created — the only files a failure deletes
+    const madeDirs = [];    // every folder THIS run created, outermost first (removed again on a phase-1 failure, when empty)
+    const mk = (d) => { const miss = []; for (let x = d; !existsSync(x); x = dirname(x)) { miss.unshift(x); if (dirname(x) === x) break; } for (const x of miss) { mkdirSync(x); madeDirs.push(x); } };
+    try {
+      mk(outAbs);
+      for (const [f, s] of plan) {
+        const dest = join(outAbs, f);
+        mk(dirname(dest));
+        const t = dest + tag;
+        writeFileSync(t, s, { encoding: 'utf8', flag: 'wx' });
+        temps.push(t);
+        if (readFileSync(t, 'utf8') !== s) throw new Error('SHORT WRITE on ' + t);
+      }
+    } catch (e) {
+      const left = [];
+      for (const t of temps) { try { unlinkSync(t); } catch (_) { left.push(t); } }
+      for (const d of madeDirs.reverse()) { try { rmdirSync(d); } catch (_) { /* not empty: keep it */ } }   // rmdir removes an EMPTY folder only
+      die(1, 'strip-release: WRITE FAILED — ' + (e && e.message) + '\nstrip-release: ' + (left.length ? 'nothing was replaced, but ' + left.length + ' temp file(s) could not be deleted: ' + left.join(' · ') : 'nothing in the out folder was changed (only this run\'s temp files were written, and they were deleted)'));
+    }
+    // (d) phase 2: every rename. The pre-flight makes a failure here practically impossible; if one still happens,
+    //     no target is deleted: the remaining temp files go, and the replaced targets are named
+    const replaced = [];
+    try {
+      for (const [f, s] of plan) {
+        const dest = join(outAbs, f);
+        renameSync(dest + tag, dest);
+        replaced.push(f);
+        if (readFileSync(dest, 'utf8') !== s) throw new Error('read-back mismatch on ' + dest);
+      }
+    } catch (e) {
+      for (const [f] of plan) { const t = join(outAbs, f) + tag; try { if (existsSync(t)) unlinkSync(t); } catch (_) { /* named below by the inconsistency line */ } }
+      die(1, 'strip-release: WRITE FAILED in the rename phase — ' + (e && e.message) + '\nstrip-release: THE OUT FOLDER IS NOT CONSISTENT: ' + replaced.length + ' of ' + plan.length + ' target(s) were already replaced (' + (replaced.join(', ') || 'none') + '); no target was deleted; empty the folder and run again');
+    }
+    for (const [f, s] of plan) console.log(`  ✓ ${f} → ${join(outDir, f)} (${Buffer.byteLength(s, 'utf8')} bytes)`);
+    console.log(`strip-release: ${plan.length} file(s) written to ${resolve(outDir)} (lean ${scope.label}, ${Math.round(performance.now() - t0)} ms)`);
+    process.exit(0);
+  }
+
+  const packaged = val('--check');
+  if (packaged !== null) {
+    console.log(modeLine);
+    if (!existsSync(packaged)) die(2, 'strip-release --check: packaged dir not found: ' + packaged);
+    { const bad = packageEntryProblems(packaged); if (bad.length) die(1, 'strip-release --check: GATE 1 FAILED (lean ' + scope.label + ') — the package holds entries that are not regular files (never opened)\n  ' + bad.join('\n  ')); }
+    const problems = [];
+    // (a) every file in the lean scope: packaged ≡ lean(committed)
+    for (const f of inScope) {
+      const p = join(packaged, f);
+      if (!isFile(p)) { problems.push(f + ': MISSING from the package' + (existsSync(p) ? ' (a directory or another kind of entry has its name, not a regular file)' : '')); continue; }
+      let want;
+      try { want = build(f).out; } catch (e) { problems.push(f + ': the strip of the committed file failed — ' + e.message); continue; }
+      const got = readFileSync(p, 'utf8');
+      if (want !== got) {
+        let k = 0; while (k < want.length && want[k] === got[k]) k++;
+        problems.push(f + ': packaged ≠ lean(committed) (' + got.length + ' vs ' + want.length + ' chars; first difference at line ' + lineOf(got, k) + ')');
+      }
+    }
+    // (b) every other shipped html / css / js in the package is byte-identical to the committed one
+    for (const f of listShippedAll(packaged).filter((x) => /\.(html|css|js)$/.test(x) && !inScope.includes(x))) {
+      const c = join(RAW, f);
+      if (!existsSync(c)) { problems.push(f + ': in the package but NOT in the committed tree'); continue; }
+      if (!readFileSync(c).equals(readFileSync(join(packaged, f)))) problems.push(f + ': packaged ≠ committed (not in the lean ' + scope.label + ' scope)');
+    }
+    // (c) the other direction: every committed html / css / js ships
+    //     (an in-scope file is reported once, by (a))
+    //     a path counts only when it is a regular FILE (#46 r1 C-2)
+    for (const f of shipped) if (!inScope.includes(f) && !isFile(join(packaged, f))) problems.push(f + ': committed but MISSING from the package' + (existsSync(join(packaged, f)) ? ' (a directory or another kind of entry has its name, not a regular file)' : ''));
+    // ALWAYS: carriers + the line invariant (with its count guard)
+    const seen = {};
+    problems.push(...alwaysOnGates(packaged, seen));
+    if (problems.length) {
+      console.error('strip-release --check: GATE 1 FAILED (lean ' + scope.label + ') — packaged ≢ lean(committed)\n  ' + problems.join('\n  '));
+      process.exit(1);
+    }
+    console.log('strip-release --check: GATE 1 OK — lean ' + scope.label + ': packaged ≡ lean(committed) for ' + inScope.length + ' file(s) in scope; every other shipped html/css/js is byte-identical in both directions (nothing extra, nothing missing); the carrier multiset of every file is unchanged; the ' + seen.ext + ' external scripts keep their lines');
+    process.exit(0);
+  }
+
+  die(2, 'strip-release: one of --out <dir> · --check <packagedDir> · --stats · --stdout <file>');
 }

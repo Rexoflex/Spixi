@@ -1,0 +1,44 @@
+{
+  "copy": [
+    {
+      "match": "★ S15 D (O-27, #1293): .gitignore ignores the device captures",
+      "reason": "the packaged copy has no .git folder, so `git check-ignore` cannot run there (red in the plain packaged run too; proven on the untouched base 2026-11-15)"
+    }
+  ],
+  "css": [
+    {
+      "match": "★ Session N: the csproj Remove+Include pairs are EXACTLY the allowlist",
+      "reason": "the row asks for an allowlist of ONE file; under lean css the allowlist is every linked stylesheet (3) and the lean target swaps them by its own checked glob (pins-perflean/d-package)"
+    },
+    {
+      "match": "★ #711 [built]: the composer publishes its height",
+      "reason": "the row's pattern needs the CSS comment `/* primary bottom slot` after the declaration in the built chat.html; lean css removes that comment (the declaration itself is unchanged: the [source] row and the pixel gate hold it)"
+    },
+    {
+      "match": "★★ SESSION F: the BUILT spixi.tokens.css is strip(tokens.css)",
+      "reason": "by design: under lean css the packaged file follows the lean rule (only a removed comment and its own white space change), not the old tokens strip that this row compares with; smoke-packaged checks built ≡ stripCssLean(source) on its own (\"lean Session F\")"
+    },
+    {
+      "match": "★★ SESSION F: the BUILT spixi.chat-pattern.css is strip(chat-pattern.css)",
+      "reason": "by design: under lean css the packaged file follows the lean rule (only a removed comment and its own white space change), not the old tokens strip that this row compares with; smoke-packaged checks built ≡ stripCssLean(source) on its own (\"lean Session F\")"
+    }
+  ],
+  "js": [
+    {
+      "match": "★ #443 (Damir V1): the Account address says what it is FOR.",
+      "reason": "the row finds the word `addressInfoSafety` only in a JS comment of the built settings.html (line 9326 of the committed file); lean js removes the comment (the code `onAddressInfo:` stays)"
+    },
+    {
+      "match": "★★ SESSION F: the BUILT spixi.icons.js is byte-identical to icons.iife.js",
+      "reason": "by design: under lean js the packaged file is stripJsComments(source, keepLines); smoke-packaged checks that identity on its own (\"lean Session F\")"
+    },
+    {
+      "match": "★★ SESSION F: the BUILT spixi.bundle.js is byte-identical to spixi.iife.js",
+      "reason": "by design: under lean js the packaged file is stripJsComments(source, keepLines); smoke-packaged checks that identity on its own (\"lean Session F\")"
+    },
+    {
+      "match": "★★ SESSION F: the BUILT spixi.strings.js is byte-identical to strings.iife.js",
+      "reason": "by design: under lean js the packaged file is stripJsComments(source, keepLines); smoke-packaged checks that identity on its own (\"lean Session F\")"
+    }
+  ]
+}

@@ -176,7 +176,7 @@ namespace SPIXI
             {
                 string status;
                 try { status = unseed ? SDevSeed.unseed() : SDevSeed.seed(heavy ? "heavy" : "light"); }
-                catch (Exception ex) { status = (seed ? "Seed" : "Remove") + " failed: " + ex.Message; Logging.error("[DEVSEED] " + ex); }
+                catch (Exception ex) { status = (seed ? "Seed" : "Remove") + " failed: " + ex.GetType().Name; Logging.error("[DEVSEED] " + ex.GetType().Name); }   // ★ #46 r1 S-1: the TYPE only — an IO message holds a full path
                 Utils.sendUiCommand(this, "setDevSeed", status);
             });
             return true;
@@ -1845,6 +1845,7 @@ namespace SPIXI
             // 5. every native preference — a fresh-install state
             try { Preferences.Default.Clear(); } catch (Exception ex) { Logging.error("wipe: preferences threw: " + ex); }
             WalletPassStore.clear();   // ★ S16 L8: the secure store is its own container — Clear() above does not reach it (never throws)
+            SpixiFlags.leaveDevMode();   // ★ perfb1 #46 r2 R2-1: dev mode is gone with the preferences and this process goes on — the opt-in OFF now, not at the next start (never throws)
             try { SRequestIgnore.clear(); } catch (Exception ex) { Logging.error("wipe: ignore list threw: " + ex.GetType().Name); }   // ★ #978: the in-process copy too
             try { SSightingStore.clear(); } catch (Exception ex) { Logging.error("wipe: sightings threw: " + ex.GetType().Name); }   // ★ G-2: the in-process copy too
             try { SReactionFlags.clearAll(); } catch (Exception ex) { Logging.error("wipe: reaction flags threw: " + ex.GetType().Name); }   // ★ #1148 (4)

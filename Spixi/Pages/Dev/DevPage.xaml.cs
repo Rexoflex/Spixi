@@ -156,6 +156,26 @@ namespace SPIXI
                 }
                 pushFlagsDev();
             }
+            else if (PerfB1Rules.devSwitchVerb(current_url, out int perfIndex, out string perfTail))
+            {
+                /* ★ perfb1 (#1312 rule 1 / #1478, P38–P41, dev surface): `ixian:devflash:<name>:<0|1>` for the four names in
+                 * PerfB1Rules.DevSwitchNames (warmidle · sparerearm · sparekeep · noemptydetail) → SpixiFlags.PerfB1DevKeys —
+                 * the safety switches' rules exactly: dev mode on and "0" / "1", or nothing is stored; acts at the next start.
+                 * No push of its own in this batch (the bridge is frozen): the echo is the existing pushFlagsDev. */
+                try
+                {
+                    if (Preferences.Default.Get("devMode", false) && perfIndex < SpixiFlags.PerfB1DevKeys.Length
+                        && S16PassRules.parseFlagTail(perfTail, out int value))
+                    {
+                        Preferences.Default.Set(SpixiFlags.PerfB1DevKeys[perfIndex], value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("DevPage: flag switch failed: " + ex.GetType().Name);
+                }
+                pushFlagsDev();
+            }
             else if (current_url.StartsWith("ixian:devflash:v1hints:", StringComparison.Ordinal))
             {
                 /* ★ V1A-M M2 (#1312 rule 1, P31, dev surface): `ixian:devflash:v1hints:<0|1>` — SpixiFlags.V1Hints (the word

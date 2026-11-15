@@ -1160,6 +1160,9 @@ public partial class App : Application
     {
         base.OnResume();
         isInForeground = true;
+#if ANDROID
+        SpixiContentPage.spareKeepOnResume();   // ★ perfb1 P-11 switch 2: a kept spare — the limit now, the proof POSTED (after the lock decisions below)
+#endif
         Node.resume();
 
         NetworkClientManager.wakeReconnectLoop();
@@ -1396,16 +1399,6 @@ public partial class App : Application
             SpixiContentPage.showPrivacyShield();
         }
 #endif
-        /* ★ Session P: the blank chat spare is an opacity-0 WebView with no owner watching
-         * it — the jetsam / content-process-death class Node.onLowMemory names for the parked
-         * Account, with a larger window (it lives whenever the user is on the chats list). A
-         * dead renderer would surface as a BLANK conversation at the 400 ms backstop on the
-         * next open. Drop it on the way out; the next chat close warms a fresh one. Mobile
-         * only: on WinUI OnSleep fires on window DEACTIVATION (#507) and WebView2 has no
-         * jetsam, so a drop there would only cost the speed-up. */
-#if !WINDOWS
-        SpixiContentPage.dropSpareChat("sleep");
-#endif
         /* ★ #1208 (S7): the app goes to the BACKGROUND — a voice recording stops and is kept (the chat's bar holds it), a
          * voice clip stops. Phones only: on WinUI (#507) and the Mac, OnSleep is a window DEACTIVATION — the window stays on
          * screen and a recording there keeps running (the chat page's own leave hook still applies). */
@@ -1416,6 +1409,29 @@ public partial class App : Application
         // stamp for every platform that has no pause hook.
         markBackgrounded();
         isInForeground = false;
+        /* ★ perfb1 #46 r2 R2-5: the drop below stands AFTER `isInForeground = false` — it sets the pending re-arm, and a
+         * chats flush already running on the 2 s tick's thread must then find the app in the background (takeSpareRearm
+         * refuses) instead of taking the re-arm and spending it on a `why=background` warm. Nothing above needs the spare
+         * gone first (VoiceClips.interruptAll, markBackgrounded), and keepSpareAtSleep does not read isInForeground. */
+        /* ★ Session P: the blank chat spare is an opacity-0 WebView with no owner watching
+         * it — the jetsam / content-process-death class Node.onLowMemory names for the parked
+         * Account, with a larger window (it lives whenever the user is on the chats list). A
+         * dead renderer would surface as a BLANK conversation at the 400 ms backstop on the
+         * next open. Drop it on the way out; the next chat close warms a fresh one. Mobile
+         * only: on WinUI OnSleep fires on window DEACTIVATION (#507) and WebView2 has no
+         * jetsam, so a drop there would only cost the speed-up. */
+        /* ★ perfb1 P-11 switch 2 (docs/perfb1-spare-drop-reason.md): Android, switch ON — a READY spare with the app lock off
+         * and no lock up is KEPT (unproven until the resume proof) and the drop below is skipped. Switch OFF → the old drop. */
+#if !WINDOWS
+        bool spareKept = false;
+#if ANDROID
+        spareKept = SpixiFlags.SpareKeepShortSleep && SpixiContentPage.keepSpareAtSleep(isLockEnabled() || isLockScreenActive);
+#endif
+        if (!spareKept)
+        {
+            SpixiContentPage.dropSpareChat("sleep");
+        }
+#endif
         CoreMessageWriter.writeArrivalsNow();   // ★ 7b (#1223 (a)): pending arrivals first, then the plain flush (every platform: a no-op when clean)
         IxianHandler.localStorage?.flush();
         /* ★ S9 A3 #46 r2 (n1): the per-peer stores write DEFERRED (SLocalOnlyStore.setDeferred, 400 ms) — a kill right

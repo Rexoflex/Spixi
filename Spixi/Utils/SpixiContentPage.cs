@@ -1750,6 +1750,126 @@ namespace SPIXI
             lock (preloadLock) { return spareChatOp != null; }
         }
 
+        /* ★ perfb1 P-11 (SpixiFlags.SpareRearm): a drop whose word re-arms (SpareRearmRules.rearmsAfterDrop) leaves the
+         * spare ARMED; HomePage takes it at the next chats flush (takeSpareRearm → trigger B's latch is released → the
+         * +1800 ms warm through the same funnel). `stop` / `lowmem` cancel it. Both bools under preloadLock. */
+        private static bool spareRearmPending = false;
+        private static bool spareRearmFlushAsked = false;
+
+        /** HomePage's 2 s tick: true = raise ONE chats flush for a pending re-arm (never while a lock is up or staging,
+         *  never in the background — #46 r1 A-3 / S-6). isLockStaging takes preloadLock too: the same Monitor, re-entered. */
+        public static bool askSpareRearmFlush(bool appLockUp)
+        {
+            lock (preloadLock)
+            {
+                if (!SpareRearmRules.asksFlush(SpixiFlags.SpareRearm, spareRearmPending, spareRearmFlushAsked, appLockUp || modalOverlayOp != null || isLockStaging(), App.isInForeground))
+                {
+                    return false;
+                }
+                spareRearmFlushAsked = true;
+                return true;
+            }
+        }
+
+        /** HomePage's chats flush (and onResume): true = a pending re-arm is taken now (never while a lock is up or
+         *  staging, never in the background — #46 r1 A-3 / S-6: a take there would be lost to the `why=background`
+         *  refusal; it waits for the next resume). A refused take clears the one flush ask (#46 r1 A-4), so the tick asks
+         *  again once the lock / the background is gone. */
+        public static bool takeSpareRearm(bool appLockUp)
+        {
+            lock (preloadLock)
+            {
+                if (!SpareRearmRules.takesRearm(SpixiFlags.SpareRearm, spareRearmPending, appLockUp || modalOverlayOp != null || isLockStaging(), App.isInForeground))
+                {
+                    spareRearmFlushAsked = false;
+                    return false;
+                }
+                spareRearmPending = false;
+                return true;
+            }
+        }
+
+        /* ★ perfb1 P-12 (SpixiFlags.WarmOnIdle): on Android a hidden WebView boots only after WarmIdleRules.QuietMs
+         * without a touch (all WebViews share ONE renderer thread there). Main thread only. */
+        private static bool spareIdleRecheckPending = false;   // at most ONE pending re-check of the spare
+#if ANDROID
+        /* ★ #46 r1 A-1: the time (Environment.TickCount64) of the last hidden boot that passed the gate — ONE stamp for BOTH
+         * waiters (HomePage's Account warm loop, spareWaitsForInputIdle below), so the gate serialises them
+         * (WarmIdleRules.StaggerMs): both count the quiet time from the same touch stamp and would otherwise be due at the
+         * same instant. 0 = none yet. Written only by markHiddenBoot, only with the gate on. MAIN THREAD ONLY, and that is
+         * what makes check-and-stamp atomic: each waiter asks inputIdleWaitMs and stamps in ONE main-thread turn with no
+         * await between — the Account loop's continuation runs on the main thread (it constructs `new SettingsPage()` there,
+         * as the code before perfb1 already did), the spare's check runs inside warmSpareChat (main thread only; its
+         * re-check is posted through MainThread.BeginInvokeOnMainThread). */
+        private static long lastHiddenBootMs = 0;
+#endif
+
+        /** ms until a hidden boot may start (0 = now): the input has been idle for WarmIdleRules.QuietMs AND the last
+         *  hidden boot that passed the gate is WarmIdleRules.StaggerMs old (the larger wait counts). Android with the switch
+         *  ON only; every other platform and the switch OFF answer 0 (today's timers, unchanged). Main thread (both stamps
+         *  are written there). */
+        public static long inputIdleWaitMs()
+        {
+#if ANDROID
+            return WarmIdleRules.waitMs(SpixiFlags.WarmOnIdle, true, Environment.TickCount64, global::Spixi.MainActivity.lastTouchMs, lastHiddenBootMs);
+#else
+            return 0;
+#endif
+        }
+
+        /** True = the idle gate applies here (Android with the switch ON). */
+        public static bool inputIdleGates()
+        {
+#if ANDROID
+            return WarmIdleRules.gates(SpixiFlags.WarmOnIdle, true);
+#else
+            return false;
+#endif
+        }
+
+        /** ★ #46 r1 A-1: a hidden boot passed the gate NOW — stamp it, in the same main-thread turn as the gate's 0, so the
+         *  other waiter staggers behind it. Gate off (switch off, not Android) → nothing: no stagger logic runs. */
+        public static void markHiddenBoot()
+        {
+#if ANDROID
+            if (inputIdleGates())
+            {
+                lastHiddenBootMs = Environment.TickCount64;
+            }
+#endif
+        }
+
+        /** warmSpareChat's first step. True = not idle yet (or the last hidden boot is under WarmIdleRules.StaggerMs old,
+         *  #46 r1 A-1): ONE re-check is posted (coalesced) after the remaining time and re-enters the host's warm path
+         *  (onSpareIdleRecheck), so every refusal runs again then. False = go on, and the boot is stamped in this turn. A
+         *  wait, never a way around a refusal. */
+        private bool spareWaitsForInputIdle()
+        {
+            long waitMs = inputIdleWaitMs();
+            if (waitMs <= 0)
+            {
+                // ★ #46 r2 R2-6: stamped BEFORE warmSpareChat's refusals — a refused warm can delay the Account warm by up to 900 ms, once (one stamp per trigger)
+                markHiddenBoot();   // ★ #46 r1 A-1: the same turn as the 0 — the Account warm now staggers behind this boot
+                return false;
+            }
+            if (spareIdleRecheckPending)
+            {
+                return true;
+            }
+            spareIdleRecheckPending = true;
+            Task.Delay((int)waitMs).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                spareIdleRecheckPending = false;
+                onSpareIdleRecheck();
+            }));
+            return true;
+        }
+
+        /** The quiet time passed: the host re-enters its warm path (HomePage: warmChatSpareNow, unless stopped). */
+        protected virtual void onSpareIdleRecheck()
+        {
+        }
+
         /** Stage a BLANK SingleChatPage hidden in THIS host's grid and let its shell boot.
          *  Main thread only (the page is constructed here). `column` is the column a chat
          *  would take NOW (wide → 1, narrow → -1), so the spare is staged where it will
@@ -1766,6 +1886,10 @@ namespace SPIXI
          *  first (`race`). */
         public bool warmSpareChat(Func<SingleChatPage> make, int column)
         {
+            if (spareWaitsForInputIdle())   // ★ perfb1 P-12: the idle wait FIRST; its re-check runs every refusal below again
+            {
+                return false;
+            }
             string? refused = null;
             bool besideChatPlacement = spareMayWarmBesideOpenChat(column);   // ★ #1132 lever 3 (main thread: reads the host's layout)
             lock (preloadLock)
@@ -1925,6 +2049,15 @@ namespace SPIXI
             PreloadOp? op;
             lock (preloadLock)
             {
+                if (SpareRearmRules.rearmsAfterDrop(SpixiFlags.SpareRearm, why))   // ★ perfb1 P-11: armed again at the next chats flush
+                {
+                    spareRearmPending = true;
+                    spareRearmFlushAsked = false;
+                }
+                else if (SpareRearmRules.clearsOnDrop(why))   // `stop` / `lowmem`: nothing re-arms
+                {
+                    spareRearmPending = false;
+                }
                 op = spareChatOp;
                 spareChatOp = null;
             }
@@ -1950,6 +2083,246 @@ namespace SPIXI
             });
         }
 
+        /* ═══ ★ perfb1 P-11 switch 2 (SpixiFlags.SpareKeepShortSleep, opt-in; Android only) — KEEP THE SPARE OVER A SHORT SLEEP ═══
+         * docs/perfb1-spare-drop-reason.md. App.OnSleep keeps a READY spare in its slot (no chat staging, app lock off, no lock
+         * up) instead of dropping it; from then it is UNPROVEN and pushSpareChat treats it as no spare (dropped, cold path).
+         * App.OnResume: the limit first (SpareKeepRules.LimitMs), then the proof, POSTED so that it runs after OnResume's lock
+         * decisions: `document.readyState` evaluated on the spare's OWN WebView (checkIfPageLoaded's expression) — "complete"
+         * within SpareKeepRules.ProofDeadlineMs → Proven (a normal READY spare); anything else → dropSpareChat("sleep"). Only
+         * the answer sets Proven; the timers only drop (L157). The spare stays in spareChatOp, so every existing drop (theme ·
+         * language · reload · lowmem · stop · host …) still drops it. The proof reads one DOM state word and writes nothing; the
+         * spare holds no chat (SECURITY.md §1). State under preloadLock; a stale spareKeepOp (the op left the slot) = not kept. */
+#if ANDROID
+        private static PreloadOp? spareKeepOp = null;
+        private static int spareKeepState = SpareKeepRules.None;
+        private static long spareKeepAtTick = 0;
+        private static DateTime spareKeepAtUtc = DateTime.MinValue;
+        private static long spareKeepProofSeq = 0;
+
+        /** App.OnSleep (Android, switch ON): true = the READY spare is KEPT (unproven); false = the caller drops it as today. */
+        public static bool keepSpareAtSleep(bool lockEnabledOrUp)
+        {
+            bool lockUp = lockEnabledOrUp || isLockStaging();
+            PreloadOp? kept;
+            lock (preloadLock)
+            {
+                kept = spareChatOp;
+                bool ready = kept != null && kept.target is SingleChatPage s && s.spareShellBooted;
+                bool chatStaging = preloadPending || (activePreload != null && activePreload.target is SingleChatPage);
+                int next = SpareKeepRules.atSleep(SpixiFlags.SpareKeepShortSleep, ready, chatStaging, lockUp || modalOverlayOp != null);
+                if (next != SpareKeepRules.Kept || kept == null)
+                {
+                    spareKeepOp = null;
+                    spareKeepState = SpareKeepRules.None;
+                    return false;
+                }
+                spareKeepOp = kept;
+                spareKeepState = SpareKeepRules.Kept;
+                spareKeepAtTick = Environment.TickCount64;
+                spareKeepAtUtc = DateTime.UtcNow;
+                spareKeepProofSeq++;   // an answer of an older cycle's proof is void
+            }
+            // Best effort (may run late in the background): drops a spare that is still Kept and over the limit — never more.
+            Task.Delay((int)SpareKeepRules.LimitMs).ContinueWith(_ => dropKeptSpareAtLimit(kept));
+            return true;
+        }
+
+        /** App.OnResume (Android): the limit first (over → drop now), then the proof is POSTED to the main thread (through
+         *  the pool: a real post, after OnResume's turn). */
+        public static void spareKeepOnResume()
+        {
+            if (!SpixiFlags.SpareKeepShortSleep)
+            {
+                return;   // switch OFF: nothing is ever kept — the old path
+            }
+            PreloadOp? op;
+            int next;
+            lock (preloadLock)
+            {
+                op = spareKeepOp;
+                if (op == null || spareKeepState != SpareKeepRules.Kept)
+                {
+                    return;
+                }
+                if (spareChatOp != op)
+                {
+                    spareKeepOp = null;   // it left the slot in the background (lowmem · host …): nothing to prove
+                    spareKeepState = SpareKeepRules.None;
+                    return;
+                }
+                next = SpareKeepRules.atResume(spareKeepState, spareKeepTickElapsedMs(), spareKeepWallElapsedMs());
+                if (next == SpareKeepRules.Proving)
+                {
+                    spareKeepState = SpareKeepRules.Proving;
+                }
+            }
+            if (next != SpareKeepRules.Proving)
+            {
+                dropKeptSpare(op);
+                return;
+            }
+            /* ★ #46 r1 A-2: a REAL post. App.OnResume is the main thread, and MainThread.BeginInvokeOnMainThread runs the action
+             * INLINE there (MainActivity.cs, the F3 docblock above OnPostResume) — the proof would start at the top of
+             * OnResume, before its lock decisions, with its deadline counting through the busiest moment. Through the pool
+             * first (Task.Run, already used in this file), the main-thread post is real: the proof runs after OnResume's turn. */
+            _ = Task.Run(() => MainThread.BeginInvokeOnMainThread(() => startSpareKeepProof(op)));
+        }
+
+        /** A kept spare that is not Proven is dropped here (true → the caller answers `none` and opens cold). */
+        private static bool dropSpareIfKeptUnproven()
+        {
+            if (!SpixiFlags.SpareKeepShortSleep)
+            {
+                return false;   // switch OFF: nothing is ever kept — the old path
+            }
+            PreloadOp? op;
+            lock (preloadLock)
+            {
+                op = spareChatOp;
+                if (op == null || spareKeepOp != op)
+                {
+                    return false;   // not a kept spare: today's path
+                }
+                if (SpareKeepRules.claimable(true, spareKeepState))
+                {
+                    spareKeepOp = null;   // Proven: from here a normal READY spare
+                    spareKeepState = SpareKeepRules.None;
+                    return false;
+                }
+            }
+            dropKeptSpare(op);
+            return true;
+        }
+
+        private static void startSpareKeepProof(PreloadOp op)
+        {
+            bool lockUp = appLockUpForSpareKeep() || isLockStaging();
+            WebView? wv;
+            long seq;
+            int next;
+            lock (preloadLock)
+            {
+                if (spareKeepOp != op || spareChatOp != op || spareKeepState != SpareKeepRules.Proving)
+                {
+                    return;   // dropped or settled meanwhile
+                }
+                next = SpareKeepRules.atProofStart(spareKeepState, lockUp || modalOverlayOp != null);
+                wv = op.target._webView;
+                seq = ++spareKeepProofSeq;
+            }
+            if (next != SpareKeepRules.Proving || wv == null)
+            {
+                dropKeptSpare(op);
+                return;
+            }
+            long t0 = Environment.TickCount64;
+            try
+            {
+                var answer = wv.EvaluateJavaScriptAsync("document.readyState");   // the spare's OWN WebView; reads one word, writes nothing
+                Task.Delay((int)SpareKeepRules.ProofDeadlineMs).ContinueWith(_ => finishSpareKeepProof(op, seq, null, t0));   // the deadline: can only drop
+                answer.ContinueWith(t => finishSpareKeepProof(op, seq, t.Status == TaskStatus.RanToCompletion ? t.Result : null, t0));
+            }
+            catch (Exception)
+            {
+                dropKeptSpare(op);
+            }
+        }
+
+        /** The answer or the deadline, whichever comes first (any thread); the second finds the state settled. */
+        private static void finishSpareKeepProof(PreloadOp op, long seq, string? answer, long t0)
+        {
+            long elapsedMs = Environment.TickCount64 - t0;
+            bool lockUp = appLockUpForSpareKeep() || isLockStaging();
+            lock (preloadLock)
+            {
+                if (seq != spareKeepProofSeq || spareKeepOp != op || spareKeepState != SpareKeepRules.Proving)
+                {
+                    return;
+                }
+                if (spareChatOp != op)
+                {
+                    spareKeepOp = null;
+                    spareKeepState = SpareKeepRules.None;
+                    return;
+                }
+                int next = SpareKeepRules.afterProof(spareKeepState, answer, elapsedMs, lockUp || modalOverlayOp != null);
+                spareKeepState = next;
+                if (next == SpareKeepRules.Proven)
+                {
+                    return;   // the ONLY way to Proven: an answer inside the deadline
+                }
+            }
+            dropKeptSpare(op);
+        }
+
+        private static void dropKeptSpareAtLimit(PreloadOp? op)
+        {
+            lock (preloadLock)
+            {
+                if (op == null || spareKeepOp != op)
+                {
+                    return;
+                }
+                if (SpareKeepRules.atLimitTimer(spareKeepState, spareKeepTickElapsedMs(), spareKeepWallElapsedMs()) != SpareKeepRules.Dropped)
+                {
+                    return;   // within the limit (a newer keep re-stamped it), or the return has taken over
+                }
+            }
+            dropKeptSpare(op);
+        }
+
+        /** The ONE drop of a kept spare (`sleep`, the word of today's drop at sleep). Marks it Dropped first (never claimable
+         *  in between), drops it only while it is still the kept spare in the slot, then forgets it. */
+        private static void dropKeptSpare(PreloadOp op)
+        {
+            lock (preloadLock)
+            {
+                if (spareKeepOp != op)
+                {
+                    return;
+                }
+                spareKeepState = SpareKeepRules.Dropped;
+                if (spareChatOp != op)
+                {
+                    spareKeepOp = null;
+                    spareKeepState = SpareKeepRules.None;
+                    return;
+                }
+            }
+            dropSpareChat("sleep");
+            lock (preloadLock)
+            {
+                if (spareKeepOp == op)
+                {
+                    spareKeepOp = null;
+                    spareKeepState = SpareKeepRules.None;
+                }
+            }
+        }
+
+        private static long spareKeepTickElapsedMs()
+        {
+            return Environment.TickCount64 - spareKeepAtTick;
+        }
+
+        private static long spareKeepWallElapsedMs()
+        {
+            return (long)(DateTime.UtcNow - spareKeepAtUtc).TotalMilliseconds;
+        }
+
+        /** The app lock is up, staging or being presented (App.isAppLockActive — HomePage.appLockUp's read). */
+        private static bool appLockUpForSpareKeep()
+        {
+            return Application.Current is App app && app.isAppLockActive;
+        }
+#else
+        /** Switch 2 is Android only: no spare is ever kept elsewhere. */
+        private static bool dropSpareIfKeptUnproven()
+        {
+            return false;
+        }
+#endif
+
         /** Take the spare for a conversation and present it. Main thread only (the caller
          *  is HomePage.onChat's marshalled body). Returns null when the spare was attached
          *  and its present is armed; otherwise a fixed-word refusal (see SPARE_WHY_*) and
@@ -1974,6 +2347,10 @@ namespace SPIXI
          *  against this dead op (same navKey) and dispose it, costing the user the tap. */
         public string? pushSpareChat(Action<SingleChatPage> attach, int column, string navKey, int timeoutMs = 4000)
         {
+            if (dropSpareIfKeptUnproven())   // ★ perfb1 P-11 switch 2: a kept spare that is not PROVEN is "no spare" (dropped, cold path)
+            {
+                return SPARE_WHY_NONE;
+            }
             PreloadOp? op;
             PreloadOp? yieldingWarm = null;
             string? why = null;

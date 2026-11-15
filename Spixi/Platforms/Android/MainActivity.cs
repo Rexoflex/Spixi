@@ -423,6 +423,18 @@ public class MainActivity : MauiAppCompatActivity
         OnBackPressedDispatcher.OnBackPressed();
     }
 
+    /* ★ perfb1 P-12 (WarmOnIdle): the TIME of the last touch (System.Environment.TickCount64, ms) for the hidden-WebView warm
+     * gate (SpixiContentPage.inputIdleWaitMs → WarmIdleRules). ONE long and nothing else: no position, no log, no
+     * allocation. Written and read on the UI thread; every touch of the window passes here before a view sees it.
+     * #46 r1 S-10: `internal` with a `private set` — only this class writes it; the gate reads it (same assembly). */
+    internal static long lastTouchMs { get; private set; }
+
+    public override bool DispatchTouchEvent(MotionEvent? e)
+    {
+        lastTouchMs = System.Environment.TickCount64;   // System.: Android.OS has an Environment type too (CS0104)
+        return base.DispatchTouchEvent(e);
+    }
+
     protected override void OnCreate(Bundle? bundle)
     {
         Instance = this;

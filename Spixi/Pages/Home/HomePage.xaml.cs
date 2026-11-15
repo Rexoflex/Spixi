@@ -35,7 +35,9 @@ namespace SPIXI
         private static HomePage? _singletonInstance;
 
         private SpixiContentPage? detailContent = null;
-        private SpixiContentPage defaultDetailContent = new EmptyDetail();
+        /* ★ perfb1 P-13 (PhoneNoEmptyDetail): null on a phone display with the switch ON — built at the first wide layout
+         * (buildDefaultDetailOnFirstWide). Switch OFF: built here, at the same moment as before (EmptyDetailRules). */
+        private SpixiContentPage? defaultDetailContent = EmptyDetailRules.constructAtStart(SpixiFlags.PhoneNoEmptyDetail, phoneForEmptyDetail()) ? new EmptyDetail() : null;
 
         private object refreshLock = new object();
 
@@ -302,7 +304,10 @@ namespace SPIXI
 
             loadPage(webView, "index.html");
 
-            rightContent.Content = defaultDetailContent.Content;
+            if (defaultDetailContent != null)   // ★ perfb1 P-13: null = deferred to the first wide layout
+            {
+                rightContent.Content = defaultDetailContent.Content;
+            }
 
             // D1 (#240): divider gestures + persisted pane width. The grip is a
             // native BoxView pinned to column 0's trailing edge (HomePage.xaml) —
@@ -581,6 +586,24 @@ namespace SPIXI
             }
         }
 
+        /* ★ perfb1 P-13: the rule's "phone display" input. The display is read only with the switch ON (OFF = no read). */
+        private static bool phoneForEmptyDetail()
+        {
+            return SpixiFlags.PhoneNoEmptyDetail && isPhoneDisplay();
+        }
+
+        /* ★ perfb1 P-13: the deferred EmptyDetail is built here, at the first wide layout (OnPageSizeChanged, main thread),
+         * once — the rule refuses when the page exists. From then on it behaves as before (theme push, removeDetailContent). */
+        private void buildDefaultDetailOnFirstWide()
+        {
+            if (!EmptyDetailRules.constructNow(SpixiFlags.PhoneNoEmptyDetail, phoneForEmptyDetail(), true, defaultDetailContent != null))
+            {
+                return;
+            }
+            defaultDetailContent = new EmptyDetail();
+            rightContent.Content = defaultDetailContent.Content;
+        }
+
         private void OnPageSizeChanged(object? sender, EventArgs? e)
         {
             if (Width < 700 || isPhoneDisplay())
@@ -607,6 +630,7 @@ namespace SPIXI
                 applyLeftPaneWidth();
                 //mainGrid.ColumnDefinitions[1].Width = new GridLength(2);
                 mainGrid.ColumnDefinitions[1].Width = GridLength.Star;
+                buildDefaultDetailOnFirstWide();   // ★ perfb1 P-13: a no-op unless the page was deferred
                 rightContent.IsVisible = true;
                 paneDivider.IsVisible = true;
                 // #247: restore/adjust the info-pane column while its overlay is open;
@@ -1832,6 +1856,14 @@ namespace SPIXI
                 // silently revive a stored 0 (they act only with dev mode on — S16PassRules.effectiveFlag).
                 Preferences.Default.Remove(SpixiFlags.SecureWalletPassKey);
                 Preferences.Default.Remove(SpixiFlags.MediaInputGateKey);
+                // ★ perfb1 #46 r1 B-1 / S-5: the four perfb1 switches go too (a stored 1 of the opt-in must not wait for a
+                // later dev-mode-on), and the opt-in is OFF in this process at once — before the drop below, so a kept
+                // spare goes with it (SpixiFlags.leaveDevMode says why the three ON flags need nothing more).
+                foreach (string perfKey in SpixiFlags.PerfB1DevKeys)
+                {
+                    Preferences.Default.Remove(perfKey);
+                }
+                SpixiFlags.leaveDevMode();
                 devMode = false;
                 SpixiLocalization.addCustomString("devMode", "false");
                 SpixiContentPage.dropSpareChat("devmode");   // ★ Session P: same
@@ -4230,6 +4262,7 @@ namespace SPIXI
                     Logging.info("[CDPERF] chats flush rows=" + chatRowsPushed + " reqs=" + requestRowsPushed
                         + " dispatch=" + (long)System.Diagnostics.Stopwatch.GetElapsedTime(cdFlushTicks).TotalMilliseconds + "ms");
                 }
+                rearmChatSpareAfterDrop();   // ★ perfb1 P-11: before trigger B, so a taken re-arm schedules it again
                 warmAccountAfterFirstPaint();
                 warmChatSpareAfterFirstPaint();
             }
@@ -4246,6 +4279,9 @@ namespace SPIXI
          * page already there → nothing happens). Node.onLowMemory still disposes the
          * parked page under real pressure (#315 kept). */
         private bool accountWarmed = false;
+        /* ★ perfb1 #46 r2 R2-4: true = the gated foreground refusal below released the latch. A quiet resume has no chats
+         * flush, so HomePage.onResume asks the warm again once (main thread, like the refusal). Never set with the gate off. */
+        private bool accountWarmRetryOnResume = false;
         private void warmAccountAfterFirstPaint()
         {
             if (accountWarmed)
@@ -4265,6 +4301,30 @@ namespace SPIXI
                     {
                         return;
                     }
+                    /* ★ perfb1 P-12 (WarmOnIdle): on Android the Account boot also waits until WarmIdleRules.QuietMs
+                     * without a touch AND WarmIdleRules.StaggerMs after the last hidden boot (the chat spare's, #46 r1 A-1)
+                     * — each wait the remaining time, one waiter (accountWarmed), nothing after stop(). 0 on every other
+                     * platform and with the switch OFF → the 900 ms above, unchanged. warmParkedOverlay then keeps every
+                     * refusal. */
+                    for (long idleWaitMs = SpixiContentPage.inputIdleWaitMs(); idleWaitMs > 0; idleWaitMs = SpixiContentPage.inputIdleWaitMs())
+                    {
+                        await Task.Delay((int)idleWaitMs);
+                        if (!running)
+                        {
+                            return;
+                        }
+                    }
+                    /* ★ #46 r1 A-6 (gate on only): "no touch for QuietMs" is also true when the user LEFT the app — no boot
+                     * in the background; the latch is released so the next chats flush asks again. Then (A-1) the boot is
+                     * stamped in this same main-thread turn as the gate's 0 (no await between), so the spare staggers. */
+                    if (!WarmIdleRules.bootsAfterWait(SpixiContentPage.inputIdleGates(), running, App.isInForeground))
+                    {
+                        accountWarmed = false;
+                        accountWarmRetryOnResume = true;
+                        return;
+                    }
+                    // ★ #46 r2 R2-6: stamped BEFORE warmParkedOverlay's refusals — a refused warm can delay the spare by up to 900 ms, once (one stamp per trigger)
+                    SpixiContentPage.markHiddenBoot();
                     if (!warmParkedOverlay(new SettingsPage()))
                     {
                         Logging.info("account warm-boot skipped (guard)");
@@ -4312,6 +4372,61 @@ namespace SPIXI
             }
             chatSpareFirstWarmScheduled = true;
             scheduleChatSpareWarm(CHAT_SPARE_WARM_AFTER_FIRST_PAINT_MS);
+        }
+
+        /* ★ perfb1 P-11 (SpixiFlags.SpareRearm, default ON): after a drop that re-arms (sleep · theme · language · reload ·
+         * devmode — SpareRearmRules) the next chats flush releases trigger B's one-shot latch, so the +1800 ms warm runs
+         * again through the same funnel (every refusal kept; on Android behind the idle gate). Never while a lock is up or
+         * staging, never in the background (#46 r1 A-3 / S-6); `stop` cancels it. Switch OFF: takeSpareRearm is always
+         * false → the old path. True = taken (the latch is released); the pending re-arm is taken under SpixiContentPage's
+         * preload lock, so only ONE caller wins it. */
+        private bool rearmChatSpareAfterDrop()
+        {
+            if (SpixiContentPage.takeSpareRearm(appLockUp()))
+            {
+                chatSpareFirstWarmScheduled = false;
+                return true;
+            }
+            return false;
+        }
+
+        /* ★ perfb1 P-11 (SpareRearm): App.OnResume calls this on the NavigationPage's CurrentPage when the resume does NOT
+         * lock (App.xaml.cs:1317–1322); HomePage is that page while home is on screen (overlays live outside the stack,
+         * #225). A quiet resume has no chats flush, so a pending re-arm is taken HERE and trigger B is scheduled at once:
+         * resume + 1800 ms through the same funnel. A locked resume never reaches here — the 2 s tick takes it after the
+         * unlock (askSpareRearmFlush in updateScreen). */
+        public override void onResume()
+        {
+            base.onResume();
+            if (rearmChatSpareAfterDrop())
+            {
+                warmChatSpareAfterFirstPaint();
+            }
+            /* ★ #46 r2 R2-4: the Account warm was refused in the background (gate on only) — ask it again here, once, through
+             * the same method: its latch (no second SettingsPage), its 900 ms, the gate, the foreground test and the stamp. */
+            if (accountWarmRetryOnResume)
+            {
+                accountWarmRetryOnResume = false;
+                warmAccountAfterFirstPaint();
+            }
+        }
+
+        /** An app lock is up, staging or being presented (App.isAppLockActive; the in-place lock is checked by
+         *  SpixiContentPage itself). A plain bool read — safe on the 2 s tick's pool thread. */
+        private static bool appLockUp()
+        {
+            return Microsoft.Maui.Controls.Application.Current is App app && app.isAppLockActive;
+        }
+
+        /* ★ perfb1 P-12: the quiet time passed — re-enter the spare funnel at warmChatSpareNow (every check again);
+         * nothing runs after stop(). */
+        protected override void onSpareIdleRecheck()
+        {
+            if (!running)
+            {
+                return;
+            }
+            warmChatSpareNow();
         }
 
         /* ★★ DIAL — the pre-warm's on/off switch, and the ONE place either trigger can be
@@ -5202,6 +5317,14 @@ namespace SPIXI
                 displayBackupReminder();
 
                 loadApps(false);
+
+                /* ★ perfb1 P-11 (SpareRearm): a resume (or an unlock) has no chats flush of its own — a pending re-arm asks
+                 * for ONE here, on the existing flag (no new push); never while a lock is up or staging, never in the
+                 * background (#46 r1 A-3 / S-6). */
+                if (SpixiContentPage.askSpareRearmFlush(appLockUp()))
+                {
+                    UIHelpers.shouldRefreshContacts = true;
+                }
 
                 if (UIHelpers.shouldRefreshContacts)
                 {
@@ -6239,13 +6362,17 @@ namespace SPIXI
 
             if (setDefault)
             {
+                bool hadDefault = defaultDetailContent != null;   // ★ perfb1 P-13
                 if (defaultDetailContent != null)
                 {
                     defaultDetailContent.Dispose();
                 }
 
-                defaultDetailContent = new EmptyDetail();
-                rightContent.Content = defaultDetailContent.Content;
+                if (EmptyDetailRules.rebuild(SpixiFlags.PhoneNoEmptyDetail, phoneForEmptyDetail(), hadDefault))
+                {
+                    defaultDetailContent = new EmptyDetail();
+                    rightContent.Content = defaultDetailContent.Content;
+                }
 
                 Utils.sendUiCommand(this, "selectChat", "");
             }

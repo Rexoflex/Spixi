@@ -8,13 +8,14 @@ P44–P47 (used: P44, P45; P46, P47 stay empty). The main chat gives the next bl
 - **Result: PARTLY.** Items 1, 2, 3 are delivered. **Item 4 (P-07, the JS strip) is STOPPED: parked by Damir's
   ruling in the session (2026-11-15) after review round 4** — the build refuses `SpixiLeanJs`; the code stays as a
   tool with an open MAJOR finding (#1583; § 4 has the question).
-- Branch: `work/perflean` (three commits: "Session Speed lean: the lean-build gates (P-09)" · "Session Speed lean: the CSS comment strip behind SpixiLeanCss (P-06); the JS strip is parked" · "Session Speed lean: the export docs") · base: `redesign/frontend` @ "Merge pull request #5 from
+- Branch: `work/perflean` (three commits, then the merge of `redesign/frontend` and one docs commit with the runs on the merged tree; the three: "Session Speed lean: the lean-build gates (P-09)" · "Session Speed lean: the CSS comment strip behind SpixiLeanCss (P-06); the JS strip is parked" · "Session Speed lean: the export docs") · base: `redesign/frontend` @ "Merge pull request #5 from
   Rexoflex/work/walksteps2" (`a54808c`) · delivery by #1546: the session pushes the branch; Damir opens the pull
   request with the compare link (status doc `claude/session-perflean-status.md`: the link, the title, the description,
   and the API read-back of each commit) · merge = Damir (a merge commit, #1505), after the main chat has read
   `redesign-ci`.
+- **The branch holds a merge of `redesign/frontend`** (the base moved to `a964790` while the session worked; merged by the rule of `docs/orchestration.md`, no rebase; eight "both sides appended" conflicts, both sides kept). After the merge of `redesign/frontend` (`a964790`: Speed batch 1a and the main chat's docs) into the branch — the tree that is pushed: smoke `BASELINE OK — 6443 pass / the 2 KNOWN` (= 6341 + 102; 18:28–19:12 UTC, 44 minutes, no flake) · GATE 2 `--lean-css`: `smoke-packaged: GATE 2 OK (lean css) — 6438 pass · 5 red by design (listed) · the 2 KNOWN` · `CSH pass=583 fail=0` · the pins of both batches (102 + 43) ✓ · `build-shells --check` ✓ · `build-locales --check` ✓. No code file of this batch changed in the merge (`cmp` against the round-5 reader's tree), except the one registration line of `smoke-test.mjs`.
 - CI (`redesign-ci`): not run at the time of this commit — Damir's pull request starts the first run (budget: 3 runs).
-- Smoke: `BASELINE OK — 6400 pass / the 2 KNOWN` · environment: cloud twin + Ixian-Core @097341a · jsdom 29.1.1, eslint 10.14.0, globals 17.14.0,
+- Smoke before that merge (the tree that the review read): `BASELINE OK — 6400 pass / the 2 KNOWN` · environment: cloud twin + Ixian-Core @097341a · jsdom 29.1.1, eslint 10.14.0, globals 17.14.0,
   tree-sitter 0.25.1, tree-sitter-c-sharp 0.23.5 · delta **+102** = the pins of `scripts/pins-perflean/` (a-gates 30 ·
   b-css 26 · c-js 17 · d-package 29) · CSH 506 (.NET SDK 10.0.115).
 - Checks: `build-shells --check` ✓ (with the P-09 gates in its success line) · `build-locales --check` ✓ ·

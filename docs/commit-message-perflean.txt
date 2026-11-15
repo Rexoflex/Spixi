@@ -1,5 +1,7 @@
 Three commits on work/perflean (base: redesign/frontend at "Merge pull request 5
-from Rexoflex/work/walksteps2"). The text of each commit message follows; the
+from Rexoflex/work/walksteps2"), then a merge of redesign/frontend into the
+branch (the base moved) and one docs commit with the runs on the merged tree:
+smoke 6443 pass / the 2 KNOWN, GATE 2 lean css 6438 pass, CSH 583. The text of each commit message follows; the
 files of each commit are named under it. Fallback use only: the session makes
 these commits itself (delivery mode 1546).
 

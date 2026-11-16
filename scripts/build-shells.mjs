@@ -36,6 +36,20 @@ import { readFileSync, writeFileSync as _rawWriteFileSync, mkdirSync, cpSync as 
  */
 const CHECK = process.argv.includes('--check');
 const checkDiffs = [];
+/* ★ P-09 (perflean, docs/contract-perflean.md § 3.2): the writer below keeps every body it is handed, for the carrier
+ * gate and the line invariant after the shell loop, and a NORMAL build HOLDS the writes of the GENERATED artifacts (the shells'
+ * html, the three external scripts, the three external stylesheets, the flag-font js) until both have passed — a build that folds
+ * a carrier writes none of them. Not held and not gated: the `images/` folder, a verbatim copy (cpSync) made BEFORE the gates
+ * run, and the creation of the output folders. (--check writes nothing anyway.) */
+const gateBodies = new Map();   // absolute output path → the exact body handed to writeFileSync
+let holdWrites = !CHECK;
+const heldWrites = [];
+let gateState = null;           // null = the P-09 gates did not run · false = they failed (die() printed why) · string = their summary
+process.on('exit', () => {      // P-09: a normal build that never reached the gates must not end looking like a success
+  if (CHECK || gateState !== null || !heldWrites.length) return;
+  console.error('\n✗ build-shells: ' + heldWrites.length + ' artifact(s) were held for the P-09 gates and NOT written — the build stopped before the gates ran\n');
+  process.exitCode = 1;
+});
 const NUL_CH = String.fromCharCode(0);
 function firstLoneSurrogateSh(text) {
   for (let i = 0; i < text.length; i++) {
@@ -55,6 +69,8 @@ function writeFileSync(p, body) {
     hit = firstLoneSurrogateSh(body);
     if (hit !== -1) throw new Error(p + ': generated output contains a lone surrogate at offset ' + hit + ' — IO/mount corruption class (#175)');
   }
+  gateBodies.set(p, body);                                         // P-09: what the gate reads is what reaches the disk
+  if (holdWrites) { heldWrites.push([p, body]); return; }          // P-09: written after the gates passed (end of the file)
   if (CHECK) {
     let cur = null;
     try { cur = readFileSync(p, 'utf8'); } catch (e) { cur = null; }
@@ -76,13 +92,19 @@ process.on('exit', () => {
     console.error('\n\u2717 build-shells --check: the SHIPPED artifacts are STALE\n  ' + checkDiffs.join('\n  ')
       + '\n\n  Fix: node scripts/build-demo-bundle.mjs && node scripts/build-shells.mjs (bundle BEFORE shells, always)\n');
     process.exitCode = 1;
+  } else if (gateState === false) {
+    process.exitCode = 1;   // P-09: die() printed every gate problem
+  } else if (!gateState) {
+    console.error('\n\u2717 build-shells --check: the build stopped before the P-09 carrier gate / line invariant ran — nothing was compared, so nothing is proven\n');
+    process.exitCode = 1;
   } else {
-    console.log('build-shells --check: every generated artifact matches a fresh build \u2713 (images/ are verbatim copies — not compared; Sora is EMBEDDED in the compared css; fonts/TwemojiCountryFlags.js — the flag font as a data: URL — is regenerated and compared)');
+    console.log('build-shells --check: every generated artifact matches a fresh build \u2713 ' + gateState + ' (images/ are verbatim copies — not compared; Sora is EMBEDDED in the compared css; fonts/TwemojiCountryFlags.js — the flag font as a data: URL — is regenerated and compared)');
   }
 });
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inlineHtml, inlineFonts } from './lib/inline.mjs';
+import { carrierCounts, carrierDiff, formatCarrierDiff, lineCount, lineInvariant, EXTERNAL_JS, JS_LINE_ANCHORS } from './lib/lean-gates.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = join(root, 'Spixi', 'Resources', 'Raw', 'html');
@@ -453,10 +475,13 @@ const FLAG_FONT_OUT = join(OUT_DIR, 'fonts', 'TwemojiCountryFlags.js');
 
 console.log('Building shells → Spixi/Resources/Raw/html  (Stage 4a: mock data, drop-in)\n');
 let n = 0;
+/* P-09: absolute shell output path → the absolute paths inlineHtml read to make it (the entry first), via its onSource hook */
+const gateShellSources = new Map();
+const gateSourcesOf = (out) => { if (!gateShellSources.has(out)) gateShellSources.set(out, []); return gateShellSources.get(out); };
 for (const key of keys) {
   const s = SHELLS[key];
   if (!s) { console.warn(`  ? unknown shell "${key}" — known: ${Object.keys(SHELLS).join(', ')}`); continue; }
-  let html = inlineHtml(join(root, s.in), { device: true, strict: true, external: externalMap }); // strict: throws on unresolved refs
+  let html = inlineHtml(join(root, s.in), { device: true, strict: true, external: externalMap, onSource: (src) => gateSourcesOf(join(OUT_DIR, s.out)).push(src) }); // strict: throws on unresolved refs; onSource: the P-09 accounting
   /* #345 BOOT GUARD. The bundle now arrives at RUNTIME, so a missing or blocked
      file turns `const { … } = window.Spixi` into a TypeError behind a blank screen —
      the exact failure the build-time preflight below was written to prevent, moved
@@ -509,6 +534,83 @@ for (const key of keys) {
   writeFileSync(outPath, html);
   n++;
   console.log(`  ✓ ${s.out.padEnd(20)} (${(html.length / 1024).toFixed(0)} KB)  ← ${s.in}   [${s.page}]`);
+}
+
+/* ★★ P-09 (perflean) — THE CARRIER GATE AND THE LINE INVARIANT, source against built (docs/contract-perflean.md
+ * § 3.1 / § 3.2; the class of DECISIONS #248, research card R5-15). C# replaces every `*SL{key}` of a shell line by
+ * line (SpixiLocalization.localizeHtml) AFTER this build. A transform inside this pipeline that folds
+ * `'*SL{SpixiP1}' === '1'` to `false` would ship a shell that is wrong on the device only — and "committed ≡ fresh
+ * build" cannot see it, because the fresh build folds too. So every artifact is compared with what it was made from.
+ *
+ * THE ACCOUNTING RULE — exact, no tolerance (the multiset is taken over the RAW text, CARRIER_RE):
+ *  · a shell: carriers(built) = carriers(entry template) + Σ carriers(every file inlineHtml INLINED into it), each
+ *    file as it is ON DISK (re-read here, never the pipeline's copy; a file inlined twice counts twice). Nothing else
+ *    the build adds or drops holds a carrier today: DEVICE_CSS and the boot-guard script are carrier-free literals;
+ *    the dropped font-preload <link> lines and the href of a declared external (rewritten to the sibling name) hold
+ *    none; inlineFonts swaps only url(…font) and breakScriptEnd / breakStyleEnd only `</script` / `</style`; the build
+ *    GENERATES no window.SL / SPIXI_ENV block (those carriers sit in the templates). A carrier put into one of those
+ *    places later is NOT exempted: it would reach the device changed or not at all, and the gate names it.
+ *  · an external (EXTERNALS: the three scripts and the three linked .css): carriers(built) = carriers(its src). The
+ *    .css passes inlineFonts only.
+ *  · fonts/TwemojiCountryFlags.js: generated from a binary woff2 → zero carriers.
+ *  · any other artifact handed to the writer: no rule → a failure (a new artifact gets its rule here first).
+ * The three EXTERNAL_JS files never pass localizeHtml, and device logs cite them by line (spixi.bundle.js:47): built
+ * vs src = the same line count, JS_LINE_ANCHORS on the same lines, every built line a subsequence of its source line.
+ * A gate that compares nothing passes nothing: zero shells, zero carriers in total, or an EXTERNAL_JS file not
+ * compared is itself a failure.
+ * WHERE: here, after the shell loop and BEFORE any artifact is written (the writer holds them) — a normal build stops
+ * in die() with nothing written; --check exits 1 through the same die(), and its success line names the counts. */
+{
+  const gateProblems = [];
+  const relOut = (abs) => abs.slice(OUT_DIR.length + 1).split('\\').join('/');
+  const externalSrc = new Map(EXTERNALS.map((e) => [join(OUT_DIR, e.out), join(root, e.src)]));
+  let shells = 0, files = 0, carriers = 0, jsLines = 0;
+  const jsCompared = new Set();
+  for (const [outAbs, body] of gateBodies) {
+    const name = relOut(outAbs);
+    const built = String(body);
+    let srcText;
+    if (gateShellSources.has(outAbs)) {
+      // joined with '\n': a carrier cannot span a newline (CARRIER_RE), so this is the exact sum of the multisets
+      srcText = gateShellSources.get(outAbs).map((abs) => readFileSync(abs, 'utf8')).join('\n');
+      shells++;
+    } else if (externalSrc.has(outAbs)) {
+      srcText = readFileSync(externalSrc.get(outAbs), 'utf8');
+      files++;
+      if (EXTERNAL_JS.includes(name)) {
+        for (const p of lineInvariant(srcText, built, { anchors: JS_LINE_ANCHORS[name] || [], subsequence: true })) gateProblems.push(name + ': ' + p);
+        jsCompared.add(name);
+        jsLines += lineCount(built);
+      }
+    } else if (outAbs === FLAG_FONT_OUT) {
+      srcText = '';   // made from a binary font: no carrier may appear
+      files++;
+    } else {
+      gateProblems.push(name + ': no carrier accounting rule for this artifact — add one to the P-09 gate in scripts/build-shells.mjs');
+      continue;
+    }
+    const diff = carrierDiff(srcText, built);
+    if (diff.length) gateProblems.push(...formatCarrierDiff(name, diff).split('\n'));
+    for (const c of carrierCounts(built).values()) carriers += c;
+  }
+  for (const outAbs of gateShellSources.keys()) {
+    if (!gateBodies.has(outAbs)) gateProblems.push(relOut(outAbs) + ': inlined but never handed to the writer — not compared');
+  }
+  for (const f of EXTERNAL_JS) if (!jsCompared.has(f)) gateProblems.push(f + ': line invariant compared nothing (the external was not built)');
+  if (shells === 0 || shells !== n) gateProblems.push('carrier gate compared ' + shells + ' shell(s) of ' + n + ' built — a gate that compares nothing passes nothing');
+  if (carriers === 0) gateProblems.push('carrier gate saw 0 carriers in total — a gate that compares nothing passes nothing');
+  if (gateProblems.length) {
+    gateState = false;
+    die(['P-09 gate: the build changed a *SL{…} carrier or the lines of an external script between source and artifact',
+      '(a carrier must reach C#\'s localizeHtml as written; device logs cite the external scripts by line):', '',
+      ...gateProblems.map((x) => '    ' + x), '',
+      CHECK ? 'build-shells --check: FAILED (exit 1).' : 'No generated artifact was written (images/ are plain copies, made before the gates).']);
+  }
+  gateState = '+ P-09 gates \u2713 (carriers: ' + shells + ' shells + ' + files + ' files, ' + carriers
+    + ' carriers \u2261 their sources; line invariant: ' + jsCompared.size + ' external scripts, ' + jsLines + ' lines)';
+  console.log('\n  · ' + gateState.slice(2));
+  holdWrites = false;
+  for (const [p, b] of heldWrites) writeFileSync(p, b);   // the held writes, through the same NUL / short-write gate
 }
 console.log(`\n${n} shell(s) written. These OVERWRITE the legacy files of the same name — restore with \`git checkout -- Spixi/Resources/Raw/html\`.`);
 console.log('Next: build/run the net10.0-windows target and walk maui-integration-test-plan §7.');

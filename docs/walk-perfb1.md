@@ -5,6 +5,8 @@ Galaxy A52s) · Windows (W)**. The iPhone and Mac rows are owed to the Apple pha
 is the Artifact **"Spixi Speed 1a Walk"**. This sheet has two kinds of row: **script** rows (a number or a log line;
 the adb walk passes them, #1514) and **Damir** rows (a look or a feel). The main chat runs the sitting with Damir and
 writes the WALK row; this session measured nothing.
+Changed 2026-11-15 (batch `perfb1toggle`, #1595, #1615–#1618): § 1 "How to set a switch", § 2 (1) and plan A of § 3 — each
+run names its `-Flags` line. The rows and the pass bars are not changed.
 
 ## 1 · The four switches
 
@@ -20,18 +22,26 @@ The state that ran is ONE log line, written once at every start (Account › Dev
 | K | `SpareKeepShortSleep` — P-11 switch 2 (P40) | `sparekeep` | 0 (opt-in) | Android, app lock off: the spare chat page is kept for up to 3 minutes in the background and checked at the return | the spare page is dropped when the app leaves the screen |
 | E | `PhoneNoEmptyDetail` — P-13 (P41) | `noemptydetail` | 1 | a phone does not build the empty right pane at start | the pane's page boots at every start |
 
-**⚠ How to set a switch — OPEN QUESTION (#1569).** The C# takes `ixian:devflash:<dev name>:<0|1>` (Developer mode
-on; the change acts at the next start; a stored value does nothing without Developer mode). But the Developer screen
-has NO rows for these four switches: its rows are fixed in the shell (`src/shells/dev.html`), and a shell change was
-outside this batch. Until Damir rules on #1569, only **plan B** below can run. Plan A needs the rows (or another way
-to send the verb).
+**How to set a switch — the adb walk sets it (#1595, built by batch `perfb1toggle`, #1615–#1618).** Each walk line
+carries `-Flags warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1>` (all four names, this order, no
+space). The walk stops the app, sends the state to the dev build as the launch intent extra `perfb1flags` (a cold start),
+stops the app again, starts it and reads the `[FLAGS]` line of that start. The steps run only when the line equals
+the asked state; if not, the run stops with the reason and writes no number. A new app process inside the run
+(a restart after a failed tab rep, a crash) also stops it: every number comes from a process whose own `[FLAGS]`
+line was read. `run.json` names the state that ran, and so does the head of `summary.md` (a stopped run has no
+`summary.md`).
+The state STAYS on the phone after the run (four developer preferences), so every line of a sitting names its
+own `-Flags`. Needs: the dev build of this batch or newer (§ 2 (1)), Developer mode ON. Android only: Windows, the
+iPhone and the Mac have no such input (the C# verb `ixian:devflash:<dev name>:<0|1>` of #1560 exists there, and the
+Developer screen still has no rows for the four switches).
 
 ## 2 · Set-up (both plans)
 
 - **(0) ★ COPY YOUR DATA FIRST (L149)** before any row that removes a contact or the seed. Android: Account › Backup.
   Windows: close Spixi, then
   `Copy-Item -Recurse "$env:USERPROFILE\Documents\Spixi" "$env:USERPROFILE\Documents\Spixi-copy-perfb1"`.
-- **(1) The build.** Android: wipe `Spixi\obj` + `Spixi\bin`, then the Release dev build with
+- **(1) The build.** Android: the tree of `work/perfb1toggle`, or `redesign/frontend` after its merge (the `-Flags`
+  input exists only from that build on); wipe `Spixi\obj` + `Spixi\bin`, then the Release dev build with
   `-p:SpixiDevCoexist=true` (the build of the adb walk, `docs/handoff-2026-11-13-tooling.md` § 1). **This is the FIRST
   Android compile of this C# — a build error is this batch's bug (§ 7 lists the files).** Windows: close Visual
   Studio, wipe `Spixi\bin` + `Spixi\obj`, then F5 (never `dotnet build`, #663).
@@ -65,20 +75,25 @@ The walk lines (`docs/handoff-2026-11-13-walksteps2.md` § 1): the full run (abo
 run 2 and run 3 the short line `… adb-walk.ps1 -Steps resume-now,resume-3s -Repeats 5` (add the steps of the row
 that got worse).
 
-**Plan A — one build, the switches set by hand (needs #1569):**
+**Plan A — one build, each run names its `-Flags` line (#1595; the walk sets the state and proves it):**
 
-| Run | State W R K E | Purpose |
-|---|---|---|
-| 0 | 0 0 0 0 | the old paths: the before-numbers on THIS build |
-| 1 | 1 1 0 1 | the delivery defaults |
-| 2 | 1 1 1 1 | switch 2 on top of the defaults |
-| 3 (only if a row of run 1 is worse than run 0) | one switch back to 0 | find the switch that made it worse |
+| Run | State W R K E | Add to the walk line | Purpose |
+|---|---|---|---|
+| 0 | 0 0 0 0 | `-Flags warmidle=0,sparerearm=0,sparekeep=0,noemptydetail=0` | the old paths: the before-numbers on THIS build |
+| 1 | 1 1 0 1 | `-Flags warmidle=1,sparerearm=1,sparekeep=0,noemptydetail=1` | the delivery defaults |
+| 2 | 1 1 1 1 | `-Flags warmidle=1,sparerearm=1,sparekeep=1,noemptydetail=1` | switch 2 on top of the defaults |
+| 3 (only if a row of run 1 is worse than run 0) | one switch back to 0 | the line of run 1 with that one switch `=0` | find the switch that made it worse |
+
+The full line of run 0 (one line; runs 1 to 3 change only the `-Flags` value; the short runs add `-Steps … -Repeats 5`
+before `-Flags`):
+`powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi\scripts\device\adb-walk.ps1" -Flags warmidle=0,sparerearm=0,sparekeep=0,noemptydetail=0`
+After the sitting, one last short run with the line of run 1 puts the delivery defaults back on the phone.
 
 Runs 0 and 1 differ in three switches at once. That is enough because each switch has its own rows (§ 4): R and K
 move only the resume rows, E moves only the memory and cold-start rows, W moves only the rows around a touch. Run 3
 exists for the case that a shared row gets worse.
 
-**Plan B — no way to set a switch yet (works today):** run 0 = the adb walk on a build of `redesign/frontend`
+**Plan B — the fallback without `-Flags` (two builds; not needed when plan A runs):** run 0 = the adb walk on a build of `redesign/frontend`
 BEFORE this batch; run 1 = the adb walk on the build of `work/perfb1` (the defaults). Two builds and two installs on
 the same day. Switch 2 (K) cannot be measured in plan B, and a worse row cannot be traced to one switch: in plan B
 the rows P11b-S1, P11b-S2 and A-2 are N/A, and run 3 does not exist.

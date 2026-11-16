@@ -4,9 +4,25 @@ adb-walk.ps1 - device timing walk of the Spixi Dev app on ONE Android phone over
 Usage:
   powershell -ExecutionPolicy Bypass -File scripts\device\adb-walk.ps1 [-Calibrate] [-Steps coldstart,scroll]
              [-Repeats 5] [-Serial <id>] [-Apk <path>] [-KillRenderer]
+             [-Flags warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1>]
 
 Walk: pre-flight, then each step x Repeats (one screenshot + one DOTNET log pull per rep), run.json after
 every rep, then adb-walk-parse.ps1 -RunDir <run folder>; the exit code is the parser's.
+-Flags (batch perfb1toggle; the developer build, Developer mode ON): sets the four developer switches of speed batch 1a
+  before the first step. Exactly the four names in this order, each 0 or 1, no space (51 characters); anything else, or
+  -Flags with -Calibrate, is a usage error before any adb command. After the pre-flight: am force-stop, logcat -c, ONE start with the
+  string extra perfb1flags (the app stores the four preferences and logs one fixed line; they act at the NEXT start), a
+  count of that line on the phone (30 s), a 2 s wait, am force-stop, logcat -c, a cold start (am start -W), a count of the app's own
+  state line [FLAGS] warmidle=.. sparerearm=.. sparekeep=.. noemptydetail=.. (45 s), ONE filtered log pull
+  (android-walk-flags-00.txt), and the state read back from that file is compared with the asked state. Equal: the
+  steps run. The state is proven for ONE app process: every coldstart rep must show its own state line (none = stop,
+  no-state-line), every other pull and memory phase must come from that process, and a restart inside the run (a tab
+  rep reset) ends the run (unproven-process). Different, no stored line in time, no state line, or a failed start / pull: the run STOPS (a reason on the
+  console and in walk.log, run.json flags.stop, exit 1), NO step runs and no number row is written. A coldstart rep
+  whose pulled log shows a different state line ends the run the same way (that rep is recorded as an error). Without -Flags no
+  extra is sent and no extra start is made. run.json always has a flags object (asked, logged, ok); the parser names
+  the state in summary.md and exits 4 when any pulled log holds a state line that differs from the asked one; in a
+  run whose asked state is not proven or differs the parser writes NO number (every metric row is "no data").
 Steps (default order; the walk-steps-2 steps run after the old ones so the old rows keep their meaning):
   coldstart, mem-home, chat-intent, chat-tap, scroll, resume, resume-long, network, mem-end, mem-trim,
   resume-now, resume-3s (60 s in the background, then the chat tap at once / after 3 s; resume = after 2 s),
@@ -30,7 +46,8 @@ Inputs: a52s.json next to this script (timing, taps, swipes, screen probes; the 
         <repo>\Claude outputs\adbwalk\walk.local.json (optional, never in git): { "seedAddresses": [...],
         "imageChatAddress": "..." (optional) }; both are masked in everything the script writes.
 Output: <repo>\Claude outputs\adbwalk\<yyyyMMdd-HHmm>\ (walk) or calibrate-<yyyyMMdd-HHmm>\.
-Exit:   0 ok - 1 driver failure (bad arguments, pre-flight, crash) - else the parser's code (2 no data, 3 no run.json).
+Exit:   0 ok - 1 driver failure (bad arguments, pre-flight, crash, a -Flags stop) - else the parser's code (2 no data,
+        3 no run.json, 4 the switch state in a pulled log differs from the one asked with -Flags).
 
 Safety rules (Assert-AdbCommand is an allowlist of every command shape this script can send):
 - the only app this tool may drive is the pinned package com.ixilabs.spixi.dev (a52s.json must say the same)
@@ -42,7 +59,9 @@ Safety rules (Assert-AdbCommand is an allowlist of every command shape this scri
   All other commands (am, svc, settings, logcat, dumpsys, kill of the confirmed renderer, HOME, the wake key)
   do not depend on the focus. After a screencap the focus is read again; a foreign result deletes the PNG.
 - the log pull is filtered ON THE PHONE by the app pid, the Core log stamp and the app's own token grammar
-  ([P1] / [CDPERF] lines, "Starting Spixi", "Network client connected to <host:port>", "Received Hello: ...").
+  ([P1] / [CDPERF] lines, "Starting Spixi", "Network client connected to <host:port>", "Received Hello: ...", and the
+  ONE exact state line "[FLAGS] warmidle=<0|1> sparerearm=<0|1> sparekeep=<0|1> noemptydetail=<0|1>": no other
+  [FLAGS] line passes).
   Contact addresses and other Core lines do not match; tokens of [a-z0-9_.=-] could in theory still carry
   lower-case text, and the connect line carries the node host:port.
 - a notification of another app does not take the focus and can appear in a screenshot: run.json records
@@ -57,7 +76,9 @@ Safety rules (Assert-AdbCommand is an allowlist of every command shape this scri
 - left changed on the phone after a run: the dev app stays running in front with the keyguard dismissed (it
   was force-stopped and cold-started when the coldstart step or -Calibrate ran); the tabs Apps, Wallet and
   Account were opened when a tab step ran; the dev-seed chats were opened (their unread state changes); logcat buffer size 16M until reboot and a cleared
-  log buffer; with -Apk the build is replaced; with -KillRenderer the renderer may be killed.
+  log buffer; with -Apk the build is replaced; with -KillRenderer the renderer may be killed; with -Flags the four
+  developer preferences of the dev app are changed and STAY changed after the run (the next start of the app, by any
+  means, runs with them), and the app was force-stopped twice and cold-started twice before the first step.
 - no seed address and no serial in the files the SCRIPT writes (walk.log, run.json, calibrate.json, device.txt,
   tries.txt) and on the console (masked as <seed k> / <serial>, "seed k" / "serial" in notes); device text
   reaches them only through a strict capture or Get-SafeNote. meminfo files, pulled logs and screenshots are
@@ -78,7 +99,8 @@ param(
     [string[]]$Steps = @(),
     [int]$Repeats = 5,
     [switch]$Calibrate,
-    [switch]$KillRenderer
+    [switch]$KillRenderer,
+    [string[]]$Flags
 )
 
 $ErrorActionPreference = 'Stop'
@@ -120,11 +142,28 @@ $script:FramePoll = @{
     chats = ($script:LogCmd + ' | grep -c -e P1..shell.frames-tab-chats')
     settings = ($script:LogCmd + ' | grep -c -e P1..frames.open-settingspage')
     settingsclosed = ($script:LogCmd + ' | grep -c -e P1..close.settingspage.done')
+    # Batch perfb1toggle (-Flags): the app's fixed "stored" line and its own start-up state line (a count only).
+    flagsstored = ($script:LogCmd + ' | grep -c -e FLAGS..perfb1.extra.stored')
+    flagsstate = ($script:LogCmd + ' | grep -c -e FLAGS..warmidle=')
 }
 # The ONE command that may hold quotes, brackets and a redirect: matched by exact string equality.
-$script:LogRe = '^[0-9]{2}-[0-9]{2} [0-9:.]{12} +[0-9]+ +[0-9]+ [A-Z] DOTNET *: [0-9]{2}-[0-9]{2} [0-9:.]{8,16}\|[A-Za-z]{1,10}\|[0-9]{1,6}: ((\[WEBVIEW\] [A-Z]{1,12} )?\[(P1|CDPERF)\] [a-z0-9_.=-]{1,40}( [a-z0-9_.=-]{1,40}){0,15}( \(file:///android_asset/html/[a-z.]{0,24}:[0-9]{1,6}\))?$|Starting Spixi [a-z0-9.-]{1,24} \([a-z0-9.-]{1,24}\)$|Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}$|Received Hello: Node version [0-9]{1,6}$)'
+$script:LogRe = '^[0-9]{2}-[0-9]{2} [0-9:.]{12} +[0-9]+ +[0-9]+ [A-Z] DOTNET *: [0-9]{2}-[0-9]{2} [0-9:.]{8,16}\|[A-Za-z]{1,10}\|[0-9]{1,6}: ((\[WEBVIEW\] [A-Z]{1,12} )?\[(P1|CDPERF)\] [a-z0-9_.=-]{1,40}( [a-z0-9_.=-]{1,40}){0,15}( \(file:///android_asset/html/[a-z.]{0,24}:[0-9]{1,6}\))?$|Starting Spixi [a-z0-9.-]{1,24} \([a-z0-9.-]{1,24}\)$|Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}$|Received Hello: Node version [0-9]{1,6}$|\[FLAGS\] warmidle=[01] sparerearm=[01] sparekeep=[01] noemptydetail=[01]$)'
 $script:LogPullPrefix = 'logcat -d --pid='
 $script:LogPullSuffix = ' -v threadtime -s DOTNET:I | grep -E ''' + $script:LogRe + ''' > /data/local/tmp/adbwalk-log.txt'
+# Batch perfb1toggle (-Flags): time limits, the one pull name, the state line as the app logs it, the fixed stop texts.
+$script:FlagsStoredWaitSec = 30
+$script:FlagsStateWaitSec = 45
+$script:FlagsStoreSettleMs = 2000
+$script:FlagsPull = 'android-walk-flags-00.txt'
+$script:FlagLineRe = '^[0-9]{2}-[0-9]{2} [0-9:.]{12} +[0-9]+ +[0-9]+ [A-Z] DOTNET *: [0-9]{2}-[0-9]{2} [0-9:.]{8,16}\|[A-Za-z]{1,10}\|[0-9]{1,6}: \[FLAGS\] warmidle=([01]) sparerearm=([01]) sparekeep=([01]) noemptydetail=([01])\z'
+$script:FlagsStopText = @{
+    'start-failed' = 'the start with the perfb1flags extra failed (am start gave an error)'
+    'not-stored' = 'the app did not store the switch state (Developer mode off, or the build on the phone does not have this batch)'
+    'no-state-line' = 'the app logged no switch state line after the cold start (or the log pull gave none)'
+    'pull-failed' = 'the log pull of the switch state failed'
+    'state-differs' = 'the app logged a switch state that differs from the asked state'
+    'unproven-process' = 'the app process changed after the switch state was proven (a restart inside the run): the state of the new process is not proven'
+}
 
 $script:Mode = 'walk'
 $script:Hook = $false
@@ -173,6 +212,14 @@ $script:ApkDir = ''
 $script:RestoreFailed = $false
 $script:Dnd = ''
 $script:LockSuffix = ''
+$script:FlagsAsked = ''
+$script:FlagsAskedState = ''
+$script:FlagsLogged = ''
+$script:FlagsOk = $true
+$script:FlagsStop = ''
+$script:FlagsPid = ''
+$script:LastPullPid = ''
+$script:FlagsStopAfter = ''
 
 # ---------------------------------------------------------------- text, log, console
 function Protect-Text([string]$Text) {
@@ -394,6 +441,8 @@ function Initialize-Allowlist {
         $script:FramePoll['chats'],
         $script:FramePoll['settings'],
         $script:FramePoll['settingsclosed'],
+        $script:FramePoll['flagsstored'],
+        $script:FramePoll['flagsstate'],
         'dumpsys window | grep -e mCurrentFocus=',
         'dumpsys window | grep -e mDreamingLockscreen= -e isKeyguardShowing= -e mShowingLockscreen= -e mKeyguardShowing= -e mCurrentFocus=',
         'dumpsys activity activities | grep -e mKeyguardShowing=',
@@ -411,6 +460,7 @@ function Initialize-Allowlist {
         ('^am start -W -n ' + $ce + '\z'),
         ('^am start -n ' + $ce + '\z'),
         ('^am start -n ' + $ce + ' --es fa [1-9A-HJ-NP-Za-km-z]{30,60}\z'),
+        ('^am start -n ' + $ce + ' --es perfb1flags warmidle=[01],sparerearm=[01],sparekeep=[01],noemptydetail=[01]\z'),
         ('^am send-trim-memory ' + $pe + ' RUNNING_LOW\z'),
         '^logcat -c\z',
         '^logcat -G 16M\z',
@@ -885,8 +935,10 @@ function Save-Log([string]$LocalName) {
     # Filtered ON THE PHONE (app pid + emitter shapes), then pulled byte-exact. Returns a note ('' = pulled).
     $local = Join-Path $script:RunDir $LocalName
     if (Test-Path -LiteralPath $local) { throw ('ADBWALK-REP: ' + $LocalName + ' exists already') }
+    $script:LastPullPid = ''
     $p = Invoke-Shell ('pidof ' + $script:Pkg)
     $ids = @(Get-Pids $p.StdOut)
+    if ($ids.Count -eq 1) { $script:LastPullPid = [string]$ids[0] }
     if ($ids.Count -ne 1) {
         [System.IO.File]::WriteAllBytes($local, (New-Object byte[] 0))
         if ($ids.Count -eq 0) { return 'app not running at pull' }
@@ -1086,6 +1138,12 @@ function Save-RunJson([bool]$Finished) {
     if ($script:Hook) { $doc['adbHook'] = $true }
     $doc['device'] = $script:DevInfo
     $doc['app'] = $script:AppInfo
+    $flg = [ordered]@{ asked = $null; logged = 'not read'; ok = $true }
+    if ($script:FlagsAsked) { $flg['asked'] = $script:FlagsAsked }
+    if ($script:FlagsLogged) { $flg['logged'] = $script:FlagsLogged }
+    $flg['ok'] = [bool]$script:FlagsOk
+    if ($script:FlagsStop) { $flg['stop'] = $script:FlagsStop }
+    $doc['flags'] = $flg
     $doc['repeats'] = $script:RepeatsN
     $doc['stepsRequested'] = [string[]]$script:StepsReq
     $doc['reps'] = $script:Reps
@@ -1148,6 +1206,8 @@ function Reset-AppToChats {
     [void](Invoke-Shell ('am start -W -n ' + $script:Comp) 60)
     Wait-Sec $script:Tm['coldStartSettleSec'] 'coldStartSettleSec'
     Say-Log '  tab step: the app was restarted after a failed tab rep (a cold start lands on Chats)'
+    # -Flags: the new process has no proven switch state: the run ends here (no re-proof).
+    if ($script:FlagsAsked) { Stop-Flags 'unproven-process' }
 }
 
 function Invoke-ShotCheck($Rec, [string]$Expect, [switch]$DropOnFail) {
@@ -1194,11 +1254,117 @@ function Invoke-LogPull($Rec) {
     $n = Save-Log $name
     $Rec['log'] = $name
     if ($n) { Add-Note $Rec $n }
+    # -Flags: every other rep must come from the process whose state line was read (a coldstart rep proves its own).
+    if ($script:FlagsAsked -and $Rec.step -cne 'coldstart') { Assert-FlagsPid $Rec }
+}
+
+function Assert-FlagsPid($Rec) {
+    if ($script:LastPullPid -and $script:FlagsPid -and (Test-Ordinal $script:LastPullPid $script:FlagsPid)) { return }
+    Add-Note $Rec 'app process changed after the switch state was proven'
+    $Rec.status = 'error'
+    Complete-Rep $Rec $script:RepeatsN
+    Stop-Flags 'unproven-process'
 }
 
 function Add-AmResult($Rec, $Am) {
     if ($Am.Am.Count -gt 0) { $Rec['am'] = $Am.Am }
     foreach ($n in $Am.Notes) { Add-Note $Rec $n }
+}
+
+function Get-FlagStates([string]$Path) {
+    # The state lines of one pulled log (anchored, case-sensitive); each is RE-BUILT from its four captured digits
+    # (warmidle=N sparerearm=N sparekeep=N noemptydetail=N). No raw line is kept. Unreadable = no state line.
+    $out = New-Object System.Collections.Generic.List[string]
+    try {
+        if ((Test-Path -LiteralPath $Path -PathType Leaf) -and (New-Object System.IO.FileInfo($Path)).Length -le 4194304) {
+            foreach ($line in ([regex]::Split([System.IO.File]::ReadAllText($Path), '\r\n|\n|\r'))) {
+                if ($line.Length -gt 1000) { continue }
+                $m = [regex]::Match($line, $script:FlagLineRe)
+                if ($m.Success) {
+                    $out.Add('warmidle=' + $m.Groups[1].Value + ' sparerearm=' + $m.Groups[2].Value + ' sparekeep=' + $m.Groups[3].Value + ' noemptydetail=' + $m.Groups[4].Value)
+                }
+            }
+        }
+    } catch { return @() }
+    return $out.ToArray()
+}
+
+function Update-FlagsLogged($Rec) {
+    # After a coldstart rep's log pull: run.json flags.logged = the last state line of that start. With -Flags a
+    # different state line ENDS THE RUN: the rep is recorded as an error, then Stop-Flags (Stop-Walk throws
+    # ADBWALK-STOP, which Invoke-Step rethrows and the main catch / finally handle: restore, run.json, exit 1).
+    # Without -Flags this only records the state.
+    if (-not $Rec.ContainsKey('log')) { return }
+    $states = @(Get-FlagStates (Join-Path $script:RunDir $Rec['log']))
+    if ($states.Count -eq 0) {
+        # -Flags: a coldstart rep is a NEW process: its own log must hold its state line (none, an unreadable or an
+        # oversized file = not proven).
+        if ($script:FlagsAsked) {
+            Add-Note $Rec 'no switch state line in the log of this start'
+            $Rec.status = 'error'
+            Complete-Rep $Rec $script:RepeatsN
+            Stop-Flags 'no-state-line'
+        }
+        return
+    }
+    $script:FlagsLogged = $states[$states.Count - 1]
+    if ($script:FlagsAsked) {
+        foreach ($st in $states) {
+            if (-not (Test-Ordinal $st $script:FlagsAskedState)) {
+                $script:FlagsLogged = $st
+                Add-Note $Rec 'switch state differs from the asked state'
+                $Rec.status = 'error'
+                Complete-Rep $Rec $script:RepeatsN
+                Stop-Flags 'state-differs'
+            }
+        }
+        $script:FlagsPid = $script:LastPullPid
+    }
+}
+
+function Stop-Flags([string]$Code) {
+    # A -Flags stop: fixed words on the console and in walk.log (STOP: ...), flags.stop in run.json, exit 1, no step.
+    $script:FlagsOk = $false
+    $script:FlagsStop = $Code
+    $text = [string]$script:FlagsStopText[$Code]
+    if ($Code -ceq 'state-differs') { $text += ': asked ' + $script:FlagsAskedState + ', logged ' + $script:FlagsLogged }
+    Stop-Walk $text
+}
+
+function Invoke-FlagsSetup {
+    # Batch perfb1toggle. Called only from Invoke-Walk, only when -Flags was given; the ONE place that builds the
+    # perfb1flags start. The app STORES the state at the extra start and acts at the NEXT start (cold start below).
+    if (-not $script:FlagsAsked) { return }
+    Say-Log ('flags: asking the app for ' + $script:FlagsAskedState + ' (the four developer preferences stay changed after the run)')
+    # The extra always arrives at a fresh launch: force-stop first.
+    [void](Invoke-ShellReq ('am force-stop ' + $script:Pkg))
+    [void](Invoke-ShellReq 'logcat -c')
+    $r = Invoke-Shell ('am start -n ' + $script:Comp + ' --es perfb1flags ' + $script:FlagsAsked) 60
+    $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
+    if ($r.ExitCode -ne 0 -or $r.TimedOut -or $am.Error) { Stop-Flags 'start-failed' }
+    foreach ($amNote in $am.Notes) { if ($amNote.Contains('intent not delivered')) { Stop-Flags 'start-failed' } }
+    if (-not (Wait-LogCount 'flagsstored' ($script:FlagsStoredWaitSec * 1000))) { Stop-Flags 'not-stored' }
+    Say-Log '  flags: a stored line was seen (the count is not pid-scoped; the proof is the read-back below)'
+    # The app writes its preferences asynchronously: a short wait before the force-stop.
+    Wait-Ms $script:FlagsStoreSettleMs 'FlagsStoreSettleMs'
+    [void](Invoke-ShellReq ('am force-stop ' + $script:Pkg))
+    [void](Invoke-ShellReq 'logcat -c')
+    [void](Invoke-ShellReq ('am start -W -n ' + $script:Comp) 60)
+    if (-not (Wait-LogCount 'flagsstate' ($script:FlagsStateWaitSec * 1000))) { Stop-Flags 'no-state-line' }
+    Wait-Sec $script:Tm['coldStartSettleSec'] 'coldStartSettleSec'
+    $note = ''
+    try { $note = Save-Log $script:FlagsPull } catch { Stop-Flags 'pull-failed' }
+    if ($note) { Stop-Flags 'no-state-line' }
+    $states = @(Get-FlagStates (Join-Path $script:RunDir $script:FlagsPull))
+    if ($states.Count -eq 0) { Stop-Flags 'no-state-line' }
+    $script:FlagsLogged = $states[$states.Count - 1]
+    foreach ($st in $states) {
+        if (-not (Test-Ordinal $st $script:FlagsAskedState)) { $script:FlagsLogged = $st; Stop-Flags 'state-differs' }
+    }
+    $script:FlagsPid = $script:LastPullPid
+    $script:FlagsOk = $true
+    Save-RunJson $false
+    Say-Log ('  flags: the app logged ' + $script:FlagsLogged + ' - equal to the asked state')
 }
 
 function Invoke-ColdstartRep($Rec) {
@@ -1223,6 +1389,7 @@ function Invoke-ColdstartRep($Rec) {
     Wait-Sec $script:Tm['coldStartSettleSec'] 'coldStartSettleSec'
     Invoke-ShotCheck $Rec 'home'
     Invoke-LogPull $Rec
+    Update-FlagsLogged $Rec
 }
 
 function Invoke-ChatRep($Rec, [string]$How) {
@@ -1551,6 +1718,10 @@ function Invoke-MemPhase([string]$Phase) {
             }
             $f = Find-Renderer
             if (-not $f.AppPid) { throw ('ADBWALK-REP: ' + $f.Note) }
+            if ($script:FlagsAsked -and -not (Test-Ordinal ([string]$f.AppPid) $script:FlagsPid)) {
+                $script:FlagsStopAfter = 'unproven-process'
+                throw 'ADBWALK-REP: app process changed after the switch state was proven'
+            }
             $rec['appPid'] = $f.AppPid
             $appFile = 'meminfo-' + $Phase + '-app.txt'
             $e = Save-Meminfo $f.AppPid $appFile
@@ -1580,6 +1751,7 @@ function Invoke-MemPhase([string]$Phase) {
     if ($rec.Contains('rendererPid')) { $line += ', renderer pid ' + $rec['rendererPid'] }
     if ($full) { $line += ' - ' + (Get-SafeNote $full) }
     Say-Log $line
+    if ($script:FlagsStopAfter) { Stop-Flags $script:FlagsStopAfter }
 }
 
 # ---------------------------------------------------------------- pre-flight
@@ -1751,6 +1923,7 @@ function Get-EstimateSec {
     $t = $script:Tm
     $n = $script:RepeatsN
     $sum = 30
+    if ($script:FlagsAsked) { $sum += 60 }
     foreach ($s in $script:StepsReq) {
         if ($s -eq 'coldstart') { $sum += $n * ($t['coldStartIdleSec'] + $t['coldStartSettleSec'] + 10) }
         elseif ($s -eq 'chat-intent' -or $s -eq 'chat-tap') { $sum += $n * (($t['chatSettleMs'] + $t['backSettleMs']) / 1000 + 6) }
@@ -1776,6 +1949,7 @@ function Invoke-Walk {
     Save-RunJson $false
     $est = Get-EstimateSec
     Say-Log ('walk: ' + ($script:StepsReq -join ', ') + ' x ' + $script:RepeatsN + ' - estimate about ' + [math]::Ceiling($est / 60) + ' min')
+    if ($script:FlagsAsked) { Invoke-FlagsSetup }
     foreach ($s in $script:StepsReq) {
         if ($s -eq 'coldstart') { Invoke-Step 'coldstart' $script:RepeatsN $false }
         elseif ($s -eq 'mem-home') { Invoke-MemPhase 'home' }
@@ -2217,6 +2391,21 @@ function Exit-Usage([string]$Why) {
 }
 
 if ($Calibrate) { $script:Mode = 'calibrate' }
+if ($PSBoundParameters.ContainsKey('Flags')) {
+    # Batch perfb1toggle: exactly the canonical state, anchored and case-sensitive; an array (PowerShell call) is joined.
+    if ($Calibrate) { Exit-Usage '-Flags cannot be used with -Calibrate' }
+    $flagsText = ($Flags -join ',')
+    if ($flagsText -cnotmatch '\Awarmidle=[01],sparerearm=[01],sparekeep=[01],noemptydetail=[01]\z') {
+        Exit-Usage '-Flags must be exactly warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1> (all four names, this order, no space)'
+    }
+    else {
+        # Only a checked text is ever adopted, whatever Exit-Usage does.
+        $script:FlagsAsked = $flagsText
+        $script:FlagsAskedState = $flagsText.Replace(',', ' ')
+        # Not proven until the state line of the cold start has been read back and compared.
+        $script:FlagsOk = $false
+    }
+}
 if ($Repeats -lt 1 -or $Repeats -gt 50) { Exit-Usage '-Repeats must be 1..50' }
 $script:RepeatsN = $Repeats
 if ($Serial -and -not (Test-SerialMaskable $Serial)) { Exit-Usage 'serial too short to mask safely: pass none / use USB' }

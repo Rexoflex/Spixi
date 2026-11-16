@@ -1,0 +1,61 @@
+Speed 1a toggle: the adb walk sets the four speed switches
+
+Damir's ruling DECISIONS 1595 (option B of 1569): the adb walk sets the
+four switches of speed batch 1a by a launch intent extra. Only the
+developer build reads it, only with Developer mode on, only the four
+names with 0 or 1. No file under src/, Spixi/Resources/Raw/html/,
+Spixi/Pages/ or .github/ is changed, and not Spixi/Spixi.csproj. No new
+bridge verb, no new push, no new preference key.
+
+- The app side, developer builds only (inside the SPIXI_DEV_COEXIST
+  symbol; Spixi/Utils/PerfB1ExtraRules.cs new,
+  Spixi/Utils/SpixiFlags.cs,
+  Spixi/Platforms/Android/MainActivity.cs): one string extra
+  "perfb1flags" on the launch intent. Grammar: exactly
+  warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1>
+  (51 characters; all four or nothing). With the "devMode" preference
+  on at that moment the four int preferences of DECISIONS 1560 are
+  stored and one fixed line "[FLAGS] perfb1 extra stored" is logged; a
+  refusal stores and logs nothing. The state acts at the next start
+  (SpixiFlags.init runs once, before the activity sees an intent). The
+  read is one-shot: OnCreate only on a fresh creation and never from an
+  intent launched from history, and OnNewIntent. The notification
+  intent path ("fa") is byte-identical. Android only.
+- The walk side (scripts/device/adb-walk.ps1, adb-walk-parse.ps1):
+  -Flags <the same string>. Set-up: force-stop, the start with the
+  extra, a count of the stored line, force-stop, a cold start, a count
+  of the state line, one log pull filtered by the app pid, compare. A
+  state that is not proven stops the run (fixed words, exit 1, six stop
+  codes) and no number is written. The pid of the proven process is
+  kept: a new app process inside the run stops it. The parser withholds
+  every number of a -Flags run whose state is not proven (exit 2) or
+  differs (new exit 4). run.json gets a flags object; the head of
+  summary.md names the state. Without -Flags no extra is sent, and
+  summary.csv of an old run folder is byte-identical. The phone-side
+  log filter gains one alternative: the exact state line.
+- Pins: scripts/pins-perfb1toggle/a-extra.mjs (8 rows) and b-walk.mjs
+  (12 rows), one registration line in scripts/smoke-test.mjs; C#
+  harness scripts/csh/PerfB1ExtraTests.cs (17 tests). The pins hold
+  both walk scripts whole and the bodies of OnCreate, OnNewIntent and
+  handleNotificationIntent by SHA-256: a later edit of them needs a
+  re-base of the hash after a look at the diff (DECISIONS 1596).
+- Packet docs/be-review-pack/P48 and the gate section "Session Speed 1a
+  toggle" in docs/security-handover-gate.md; docs/walk-perfb1.md: each
+  run of plan A names its -Flags line.
+
+Smoke: BASELINE OK 6361 / the 2 KNOWN (6341 + 20). CSH 600 (583 + 17).
+Security-only review loop: CLEAN at round 5
+(docs/review-brief-perfb1toggle.md).
+The Android C# (MainActivity.cs) is UNCOMPILED at this commit: the
+first compile is the Release dev build of the operator block.
+
+----- the second commit (the export docs) -----
+
+Speed 1a toggle: DECISIONS 1615-1618, handoff, status log, lessons
+
+The export of session "Speed 1a toggle" (batch perfb1toggle): DECISIONS
+rows 1615-1618 and their index rows, the handoff
+docs/handoff-2026-11-15-perfb1toggle.md, one status-log entry, lessons
+L202-L205, the contract, the review brief with all five rounds, the
+commit-message file, and CLAUDE.md "Where we are now".
+No code file is in this commit.

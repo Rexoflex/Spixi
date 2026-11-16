@@ -164,8 +164,10 @@ public partial class App : Application
 
     public App()
     {        
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.CtorIn);   // ★ coldstart1 (#1680)
         InitializeComponent();
 
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.ConfigIn);   // ★ coldstart1 (#1680)
         Config.init();
 
         if (IXICore.Platform.onWindows())
@@ -233,6 +235,7 @@ public partial class App : Application
 #endif
             // ★ #46 r2: anything copyResources recorded before the logger existed lands NOW.
             flushStartupDiagnostics();
+            SPIXI.P1Perf.coldFlush();   // ★ coldstart1 (#1680)
             Logging.info("Starting Spixi {0} ({1})", Config.version, CoreConfig.version);
             Logging.info("Operating System is {0}", IXICore.Platform.getOSNameAndVersion());
             if (IXICore.Platform.onWindows())
@@ -245,6 +248,7 @@ public partial class App : Application
             // it overlaps the rest of the start (Node.loadWallet below waits for it, bounded). ★ #46 r1 MINOR-4: only when
             // a wallet file exists (the Node.checkForExistingWallet path, without its error line) — a fresh install never
             // builds the secure store here.
+            SPIXI.P1Perf.cold(SPIXI.ColdMark.FlagsIn);   // ★ coldstart1 (#1680)
             SpixiFlags.init();
             WalletPassStore.prefetch(File.Exists(Path.Combine(Config.spixiUserFolder, Config.walletFile)));
 
@@ -278,6 +282,7 @@ public partial class App : Application
                 Preferences.Default.Set("uid", Convert.ToBase64String(CoreConfig.device_id));
             }
 
+            SPIXI.P1Perf.cold(SPIXI.ColdMark.LangIn);   // ★ coldstart1 (#1680)
             if (Preferences.Default.ContainsKey("language"))
             {
                 if (!SpixiLocalization.loadLanguage(Preferences.Default.Get("language", "en") as string))
@@ -294,6 +299,7 @@ public partial class App : Application
                 }
             }
 
+            SPIXI.P1Perf.cold(SPIXI.ColdMark.FilesIn);   // ★ coldstart1 (#1680)
             movePersonalFiles();
 
             // Load theme and appearance
@@ -308,6 +314,7 @@ public partial class App : Application
             // was UNREACHABLE code, which is why only the OS-follow path was broken
             // while explicit Light/Dark picks themed everything correctly.
             // Unspecified = follow the platform, which is what "System" means.
+            SPIXI.P1Perf.cold(SPIXI.ColdMark.ThemeIn);   // ★ coldstart1 (#1680)
             Current.UserAppTheme = AppTheme.Unspecified;
             ThemeAppearance themeAppearance = ThemeAppearance.automatic;
             if (Preferences.Default.ContainsKey("appearance"))
@@ -381,9 +388,11 @@ public partial class App : Application
             };
 
             // Start Ixian code
+            SPIXI.P1Perf.cold(SPIXI.ColdMark.NodeIn);   // ★ coldstart1 (#1680)
             _ = new Node();
 
             // Attempt to load a pre-existing wallet
+            SPIXI.P1Perf.cold(SPIXI.ColdMark.WalletIn);   // ★ coldstart1 (#1680)
             bool wallet_found = Node.checkForExistingWallet();
 
             if (!wallet_found)
@@ -403,6 +412,7 @@ public partial class App : Application
                 {
                     wallet_decrypted = Node.loadWallet();
                 }
+                SPIXI.P1Perf.cold(SPIXI.ColdMark.WalletOut);   // ★ coldstart1 (#1680)
 
                 if (wallet_decrypted == false)
                 {
@@ -430,12 +440,15 @@ public partial class App : Application
                     {
                         // Show the home screen
                         homeIsBootRoot = true;   // ★ S9 A-FLASH C1 (#1205): MainActivity may hold the first draw until home's boot cover is gone
+                        SPIXI.P1Perf.cold(SPIXI.ColdMark.HomeIn);   // ★ coldstart1 (#1680)
                         MainPage = new NavigationPage(HomePage.Instance());
+                        SPIXI.P1Perf.cold(SPIXI.ColdMark.HomeOut);   // ★ coldstart1 (#1680)
                     }
 
                 }
             }
             NavigationPage.SetHasNavigationBar(MainPage, false);
+            SPIXI.P1Perf.cold(SPIXI.ColdMark.CtorOut);   // ★ coldstart1 (#1680)
         }
         else if (IxianHandler.status == NodeStatus.stopped
                 || IxianHandler.status == NodeStatus.stopping)

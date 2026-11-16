@@ -12,6 +12,15 @@ using System;
 
 namespace SPIXI
 {
+    /** ★ coldstart1 (#1680): the cold-start marks, in start order. Declared on every target (the call sites compile
+     *  everywhere); index = ColdStartRules.Names. Only an Android dev build writes a line. */
+    internal enum ColdMark
+    {
+        AppIn, BaseIn, MauiIn, MauiBuild, CtorIn, ConfigIn, Logger, FlagsIn, LangIn, FilesIn, ThemeIn, NodeIn,
+        WalletIn, WalletOut, HomeIn, HomeOut, CtorOut, BaseOut, AppOut, ActIn, ActBase, ActHold, ActOut, ResumeIn,
+        ResumeOut, WvIn, WvNew, WvOut, NavIn, NavOut, Page, PageEnd, Draw
+    }
+
     internal static class P1Perf
     {
 #if SPIXI_DEV_COEXIST
@@ -22,6 +31,9 @@ namespace SPIXI
         private const double DroppedGapMs = 24;
         private const string Prefix = "[P1] ";
         private static int droppedWarned = 0;
+#if ANDROID
+        private static int coldDrawn = 0;   // ★ coldstart1 (#1680): 1 once coldDraw ran (one-shot per process)
+#endif
 #endif
 
         /** True in a dev build (the [P1] set is live), false in a store build. */
@@ -159,6 +171,105 @@ namespace SPIXI
 #endif
         }
 
+        /** ★ coldstart1 (#1680): one cold-start mark, `[P1] cold <token> t=<ms>` (ms since the process start). One-shot per
+         *  mark; before coldFlush it only stores a Stopwatch stamp (the logger is not up yet). Android dev builds only.
+         *  [Conditional]: a build without SPIXI_DEV_COEXIST has no call at any site and evaluates no argument. Holds no
+         *  value of the caller: only "this point was reached". Every call site is on the main thread; a cross-thread mark
+         *  during the flush may be lost or written twice, never with a wrong value. `t=` is valid only in a COLD launch
+         *  (Stopwatch stops while the phone sleeps: ColdStartRules.msAt). */
+        [System.Diagnostics.Conditional("SPIXI_DEV_COEXIST")]
+        internal static void cold(ColdMark m)
+        {
+#if SPIXI_DEV_COEXIST && ANDROID
+            try
+            {
+                string? body = ColdStartRules.mark((int)m, System.Diagnostics.Stopwatch.GetTimestamp(), System.Diagnostics.Stopwatch.Frequency);
+                if (body != null)
+                {
+                    line(body);
+                }
+            }
+            catch (Exception)
+            {
+            }
+#endif
+        }
+
+        /** ★ coldstart1 (#1680): called ONCE, in App() right after the logger start. Reads the Android clocks (the managed
+         *  stamp at once after the Java clock), writes every stored mark in enum order, and LAST the anchor line
+         *  `[P1] cold logger t=<ms> req=<ms>`, its stamp read right before its line() call (so its own log stamp is the
+         *  phone clock at `t`); from then on a mark is written at once. Android dev builds only; [Conditional] as `cold`. */
+        [System.Diagnostics.Conditional("SPIXI_DEV_COEXIST")]
+        internal static void coldFlush()
+        {
+#if SPIXI_DEV_COEXIST && ANDROID
+            try
+            {
+                if (!OperatingSystem.IsAndroidVersionAtLeast(24))
+                {
+                    return;   // Process.StartElapsedRealtime is API 24; below it no cold line is written
+                }
+                long start = global::Android.OS.Process.StartElapsedRealtime;
+                long now = global::Android.OS.SystemClock.ElapsedRealtime();
+                long ts = System.Diagnostics.Stopwatch.GetTimestamp();
+                long since = now - start;
+                long req = -1;
+                if (OperatingSystem.IsAndroidVersionAtLeast(33))
+                {
+                    req = start - global::Android.OS.Process.StartRequestedElapsedRealtime;
+                }
+                long freq = System.Diagnostics.Stopwatch.Frequency;
+                foreach (string body in ColdStartRules.flush(ts, since, freq))
+                {
+                    line(body);
+                }
+                string? a = ColdStartRules.anchor(System.Diagnostics.Stopwatch.GetTimestamp(), freq, req);
+                if (a != null)
+                {
+                    line(a);
+                }
+            }
+            catch (Exception)
+            {
+            }
+#endif
+        }
+
+#if ANDROID
+        /** ★ coldstart1 (#1680): the Draw mark = the first draw of the activity window's view tree after this call. One
+         *  draw listener on the decor view's ViewTreeObserver; OnDraw returns void (it cannot cancel a draw) and never asks
+         *  for a frame, so it cannot hold one. One-shot per process: a second call adds no listener. A null activity,
+         *  window or decor → nothing. The body exists only in a dev build; [Conditional] as `cold` (a store build has no
+         *  call and does not evaluate the argument; the decor is read inside the dev body). */
+        [System.Diagnostics.Conditional("SPIXI_DEV_COEXIST")]
+        internal static void coldDraw(global::Android.App.Activity? activity)
+        {
+#if SPIXI_DEV_COEXIST
+            try
+            {
+                if (System.Threading.Interlocked.CompareExchange(ref coldDrawn, 1, 0) != 0)
+                {
+                    return;
+                }
+                global::Android.Views.View? decor = activity?.Window?.DecorView;
+                if (decor == null)
+                {
+                    return;
+                }
+                global::Android.Views.ViewTreeObserver? vto = decor.ViewTreeObserver;
+                if (vto == null || !vto.IsAlive)
+                {
+                    return;
+                }
+                vto.AddOnDrawListener(new ColdDrawL(decor));
+            }
+            catch (Exception)
+            {
+            }
+#endif
+        }
+#endif
+
 #if SPIXI_DEV_COEXIST
         private static void warnDropped()
         {
@@ -256,6 +367,51 @@ namespace SPIXI
                     else
                     {
                         reportFrames(what, frames, dropped, longestMs);
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+#endif
+
+#if SPIXI_DEV_COEXIST && ANDROID
+        /* ★ coldstart1 (#1680): the shape of SpixiContentPage.S11DrawL. The first OnDraw writes the Draw mark and posts ONE
+         * removal (a listener cannot be removed inside OnDraw) from the decor's CURRENT observer when it is alive; every
+         * later OnDraw returns at once. Main thread only (the view tree draws there). */
+        private sealed class ColdDrawL : Java.Lang.Object, global::Android.Views.ViewTreeObserver.IOnDrawListener
+        {
+            private readonly global::Android.Views.View decor;
+            private bool fired = false;
+
+            public ColdDrawL(global::Android.Views.View d) { decor = d; }
+
+            public void OnDraw()
+            {
+                if (fired)
+                {
+                    return;
+                }
+                fired = true;
+                try
+                {
+                    cold(ColdMark.Draw);
+                    decor.Post(() => remove());
+                }
+                catch (Exception)
+                {
+                }
+            }
+
+            private void remove()
+            {
+                try
+                {
+                    global::Android.Views.ViewTreeObserver? now = decor.ViewTreeObserver;
+                    if (now != null && now.IsAlive)
+                    {
+                        now.RemoveOnDrawListener(this);
                     }
                 }
                 catch (Exception)

@@ -2,8 +2,16 @@
 adb-walk-parse.ps1 - turns the output folder of an adb-walk run into summary.md and summary.csv.
 
 Usage:   .\adb-walk-parse.ps1 -RunDir "<repo>\Claude outputs\adbwalk\<yyyyMMdd-HHmm>"
-Exit:    0 = every required row has data, 2 = at least one "no data" row, 3 = run.json missing or unreadable
+Exit:    0 = every required row has data, 2 = at least one "no data" row, 3 = run.json missing or unreadable,
+         4 = a pulled log holds a switch state line that differs from the state asked with -Flags
          (1 = the script itself failed; should not happen).
+Switch state (batch perfb1toggle): summary.md names the state of the app's own [FLAGS] line, re-built from its four
+         captured digits (no raw line is copied). A run with run.json flags.asked must show that state in the flags
+         pull (android-walk-flags-00.txt, a fixed name): no state line there = "no data", exit 2; any different state
+         line in the flags pull or in a rep log = exit 4. In such a run, when the state is not proven or differs (or
+         run.json has any flags.stop, a coldstart log without its own state line, or a rep log that cannot be read), NO NUMBER is written: every metric row is "no data" in summary.md and summary.csv
+         (same rows and columns) and summary.md says the numbers are withheld. A run without flags.asked (an old run
+         too) reads the state from its coldstart logs, else says "not read"; its summary.csv is not changed.
 Steps added in batch walksteps2: chatinfo, tab-apps, tab-wallet, tab-account, history, resume-now, resume-3s, scroll-image.
 
 Safety rules (this script is read by a security reviewer):
@@ -842,6 +850,135 @@ function New-MemCtx {
 }
 
 # ---------------------------------------------------------------------------------------------------------------
+# The switch state (batch perfb1toggle): the app's own start-up line "[FLAGS] warmidle=N sparerearm=N sparekeep=N
+# noemptydetail=N" after the Core log stamp. Anchored, case-sensitive; only the four digits are kept.
+# ---------------------------------------------------------------------------------------------------------------
+$script:FlagsPullName = 'android-walk-flags-00.txt'
+$script:RxFlagState = New-Rx '^[0-9]{2}-[0-9]{2} [0-9:.]{12} +[0-9]+ +[0-9]+ [A-Z] DOTNET *: [0-9]{2}-[0-9]{2} [0-9:.]{8,16}\|[A-Za-z]{1,10}\|[0-9]{1,6}: \[FLAGS\] warmidle=([01]) sparerearm=([01]) sparekeep=([01]) noemptydetail=([01])\z'
+$script:RxFlagAsked = New-Rx '^warmidle=([01]),sparerearm=([01]),sparekeep=([01]),noemptydetail=([01])\z'
+$script:FlagsStopWords = [ordered]@{
+    'start-failed' = 'the start with the perfb1flags extra failed'
+    'not-stored' = 'the app did not store the switch state (Developer mode off, or the build on the phone does not have this batch)'
+    'no-state-line' = 'the app logged no switch state line after the cold start'
+    'pull-failed' = 'the log pull of the switch state failed'
+    'state-differs' = 'the app logged a switch state that differs from the asked state'
+    'unproven-process' = 'the app process changed after the switch state was proven (a restart inside the run): the state of the new process is not proven'
+}
+
+function Read-FlagStates {
+    # State lines of one log file, each RE-BUILT from the four captured digits. State: ok | missing | unreadable.
+    param([string]$Name, [string]$RunPath)
+    $lines = New-Object System.Collections.Generic.List[string]
+    $state = 'ok'
+    $path = Join-Path $RunPath $Name
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $state = 'missing' }
+    else {
+        try {
+            if ((New-Object System.IO.FileInfo -ArgumentList $path).Length -gt 4194304) { throw 'toolarge' }
+            foreach ($line in [regex]::Split((Read-TextFile $path), '\r\n|\n|\r')) {
+                if ($line.Length -gt 1000) { continue }
+                $mm = $script:RxFlagState.Match($line)
+                if ($mm.Success) {
+                    $lines.Add('warmidle=' + $mm.Groups[1].Value + ' sparerearm=' + $mm.Groups[2].Value + ' sparekeep=' + $mm.Groups[3].Value + ' noemptydetail=' + $mm.Groups[4].Value)
+                }
+            }
+        }
+        catch { $state = 'unreadable'; $lines.Clear() }
+    }
+    return [pscustomobject]@{ State = $state; Lines = $lines.ToArray() }
+}
+
+function Get-FlagsStatus {
+    # Mode: asked (run.json flags.asked is a string) | free. Problem: '' | nodata | differs | badasked.
+    param($Manifest, $Reps, [string]$RunPath)
+    $fm = Get-Prop $Manifest 'flags'
+    $askedRaw = Get-Prop $fm 'asked'
+    $stopRaw = Get-Prop $fm 'stop'
+    $st = [pscustomobject]@{ Mode = 'free'; Asked = ''; Logged = ''; Problem = ''; Why = ''; Stop = ''; Mixed = @() }
+    if ($null -ne $stopRaw) {
+        # Any stop value counts as a stop; a code that is not known prints fixed words, never the raw value.
+        $st.Stop = 'the driver stopped the run (an unknown stop code)'
+        if ($stopRaw -is [string]) {
+            foreach ($k in $script:FlagsStopWords.Keys) { if (Test-Same $k $stopRaw) { $st.Stop = [string]$script:FlagsStopWords[$k] } }
+        }
+    }
+    if ($null -ne $askedRaw) {
+        $st.Mode = 'asked'
+        $am = $null
+        if ($askedRaw -is [string]) { $am = $script:RxFlagAsked.Match($askedRaw) }
+        if (($null -eq $am) -or (-not $am.Success)) {
+            $st.Problem = 'badasked'
+            $st.Why = 'run.json flags.asked is not a valid state'
+            return $st
+        }
+        $st.Asked = 'warmidle=' + $am.Groups[1].Value + ' sparerearm=' + $am.Groups[2].Value + ' sparekeep=' + $am.Groups[3].Value + ' noemptydetail=' + $am.Groups[4].Value
+    }
+    # The files to read: the flags pull (asked runs), then every rep log named by its own derived name.
+    $files = New-Object System.Collections.Generic.List[object]
+    $coldNone = $false
+    if ($st.Mode -eq 'asked') { $files.Add(@{ Name = $script:FlagsPullName; Pull = $true; Cold = $false }) }
+    foreach ($r in $Reps) {
+        $key = Get-StepKey ([string](Get-Prop $r 'step'))
+        $rn = Get-Num (Get-Prop $r 'rep')
+        if (($null -eq $key) -or ($null -eq $rn)) { continue }
+        $exp = Get-RepFileName $key $rn 'log'
+        if (($null -eq $exp) -or (-not (Test-Same ([string](Get-Prop $r 'log')) $exp))) {
+            # An ok coldstart rep without its own log name has no state line to read: not proven (asked runs).
+            if (($st.Mode -eq 'asked') -and (Test-Same $key 'coldstart') -and (Test-Same ([string](Get-Prop $r 'status')) 'ok')) { $coldNone = $true }
+            continue
+        }
+        $dup = $false
+        foreach ($f in $files) { if (Test-Same $f.Name $exp) { $dup = $true } }
+        if (-not $dup) { $files.Add(@{ Name = $exp; Pull = $false; Cold = (Test-Same $key 'coldstart') }) }
+    }
+    $lastLogged = ''
+    $firstBad = ''
+    $pullRes = $null
+    $unread = $false
+    $distinct = New-Object System.Collections.Generic.List[string]
+    foreach ($f in $files) {
+        $res = Read-FlagStates $f.Name $RunPath
+        if ($f.Pull) { $pullRes = $res }
+        else {
+            # A rep log that cannot be read, or a coldstart log (a new process) without its own state line, proves nothing.
+            if (($res.State -ne 'ok') -and ($res.State -ne 'missing')) { $unread = $true }
+            if ($f.Cold -and ($res.Lines.Count -eq 0)) { $coldNone = $true }
+        }
+        foreach ($ln in $res.Lines) {
+            if (-not $distinct.Contains($ln)) { $distinct.Add($ln) }
+            if (($st.Mode -eq 'asked') -and ($firstBad -eq '') -and (-not (Test-Same $ln $st.Asked))) { $firstBad = $ln }
+            if ($f.Pull -or $f.Cold) { $lastLogged = $ln }
+        }
+    }
+    if ($st.Mode -eq 'free') {
+        # Free mode: the state lines of ALL rep logs. One distinct state = read; more than one = a warning (mixed).
+        if ($distinct.Count -eq 1) { $st.Logged = $distinct[0] }
+        elseif ($distinct.Count -gt 1) { $st.Mixed = @($distinct.ToArray() | Select-Object -First 4) }
+        return $st
+    }
+    if ($firstBad -ne '') { $st.Problem = 'differs'; $st.Logged = $firstBad; return $st }
+    if (($null -eq $pullRes) -or ($pullRes.Lines.Count -eq 0)) {
+        $st.Problem = 'nodata'
+        if ($pullRes.State -eq 'ok') { $st.Why = 'the flags log pull has no [FLAGS] state line' }
+        else { $st.Why = 'the flags log pull is ' + $pullRes.State }
+        return $st
+    }
+    if ($unread -or $coldNone) {
+        $st.Problem = 'nodata'
+        if ($unread) { $st.Why = 'a rep log is unreadable or too large' } else { $st.Why = 'a coldstart log has no [FLAGS] state line' }
+        return $st
+    }
+    if ($st.Stop -ne '') {
+        # The driver stopped this run (flags.stop): the state is not proven, whatever the files hold.
+        $st.Problem = 'nodata'
+        $st.Why = 'the driver stopped the run (see the stop reason)'
+        return $st
+    }
+    $st.Logged = $lastLogged
+    return $st
+}
+
+# ---------------------------------------------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------------------------------------------
 function Format-MdCell {
@@ -929,6 +1066,13 @@ function Invoke-Main {
     foreach ($r in @(Get-Prop $m 'reps')) { if ($null -ne $r) { $reps.Add($r) } }
     $memEntries = New-Object System.Collections.Generic.List[object]
     foreach ($r in @(Get-Prop $m 'memory')) { if ($null -ne $r) { $memEntries.Add($r) } }
+
+    # The switch state (batch perfb1toggle) is judged BEFORE any row is computed: in a run with flags.asked whose state is
+    # not proven or differs, no number is shown. The reps and the memory entries are emptied, so every metric row takes the
+    # existing "no data" form (a run that stopped before its steps looks the same).
+    $fs = Get-FlagsStatus $m $reps $runPath
+    $withheld = (($fs.Mode -eq 'asked') -and ($fs.Problem -ne ''))
+    if ($withheld) { $reps.Clear(); $memEntries.Clear() }
 
     # -RunDir time reference: parse time. t0 chain in manifest order (a New Year in the middle keeps its order).
     $now = Get-Date
@@ -1056,6 +1200,20 @@ function Invoke-Main {
         $result = $resPrefix + 'NO DATA - no step produced a value'
         $exitCode = 2
     }
+    # The switch state (batch perfb1toggle): a different state is exit 4; an unproven asked state is "no data".
+    if ($fs.Problem -eq 'differs') {
+        $result = $resPrefix + 'SWITCH STATE DIFFERS from the state asked with -Flags (exit 4)'
+        $exitCode = 4
+    }
+    elseif ($fs.Problem -eq 'badasked') {
+        $result = $resPrefix + 'SWITCH STATE NOT VALID: run.json flags.asked is not a state (exit 4)'
+        $exitCode = 4
+    }
+    elseif ($fs.Problem -eq 'nodata') {
+        if ($exitCode -eq 0) { $result = $resPrefix + 'NO DATA - the switch state asked with -Flags is not proven' }
+        else { $result = $result + '; the switch state asked with -Flags is not proven' }
+        $exitCode = 2
+    }
 
     # --- summary.csv -------------------------------------------------------------------------------------------
     $csv = New-Object System.Text.StringBuilder
@@ -1093,6 +1251,15 @@ function Invoke-Main {
     $dnd = Format-Safe (Get-Prop $device 'dnd') 20
     if ($dnd.Length -eq 0) { $dnd = 'unknown' }
     [void]$md.Append('- Do not disturb: ' + (Format-Span $dnd) + "`n")
+    if ($fs.Problem -eq 'differs') { [void]$md.Append('- Switch state: DIFFERS - asked ' + (Format-Span $fs.Asked) + ' with -Flags, the app logged ' + (Format-Span $fs.Logged) + " (the run is not OK, exit 4)`n") }
+    elseif ($fs.Problem -eq 'badasked') { [void]$md.Append("- Switch state: not valid (run.json flags.asked is not a state; the run is not OK, exit 4)`n") }
+    elseif ($fs.Problem -eq 'nodata') { [void]$md.Append('- Switch state: not read (asked ' + (Format-Span $fs.Asked) + ' with -Flags, but ' + $fs.Why + ': the state is NOT proven)' + "`n") }
+    elseif ($fs.Mode -eq 'asked') { [void]$md.Append('- Switch state: ' + (Format-Span $fs.Logged) + " (asked with -Flags; proven by the app's own [FLAGS] line)`n") }
+    elseif ($fs.Mixed.Count -gt 1) { [void]$md.Append('- Switch state: mixed (no -Flags; the logs of this run hold more than one state: ' + (($fs.Mixed | ForEach-Object { Format-Span $_ }) -join '; ') + ")`n") }
+    elseif ($fs.Logged -ne '') { [void]$md.Append('- Switch state: ' + (Format-Span $fs.Logged) + " (no -Flags; read from the app's own [FLAGS] line)`n") }
+    else { [void]$md.Append("- Switch state: not read (no -Flags, and the run pulled no [FLAGS] line)`n") }
+    if ($fs.Stop -ne '') { [void]$md.Append('- Switch run stopped: ' + $fs.Stop + "`n") }
+    if ($withheld) { [void]$md.Append('- Numbers withheld: the switch state asked with -Flags is not proven or differs, so this run shows no number (every metric row is no data)' + "`n") }
     [void]$md.Append('- Parsed (PC time): ' + $now.ToString('yyyy-MM-dd HH:mm:ss', $script:Inv) + "`n`n")
     if (Test-Same $dnd 'off') { [void]$md.Append("Note: Do not disturb was off - a notification of another app can be in a screenshot`n`n") }
     [void]$md.Append($result + "`n`n")
@@ -1120,13 +1287,14 @@ function Invoke-Main {
         '- long tasks: count of `[P1] shell longtask <name> ms=` lines per rep (0 is a real value); longest long task: the largest `ms=` (no value for a rep without such a line).',
         '- app PSS / renderer PSS: `TOTAL PSS:` of the `dumpsys meminfo` file (fallback: first number of the TOTAL row); the sum is both.',
         '- network rows (t0 = phone stamp taken with `svc wifi enable`): wifi on -> first node connected = own stamp of the first `Network client connected to` line minus t0; wifi on -> first Hello = the first `Received Hello:` line (optional). The address after "connected to" is never copied.',
-        '- Log files are filtered on the phone to timing lines (`[P1] `, `[CDPERF] `, `Starting Spixi`, `Network client connected to`, `Received Hello`); an empty file means nothing matched.',
+        '- Log files are filtered on the phone to timing lines (`[P1] `, `[CDPERF] `, `Starting Spixi`, `Network client connected to`, `Received Hello`, and the exact state line `[FLAGS] warmidle= sparerearm= sparekeep= noemptydetail=`); an empty file means nothing matched.',
         '- A rep window = lines whose own app stamp is >= the rep t0 and < the t0 of the next rep of the run. "no data" = a required value is missing for some rep; n/a = an optional value that no rep had.',
         '- chat info: t0 = the tap on the chat header; the rows read the first `[P1] open contactdetails present ms=` line, the first `[P1] frames open-contactdetails n= drop= max=` line and `[P1] shell send details dt=`.',
         '- tab-apps / tab-wallet / tab-account: t0 = the tap on the tab; `first=` of the shell line `[P1] shell tab-<name> first=` (ms from the tap to the second frame after the tab is shown, on the tap clock of the shell) and `drop=` / `max=` of `[P1] shell frames-tab-<name>`. Screenshots are taken only on the Chats tab.',
         '- history: t0 = the first swipe to older messages; older pages loaded = number of `[P1] chat load` lines in the rep (C# answers one page request each; at least 3 are required); first swipe -> 3rd page = own stamp of the third such line minus t0; the scroll and long-task rows as for scroll; swipes = from run.json. A visible jump is NOT measured (no log line shows it).',
         '- resume (unchanged since 2026-11-12): the chat tap goes 2 s after the resume. resume-now: at once (after the focus check). resume-3s: after 3 s. Neither new row replaces the resume row.',
-        '- scroll-image: the scroll rows in a chat with images (opened by the notification intent with the address of the local key imageChatAddress).'
+        '- scroll-image: the scroll rows in a chat with images (opened by the notification intent with the address of the local key imageChatAddress).',
+        '- Switch state: the four digits of the app''s own `[FLAGS] warmidle= sparerearm= sparekeep= noemptydetail=` line (printed re-built, never the raw line). With -Flags the flags pull must show the asked state (none = no data, exit 2) and no pulled log may show another (exit 4).'
     )
     foreach ($l in $legend) { [void]$md.Append($l + "`n") }
     [void]$md.Append("`nFiles`n`n")
@@ -1153,6 +1321,7 @@ function Invoke-Main {
         & $addFile (Get-Prop $r 'log') (Get-RepFileName $st $rn 'log')
         & $addFile (Get-Prop $r 'shot') (Get-RepFileName $st $rn 'shot')
     }
+    if ($fs.Mode -eq 'asked') { & $addFile $script:FlagsPullName $script:FlagsPullName }
     foreach ($me in $memEntries) {
         $ph = [string](Get-Prop $me 'phase')
         $expA = $null

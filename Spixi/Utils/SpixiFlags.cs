@@ -181,5 +181,35 @@ namespace SPIXI
             PhoneNoEmptyDetail = S16PassRules.effectiveFlag(dev, pn);
             Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));
         }
+
+#if SPIXI_DEV_COEXIST
+        /** ★ perfb1toggle (#1595, dev build only): the adb walk's launch intent extra (PerfB1ExtraRules.ExtraName; MainActivity
+         *  reads it in OnCreate and OnNewIntent). Dev mode on AT THIS MOMENT and the exact CANON → the four ints are stored
+         *  through PerfB1DevKeys and ONE fixed line is logged; anything else stores and logs nothing. Store only: the switches
+         *  act at the NEXT start (init runs once); no flag of this process changes. Fail closed: a throw stores no more and
+         *  logs nothing (the launcher activity is exported — the value comes from any app on the phone). */
+        internal static bool storePerfB1Extra(string? value)
+        {
+            try
+            {
+                bool dev = Preferences.Default.Get("devMode", false);
+                int[]? v = PerfB1ExtraRules.parse(dev, value);
+                if (v == null || v.Length != PerfB1DevKeys.Length)
+                {
+                    return false;
+                }
+                for (int i = 0; i < PerfB1DevKeys.Length; i++)
+                {
+                    Preferences.Default.Set(PerfB1DevKeys[i], v[i]);
+                }
+                Logging.info(PerfB1ExtraRules.StoredLine);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+#endif
     }
 }

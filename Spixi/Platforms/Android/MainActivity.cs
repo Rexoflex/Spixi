@@ -500,6 +500,12 @@ public class MainActivity : MauiAppCompatActivity
         Permissions.RequestAsync<Permissions.StorageWrite>();
 
         handleNotificationIntent(Intent);
+#if SPIXI_DEV_COEXIST
+        if (bundle == null)   // ★ perfb1toggle (#1595): a fresh creation only — a re-created activity gets the same launch intent again
+        {
+            readPerfB1Extra(Intent);   // store only, acts at the next start
+        }
+#endif
     }
 
     /* ★ #454 — the pause hook for the app lock. See App.lockOnPause for the whole
@@ -773,7 +779,38 @@ public class MainActivity : MauiAppCompatActivity
          * common case (the app is warm and HomePage exists) costs one UI tick instead of
          * half a second. */
         MainThread.BeginInvokeOnMainThread(() => handleNotificationIntent(intent));
+#if SPIXI_DEV_COEXIST
+        readPerfB1Extra(intent);   // ★ perfb1toggle (#1595): the same store as OnCreate; no restart, no navigation
+#endif
     }
+
+#if SPIXI_DEV_COEXIST
+    /* ★ perfb1toggle (#1595, dev build only): the adb walk sets the four switches of batch 1a by ONE string extra on the
+     * launch intent (the name: PerfB1ExtraRules.ExtraName). This activity is exported, so any app on the phone can send it:
+     * SpixiFlags.storePerfB1Extra stores only with dev mode on and the exact CANON, and logs one fixed line; nothing here
+     * logs, keeps or forwards the value. A hostile intent can throw at unparcel (a foreign Parcelable in the extras), so the
+     * read is caught whole and does nothing. Store only: no restart, no navigation, no flag of this process changes.
+     * One-shot (#46 r1 S-app-1 / B-4): Android hands the SAME launch intent to a re-created activity and to a launch from
+     * Recents, so OnCreate reads only when `bundle == null` and an intent marked LaunchedFromHistory is never read. */
+    private static void readPerfB1Extra(Intent? intent)
+    {
+        try
+        {
+            if (intent == null || (intent.Flags & ActivityFlags.LaunchedFromHistory) != 0)
+            {
+                return;
+            }
+            string? value = intent.GetStringExtra(PerfB1ExtraRules.ExtraName);
+            if (value != null)
+            {
+                SpixiFlags.storePerfB1Extra(value);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+#endif
 
     /* ★ NOTIF-3: how long to keep trying, and how often. The retry exists for the cold
      * case only — HomePage is not constructed yet because the user is still on the lock or

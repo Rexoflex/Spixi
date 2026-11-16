@@ -93,6 +93,7 @@
     <Compile Include="../../Spixi/Utils/SpareKeepRules.cs" />   <!-- ★ perfb1 P-11 switch 2 (SpareKeepShortSleep): keep the spare over a short sleep; usable only when proven (tests: PerfB1SpareKeepTests.cs) -->
     <Compile Include="../../Spixi/Utils/SDevSeedPlan.cs" />   <!-- ★ perfb1 seed: the dev seed's pure half — Seed 01–50 rules frozen, the image chats, the PNG made in code (tests: PerfB1SeedTests.cs) -->
     <Compile Include="../../Spixi/Utils/EmptyDetailRules.cs" />   <!-- ★ perfb1 P-13 (PhoneNoEmptyDetail): no EmptyDetail page on a phone until the layout is wide (tests: PerfB1EmptyDetailTests.cs) -->
+    <Compile Include="../../Spixi/Utils/PerfB1ExtraRules.cs" />   <!-- ★ perfb1toggle (#1595): the adb walk's launch intent extra — name, stored line, CANON grammar (tests: PerfB1ExtraTests.cs; SpixiFlags.storePerfB1Extra calls it) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

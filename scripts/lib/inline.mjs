@@ -79,13 +79,18 @@ const DEVICE_CSS =
  *
  * @param {string} inPath absolute path to the source HTML
  * @param {object} [opts] { device=true, strict=true, external=Map }
+ * @param {function} [opts.onSource] P-09 (contract-perflean § 3.2): called as onSource(absPath, kind) for
+ *   the entry template ('entry') and for every file this call INLINES ('css' / 'js'), in read order.
+ *   Report only — it changes no output byte. build-shells --check re-reads each path for its carrier gate.
  * @returns {string} self-contained HTML
  */
 export function inlineHtml(inPath, opts = {}) {
   const { device = true, strict = true, external = new Map() } = opts;
+  const onSource = typeof opts.onSource === 'function' ? opts.onSource : null;   // P-09: the source accounting hook
   const externalNames = new Set(external.values());
   const htmlDir = dirname(inPath);
   let html = readFileSync(inPath, 'utf8');
+  if (onSource) onSource(inPath, 'entry');
 
   // 1. drop <link rel="preload" ... as="font" ...> (fonts get inlined into CSS)
   html = html.replace(/^[ \t]*<link\s+rel=["']preload["'][^>]*as=["']font["'][^>]*>\s*$/gim, '');
@@ -95,6 +100,7 @@ export function inlineHtml(inPath, opts = {}) {
     if (external.has(href)) return `<link rel="stylesheet" href="${external.get(href)}">`;
     const cssPath = resolve(htmlDir, href);
     let css = readFileSync(cssPath, 'utf8');
+    if (onSource) onSource(cssPath, 'css');
     css = inlineFonts(css, dirname(cssPath));
     return `<style data-src="${href}">\n${breakStyleEnd(css)}\n</style>`;
   });
@@ -107,6 +113,7 @@ export function inlineHtml(inPath, opts = {}) {
     if (external.has(src)) return `<script src="${external.get(src)}"></script>`;
     const jsPath = resolve(htmlDir, src);
     const js = readFileSync(jsPath, 'utf8');
+    if (onSource) onSource(jsPath, 'js');
     return `<script data-src="${src}">\n${breakScriptEnd(js)}\n</script>`;
   });
 

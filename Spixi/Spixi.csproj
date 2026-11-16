@@ -431,6 +431,136 @@
 		<Error Condition="$(DefineConstants.Contains('SPIXI_DEV_COEXIST'))" Text="Spixi store-release gate (O-35): SPIXI_DEV_COEXIST is in DefineConstants in a store build. Remove it." />
 		<Message Importance="high" Text="Spixi store-release gate (O-35): passed - Release, SpixiDevCoexist off, no SPIXI_DEV_COEXIST." />
 	</Target>
+	<!-- ★ Session Speed lean (perflean), P-06 / P-07 — THE LEAN PACKAGING SWITCHES. Three properties,
+	     each OFF unless the build sets it: SpixiLeanCss (P-06: comments out of every shipped stylesheet
+	     and every inline style block), SpixiLeanJs (P-07: comments out of the three external js files,
+	     every newline kept, and of every inline classic script; ★ PARKED in this batch, refused below:
+	     Damir's ruling 2026-11-15, DECISIONS 1583 and 1589), SpixiLeanCssFull (the lean v2 step;
+	     NOT built in this batch, refused below). A property can come from a -p: switch, an environment
+	     variable of the same name, or a props / .user file (standard MSBuild); the Error texts say so.
+	     All three off (and no stamp, see below) = today's targets and today's package byte for byte:
+	     SpixiLeanGuard and SpixiLeanReleaseHtml are skipped, SpixiStripReleaseHtml below is untouched,
+	     and the only new work is the one Exists test of SpixiLeanStaleGuard. The defaults are written as
+	     false (never empty) so a pin can read them; nothing here may ever default one to true.
+	     MSBuild's own boolean rule decides a switch: a Condition compares two boolean-looking strings as
+	     booleans, so true, yes and on (any letter case) are ON, false, no and off are OFF, and a leading !
+	     negates one (!false = on, !true = off); MSBuild unescapes %XX before it compares (%74rue = true =
+	     ON). A value that is not a boolean word stops the build (SpixiLeanCss and SpixiLeanJs with the
+	     "is not true or false" Error, SpixiLeanCssFull with its "not built" Error): an empty -p:<name>=
+	     (a command-line value wins over the default false), 1, 0, a typo such as tru.
+	     SpixiLeanGuard runs BEFORE the strip targets on the same hook (file order, after the store gate)
+	     so a refused build never starts node. It refuses, loud, in this order:
+	     - a value that is not a boolean word (a typo such as =1 would ship today's package while the
+	       release notes say lean);
+	     - SpixiLeanCssFull on (the lead's decision: the lean v2 step is not built in this batch);
+	     - SpixiLeanJs on, that is any value but false (★ THE PARK, Damir 2026-11-15): the review of the
+	       JS strip found a fault that is not fixed and only one review round remained, so no build may pack
+	       the output of that strip. The JS strip code, its pins and the script flag lean-js stay (tools and
+	       pins use them), and so do this property and the js branch of SpixiLeanReleaseHtml (now unreachable;
+	       byte for byte as it was) for the session that finishes P-07. Removing THIS one Error re-opens the
+	       path, and only after a CLEAN review of the JS strip. The typo Error above comes first (a typo
+	       still gets the typo text), and this Error comes before every store / dev / Android / app-id /
+	       strip / folder / stamp test: a js build gets this text whatever else is wrong with it. With
+	       SpixiLeanJs unset, false, no or off nothing changes; SpixiLeanCss alone is the only lean build;
+	     - a SpixiStoreRelease or SpixiDevCoexist value that is set but is not a boolean word (1, tru,
+	       'true ' with a space): such a value skips the store gate and the app-id test of the dev build,
+	       so a lean build refuses it like a lean value (#46 perflean r2 S-1);
+	     - a STORE build (SpixiStoreRelease true, the same Condition text as SpixiStoreReleaseGate, so the
+	       same evaluated value: a property is global, the target order does not change it): no store
+	       build is lean before Damir rules on the lean defaults (#46 perflean S-3: an environment
+	       variable alone would otherwise make a store package lean). This text comes first: a store
+	       build can never be a dev build (the store gate refuses SpixiDevCoexist=true before it);
+	     - a build that is NOT a dev build (SpixiDevCoexist not true: the same comparison as the
+	       ApplicationId, ApplicationTitle and DefineConstants lines of the dev build and as the store gate,
+	       so the guard and the app id agree for every spelling, and, by the ApplicationId test below, for every
+	       import order): until Damir rules on the lean defaults a
+	       lean package exists only with the dev id com.ixilabs.spixi.dev on Android (#46 perflean r2 S-1:
+	       a plain Release build has the production id and would become lean from an environment variable
+	       or a left-over .user file). SpixiDevCoexist is true by default in Debug, so a Debug build with
+	       -p:SpixiStripHtml=true can still be lean;
+	     - a build whose TargetFramework is not Android (the second half of the app-id test: the dev id
+	       moves ONLY when TargetFramework contains -android, so on iOS, Mac Catalyst and Windows
+	       SpixiDevCoexist=true keeps the production id and the dev-build test above would pass for a
+	       production-id package). The same expression as the ApplicationId line, negated: an empty or
+	       unset TargetFramework is refused too (#46 perflean r3 B-3 / S-1). A platform version suffix
+	       (net10.0-android35.0) is Android. Until the ruling of the lean defaults a lean package exists
+	       only for Android;
+	     - an ApplicationId that is not com.ixilabs.spixi.dev (#46 perflean r4 B-1: THE guarantee itself). The two
+	       tests above read the FINAL values of SpixiDevCoexist and TargetFramework at target time, but the app
+	       id is decided at the ApplicationId line above, while the project file is read, from the values AT
+	       THAT POINT. A SpixiDevCoexist set later (a .csproj.user file, imported by Microsoft.Common.CurrentVersion
+	       .targets, or a Directory.Build.targets file) is true for the guard and not for that line, and a global
+	       -p:ApplicationId= wins over it: either would pack a lean package with the production id. The
+	       comparison is MSBuild's (case-insensitive: COM.IXILABS.SPIXI.DEV passes, and that is a different
+	       Android package than the production id). The two tests above stay for their better texts;
+	     - SpixiStripHtml not true: a lean switch needs the Release packaging strip, SpixiStripHtml true,
+	       which is on by default only in Release (so -c Debug -p:SpixiStripHtml=true can build lean, and
+	       -p:SpixiStripHtml=false refuses);
+	     - an IntermediateOutputPath that is empty, only white space, or the project folder itself after
+	       normalization (., ./, obj/../): the tokens-only strip runs BEFORE the lean target and has no
+	       such check, so it would write spixi-strip/html/ beside the sources, and the lean target would
+	       write and REMOVE spixi-lean/html/ there. Any other folder (below obj, elsewhere below the
+	       project folder, or outside it) is accepted;
+	     - THE STAMP (#46 perflean D-1). When SpixiLeanReleaseHtml ENDS (its swap passed every check) it
+	       writes <obj>/spixi-lean.stamp with the evaluated switches as one line, css=true js=false (yes, on
+	       and True give the same text as true). That is before the rest of the build: a lean build that
+	       fails later (a compile or signing error) keeps the stamp, and the next build then asks for a wipe
+	       (the safe direction). A lean build that stops in the guard or in the lean target writes none; no
+	       build removes one (a stamp means "bin may hold lean files of these switches"). A later lean
+	       build in the same obj folder whose switches differ stops HERE, before node runs: the bin or
+	       publish folder can still hold the earlier build's files, because a copy by timestamp keeps a
+	       destination that is newer than its source.
+	     SpixiLeanStaleGuard is the twin for a build with EVERY lean switch off: its only task is an Error
+	     when the stamp exists (an OFF build after a lean one would keep the newer lean copies in bin and
+	     ship them). It changes no item and no property and runs no node. The stamp lives in the
+	     per-configuration, per-target-framework obj folder, so a Debug build never sees a Release stamp;
+	     with an empty or white-space IntermediateOutputPath the test is skipped (no lean build can write
+	     a stamp there). OFF to ON needs no stamp: the lean files are written fresh by that build, newer
+	     than any copy in bin, so a copy by timestamp takes them. The stamp protects ONE obj folder: an
+	     output or publish folder that is kept after obj is wiped, or that two obj folders feed (a Debug
+	     lean build and a Release build with the same -o folder), can still hold lean files in an OFF build
+	     with no Error, and only GATE 1 on the deployed folder proves a package. Known limit of the folder
+	     test: it compares normalized spellings, so an IntermediateOutputPath that is a symbolic link to
+	     the project folder is not seen (MSBuild offers no property function that resolves a link:
+	     System.IO.Directory ResolveLinkTarget gives MSB4185).
+	     None of the three lean targets runs in a design-time build (DesignTimeBuild true: the IntelliSense
+	     builds of Visual Studio): no node call, no Error there; the tokens-only target runs there as at
+	     the base. Conditions use backticks for the inner arguments of a property function (single quotes
+	     inside a single-quoted Condition string do not parse). -->
+	<PropertyGroup>
+		<SpixiLeanCss Condition="'$(SpixiLeanCss)' == ''">false</SpixiLeanCss>
+		<SpixiLeanCssFull Condition="'$(SpixiLeanCssFull)' == ''">false</SpixiLeanCssFull>
+		<SpixiLeanJs Condition="'$(SpixiLeanJs)' == ''">false</SpixiLeanJs>
+	</PropertyGroup>
+	<Target Name="SpixiLeanGuard" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true' and ('$(SpixiLeanCss)' != 'false' or '$(SpixiLeanCssFull)' != 'false' or '$(SpixiLeanJs)' != 'false')">
+		<Error Condition="'$(SpixiLeanCss)' != 'true' and '$(SpixiLeanCss)' != 'false'" Text="Spixi lean packaging: SpixiLeanCss='$(SpixiLeanCss)' is not true or false. Set it to true, or remove the property (a -p: switch, an environment variable, or a props / .user file)." />
+		<Error Condition="'$(SpixiLeanJs)' != 'true' and '$(SpixiLeanJs)' != 'false'" Text="Spixi lean packaging: SpixiLeanJs='$(SpixiLeanJs)' is not true or false. Set it to true, or remove the property (a -p: switch, an environment variable, or a props / .user file)." />
+		<Error Condition="'$(SpixiLeanCssFull)' != 'false'" Text="Spixi lean packaging: SpixiLeanCssFull (the lean v2 step) is not built in this batch (SpixiLeanCssFull=$(SpixiLeanCssFull)). Remove the property (a -p: switch, an environment variable, or a props / .user file); the comment strip of the stylesheets is SpixiLeanCss=true." />
+		<Error Condition="'$(SpixiLeanJs)' != 'false'" Text="Spixi lean packaging: SpixiLeanJs (the comment strip of the scripts, P-07) is PARKED in this batch (SpixiLeanJs=$(SpixiLeanJs)): its review found a fault that is not fixed, so no build may pack its output (DECISIONS 1583 and 1589). Remove the property (a -p: switch, an environment variable, or a props / .user file); the comment strip of the stylesheets is SpixiLeanCss=true." />
+		<Error Condition="'$(SpixiStoreRelease)' != '' and '$(SpixiStoreRelease)' != 'true' and '$(SpixiStoreRelease)' != 'false'" Text="Spixi lean packaging: SpixiStoreRelease='$(SpixiStoreRelease)' is not true or false, and a lean build needs a clear answer (such a value skips the store gate). Set it to true or false, or remove the property (a -p: switch, an environment variable, or a props / .user file)." />
+		<Error Condition="'$(SpixiDevCoexist)' != '' and '$(SpixiDevCoexist)' != 'true' and '$(SpixiDevCoexist)' != 'false'" Text="Spixi lean packaging: SpixiDevCoexist='$(SpixiDevCoexist)' is not true or false, and a lean build needs a clear answer (such a value skips the dev app id). Set it to true, or remove the property (a -p: switch, an environment variable, or a props / .user file)." />
+		<Error Condition="'$(SpixiStoreRelease)' == 'true'" Text="Spixi lean packaging: a store build (SpixiStoreRelease=$(SpixiStoreRelease)) cannot be lean before the ruling of the lean defaults (SpixiLeanCss=$(SpixiLeanCss), SpixiLeanJs=$(SpixiLeanJs)). Remove the lean property (a -p: switch, an environment variable, or a props / .user file)." />
+		<Error Condition="'$(SpixiDevCoexist)' != 'true'" Text="Spixi lean packaging: a lean package is allowed only in a dev build before the ruling of the lean defaults, and SpixiDevCoexist is '$(SpixiDevCoexist)' (Configuration=$(Configuration)). Pass -p:SpixiDevCoexist=true (the package id is com.ixilabs.spixi.dev on Android), or remove the lean property (a -p: switch, an environment variable, or a props / .user file) for a production-id build." />
+		<Error Condition="!$(TargetFramework.Contains('-android'))" Text="Spixi lean packaging: a lean package is allowed only for Android before the ruling of the lean defaults, and TargetFramework is '$(TargetFramework)': only there SpixiDevCoexist=true moves the app id to com.ixilabs.spixi.dev; an iOS, Mac or Windows package keeps the production id. Build with -f net10.0-android, or remove the lean property (a -p: switch, an environment variable, or a props / .user file)." />
+		<Error Condition="'$(ApplicationId)' != 'com.ixilabs.spixi.dev'" Text="Spixi lean packaging: a lean package is allowed only with the dev app id before the ruling of the lean defaults, and ApplicationId is '$(ApplicationId)' (SpixiDevCoexist=$(SpixiDevCoexist), TargetFramework=$(TargetFramework)): the id is decided when the project file is read, so a SpixiDevCoexist that is set later (a .csproj.user file, a Directory.Build.targets file) or an ApplicationId on the build line does not give the dev id. Pass -p:SpixiDevCoexist=true -f net10.0-android on the build line, or remove the lean property (a -p: switch, an environment variable, or a props / .user file)." />
+		<Error Condition="'$(SpixiStripHtml)' != 'true'" Text="Spixi lean packaging: SpixiLeanCss=$(SpixiLeanCss) / SpixiLeanJs=$(SpixiLeanJs) needs the Release packaging strip, but SpixiStripHtml is '$(SpixiStripHtml)' (Configuration=$(Configuration)). A lean switch needs SpixiStripHtml=true, which is on by default only in Release: build -c Release without SpixiStripHtml=false, or remove the lean property (a -p: switch, an environment variable, or a props / .user file)." />
+		<Error Condition="'$(IntermediateOutputPath.Trim())' == '' or '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`))' == '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))'" Text="Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is empty, only white space, or the project folder itself — refusing a lean build (its output directory would be inside the working tree, beside the sources). Leave IntermediateOutputPath to the SDK, or set it to another folder." />
+		<PropertyGroup>
+			<_SpixiLeanStamp>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-lean.stamp'))</_SpixiLeanStamp>
+			<_SpixiLeanState>css=false</_SpixiLeanState>
+			<_SpixiLeanState Condition="'$(SpixiLeanCss)' == 'true'">css=true</_SpixiLeanState>
+			<_SpixiLeanState Condition="'$(SpixiLeanJs)' == 'true'">$(_SpixiLeanState) js=true</_SpixiLeanState>
+			<_SpixiLeanState Condition="'$(SpixiLeanJs)' != 'true'">$(_SpixiLeanState) js=false</_SpixiLeanState>
+			<_SpixiLeanStampWas></_SpixiLeanStampWas>
+		</PropertyGroup>
+		<ReadLinesFromFile File="$(_SpixiLeanStamp)" Condition="Exists('$(_SpixiLeanStamp)')">
+			<Output TaskParameter="Lines" PropertyName="_SpixiLeanStampWas" />
+		</ReadLinesFromFile>
+		<Error Condition="Exists('$(_SpixiLeanStamp)') and '$(_SpixiLeanStampWas)' != '$(_SpixiLeanState)'" Text="Spixi lean packaging: the lean switches changed in this obj folder: $(_SpixiLeanStamp) says '$(_SpixiLeanStampWas)', this build is '$(_SpixiLeanState)'. The bin or publish folder can still hold the files of the earlier build (a copy by timestamp keeps them). Delete Spixi\obj and Spixi\bin (and the publish folder), then build again; only GATE 1 on the deployed folder proves a package." />
+	</Target>
+	<Target Name="SpixiLeanStaleGuard" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true' and '$(IntermediateOutputPath.Trim())' != '' and '$(SpixiLeanCss)' == 'false' and '$(SpixiLeanCssFull)' == 'false' and '$(SpixiLeanJs)' == 'false'">
+		<Error Condition="Exists('$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean.stamp`))')" Text="Spixi lean packaging: every lean switch is off, but $([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-lean.stamp')) exists: a LEAN build ran in this obj folder, and the bin or publish folder can still hold its lean files (a copy by timestamp keeps them). Delete Spixi\obj and Spixi\bin (and the publish folder), then build again; only GATE 1 on the deployed folder proves a package." />
+	</Target>
 	<!-- Fix for https://github.com/microsoft/WindowsAppSDK/issues/3843 -->
 	<!-- ★ Session N — THE RELEASE PACKAGING STRIP (scripts/strip-release.mjs; DECISIONS: the
 	     comment-strip fork). Release only. The committed Raw/html stays readable and every
@@ -470,6 +600,105 @@
 			<MauiAsset Include="$(SpixiStripHtmlDir)spixi.tokens.css" LogicalName="html$([System.IO.Path]::DirectorySeparatorChar)spixi.tokens.css" />
 		</ItemGroup>
 		<Message Importance="high" Text="Spixi: Release packaging strip applied (spixi.tokens.css from $(SpixiStripHtmlDir)) — GATE 1: node scripts/strip-release.mjs --check &lt;the DEPLOYED html folder&gt; (never this obj dir, which holds only the allowlist); GATE 2: node scripts/smoke-packaged.mjs" />
+	</Target>
+	<!-- ★ Session Speed lean (perflean), P-06 / P-07 — THE LEAN PACKAGING SWAP. Runs only when
+	     SpixiStripHtml is true AND SpixiLeanCss and / or SpixiLeanJs is true (SpixiLeanGuard has already
+	     refused every other lean combination, and every one with SpixiLeanJs on: the park of P-07, so the
+	     js branches below are unreachable in this batch and stay for the session that finishes P-07).
+	     Defined AFTER SpixiStripReleaseHtml, on the same hook (BeforeTargets run in file order), and
+	     DependsOnTargets names both, so the order holds even if this block moves: the guard first,
+	     then the tokens-only strip, exactly as today, and then this target replaces, by LogicalName,
+	     every asset the lean call wrote. So spixi.tokens.css is the lean copy when the lean call writes
+	     it, and today's stripped copy when it does not. Never both: the swap is keyed on LogicalName.
+	     (In the other order the tokens-only Remove names the source path, finds nothing, and its
+	     Include packs spixi.tokens.css TWICE: the msbuild harness shows it.)
+	     ONE call of scripts/strip-release.mjs with the out flag and the lean flags into its OWN
+	     directory obj/…/spixi-lean/html/, which is REMOVED first: the swap takes every file that is in
+	     that directory, so a file left by an earlier build with other flags (a js file of a css + js
+	     build, then a css-only build) would otherwise ship. The item swap, step by step:
+	     1. _SpixiLeanFile = a glob over the directory, evaluated HERE, after the call (target time);
+	        its LogicalName = html + native separator + %(RecursiveDir)%(Filename)%(Extension), the
+	        same string that the wholesale Include gives the source file (RecursiveDir there starts with
+	        html + separator; here it is the sub-path below html), subfolders included.
+	     2. a lean file whose LogicalName no MauiAsset carries = Error (an extra file would ship
+	        beside the app's assets under a new name, or a typo in the path would ship nothing).
+	     3. MauiAsset Remove with MatchOnMetadata=LogicalName (case-sensitive, exact), then a count:
+	        before - after must equal the number of lean files. With step 2 (each lean file matched at
+	        least one item) that means each matched EXACTLY one: no asset doubled, none lost.
+	     4. the lean files are included with their LogicalName; the asset count must equal step 3's
+	        "before" again. The set of LogicalName values is therefore unchanged, each once.
+	     The fail-loud rules of the tokens-only strip hold here too: Exec fails = the build fails;
+	     an empty directory = Error (the swap would ship nothing lean while the switch says lean).
+	     5. only after every check above: the stamp (SpixiLeanGuard's comment) is written with the
+	        evaluated switches that SpixiLeanGuard computed and compared. Not in a design-time build. -->
+	<Target Name="SpixiLeanReleaseHtml" BeforeTargets="PrepareForBuild" DependsOnTargets="SpixiLeanGuard;SpixiStripReleaseHtml" Condition="'$(DesignTimeBuild)' != 'true' and '$(SpixiStripHtml)' == 'true' and ('$(SpixiLeanCss)' == 'true' or '$(SpixiLeanJs)' == 'true')">
+		<!-- Evaluated INSIDE the target for the reason SpixiStripReleaseHtml gives (#46 auditor A
+		     MAJOR-1): in the project body $(IntermediateOutputPath) is still empty, so the directory
+		     would land in the working tree, ONE directory for four TFMs. RemoveDir deletes it, so an
+		     IntermediateOutputPath that is empty, white space or the project folder is refused before
+		     anything is deleted (a belt: SpixiLeanGuard refuses the same values first). -->
+		<Error Condition="'$(IntermediateOutputPath.Trim())' == '' or '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`))' == '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))'" Text="Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is empty, only white space, or the project folder itself at target time — refusing to empty a directory in the working tree" />
+		<PropertyGroup>
+			<SpixiLeanHtmlDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-lean', 'html'))</SpixiLeanHtmlDir>
+			<SpixiLeanScript>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '..', 'scripts', 'strip-release.mjs'))</SpixiLeanScript>
+			<SpixiLeanFlags></SpixiLeanFlags>
+			<SpixiLeanFlags Condition="'$(SpixiLeanCss)' == 'true'">$(SpixiLeanFlags) --lean-css</SpixiLeanFlags>
+			<SpixiLeanFlags Condition="'$(SpixiLeanJs)' == 'true'">$(SpixiLeanFlags) --lean-js</SpixiLeanFlags>
+		</PropertyGroup>
+		<!-- A stale file of an earlier build with other flags must never be packaged: empty first,
+		     and refuse if the directory is still there (a locked file on Windows). -->
+		<RemoveDir Directories="$(SpixiLeanHtmlDir)" />
+		<Error Condition="Exists('$(SpixiLeanHtmlDir)')" Text="Spixi lean packaging: could not empty $(SpixiLeanHtmlDir) — a file of an earlier build could be packaged; refusing" />
+		<!-- The trailing "." after the directory: the Windows quoting trap of SpixiStripReleaseHtml
+		     (break-my-verdict MAJOR-1) — NormalizeDirectory ends in a separator, and a backslash before
+		     the closing quote is an escaped quote to CommandLineToArgvW.
+		     node: scripts/strip-release.mjs and its imports use only Node's built-in modules; tested with
+		     Node 22 (no other version was tested). -->
+		<Exec Command="node &quot;$(SpixiLeanScript)&quot; --out &quot;$(SpixiLeanHtmlDir).&quot;$(SpixiLeanFlags)" />
+		<ItemGroup>
+			<_SpixiLeanFile Include="$(SpixiLeanHtmlDir)**" />
+			<_SpixiLeanFile LogicalName="html$([System.IO.Path]::DirectorySeparatorChar)%(RecursiveDir)%(Filename)%(Extension)" />
+		</ItemGroup>
+		<Error Condition="'@(_SpixiLeanFile)' == ''" Text="Spixi lean packaging: strip-release.mjs$(SpixiLeanFlags) wrote no file into $(SpixiLeanHtmlDir) — refusing to package" />
+		<ItemGroup>
+			<_SpixiLeanOrphan Include="@(_SpixiLeanFile)" />
+			<_SpixiLeanOrphan Remove="@(MauiAsset)" MatchOnMetadata="LogicalName" />
+		</ItemGroup>
+		<Error Condition="'@(_SpixiLeanOrphan)' != ''" Text="Spixi lean packaging: strip-release.mjs$(SpixiLeanFlags) wrote file(s) that no MauiAsset carries: @(_SpixiLeanOrphan->'%(LogicalName)', ', ') — refusing to package" />
+		<!-- The files a flag MUST produce (contract perflean § 3.3: the lean out mode writes every file
+		     in scope): every stylesheet under html for the css flag, the three external js files for the
+		     js flag. A script that does not know a flag (an older strip-release.mjs) writes only
+		     spixi.tokens.css and exits 0, and this swap would then ship a half-lean package under a lean
+		     switch. Inline blocks of the html files are not counted here: GATE 1 with the same flags
+		     proves those. -->
+		<ItemGroup>
+			<_SpixiLeanMust Condition="'$(SpixiLeanCss)' == 'true'" Include="Resources\Raw\html\**\*.css" />
+			<_SpixiLeanMust Condition="'$(SpixiLeanJs)' == 'true'" Include="Resources\Raw\html\spixi.bundle.js;Resources\Raw\html\spixi.strings.js;Resources\Raw\html\spixi.icons.js" />
+			<_SpixiLeanMust LogicalName="html$([System.IO.Path]::DirectorySeparatorChar)%(RecursiveDir)%(Filename)%(Extension)" />
+			<_SpixiLeanMust Remove="@(_SpixiLeanFile)" MatchOnMetadata="LogicalName" />
+		</ItemGroup>
+		<Error Condition="'@(_SpixiLeanMust)' != ''" Text="Spixi lean packaging: strip-release.mjs$(SpixiLeanFlags) did not write @(_SpixiLeanMust->'%(LogicalName)', ', ') (does the script know these flags?) — refusing to package a half-lean build" />
+		<PropertyGroup>
+			<_SpixiLeanCount>@(_SpixiLeanFile->Count())</_SpixiLeanCount>
+			<_SpixiLeanAssetsBefore>@(MauiAsset->Count())</_SpixiLeanAssetsBefore>
+		</PropertyGroup>
+		<ItemGroup>
+			<MauiAsset Remove="@(_SpixiLeanFile)" MatchOnMetadata="LogicalName" />
+		</ItemGroup>
+		<PropertyGroup>
+			<_SpixiLeanAssetsKept>@(MauiAsset->Count())</_SpixiLeanAssetsKept>
+			<_SpixiLeanRemoved>$([MSBuild]::Subtract($(_SpixiLeanAssetsBefore), $(_SpixiLeanAssetsKept)))</_SpixiLeanRemoved>
+		</PropertyGroup>
+		<Error Condition="'$(_SpixiLeanRemoved)' != '$(_SpixiLeanCount)'" Text="Spixi lean packaging: $(_SpixiLeanCount) lean file(s) replaced $(_SpixiLeanRemoved) MauiAsset item(s) — a LogicalName is carried twice; refusing to package" />
+		<ItemGroup>
+			<MauiAsset Include="@(_SpixiLeanFile)" LogicalName="%(_SpixiLeanFile.LogicalName)" />
+		</ItemGroup>
+		<PropertyGroup>
+			<_SpixiLeanAssetsAfter>@(MauiAsset->Count())</_SpixiLeanAssetsAfter>
+		</PropertyGroup>
+		<Error Condition="'$(_SpixiLeanAssetsAfter)' != '$(_SpixiLeanAssetsBefore)'" Text="Spixi lean packaging: $(_SpixiLeanAssetsBefore) MauiAsset item(s) before the swap, $(_SpixiLeanAssetsAfter) after — refusing to package" />
+		<WriteLinesToFile File="$(_SpixiLeanStamp)" Lines="$(_SpixiLeanState)" Overwrite="true" />
+		<Message Importance="high" Text="Spixi: LEAN Release packaging applied (SpixiLeanCss=$(SpixiLeanCss), SpixiLeanJs=$(SpixiLeanJs), SpixiLeanCssFull=$(SpixiLeanCssFull); strip-release.mjs$(SpixiLeanFlags)) — $(_SpixiLeanCount) asset(s) swapped from $(SpixiLeanHtmlDir), every other asset as the tokens-only strip left it. This REPLACES the gate line above: GATE 1: node scripts/strip-release.mjs --check &lt;the DEPLOYED html folder&gt;$(SpixiLeanFlags) (never this obj dir, which holds only the lean files); GATE 2: node scripts/smoke-packaged.mjs$(SpixiLeanFlags). A DEV build (SpixiDevCoexist=$(SpixiDevCoexist)): no lean production-id package before the ruling of the lean defaults. Stamp $(_SpixiLeanStamp) = '$(_SpixiLeanState)': when a lean switch changes, delete Spixi\obj and Spixi\bin (and the publish folder) first, or the next build stops." />
 	</Target>
 	<Target Name="WindowsAppSdk_Issue_3843_Workaround_MsixContent" AfterTargets="AddMicrosoftWindowsAppSDKPayloadFiles">
 		<ItemGroup>

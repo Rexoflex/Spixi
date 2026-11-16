@@ -338,6 +338,438 @@ namespace SPIXI
             return leaf != null && PhotoRules.isPendingName(leaf) && leaf == tmpLeaf(i, j);
         }
 
+        // ═══ 3 · the file chats (filewalk, contract § 3.1) ═══
+        /* ★ filewalk seed — seed index 53, 54, 55 ("Seed 54" … "Seed 56", addressFor(i) like every seed contact), after the image chats:
+         *   53 = DOCUMENTS: 31 messages — 20 file rows (pdf docx xlsx pptx txt csv zip odt epub mp3, each kind once received and once
+         *        sent; 2 048 bytes … 5.9 MB, 24.47 MB in all) + 11 texts. No video row (#1607).
+         *   54 = VOICE: 30 messages — 16 INLINE voice rows (the app's standard text: VoiceCodec.humanLine + "\n" + encodeInline; 1–30 s;
+         *        8 received, 8 sent), 4 voice FILE rows (Ogg Opus by VoiceCodec.muxOgg; 2 received in Downloads/, 2 sent in Voice/) +
+         *        10 texts. Every Opus packet is the 3 bytes F8 FF FE (TOC config 31 = CELT 20 ms, code 0: ONE 20 ms frame, which
+         *        VoiceCodec.isOne20msFrame accepts; FF FE = a silent frame body) — 50 packets a second.
+         *   55 = PHOTOS: exactly MaxPlan = 100 messages — 96 photos (png(i, j, w, h), the image seed's size cycle; 48 received,
+         *        48 sent) + 4 texts.
+         * FIXED times like the image chats (the newest message of 53 / 54 / 55 = ImageAnchor − 3 h / − 4 h / − 5 h; GapSeconds before
+         * each earlier one). Names from the seed index, j and fixed words only; the bytes from (i, j) only; the temp leaf has its OWN
+         * salt ("filetmp:") so it never equals an image-seed temp; the content proof is the image seed's (fileState / fileAction /
+         * mayDelete). The folders: Sent/ (sent documents and photos: PhotoRules.sentFileName), Voice/ (sent voice files — the folder
+         * SingleChatPage.voiceFolder and Node's VoiceFolderSweep use; the app has no constant for its name, so VoiceFolderName below
+         * copies the literal), Downloads/ (every received file). */
+        public const int FileChatFirst = ImageChatFirst + ImageChats;   // seed index 53, 54, 55 → "Seed 54" … "Seed 56"
+        public const int FileChats = 3;
+        public const int DocChat = FileChatFirst;
+        public const int VoiceChat = FileChatFirst + 1;
+        public const int PhotoChat = FileChatFirst + 2;
+        public const string VoiceFolderName = "Voice";                  // SingleChatPage.xaml.cs:8603, Node.cs:379 — the same literal
+        public const int VoicePreSkip = VoiceCodec.DefaultPreSkip;      // the pre-skip SingleChatPage.sendVoiceFile passes to muxOgg (:8619)
+        public const int VoicePacketsPerSecond = 1000 / VoiceCodec.FrameMs;
+        public const long DocTotalMax = 25000000;                       // the documents of seed index 53 together (contract: ≤ 25 MB)
+
+        public const string KindText = "text";
+        public const string KindDoc = "doc";
+        public const string KindVoiceInline = "voice";
+        public const string KindVoiceFile = "voicefile";
+        public const string KindPhoto = "photo";
+        public const string FolderSent = "sent";
+        public const string FolderVoice = "voice";
+        public const string FolderDownloads = "downloads";
+
+        private static readonly string[] FileNames = { "Tjaša Kranjc", "Rok Mlinar", "Maja Debeljak" };
+
+        /* the documents of seed index 53: kind f % 10, the planned byte length of file f */
+        private static readonly string[] DocExts = { ".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".csv", ".zip", ".odt", ".epub", ".mp3" };
+        private static readonly long[] DocSizes = {
+            1200000, 48000, 230000, 5900000, 2100, 96000, 3000000, 31000, 760000, 4200000,
+            310000, 12500, 1050000, 2600000, 7800, 2048, 640000, 180000, 1900000, 2300000,
+        };
+
+        /* the voice durations of seed index 54, in seconds: the 16 inline rows, then the 4 file rows */
+        private static readonly int[] InlineSeconds = { 1, 4, 9, 2, 15, 25, 6, 12, 3, 20, 8, 27, 5, 11, 30, 17 };   // the longest = 30 s (VoiceCodec.MaxDurationMs, the recorder's limit)
+        private static readonly int[] VoiceFileSeconds = { 7, 14, 22, 29 };
+
+        private static readonly string[] DocLines = {
+            "Here are the files for the meeting.",
+            "Thanks, I will read them tonight.",
+            "The spreadsheet has the new numbers.",
+            "Can you send the slides too?",
+            "Sent. The last page is still a draft.",
+            "Got the archive, it opens fine.",
+            "Please check the notes before Friday.",
+            "Done. Two small changes on page three.",
+            "The audio is from the call.",
+            "Great, that helps a lot.",
+            "That is everything for now.",
+        };
+
+        private static readonly string[] VoiceLines = {
+            "Can you hear me now?",
+            "Yes, loud and clear.",
+            "I will send a longer one.",
+            "Easier than typing.",
+            "Sorry, I was driving.",
+            "No problem.",
+            "Listen to the second one.",
+            "Got it, thanks.",
+            "Call me later?",
+            "Sure, after six.",
+        };
+
+        private static readonly string[] PhotoLines = {
+            "Here are the photos from the weekend.",
+            "So many! Sending mine too.",
+            "The last ones are from Sunday.",
+            "Thanks, these are great.",
+        };
+
+        private static readonly byte[] VoicePacket = { 0xF8, 0xFF, 0xFE };
+
+        public sealed class FileMsg
+        {
+            public int j;                 // the message index: SDevSeed.messageIdFor(i, j)
+            public string kind = KindText;
+            public bool local;            // true = I sent it
+            public string text = "";      // a text row
+            public string ext = "";       // a document, photo or voice file: its extension
+            public long length;           // a document: its planned byte length
+            public int seconds;           // a voice row (inline or file): its duration
+            public int width;             // a photo
+            public int height;
+            public long ts;
+        }
+
+        public static bool isFileChat(int i)
+        {
+            return i >= FileChatFirst && i < FileChatFirst + FileChats;
+        }
+
+        /** The contact's name: "Seed 54 Tjaša Kranjc" (the "Seed NN " shape of every seed contact). */
+        public static string fileNick(int i)
+        {
+            if (!isFileChat(i))
+            {
+                throw new ArgumentOutOfRangeException(nameof(i));
+            }
+            return "Seed " + (i + 1).ToString("00", CultureInfo.InvariantCulture) + " " + FileNames[i - FileChatFirst];
+        }
+
+        /** Does the row carry a file on disk? (a document, a voice file, a photo) */
+        public static bool hasFile(FileMsg m)
+        {
+            return m.kind == KindDoc || m.kind == KindVoiceFile || m.kind == KindPhoto;
+        }
+
+        /** The messages of file chat `i`, oldest first, with their FIXED times. Empty for any other i. */
+        public static List<FileMsg> filePlan(int i)
+        {
+            List<FileMsg> l = new List<FileMsg>();
+            if (!isFileChat(i))
+            {
+                return l;
+            }
+            int k = i - FileChatFirst;
+            if (i == DocChat)
+            {
+                int t = 0;
+                for (int f = 0; f < DocSizes.Length; f++)
+                {
+                    if (f % 2 == 0)
+                    {
+                        l.Add(new FileMsg { j = l.Count, local = t % 2 == 1, text = DocLines[t] });
+                        t++;
+                    }
+                    l.Add(new FileMsg { j = l.Count, kind = KindDoc, local = f < 10 ? f % 2 == 1 : f % 2 == 0, ext = DocExts[f % DocExts.Length], length = DocSizes[f] });
+                }
+                l.Add(new FileMsg { j = l.Count, local = t % 2 == 1, text = DocLines[t] });
+            }
+            else if (i == VoiceChat)
+            {
+                int q = 0, inlineNo = 0, fileNo = 0;
+                for (int x = 0; x < 30; x++)
+                {
+                    if (x % 3 == 0)
+                    {
+                        l.Add(new FileMsg { j = x, local = (x / 3) % 2 == 1, text = VoiceLines[x / 3] });
+                        continue;
+                    }
+                    if (q % 5 == 2)
+                    {
+                        l.Add(new FileMsg { j = x, kind = KindVoiceFile, local = q % 2 == 1, ext = ".ogg", seconds = VoiceFileSeconds[fileNo++] });
+                    }
+                    else
+                    {
+                        l.Add(new FileMsg { j = x, kind = KindVoiceInline, local = q % 2 == 1, seconds = InlineSeconds[inlineNo++] });
+                    }
+                    q++;
+                }
+            }
+            else
+            {
+                int photoNo = 0, t = 0;
+                for (int j = 0; j < MaxPlan; j++)
+                {
+                    if (j % 25 == 12)
+                    {
+                        l.Add(new FileMsg { j = j, local = t % 2 == 1, text = PhotoLines[t] });
+                        t++;
+                        continue;
+                    }
+                    int s = (photoNo + 3 * (i - ImageChatFirst)) % SizeW.Length;   // the image seed's size cycle
+                    l.Add(new FileMsg { j = j, kind = KindPhoto, local = photoNo % 2 == 1, ext = ".png", width = SizeW[s], height = SizeH[s] });
+                    photoNo++;
+                }
+            }
+            // times: the newest = ImageAnchor − (3 + k) hours (fixed); each earlier one GapSeconds before — strictly increasing
+            long at = ImageAnchor - (3 + k) * 3600L;
+            for (int x = l.Count - 1; x >= 0; x--)
+            {
+                l[x].ts = at;
+                at -= GapSeconds;
+            }
+            return l;
+        }
+
+        /** The folder rule of a file row: a sent voice file → Voice/; a sent document or photo → Sent/; every received file →
+         *  Downloads/. "" for a row without a file. */
+        public static string folderOf(FileMsg m)
+        {
+            if (!hasFile(m))
+            {
+                return "";
+            }
+            if (!m.local)
+            {
+                return FolderDownloads;
+            }
+            return m.kind == KindVoiceFile ? FolderVoice : FolderSent;
+        }
+
+        /** The file's name in its header row: a document or photo "devseed-54-003.pdf" (seed number, j, the extension); a voice
+         *  file the app's own voice name for the row's FIXED time, VoiceCodec.voiceFileName (UTC) — never the clock. */
+        public static string fileName(int i, FileMsg m)
+        {
+            if (m.kind == KindVoiceFile)
+            {
+                return VoiceCodec.voiceFileName(DateTimeOffset.FromUnixTimeSeconds(m.ts).UtcDateTime);
+            }
+            return FileTag + "-" + (i + 1).ToString("00", CultureInfo.InvariantCulture) + "-" + m.j.ToString("000", CultureInfo.InvariantCulture) + m.ext;
+        }
+
+        /** The leaf C# writes: a SENT document or photo → "<transferUid><ext>" (Sent/, PhotoRules.sentFileName's shape); every other
+         *  file → fileName (a received document or photo in Downloads/; a voice file, sent in Voice/ or received in Downloads/). */
+        public static string fileLeaf(int i, FileMsg m)
+        {
+            return m.local && m.kind != KindVoiceFile ? transferUid(i, m.j) + m.ext : fileName(i, m);
+        }
+
+        /** Is the leaf the shape the app's OWN rule builds for its folder? Sent/ → PhotoRules.sentFileName (an allow-listed
+         *  extension, the 32-hex uid); Voice/ or a received voice file → VoiceCodec.isVoiceFileName; a received document or photo →
+         *  the plan's name, unchanged by the receive sanitizer, with an allow-listed extension. Fail closed. */
+        public static bool leafShapeOk(int i, FileMsg m, string? leaf)
+        {
+            if (leaf == null || !hasFile(m) || leaf != fileLeaf(i, m) || PhotoRules.sentExtension(leaf) != m.ext || m.ext.Length == 0)
+            {
+                return false;
+            }
+            string folder = folderOf(m);
+            if (folder == FolderSent)
+            {
+                return PhotoRules.sentFileName(transferUid(i, m.j), m.ext) == leaf && PhotoRules.isSentCopyName(leaf);
+            }
+            if (m.kind == KindVoiceFile)
+            {
+                return VoiceCodec.isVoiceFileName(leaf);
+            }
+            return folder == FolderDownloads && PhotoRules.SafeFileName(leaf) == leaf && !PhotoRules.isVideoName(leaf);
+        }
+
+        /** The text of a row without a file: a text row its line; an INLINE voice row the app's own standard text
+         *  (SingleChatPage: humanLine(durMs) + "\n" + encodeInline(packets)). */
+        public static string rowText(FileMsg m)
+        {
+            if (m.kind == KindVoiceInline)
+            {
+                List<byte[]> p = voicePackets(m.seconds);
+                string? payload = VoiceCodec.encodeInline(p);
+                if (payload == null)
+                {
+                    throw new InvalidOperationException("voice inline");
+                }
+                return VoiceCodec.humanLine(p.Count * VoiceCodec.FrameMs) + "\n" + payload;
+            }
+            return m.text;
+        }
+
+        /** `seconds` × 50 Opus packets, each the 3 bytes F8 FF FE (one 20 ms frame). 1..30 s (≤ VoiceCodec.MaxDurationMs, the recorder's limit). */
+        public static List<byte[]> voicePackets(int seconds)
+        {
+            if (seconds < 1 || seconds * 1000 > VoiceCodec.MaxDurationMs)
+            {
+                throw new ArgumentOutOfRangeException(nameof(seconds));
+            }
+            List<byte[]> l = new List<byte[]>();
+            for (int n = 0; n < seconds * VoicePacketsPerSecond; n++)
+            {
+                l.Add((byte[])VoicePacket.Clone());
+            }
+            return l;
+        }
+
+        /** The Ogg stream serial of a voice file: 4 bytes of a hash of the seed index and j (the app uses a random one). */
+        public static uint oggSerial(int i, int j)
+        {
+            byte[] h = SHA256.HashData(Encoding.UTF8.GetBytes(Salt + "ogg:" + i + ":" + j));
+            return (uint)(h[0] | (h[1] << 8) | (h[2] << 16) | (h[3] << 24));
+        }
+
+        /** The exact length of VoiceCodec.muxOgg for `packets` packets of 3 bytes: OpusHead page (27 + 1 + 19) + OpusTags page
+         *  (27 + 1 + 21) + one page header per 255 packets + one lacing byte and 3 bytes per packet. */
+        public static long oggLength(int packets)
+        {
+            long pages = (packets + 254) / 255;
+            return 47 + 49 + 27 * pages + 4L * packets;
+        }
+
+        /** The head line of a document: "Spixi developer seed file 54:003\n" (ASCII). */
+        public static byte[] docHead(int i, int j)
+        {
+            return Encoding.ASCII.GetBytes("Spixi developer seed file " + (i + 1).ToString("00", CultureInfo.InvariantCulture) + ":" + j.ToString("000", CultureInfo.InvariantCulture) + "\n");
+        }
+
+        /** A document's bytes: the head line, then a SHA-256 counter-mode filler from (i, j) to `length` bytes. */
+        public static byte[] docBytes(int i, int j, long length)
+        {
+            byte[] head = docHead(i, j);
+            if (length < head.Length || length > PhotoRules.MaxReceiveBytes)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length));
+            }
+            byte[] o = new byte[length];
+            Array.Copy(head, 0, o, 0, head.Length);
+            byte[] key = Encoding.UTF8.GetBytes(Salt + "doc:" + i + ":" + j + ":");
+            byte[] block = new byte[key.Length + 8];
+            Array.Copy(key, 0, block, 0, key.Length);
+            byte[] h = new byte[32];
+            long at = head.Length;
+            long c = 0;
+            while (at < length)
+            {
+                for (int b = 0; b < 8; b++)
+                {
+                    block[key.Length + b] = (byte)(c >> (56 - 8 * b));
+                }
+                SHA256.HashData(new ReadOnlySpan<byte>(block), new Span<byte>(h));
+                int n = (int)Math.Min(32, length - at);
+                Array.Copy(h, 0, o, at, n);
+                at += n;
+                c++;
+            }
+            return o;
+        }
+
+        /** The exact byte length of fileBytes(i, m) — pure, so the content proof skips the read of a file of another length. */
+        public static long fileLength(FileMsg m)
+        {
+            if (m.kind == KindDoc)
+            {
+                return m.length;
+            }
+            if (m.kind == KindVoiceFile)
+            {
+                return oggLength(m.seconds * VoicePacketsPerSecond);
+            }
+            if (m.kind == KindPhoto)
+            {
+                return pngLength(m.width, m.height);
+            }
+            throw new ArgumentOutOfRangeException(nameof(m));
+        }
+
+        /** The deterministic bytes of a file row: a document docBytes · a voice file VoiceCodec.muxOgg(F8 FF FE × n, the app's
+         *  pre-skip, oggSerial) · a photo png. */
+        public static byte[] fileBytes(int i, FileMsg m)
+        {
+            if (m.kind == KindDoc)
+            {
+                return docBytes(i, m.j, m.length);
+            }
+            if (m.kind == KindVoiceFile)
+            {
+                return VoiceCodec.muxOgg(voicePackets(m.seconds), VoicePreSkip, oggSerial(i, m.j));
+            }
+            if (m.kind == KindPhoto)
+            {
+                return png(i, m.j, m.width, m.height);
+            }
+            throw new ArgumentOutOfRangeException(nameof(m));
+        }
+
+        /** The fileHeader text, as the app stores it: a sent row "uid:name", a received row "uid:name:size". */
+        public static string fileHeaderText(int i, FileMsg m)
+        {
+            string head = transferUid(i, m.j) + ":" + fileName(i, m);
+            return m.local ? head : head + ":" + fileLength(m).ToString(CultureInfo.InvariantCulture);
+        }
+
+        /** The temp leaf of a file-chat file: the app's own pending name in Sent/ (as tmpLeaf) with its OWN salt "filetmp:", so it
+         *  never equals an image-seed temp. */
+        public static string fileTmpLeaf(int i, int j)
+        {
+            string? leaf = PhotoRules.pendingFileName(hex(SHA256.HashData(Encoding.UTF8.GetBytes(Salt + "filetmp:" + i + ":" + j)), 8), 0, ".src");
+            if (leaf == null)
+            {
+                throw new InvalidOperationException("tmp leaf");
+            }
+            return leaf;
+        }
+
+        /** ★ #46 r1 C-S-1: is file chat `i` complete in this list of ids? The seed writes a chat OLDEST first, so its NEWEST planned id
+         *  present = every row was written. Core's own refusal of a known id (FriendList.cs:258) sees only the in-memory list, which
+         *  after the chat page's loadMessages holds about 51 rows — NOT MaxPlan — so a top-up of a 100-message chat cannot rely on it;
+         *  a complete chat is skipped instead. False for any other i and for an empty list. */
+        public static bool chatComplete(IEnumerable<byte[]?> presentIds, int i)
+        {
+            List<FileMsg> l = filePlan(i);
+            if (l.Count == 0 || presentIds == null)
+            {
+                return false;
+            }
+            byte[] newest = messageIdFor(i, l[l.Count - 1].j);
+            foreach (byte[]? id in presentIds)
+            {
+                if (id != null && id.Length == newest.Length && isOurs(id, newest))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public const string TopUpWrite = "write";      // ★ #46 r2 B2-5: a present file chat with an EMPTY Core list (never written)
+        public const string TopUpSkip = "skip";        //   — the plan's newest row is there (a refused middle row is not claimed complete)
+        public const string TopUpPartial = "partial";  //   — rows there, the newest absent, or the list unreadable: no write (#1571)
+
+        /** ★ #46 r2 B2-5: what the seed does with a PRESENT file chat, given the ids of Core's in-memory list (null = unreadable). Never a
+         *  top-up through Core's ~51-row window (it would store the older rows twice): EMPTY → write; newest present → skip; anything
+         *  else → partial (fail closed: "Remove the seed, then Seed"). */
+        public static string topUpAction(IReadOnlyCollection<byte[]?>? presentIds, int i)
+        {
+            if (presentIds == null || filePlan(i).Count == 0)
+            {
+                return TopUpPartial;
+            }
+            if (presentIds.Count == 0)
+            {
+                return TopUpWrite;
+            }
+            return chatComplete(presentIds, i) ? TopUpSkip : TopUpPartial;
+        }
+
+        /** The unseed (and a failed write) deletes a file-chat temp leaf only when it is exactly the one this plan builds for (i, j)
+         *  AND has the app's pending-name shape; the caller joins it to the Sent/ folder only. */
+        public static bool mayDeleteFileTmp(string? leaf, int i, int j)
+        {
+            return leaf != null && isFileChat(i) && PhotoRules.isPendingName(leaf) && leaf == fileTmpLeaf(i, j);
+        }
+
         // ═══ the PNG ═══
         private static readonly byte[] Signature = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
         private const int StoredMax = 65535;              // one stored deflate block

@@ -1,0 +1,33 @@
+Main chat 2026-11-16: WALK 1610 and rulings as DECISIONS rows (1598-1611)
+
+Docs only. No file under src/, Spixi/, scripts/ or .github/ is changed.
+
+- DECISIONS 1598-1599 (2026-11-15): records of Damir's two rulings in work
+  session Speed lean (the review readers of rounds 3 to 5; the park of the
+  JS comment strip).
+- DECISIONS 1600: the record of the phone tests for the slow phone. A second
+  heavy seed is not the cause and a restart is not the cause; a new install
+  brought the cold start back to about 2.2 s.
+- DECISIONS 1601 and 1607: chats with files get a device number (developer
+  seed rows and walk steps), and the scope of that batch.
+- DECISIONS 1602 and 1611: the four switches of speed batch 1a are kept;
+  sparekeep becomes ON by default (a later change).
+- DECISIONS 1603: one small fix batch before the launch with five changes.
+- DECISIONS 1604: the chat backgrounds get a render of all appearances in
+  both themes; Damir picks the dials.
+- DECISIONS 1605: the JS comment strip stays parked until the phone numbers
+  of the CSS strip.
+- DECISIONS 1606: the standing rule for review readers (Fable 5.2 for the
+  security-only pass and the riskiest file, Opus for the other readers).
+- DECISIONS 1608: no Split at the launch.
+- DECISIONS 1609: the cold start gets a read-only research session first.
+- DECISIONS 1610: WALK 1610, speed batch 1a and its toggle on Android and
+  Windows: 25 P, 0 F, 1 N/A (26 rows of docs/walk-perfb1.md).
+
+The status cells of rows 1571 and 1583 are extended (the old text stays).
+
+All fourteen rows are placed after row 1597 and before row 1550, so that a
+work branch that adds rows at the end of the file merges without a conflict.
+
+Not changed here: CLAUDE.md and the rule texts (rows 1546 and 1606 change
+them in the docs batch).

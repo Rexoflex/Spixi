@@ -57,8 +57,14 @@
        (ThemeManager) - a user who picks an explicit in-app theme that disagrees
        with the OS gets a dialog following the OS, not the app; a static style
        cannot read the runtime pick. ThemeAppearance.automatic (the default)
-       matches exactly. -->
+       matches exactly.
+       ★ fixb1 item 2 (P53, #1645): the one fixed accent #3050BD was about 1.4 : 1 on the dark
+       DayNight surface (#424242), so the button texts were hard to read. The accent is now the
+       resource spixiDialogAccent (brand-600 by day, brand-300 in values-night); the -night
+       qualifier and the DayNight surface follow the same OS mode, so they always agree.
+       Both attribute spellings, as for alertDialogTheme above. -->
   <style name="SpixiAlertDialog" parent="Theme.AppCompat.DayNight.Dialog.Alert">
-    <item name="colorAccent">#3050BD</item>
+    <item name="colorAccent">@color/spixiDialogAccent</item>
+    <item name="android:colorAccent">@color/spixiDialogAccent</item>
   </style>
 </resources>

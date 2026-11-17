@@ -30,6 +30,7 @@ public static class MauiProgram
 
     public static MauiApp CreateMauiApp()
     {
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.MauiIn);   // ★ coldstart1 (#1680)
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
@@ -201,6 +202,7 @@ public static class MauiProgram
 #endif
             });
 
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.MauiBuild);   // ★ coldstart1 (#1680)
         return builder.Build();
     }
 }

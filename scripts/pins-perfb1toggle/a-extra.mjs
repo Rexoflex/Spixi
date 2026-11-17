@@ -233,7 +233,8 @@ export default async function (h) {
     const ni = span(MA, 'protected override void OnNewIntent(Intent? intent)');
     const callAt = (b, s) => (b.start < 0 ? -1 : b.start + b.text.indexOf(s));
     const sha = (b) => (b.end > 0 ? createHash('sha256').update(MAraw.slice(b.start, b.end), 'utf8').digest('hex') : 'absent');
-    const OC_FROZEN = '92c0f7a92747b22542945288898b3b8ae4eed09bb8e8f8ffd8cb41a11f1cd6f9', NI_FROZEN = '96273af77d8e2cf5c34d26d9c543be2e1cd9500e7b017db80c3388f57d45cd5c';
+    // ★ coldstart1 (#1680, #1596): re-based after a look at the diff — the only change in OnCreate is 5 inserted mark lines (ActIn, ActBase, coldDraw, ActHold, ActOut); nothing else moved (base 92c0f7a9…); round 1 (F1): the coldDraw line now passes `this` (`SPIXI.P1Perf.coldDraw(this);`, the decor is read inside the dev body) — the only change since the first re-base, read over `git diff Spixi/Platforms/Android/MainActivity.cs`
+    const OC_FROZEN = '34da99dbc5e500f305806a0c7d288ac77d924c62a13ef9c5fbb3199031f947af', NI_FROZEN = '96273af77d8e2cf5c34d26d9c543be2e1cd9500e7b017db80c3388f57d45cd5c';
     const c = {
       onCreateBody: sha(oc) === OC_FROZEN,
       onNewIntentBody: sha(ni) === NI_FROZEN,

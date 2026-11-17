@@ -37,6 +37,7 @@ public class MainApplication : MauiApplication
 	 * Fenced: a throw here would take the whole app down before it started. */
 	public override void OnCreate()
 	{
+		SPIXI.P1Perf.cold(SPIXI.ColdMark.AppIn);   // ★ coldstart1 (#1680)
 		/* ★ F5-2 (#555) — CRASH DIAGNOSTIC. Removing a bot group killed the app on
 		 * Android and ixian.log holds NOTHING (aftercrash.txt starts after the
 		 * restart). The AppDomain hook in App.xaml.cs sees only .NET exceptions.
@@ -101,7 +102,9 @@ public class MainApplication : MauiApplication
 			// no estimate is better than no app — the listener publishes the real value
 		}
 
+		SPIXI.P1Perf.cold(SPIXI.ColdMark.BaseIn);   // ★ coldstart1 (#1680)
 		base.OnCreate();
+		SPIXI.P1Perf.cold(SPIXI.ColdMark.BaseOut);   // ★ coldstart1 (#1680)
 
 		/* ★★ #493 (#483) — THE POINT OF THIS WHOLE LANE, and it is three lines.
 		 *
@@ -131,6 +134,7 @@ public class MainApplication : MauiApplication
 		{
 			// The belt in SPushService.initialize() re-tries at node start.
 		}
+		SPIXI.P1Perf.cold(SPIXI.ColdMark.AppOut);   // ★ coldstart1 (#1680)
 	}
 
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();

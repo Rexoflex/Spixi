@@ -231,8 +231,9 @@ export default async function (h) {
        ★ V1A-M re-base: + the v1ixihelp and v1hints lines (pins-v1am/c-csharp)
        ★ S20I re-base: + the s20addrhelp line (P32; executed in csh S20ITests.flag_line_through_the_real_init)
        ★ Session Safety re-base: + the ONE safety line (P33–P37; executed in csh SafetyRulesTests.flags_line_and_dev_arg)
-       ★ perfb1 re-base: + the ONE line of the four speed switches (P38–P41; executed in csh PerfB1FlagsTests.init_defaults; pins-perfb1/f-flags) */
-    oneLine: (init.match(/Logging\.info\(/g) || []).length === 10 && /Logging\.info\(PerfB1Rules\.flagsLine\(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail\)\);/.test(init) && /Logging\.info\(SafetyRules\.flagsLine\(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker\)\);/.test(init) && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
+       ★ perfb1 re-base: + the ONE line of the four speed switches (P38–P41; executed in csh PerfB1FlagsTests.init_defaults; pins-perfb1/f-flags)
+       ★ fixb1 re-base: + the ONE fixb1 line (P50 / P51; executed in csh FixB1Tests.new_flags_defaults_and_dev_mode; pins-fixb1/g-sparekeep) */
+    oneLine: (init.match(/Logging\.info\(/g) || []).length === 11 && /Logging\.info\(FixB1Rules\.flagsLine\(ConfirmSafeDefault, DividerHoverLine\)\);/.test(init) && /Logging\.info\(PerfB1Rules\.flagsLine\(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail\)\);/.test(init) && /Logging\.info\(SafetyRules\.flagsLine\(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker\)\);/.test(init) && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
       && /Logging\.info\(S17Rules\.flagLine\(S17Bridge\)\);/.test(init) && /Logging\.info\(S17MomentRules\.flagLine\(S17Moments\)\);/.test(init)
       && /Logging\.info\(S11MediaRules\.fileSizeFlagLine\(S20FileSize\)\);/.test(init) && /Logging\.info\(S20GRules\.flagLine\(S20G\)\);/.test(init) && !/DtTitleBar/.test(init)
       && /Logging\.info\(V1AMRules\.flagLineIxiHelp\(V1IxiHelp\)\);/.test(init) && /Logging\.info\(V1AMRules\.flagLineHints\(V1Hints\)\);/.test(init)

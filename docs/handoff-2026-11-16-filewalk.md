@@ -86,3 +86,6 @@ cd "C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi"; git fetch or
 cd "C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi"; git switch work/filewalk
 ```
 Then the status doc's steps. After the merge: `git switch redesign/frontend`, then `git pull`.
+
+## 8 · The operator block of 2026-11-17 (#1674)
+Ran with Damir at the A52s: build of `20ada92` (the first Android compile of `SDevSeed.cs` succeeded), install run `20261117-1716`, the seed, the three local keys, three calibrate runs (`…-1728`, `…-1732`, `…-1739`), the map commit `fcc247f`, two runs `20261117-1742` / `20261117-1747` (31 / 33 rows agree by #1530; the voice-chat open differs). `downloads` stays no data: the Downloads row is below the first screen of the Account hub. Numbers: project doc `claude/device-numbers-2026-11-17-filewalk.md`. The PC clone is back on `redesign/frontend` (behind its origin by 7: `git pull` there when Damir wants).

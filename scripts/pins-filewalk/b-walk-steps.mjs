@@ -21,8 +21,12 @@
  *                        list the masks read ($script:Seeds), never printed raw
  *   b5  gaps           — a missing a52s key is a gap: Get-StepGap names taps.photoTile, taps.accountDownloads, screens.viewer,
  *                        screens.downloads (simulated); a missing local key names the key; the gap is read before any input
- *   b6  a52sUnchanged  — a52s.json has none of the four new keys and is byte-identical to the base (SHA-256). The operator block fills the
- *                        four keys after the calibrate run: that edit re-bases THIS key (a52s.json is not in pins-perfb1toggle/b-walk)
+ *   b6  a52sCalibrated — a52s.json is byte-identical to the calibrated file (SHA-256): the operator block of 2026-11-17 added
+ *                        taps.photoTile and screens.viewer (calibrate runs 20261117-1728 / -1732; proven 4 / 4 on cal-15 in 20261117-1739);
+ *                        taps.accountDownloads and screens.downloads stay ABSENT (the Downloads row is below the first screen of the
+ *                        Account hub at the phone's viewport, a render of the built shell: one tap cannot reach it), so the real
+ *                        file gives `viewer` no gap and `downloads` the gap taps.accountDownloads. A later edit re-bases THIS key
+ *                        (a52s.json is not in pins-perfb1toggle/b-walk)
  *   b7  failClosed     — a failed gate of `downloads` (and of `viewer`) sends no second input: Invoke-FileReset (a proven restart, no tap)
  *                        is the first and only action of the catch block; the gate counts exactly one send line and at least one frames
  *                        line; the order after the gate (Downloads check, scroll base, chatNewer / chatOlder, pull wait, pull, BACK, Chats tap)
@@ -301,18 +305,20 @@ export default async function (h) {
   ok(F(b5).length === 0,
     '★ filewalk walk steps (b5 gaps): a missing a52s.json key is a gap read before any input — Get-StepGap (simulated over the need list of the script and the real a52s.json) names taps.photoTile and screens.viewer for `viewer`, taps.accountDownloads and screens.downloads for `downloads`; a missing local key names fileChatAddress / voiceChatAddress / photoChatAddress; Invoke-Step skips every rep with the gap before Invoke-RepBody — failing: ' + JSON.stringify(F(b5)));
 
-  /* ── b6 · a52s.json: none of the four new keys, byte-identical to the base ── */
-  const BASE_A52_SHA = 'af927945f2ad2d57332126ee07bec1262ef7c50887cd59d9baa7632d6f494e9c';
+  /* ── b6 · a52s.json: the calibrated file (photoTile + viewer; the two Downloads keys stay absent) ── */
+  const CAL_A52_SHA = 'c69474965f8f28aefa5c49314c36082e935f6a241abee1b9f56701228240f43f';
   const b6 = {
     found: !!cfgReal.taps,
-    sha: sha(A52) === BASE_A52_SHA,
-    tapKeys: Object.keys(cfgReal.taps || {}).join() === 'chatRow1,chatHeader,tabChats,tabApps,tabWallet,tabAccount',
-    screenKeys: Object.keys(cfgReal.screens || {}).join() === 'home,chat,chatinfo',
-    noNewKeys: !/photoTile|accountDownloads|"viewer"|"downloads"/.test(A52),
+    sha: sha(A52) === CAL_A52_SHA,
+    tapKeys: Object.keys(cfgReal.taps || {}).join() === 'chatRow1,chatHeader,tabChats,tabApps,tabWallet,tabAccount,photoTile',
+    screenKeys: Object.keys(cfgReal.screens || {}).join() === 'home,chat,chatinfo,viewer',
+    noDownloadsKeys: !/accountDownloads|"downloads"/.test(A52),
     swipeKeys: Object.keys(cfgReal.swipes || {}).join() === 'chatOlder,chatNewer,historyOlder',
+    realViewerNoGap: gapOf('viewer', cfgReal, true) === '',
+    realDownloadsGap: gapOf('downloads', cfgReal, true) === 'a52s.json has no taps.accountDownloads',
   };
   ok(F(b6).length === 0,
-    '★ filewalk walk steps (b6 a52sUnchanged): scripts/device/a52s.json has none of taps.photoTile, taps.accountDownloads, screens.viewer, screens.downloads (they come from the calibrate run of the operator block) and is byte-identical to the base (SHA-256 af927945…) — that edit re-bases this key — failing: ' + JSON.stringify(F(b6)));
+    '★ filewalk walk steps (b6 a52sCalibrated): scripts/device/a52s.json is the calibrated file (SHA-256 c6947496…): taps.photoTile and screens.viewer from the calibrate runs of 2026-11-17, taps.accountDownloads and screens.downloads absent (the Downloads row is below the first screen of the Account hub) — the real file gives `viewer` no gap and `downloads` the gap taps.accountDownloads; a later edit re-bases this key — failing: ' + JSON.stringify(F(b6)));
 
   /* ── b7 · a failed gate sends no second input: Invoke-FileReset (restart only) first and only ── */
   const matchStm = (x, p) => (typeof p === 'string' ? x === p : p.test(x));

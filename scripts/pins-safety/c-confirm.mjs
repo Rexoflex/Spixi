@@ -14,7 +14,9 @@
  *   DEV     — dev.html setFlagsDevSafety: six switches named = SafetyRules.DevSwitchNames, a click sends
  *             ixian:devflash:<name>:<0|1>, a malformed push is ignored; DevPage maps the six names to the six keys in order and
  *             pushes setFlagsDevSafety after setFlagsDevV1.
- * Deliberate breaks: the mutation sets C1–C19, R2M1–R2M8, R4a–c, R5a–c (docs/review-brief-safety.md §5) — all caught. */
+ * Deliberate breaks: the mutation sets C1–C19, R2M1–R2M8, R4a–c, R5a–c (docs/review-brief-safety.md §5) — all caught.
+ * re-based by fixb2 item 4 (SConfirm.cs holds ONE new Windows-only entry, askPlainSafeWinAsync, with two fixed log lines: `"[CONFIRM] plain busy"` and the type-name warn
+ * askAsync already has) — `logsFixed`: 5 → 7 lines, the one new fixed text allowed; askAsync's keys unchanged (pins-fixb2/d-pay-confirm ENTRY holds the entry). */
 import { b2Kit } from '../pins-s9/b2-kit.mjs';
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, readdirSync, join, sleep } = h;
@@ -118,7 +120,7 @@ export default async function (h) {
     refusesOverOthers: /if \(lockUp\(\)\)\s*\{\s*Logging\.info\(SafetyRules\.confirmLine\(verb, "busy"\)\);\s*return false;\s*\}/.test(ask) && before(ask, 'if (lockUp())', 'page.displaySpixiAlert(') && /yes = dialog != null && await dialog;\s*if \(yes && lockUp\(\)\)\s*\{\s*yes = false;/.test(ask)
       && /private static bool lockUp\(\) => \(Application\.Current as global::Spixi\.App\)\?\.isAppLockActive == true;/.test(SF),
     logsFixed: (() => { const L = [...SF.matchAll(/Logging\.(info|warn|error)\(([^;]*)\);/g)].map((m) => m[2]);
-      return L.length === 5 && L.every((a) => /^SafetyRules\.confirmLine\(verb, (?:"busy"|"fast"|yes \? "ok" : "cancel")\)$/.test(a) || a === '"[CONFIRM] the dialog failed (" + ex.GetType().Name + ")"'); })(),
+      return L.length === 7 && L.every((a) => /^SafetyRules\.confirmLine\(verb, (?:"busy"|"fast"|yes \? "ok" : "cancel")\)$/.test(a) || a === '"[CONFIRM] the dialog failed (" + ex.GetType().Name + ")"' || a === '"[CONFIRM] plain busy"'); })(),   // ★ re-based by fixb2 item 4: + the entry's two fixed lines
     /* ★ #46 r4 (MINOR-1): an OK faster than SafetyRules.MinConfirmMs after the ask = Cancel (a timed double tap) */
     /* ★ fixb1 item 1 re-base (#1596): between `asked` and today's call sits the Windows-only arm (SpixiFlags.ConfirmSafeDefault ?
        showSafeDefaultConfirm(…) : today's call) — `asked` is still taken right before the dialog on both paths (pins-fixb1/a-confirm) */

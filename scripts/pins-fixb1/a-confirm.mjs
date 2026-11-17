@@ -42,6 +42,17 @@
  *             stripped; `^\s*#\s*\w+`): the rules the confirm and the flags lean on have one body on every platform, the one the harness runs.
  *   PERIMETER — ★ #46 r4 (R4-1 / R4-2): SafetyRules.cs, ConfirmGate.cs, S16PassRules.cs each WHOLE by SHA-256 of the exact bytes (the design answer: freeze whole,
  *             not more patterns); NOARMS stays. FILE and RULES hash the exact bytes too (one rule for the batch; the files are LF today).
+ * re-based by fixb2 item 3 (the Windows confirm's focus step: ONE `dialog.Opened += (s, e) => winFocusCancel(dialog, true);` line in the body
+ *             before ShowAsync, two new members winFocusCancel + winFindButton in the helper block; the non-Windows view unchanged) —
+ *             FILE hash, BODY text and the helper-member list (onlyKnownMembers) re-based; the item-3 step is held by pins-fixb2/a-confirm-focus.
+ * re-based by fixb2 item 3 (Q-1 scroll): the dialog Content is a ScrollViewer (vertical Auto, horizontal Disabled, IsTabStop false,
+ *             AllowFocusOnInteraction false) holding the same wrapping TextBlock — FILE hash, the BODY text and DIALOG dialogShape re-based;
+ *             the viewer is held by pins-fixb2/a-confirm-focus SCROLL.
+ * re-based by fixb2 item 4 (ONE new Windows-only member in the helper block, `internal static async Task<bool> askPlainSafeWinAsync(title, text, ok, cancel)` — the entry of the
+ *             payment confirm and the three mini-app confirms: the gate, then showSafeDefaultConfirm, every fault = false; two fixed log lines; askAsync, the dialog body and the
+ *             non-Windows view unchanged) — FILE hash, the helper-member list (onlyKnownMembers) and the Logging count of `noLog` (5 → 7) re-based; held by pins-fixb2/d-pay-confirm.
+ * re-based by fixb2 #46 r1 (comment path): ONE comment of SConfirm.cs — the mechanism of the item-3 focus step is cited as `docs/fixb2-mechanisms.md § Item 3` instead of a
+ *             work-copy file name; no code token changed (the stripped keys of this module are unchanged) — FILE hash only.
  * Deliberate breaks (#802): fixb1 builder-a report — DefaultButton = Primary → red `defaultClose`; CloseButtonText = ok → red
  * `closeIsCancel`; `confirmIsOk((int)result)` → `result != 0` → red `answerByRule`; the `#if WINDOWS` around the helpers moved
  * below the first helper → red `windowsOnly`; a stray `;` outside `#if WINDOWS` → red `sameElsewhere`; the Windows OFF arm
@@ -149,13 +160,13 @@ export default async function (h) {
     closeIsCancel: /CloseButtonText = cancel,/.test(dlg) && count(dlg, 'CloseButtonText') === 1,
     defaultClose: /DefaultButton = Microsoft\.UI\.Xaml\.Controls\.ContentDialogButton\.Close,/.test(dlg) && count(dlg, 'DefaultButton') === 1,
     noSecondary: !/SecondaryButton|IsPrimaryButtonEnabled\s*=\s*true|PrimaryButtonClick|CloseButtonClick/.test(dlg),
-    dialogShape: /var dialog = new Microsoft\.UI\.Xaml\.Controls\.ContentDialog\s*\{\s*Title = title,\s*Content = new Microsoft\.UI\.Xaml\.Controls\.TextBlock \{ Text = text, TextWrapping = Microsoft\.UI\.Xaml\.TextWrapping\.Wrap \},\s*PrimaryButtonText = ok,\s*CloseButtonText = cancel,\s*DefaultButton = Microsoft\.UI\.Xaml\.Controls\.ContentDialogButton\.Close,\s*XamlRoot = root\s*\};/.test(dlg),
+    dialogShape: /var dialog = new Microsoft\.UI\.Xaml\.Controls\.ContentDialog\s*\{\s*Title = title,\s*Content = new Microsoft\.UI\.Xaml\.Controls\.ScrollViewer\s*\{\s*VerticalScrollBarVisibility = Microsoft\.UI\.Xaml\.Controls\.ScrollBarVisibility\.Auto,\s*HorizontalScrollBarVisibility = Microsoft\.UI\.Xaml\.Controls\.ScrollBarVisibility\.Disabled,\s*IsTabStop = false,\s*AllowFocusOnInteraction = false,\s*Content = new Microsoft\.UI\.Xaml\.Controls\.TextBlock \{ Text = text, TextWrapping = Microsoft\.UI\.Xaml\.TextWrapping\.Wrap \}\s*\},\s*PrimaryButtonText = ok,\s*CloseButtonText = cancel,\s*DefaultButton = Microsoft\.UI\.Xaml\.Controls\.ContentDialogButton\.Close,\s*XamlRoot = root\s*\};/.test(dlg),   // ★ re-based by fixb2 item 3 (Q-1 scroll)
     answerByRule: /Microsoft\.UI\.Xaml\.Controls\.ContentDialogResult result = await dialog\.ShowAsync\(\);\s*tcs\.TrySetResult\(FixB1Rules\.confirmIsOk\(\(int\)result\)\);\s*\}\s*catch \(Exception ex\)\s*\{\s*tcs\.TrySetException\(ex\);\s*\}/.test(dlg)
       && count(dlg, 'TrySetResult(') === 2 && !/TrySetResult\(true|TrySetResult\(!|TrySetCanceled/.test(dlg) && count(dlg, 'ShowAsync(') === 1,
     styleNeverThrows: /^\{\s*try\s*\{\s*var res = Microsoft\.UI\.Xaml\.Application\.Current\?\.Resources;\s*if \(res != null && res\.TryGetValue\("DefaultContentDialogStyle", out object\? st\)\)\s*\{\s*return st as Microsoft\.UI\.Xaml\.Style;\s*\}\s*\}\s*catch \(Exception\)\s*\{\s*\}\s*return null;\s*\}$/.test(sty)
       && /Microsoft\.UI\.Xaml\.Style\? style = winDialogStyle\(\);\s*if \(style != null\)\s*\{\s*dialog\.Style = style;\s*\}/.test(dlg),
     xamlRootOrder: /^\{\s*var app = Application\.Current;\s*if \(app\?\.MainPage\?\.Handler\?\.PlatformView is Microsoft\.UI\.Xaml\.UIElement el && el\.XamlRoot != null\)\s*\{\s*return el\.XamlRoot;\s*\}\s*if \(app != null && app\.Windows\.Count > 0 && app\.Windows\[0\]\.Handler\?\.PlatformView is Microsoft\.UI\.Xaml\.Window w\s*&& w\.Content\?\.XamlRoot != null\)\s*\{\s*return w\.Content\.XamlRoot;\s*\}\s*return null;\s*\}$/.test(xr),
-    noLog: !/Logging\./.test(dlg + xr + sty) && count(SC, 'Logging.') === 5,
+    noLog: !/Logging\./.test(dlg + xr + sty) && count(SC, 'Logging.') === 7,   // ★ re-based by fixb2 item 4: + the entry's two fixed lines (pins-fixb2/d-pay-confirm ENTRY)
     noTimer: !/Task\.Delay|Timer|TickCount|CancellationToken/.test(dlg + xr + sty),
   };
   ok(F(dg).length === 0,
@@ -172,13 +183,19 @@ export default async function (h) {
     'if (root == null || string.IsNullOrEmpty(ok) || string.IsNullOrEmpty(cancel)) { tcs.TrySetResult(false); return; }',
     'var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog {',
     'Title = title,',
-    'Content = new Microsoft.UI.Xaml.Controls.TextBlock { Text = text, TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap },',
+    'Content = new Microsoft.UI.Xaml.Controls.ScrollViewer {',   // ★ re-based by fixb2 item 3 (Q-1 scroll): the text scrolls, the viewer takes no focus
+    'VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,',
+    'HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled,',
+    'IsTabStop = false,',
+    'AllowFocusOnInteraction = false,',
+    'Content = new Microsoft.UI.Xaml.Controls.TextBlock { Text = text, TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap } },',
     'PrimaryButtonText = ok,',
     'CloseButtonText = cancel,',
     'DefaultButton = Microsoft.UI.Xaml.Controls.ContentDialogButton.Close,',
     'XamlRoot = root };',
     'Microsoft.UI.Xaml.Style? style = winDialogStyle();',
     'if (style != null) { dialog.Style = style; }',
+    'dialog.Opened += (s, e) => winFocusCancel(dialog, true);',   // ★ re-based by fixb2 item 3: the focus step (pins-fixb2/a-confirm-focus)
     'Microsoft.UI.Xaml.Controls.ContentDialogResult result = await dialog.ShowAsync();',
     'tcs.TrySetResult(FixB1Rules.confirmIsOk((int)result)); }',
     'catch (Exception ex) { tcs.TrySetException(ex); } });',
@@ -196,14 +213,18 @@ export default async function (h) {
     }
     return keep.join('\n');
   })();
-  const helperRest = parts.reduce((t, p) => { const q = span(t, SIGS[parts.indexOf(p)]); return q.end > 0 ? t.slice(0, q.at) + t.slice(q.end) : t; }, helperBlock);
+  /* ★ re-based by fixb2 item 3: the helper block also holds winFocusCancel + winFindButton (held by pins-fixb2/a-confirm-focus) */
+  const MEMBER_SIGS = SIGS.concat(['private static void winFocusCancel(Microsoft.UI.Xaml.Controls.ContentDialog dialog, bool again)',
+    'private static Microsoft.UI.Xaml.Controls.Button? winFindButton(Microsoft.UI.Xaml.DependencyObject root, string name)',
+    'internal static async Task<bool> askPlainSafeWinAsync(string title, string text, string ok, string cancel)']);   // ★ re-based by fixb2 item 4: the entry (pins-fixb2/d-pay-confirm ENTRY)
+  const helperRest = MEMBER_SIGS.reduce((t, sig) => { const q = span(t, sig); return q.end > 0 ? t.slice(0, q.at) + t.slice(q.end) : t; }, helperBlock);
   const bd = {
     found: dlg.length > 0,
     bodyExact: bodyN === EXPECTED_BODY,
-    onlyThreeMembers: helperBlock.length > 0 && helperRest.trim() === '',
+    onlyKnownMembers: helperBlock.length > 0 && helperRest.trim() === '' && MEMBER_SIGS.every((g) => count(SC, g) === 1),
   };
   ok(F(bd).length === 0,
-    '★ fixb1 item 1 BODY (#46 r1 S-C-1): the WHOLE body of showSafeDefaultConfirm (comments stripped, whitespace collapsed) is exactly the expected text — the answer is ONLY `tcs.TrySetResult(false)` (no XamlRoot / empty text / thrown) or `tcs.TrySetResult(FixB1Rules.confirmIsOk((int)result))` after `dialog.ShowAsync()`; no other statement, no Opened / KeyDown / Closing handler, no timer, no second completion; and the helper block holds exactly showSafeDefaultConfirm, winXamlRoot and winDialogStyle — failing: ' + JSON.stringify(F(bd))
+    '★ fixb1 item 1 BODY (#46 r1 S-C-1): the WHOLE body of showSafeDefaultConfirm (comments stripped, whitespace collapsed) is exactly the expected text — the answer is ONLY `tcs.TrySetResult(false)` (no XamlRoot / empty text / thrown) or `tcs.TrySetResult(FixB1Rules.confirmIsOk((int)result))` after `dialog.ShowAsync()`; no other statement, no KeyDown / Closing handler and no Opened handler but the ONE fixb2 item-3 focus step `dialog.Opened += (s, e) => winFocusCancel(dialog, true);`, no timer, no second completion; and the helper block holds exactly showSafeDefaultConfirm, winXamlRoot, winDialogStyle and (fixb2 item 3) winFocusCancel, winFindButton — failing: ' + JSON.stringify(F(bd))
     + (bd.bodyExact ? '' : ' ' + JSON.stringify({ sha: sha(bodyN), firstDiff, got: bodyN.slice(Math.max(0, firstDiff - 50), firstDiff + 90), want: EXPECTED_BODY.slice(Math.max(0, firstDiff - 50), firstDiff + 90) })));
 
   /* ── EMPTY (★ #46 r1, S-C-4) ── */
@@ -273,7 +294,7 @@ export default async function (h) {
     + (wh.same ? '' : ' ' + JSON.stringify({ diffAt, win: winAsBase.slice(Math.max(0, diffAt - 60), diffAt + 100), non: nonN.slice(Math.max(0, diffAt - 60), diffAt + 100) })));
 
   /* ── FILE (★ #46 r2, R2-1): the WHOLE file, by SHA-256 ── */
-  const FILE_FROZEN = 'b9b4d3b127a880724d105fb461ca4606addd893145ae47dbd7f6f9bb64dc3b2c';
+  const FILE_FROZEN = '6b76e4a7e7ec7b93390de84b229a52115c29f9294b67fec1d8d5a4dc368a7e8f';   // ★ re-based by fixb2 #46 r1 (comment path; was 63bd4339fc2c…) · before it: re-based by fixb2 item 3 (Q-1 scroll; was 3bff64ba18a6…, fixb2 item 4 before it: was 5afccab598ef…; fixb2 item 3 before it: was b9b4d3b127a8…)
   const hashFile = (f) => createHash('sha256').update(readBytes(join(root, f))).digest('hex');   // ★ #46 r4: the EXACT bytes (no CRLF read as LF; a BOM or any line end counts)
   const fileGot = hashFile(SC_F);
   ok(fileGot === FILE_FROZEN,

@@ -14,6 +14,11 @@
  *               `Logging.info(FixB1Rules.flagsLine(ConfirmSafeDefault, DividerHoverLine))` right after the perfb1 line, the
  *               last statement of init; flagsLine = fixed words and 0|1 only.
  *   FLAGSFILE — ★ #46 r4 (R4-3): SpixiFlags.cs WHOLE by SHA-256 of the exact bytes (a `#if WINDOWS` / `System.OperatingSystem.IsWindows()` arm that sets fc / xc / dev → red).
+ * re-based by fixb2 item 4 (SpixiFlags.cs: + the two item-4 keys, properties, reads and computes and ONE `Logging.info(FixB2Rules.flagsLine(…))` after the fixb1 line) — FLAGSFILE hash;
+ *               `oneLineAfterPerfb1`: the fixb1 line is followed by nothing but that ONE exact item-4 group (optional here; held in full by pins-fixb2/d-pay-confirm FLAGS);
+ *               `compute`: `ConfirmSafeDefault = ` counted as a whole word (the new names end with it).
+ * re-based by fixb2 #46 r1 (comment text): the doc comments of PayConfirmSafeDefault / MiniAppConfirmSafeDefault in SpixiFlags.cs now say that the safe path also needs NativeConfirm
+ *               (FixB2Rules.useSafeDialog) and that the [FLAGS] line is written on every platform while the switches act only on Windows; no code token changed — FLAGSFILE hash only.
  * Deliberate breaks (#802): fixb1 builder-a report — the read's absent value 1 → 0 → red `readAbsentOn` (+ CSH); the compute
  * back to an opt-in shape (`dev && pk == 1`) → red `computeRule`; the start value `= true` → red `startValueOld`; the fixb1
  * line moved before the perfb1 line → red `oneLineAfterPerfb1`; `dividerline=` → `divider=` → red `lineWords`. Restored. */
@@ -71,10 +76,13 @@ export default async function (h) {
     locals: /int fc = 1, fd = 1;/.test(init) && at('int fc = 1, fd = 1;') < iTry,
     reads: inTry('fc = Preferences.Default.Get(ConfirmSafeDefaultKey, 1);') && inTry('fd = Preferences.Default.Get(DividerHoverLineKey, 1);'),
     compute: afterCatch('ConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fc);') && afterCatch('DividerHoverLine = S16PassRules.effectiveFlag(dev, fd);')
-      && count(SF, 'ConfirmSafeDefault = ') === 1 && count(SF, 'DividerHoverLine = ') === 1,
+      && (SF.match(/\bConfirmSafeDefault = /g) || []).length === 1 && count(SF, 'DividerHoverLine = ') === 1,   // ★ re-based by fixb2 item 4: a whole word (PayConfirmSafeDefault / MiniAppConfirmSafeDefault end with it)
     oneLineAfterPerfb1: count(SF, 'FixB1Rules.flagsLine(') === 1
       && new RegExp(PERF_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*ConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fc\\);\\s*DividerHoverLine = S16PassRules\\.effectiveFlag\\(dev, fd\\);\\s*'
-        + FIX_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\}$').test(init),
+        + FIX_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        /* ★ re-based by fixb2 item 4: after the fixb1 line ONLY the item-4 group may follow (pins-fixb2/d-pay-confirm FLAGS holds it in full) */
+        + '(?:\\s*PayConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fp\\);\\s*MiniAppConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fm\\);\\s*Logging\\.info\\(FixB2Rules\\.flagsLine\\(PayConfirmSafeDefault, MiniAppConfirmSafeDefault\\)\\);)?'
+        + '\\s*\\}$').test(init),
     lineWords: /public static string flagsLine\(bool confirmDefault, bool dividerLine\)\s*\{\s*return "\[FLAGS\] confirmdefault=" \+ b\(confirmDefault\) \+ " dividerline=" \+ b\(dividerLine\);\s*\}/.test(FX)
       && /private static string b\(bool v\) => v \? "1" : "0";/.test(FX),
     noDevControl: !/ConfirmSafeDefault|DividerHoverLine|confirmdefault|dividerline/.test(rd('Spixi/Pages/Dev/DevPage.xaml.cs')),
@@ -93,7 +101,7 @@ export default async function (h) {
     '★ fixb1 item 7 HARNESS: FixB1Tests holds the flag-line, new-flag, sparekeep-matrix and fresh-start tests and csh.csproj compiles FixB1Rules.cs — failing: ' + JSON.stringify(F(hz)));
 
   /* ── FLAGSFILE (★ #46 r4, R4-3): SpixiFlags.cs WHOLE — the design answer is to freeze, not to add patterns ── */
-  const FLAGS_FROZEN = 'c05a8f00d369f40febbe7b24834960b7b54366d24b6bf5ad47702be60754d24f';
+  const FLAGS_FROZEN = '8550c50fbc27edd8c5cb1c4bc173d7a9afa301a3ba4fa996c1dfb6d6a7c9c2b1';   // ★ re-based by fixb2 #46 r1 (comment text; was eb62ae76f0b8…) · before it: re-based by fixb2 item 4 (was c05a8f00d369…)
   const flagsGot = createHash('sha256').update(readBytes(join(root, 'Spixi/Utils/SpixiFlags.cs'))).digest('hex');
   ok(flagsGot === FLAGS_FROZEN,
     '★ fixb1 item 7 FLAGSFILE (#46 r4 R4-3): Spixi/Utils/SpixiFlags.cs is held WHOLE by SHA-256 of its EXACT bytes — init() reads every switch there, and a statement the keys above do not name (`#if WINDOWS / dev = true; fc = 0; xc = 0; / #endif` before `SecureWalletPass = …`, `if (System.OperatingSystem.IsWindows()) { fc = 0; }`, a comment line-ended by a lone CR / U+0085 / U+2028 / U+2029) would switch the safety flags per platform where the csh harness never looks. A line-end or BOM change also turns this red. Re-base ONLY after a look at the diff (#1596; pins-perfb1toggle/a-extra counts mentions in this file and does not conflict). want ' + FLAGS_FROZEN.slice(0, 12) + '… got ' + flagsGot);

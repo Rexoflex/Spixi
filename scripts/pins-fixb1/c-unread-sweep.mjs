@@ -10,6 +10,10 @@
  *     strip's centre (± 1 px) · the strip's centre = the pane's centre (± 1 px);
  *   · a PHONE leg (touch UA, 390 × 800): no data-desktop, the log's computed scrollbar-gutter is not both-edges, the strip has no
  *     negative margin — nothing changed there.
+ * ★ RE-BASED by fixb2 item 1 (#1629 / #1639): the "strip" is now a centred PILL (auto inline margins, width fit-content). The measured
+ *   equalities above still hold (left inset = right inset, pill centre = date-pill centre = pane centre) and are kept as they were; only the
+ *   phone leg's margin test changed: `0px` → "not negative" (an auto margin computes to the used, positive, px value). The pill itself is
+ *   measured by scripts/pins-fixb2/c-unread-pill-sweep.mjs.
  * Run after build-shells: PLAYWRIGHT_MODULE=/opt/npm-tools/node_modules/playwright/index.mjs node scripts/pins-fixb1/c-unread-sweep.mjs
  * (add `--root <tree>` to read another tree's built shell). Exit 0 = pass · 1 = a measurement failed · 2 = the setup cannot prove it.
  * Deliberate break (fixb1 report): `both-edges` → `stable` on `:root[data-desktop] .messages` (+ build-shells) → the long AND the
@@ -107,7 +111,7 @@ for (const width of [1100, 700]) {
 }
 {
   const m = await run(b, 'phone', { ua: PHONE_UA, width: 390, theme: 'light', rows: 40, phone: true });
-  const good = !m.desktop && !/both-edges/.test(m.gutter) && /^0(px)?$/.test(m.stripMarginL) && m.strip;
+  const good = !m.desktop && !/both-edges/.test(m.gutter) && parseFloat(m.stripMarginL) >= 0 && m.strip;   // ★ fixb2: was /^0(px)?$/ — the pill's auto margin computes to a positive px value
   console.log((good ? '  ✓ ' : '  ✗ ') + 'phone 390 ' + JSON.stringify(m));
   if (!good) fails.push('phone 390');
 }

@@ -58,7 +58,7 @@ export default async function (h) {
   console.log('★ Session 4 fix batch — #46 r1 (B-M1 · B-M2 · B-m1…m4 · A-M1…M3 · the five mutant survivors)');
 
   /* ——— B-M1 · B-m1 · B-m3 · M8: the jump highlight under REDUCED MOTION, computed on every kind, both sides ——— */
-  const RING = '0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default)';
+  const RING = '0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-select-ring)';
   const KEEP_SENT_CARD = 'inset 0 0 0 1px var(--outline-card-sent), inset 0 1px 0 var(--highlight-top)';
   {
     const { dom, W, push, errs } = await boot('chat.html');
@@ -139,7 +139,7 @@ export default async function (h) {
     const r = {};
     for (const theme of ['light', 'dark']) {
       root.setAttribute('data-theme', theme);
-      const [blue, gap, band, ground, sent, recv] = ['--outline-action-default', '--surface-select-row-gap', '--surface-select-row', '--chat-canvas-base', '--surface-bubble-sent', '--surface-bubble-received'].map((n) => rgb(resolve(n)));
+      const [blue, gap, band, ground, sent, recv] = ['--outline-select-ring', '--surface-select-row-gap', '--surface-select-row', '--chat-canvas-base', '--surface-bubble-sent', '--surface-bubble-received'].map((n) => rgb(resolve(n)));
       if (!(blue && gap && band && ground && sent && recv)) { r[theme] = false; res[theme] = 'unresolved'; continue; }
       const bandOnGround = over(band, ground.c);
       const n = { ringOnGap: cr(blue.c, gap.c), ringOnBand: cr(blue.c, bandOnGround), gapOnSent: cr(gap.c, sent.c), gapOnRecv: cr(gap.c, recv.c), oldRingOnSent: cr(blue.c, sent.c), oldRingOnRecv: cr(blue.c, recv.c) };

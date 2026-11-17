@@ -2790,31 +2790,37 @@ button.c-bubble__linkpreview { cursor: pointer; -webkit-tap-highlight-color: tra
 .c-fbubble__stamp .c-status-icon[data-tone="read"],
 .c-fbubble__stamp .c-status-icon[data-tone="failed"] { opacity: 1; }
 
-/* —— unread divider (full width) —— */
+/* —— unread marker: a centred pill (★ fixb2 item 1, Damir #1629 + #1639: the same pill on EVERY platform) ——
+   The day pill's shape (.c-datesep__pill): radius-full, its padding, label-xs, a full 1px border; no bar across the pane.
+   Keeps the class (the JS and the tests find it) and its OWN glass roles (#1080 F16). SUPERSEDES pick B (full-bleed). */
 .c-unread-divider {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--spacing-8);
-  margin: var(--spacing-12) 0;
-  padding: var(--spacing-4) var(--spacing-16);
-  /* ★ GLASS (Damir picked B, 2026-09-08). ⚠ FULL-BLEED IS DELIBERATE — he asked for the
-     strip to stay the full width ("i like the full length unread"); option D turned it
-     into a centred pill and was NOT taken. Only the fill and the hairlines change. */
+  box-sizing: border-box;
+  width: fit-content;                  /* a pill, not a bar: it hugs its label … */
+  max-width: calc(100% - 2 * var(--spacing-16));   /* … and keeps the day pill's 16 px inset on both sides on a phone (the log has no side padding) */
+  text-align: center;
+  margin: var(--spacing-12) auto;      /* auto inline margins centre it in the message column, with or without a scroll bar */
+  padding: var(--spacing-2) var(--spacing-12);
+  border-radius: var(--radius-full);
   background: var(--surface-unread-strip);   /* ★ #1080 F16: its own role (light = the glass; dark lifts) */
   -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
   backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
-  border-block: var(--outline-width-1) solid var(--outline-unread-strip);
+  border: var(--outline-width-1) solid var(--outline-unread-strip);
   color: var(--text-unread-strip);
   font-size: var(--font-size-label-xs);
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
-}/* same fallback as the day pill — see message-bubble.css. */
+}
+.c-unread-divider > span { min-width: 0; overflow-wrap: anywhere; }   /* one long word of a long translation wraps INSIDE the pill */
+/* same fallback as the day pill — see message-bubble.css. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .c-unread-divider {
     background: var(--surface-chat-chip);
-    border-block-color: var(--outline-neutral-02);
+    border-color: var(--outline-neutral-02);
   }
 }
 
@@ -3324,6 +3330,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   transform: translate(-50%, -50%);
   opacity: 1;
   transition-timing-function: var(--easing-decelerate);
+}
+/* ★ fixb2 item 5: the 76 % cap left 12 % free each side in a short window; centred sheets may grow to a 24 px margin, never past 608 px (sanctioned; = 76 % of 800: hosts >= 800 unchanged) */
+:root[data-desktop] .c-sheet:not([data-dt-anchor]) {
+  max-height: max(76%, min(calc(100% - 2 * var(--spacing-24)), 608px));
 }
 :root[data-desktop] .c-sheet .c-sheet__handle { display: none; }
 /* anchored variants: dropdowns FADE IN PLACE — no transform at any point, so
@@ -7148,7 +7158,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
      · .messages keeps full width, so the SCROLLBAR stays at the window edge; the
        max(0px, …) term is inert below 760px of pane — a narrow desktop pane and every
        phone are byte-identical (the calc floors to the rows' own 16px inset).
-     · Bubble rows, date pills, the unread strip and the secure notice are #messages
+     · Bubble rows, date pills, the unread pill and the secure notice are #messages
        children — they centre with the padding for free; bubbles keep
        --layout-bubble-max (680 desktop, #337 W4) INSIDE the column and cards hold
        their 360 rail.
@@ -7160,21 +7170,11 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   :root[data-desktop] .messages { padding-inline: max(0px, calc((100% - 760px) / 2)); }
   /* ★ #1198: the reply swipe moves a row up to 72 px toward the end edge — the log never scrolls sideways for it */
   #messages { overflow-x: hidden; }
-  /* ★ Session I (Damir 2026-09-02, Windows): "the unread bar is cut off on both sides" —
-     the strip is a #messages child, so it centred INSIDE the 760 column and its two
-     hairlines + tint stopped dead at the gutters. Ruled FULL PANE, edge to edge. The
-     child cannot see the scroller's 100%, but on desktop the scroller IS the pane:
-     body is margin 0 / overflow hidden and .c-chat-canvas fills it, so 100vw == the
-     .messages containing width and this term equals the padding term above to the
-     pixel. The negative margin pulls the strip back over both paddings; the scrollbar gutter
-     (base.css .u-scroll) stays outside it.
-     ★ fixb1 item 3 (#1646): both edges reserve the gutter (rule below), so the strip has one equal inset on
-     both sides with and without a scroll bar, and the strip, the pills and the bubbles share the pane's centre.
-     Inert below 760px (max floors at 0), phones untouched. Pinned to the .messages
-     term: the two 760 literals must move together. */
-  :root[data-desktop] .c-unread-divider { margin-inline: calc(-1 * max(0px, (100vw - 760px) / 2)); }
-  /* ★ fixb1 item 3: same pointer scope as base.css .u-scroll (touch WebViews reserve no gutter); a touch-only
-     desktop keeps its overlay bar and today's layout */
+  /* ★ fixb2 item 1 (#1629, #1639): the marker is a centred pill (typed-bubbles.css); the Session I full-bleed rule here is GONE. */
+  /* ★ fixb1 item 3 (KEPT by fixb2 item 1, measured): the log reserves the scroll-bar gutter on BOTH edges, so the column — the
+     bubbles, the date pills and the unread pill — keeps the pane's centre, the composer's centre; with the end edge alone it
+     would sit half a gutter left of the composer. Same pointer scope as base.css .u-scroll (touch WebViews reserve no gutter);
+     a touch-only desktop keeps its overlay bar and today's layout */
   @media (hover: hover) and (pointer: fine) {
     :root[data-desktop] .messages { scrollbar-gutter: stable both-edges; }
   }
@@ -7266,7 +7266,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   .chat-app-picker[data-many] .chat-app-picker__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   :root[data-desktop] .c-sheet.chat-app-picker-sheet[data-tall] {
     display: flex; flex-direction: column; overflow: hidden;
-    height: min(560px, 76%);
+    height: min(560px, max(76%, min(calc(100% - 2 * var(--spacing-24)), 608px)));   /* ★ fixb2: the shared centred-sheet cap (overlay.css) — a fixed height beat it at 360 px */
   }
   :root[data-desktop] .c-sheet.chat-app-picker-sheet[data-tall] > .c-sheet__content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   /* ★ Session Z (#882 (c)): the `.chat-info-takeover` cover rules are gone with the dead
@@ -7428,7 +7428,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
      "almost instant". Damir pick 10-03: LINEAR (tint left at 1.5/1.7/1.9 s: 83/50/17 %; decelerate 43/11/1). */
   /* ★★ #1147 (1) A2 restyle (Damir walk #1146 W-A2 FAIL: "a colour similar to selected for the band, blueish for the
      outline, rounded like selected"): the band = the multi-select selected-row look (--surface-select-row + --radius-12,
-     chat-select.css:47), the ring = 1 px --outline-action-default (blue). Same length, same reduced-motion rule. */
+     chat-select.css:47), the ring = 1 px --outline-select-ring (blue, = --outline-action-default; light Aurora darker, #1614). Same length, same reduced-motion rule. */
   /* #46 r1 (session 4 fix): B-m1 the ring is a 1 px GAP in the band's colour (--surface-select-row-gap, the band composited
      over the chat ground — opaque, because a translucent gap would let the ring's own blue show through it) and then the
      1 px blue ring, so the blue never touches my blue bubble (1.17:1 in light). B-m3 the lit row raises the sent card's
@@ -7455,7 +7455,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     100% { background-color: transparent; }
   }
   @keyframes chat-jump-ring {
-    0%, 70% { box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default), var(--jump-keep, 0 0 0 0 transparent); animation-timing-function: linear; }
+    0%, 70% { box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-select-ring), var(--jump-keep, 0 0 0 0 transparent); animation-timing-function: linear; }
     100% { box-shadow: 0 0 0 1px transparent, 0 0 0 2px transparent, var(--jump-keep, 0 0 0 0 transparent); }
   }
   /* reduced motion: NO animation — the band (and the ring) held static for the attribute's 2 s; the JS timeout removes it (no fade).
@@ -7464,7 +7464,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     .c-bubble-row[data-mention-pulse] { animation: none; background-color: var(--surface-select-row); }
     .c-bubble-row[data-mention-pulse][data-direction] .c-bubble, .c-bubble-row[data-mention-pulse][data-direction] .c-fbubble,
     .c-bubble-row[data-mention-pulse][data-direction] .c-mbubble, .c-bubble-row[data-mention-pulse][data-direction] .c-mbubble[data-file],
-    .c-bubble-row[data-mention-pulse][data-direction] .c-tcard { animation: none; box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default), var(--jump-keep, 0 0 0 0 transparent); }
+    .c-bubble-row[data-mention-pulse][data-direction] .c-tcard { animation: none; box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-select-ring), var(--jump-keep, 0 0 0 0 transparent); }
   }
 </style>
 <style data-device>html,body{margin:0!important;padding:0!important;height:100%!important;overflow:hidden!important}html:not([data-device-bg="own"]),html:not([data-device-bg="own"]) body{background:var(--surface-screen)!important}.demo-toolbar,.demo-caption,.statusbar{display:none!important}.demo-frames{display:block!important;margin:0!important;gap:0!important;flex-wrap:nowrap!important}.demo-phone{width:100vw!important;height:100vh!important;max-width:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}</style>

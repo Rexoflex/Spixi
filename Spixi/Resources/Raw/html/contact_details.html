@@ -1006,6 +1006,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   opacity: 1;
   transition-timing-function: var(--easing-decelerate);
 }
+/* ★ fixb2 item 5: the 76 % cap left 12 % free each side in a short window; centred sheets may grow to a 24 px margin, never past 608 px (sanctioned; = 76 % of 800: hosts >= 800 unchanged) */
+:root[data-desktop] .c-sheet:not([data-dt-anchor]) {
+  max-height: max(76%, min(calc(100% - 2 * var(--spacing-24)), 608px));
+}
 :root[data-desktop] .c-sheet .c-sheet__handle { display: none; }
 /* anchored variants: dropdowns FADE IN PLACE — no transform at any point, so
    nothing can visually "arrive from" anywhere (06d). Inline left/top/bottom/
@@ -1135,6 +1139,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 
 /* #228: desktop row rhythm = chat rows (#226/R3) */
 :root[data-desktop] .c-txlist-item { padding-block: var(--spacing-8); }
+
+/* ★ fixb2 item 6 (Mission Control n-20261116-desktop-txrow-inset-shape; DT-1 A #1393): on the DESKTOP the hover / selected / pressed
+   paint of a WALLET transaction row is the chat row's INSET ROUNDED SHAPE, exactly (chatlist-item.css `:root[data-desktop]
+   .c-chatlist-item`: margin-inline spacing-8, margin-block 1px, radius-12 — the SAME tokens, so the two lists cannot drift; pinned by
+   scripts/pins-fixb2/f-txrow.mjs, which reads both rules). Scoped to the wallet list (`.c-wallet-txlist > …`): the chat-info card
+   keeps its rows full-bleed and square, clipped by the card (chat-info.css, #149①). The press layer is `border-radius: inherit`
+   (base.css), so it follows. width:auto lets the margins sit inside the column (the base `width: 100%` would overflow). The side
+   padding drops by the same 8 px (wallet-shell.css gives the rows spacing-16, S14 #1291) so the row CONTENT stays on the wallet
+   column's one 16 px line, level with the search pill. Phones: no rule outside :root[data-desktop] — rows stay full width. */
+:root[data-desktop] .c-wallet-txlist > .c-txlist-item {
+  width: auto;
+  margin-inline: var(--spacing-8);
+  margin-block: 1px;
+  border-radius: var(--radius-12);
+  padding-inline: var(--spacing-8);
+}
 
 /* direction circle (rows without a face: chat-info) */
 .c-txlist-item__direction {

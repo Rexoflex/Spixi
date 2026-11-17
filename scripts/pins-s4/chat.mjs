@@ -90,7 +90,7 @@ export default async function (h) {
       r.ring = r.ring && !!bub && matching(rules, bub, 'animation').some((v) => /^chat-jump-ring var\(--duration-highlight\) var\(--easing-standard\) var\(--jump-delay, 0ms\) 1$/.test(v));
       /* reduced motion: NO animation, the static band (and ring) */
       r.rmBand = r.rmBand && matching(rules, rowOf(id), 'animation', RM).includes('none') && matching(rules, rowOf(id), 'background-color', RM).includes('var(--surface-select-row)');
-      r.rmRing = r.rmRing && !!bub && matching(rules, bub, 'animation', RM).includes('none') && matching(rules, bub, 'box-shadow', RM).includes('0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default), var(--jump-keep, 0 0 0 0 transparent)');   /* #46 r1 B-m1: gap + ring (the WINNING value is pinned in fixr1.mjs) */
+      r.rmRing = r.rmRing && !!bub && matching(rules, bub, 'animation', RM).includes('none') && matching(rules, bub, 'box-shadow', RM).includes('0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-select-ring), var(--jump-keep, 0 0 0 0 transparent)');   /* #46 r1 B-m1: gap + ring (the WINNING value is pinned in fixr1.mjs) */
       if (prev) r.oneAtATime = r.oneAtATime && !lit(prev);
       prev = id;
     }
@@ -107,7 +107,7 @@ export default async function (h) {
     const bandT = kfText(kb).replace(/\s+/g, ' ').replace(/\{ /g, '{').replace(/ \}/g, '}');
     const ringT = kfText(kr).replace(/\{ /g, '{').replace(/ \}/g, '}');
     r.bandWash = /^0%, ?70%\{background-color: var\(--surface-select-row\); animation-timing-function: linear;?\}/.test(bandT);   /* #1147 (1): the selected-row look */
-    r.ring1px = /^0%, ?70%\{box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\), var\(--jump-keep, 0 0 0 0 transparent\); animation-timing-function: linear;?\}/.test(ringT);   /* #1147 (1): blue — #46 r1 B-m1: behind a 1 px band-coloured gap */
+    r.ring1px = /^0%, ?70%\{box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-select-ring\), var\(--jump-keep, 0 0 0 0 transparent\); animation-timing-function: linear;?\}/.test(ringT);   /* #1147 (1): blue — #46 r1 B-m1: behind a 1 px band-coloured gap */
     r.exitFade600 = holdOf(bandT) >= 0 && Math.round((100 - holdOf(bandT)) / 100 * 2000) === 600 && holdOf(ringT) === holdOf(bandT);
     /* timing (a4 is lit): still lit past the OLD 1.6 s lifetime; a bubbling tick-fade animationend does not end it; the band's own end does */
     const fire = (el, name) => { const e = new W.Event('animationend', { bubbles: true }); Object.defineProperty(e, 'animationName', { value: name }); el.dispatchEvent(e); };

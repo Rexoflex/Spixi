@@ -1,10 +1,12 @@
-// ★ perfb1 (Speed batch 1a, P38–P41) — the four switches' plumbing, EXECUTED: PerfB1Rules.effectiveOptIn (a stored 1 acts only
-// in dev mode), the one [FLAGS] line, the dev verb map, and the REAL SpixiFlags.init over the stubbed Preferences (absent =
-// 1, 1, 0, 1; a stored 0 acts only in dev mode for the three ON flags; a throwing read keeps the defaults). The DevPage branch
-// itself is MAUI-bound: scripts/pins-perfb1/f-flags.mjs pins it.
-// DELIBERATE BREAKS (perfb1 builder-d report): ① SpareKeepShortSleep computed with effectiveFlag → init_defaults / init_opt_in
-// fail; ② the opt-in read's absent value 1 → init_defaults fails; ③ effectiveOptIn without `devMode &&` → opt_in_truth_table and
-// init_opt_in fail. The property default (`= false`) is overwritten by init: the pin holds it.
+// ★ perfb1 (Speed batch 1a, P38–P41) — the four switches' plumbing, EXECUTED: the one [FLAGS] line, the dev verb map, and the
+// REAL SpixiFlags.init over the stubbed Preferences (absent = 1, 1, 1, 1; a stored 0 acts only in dev mode; a throwing read
+// keeps the defaults). The DevPage branch itself is MAUI-bound: scripts/pins-perfb1/f-flags.mjs pins it.
+// ★ fixb1 item 7 re-base: SpareKeepShortSleep is ON by default (S16PassRules.effectiveFlag, absent = 1) — the opt-in rule
+// (PerfB1Rules.effectiveOptIn) and its truth-table test are gone; init_opt_in → init_spare_keep_on_by_default; every "1101"
+// default → "1111". The sparekeep matrix (absent / 0 / 1 / 7 × dev on / off) is in FixB1Tests.cs.
+// DELIBERATE BREAKS (perfb1 builder-d report, re-stated for fixb1): ① SpareKeepShortSleep through the old opt-in rule →
+// init_defaults / init_spare_keep_on_by_default fail; ② the read's absent value 0 → init_defaults fails. The property start
+// value (`= false`) is overwritten by init: the pin holds it.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,7 +35,7 @@ public class PerfB1FlagsTests
     }
 
     /** Run init with the four keys set to `stored` (null = absent) and dev mode `dev`; restore everything after `check`. */
-    private static void withPrefs(bool dev, int?[] stored, Action check)
+    internal static void withPrefs(bool dev, int?[] stored, Action check)
     {
         Preferences P = Preferences.Default;
         string? devBefore = P.d.TryGetValue("devMode", out var dv) ? dv : null;
@@ -54,16 +56,6 @@ public class PerfB1FlagsTests
             if (devBefore == null) P.Remove("devMode"); else P.d["devMode"] = devBefore;
             SpixiFlags.init();
             IXICore.Meta.Logging.lines.Clear();
-        }
-    }
-
-    [TestMethod]
-    public void opt_in_truth_table()
-    {
-        foreach (int s in new[] { -1, 0, 1, 2 })
-        {
-            Assert.IsFalse(PerfB1Rules.effectiveOptIn(false, s), "dev mode off: stored " + s + " → OFF");
-            Assert.AreEqual(s == 1, PerfB1Rules.effectiveOptIn(true, s), "dev mode on: only a stored 1 → ON (stored " + s + ")");
         }
     }
 
@@ -124,13 +116,13 @@ public class PerfB1FlagsTests
     {
         withPrefs(false, new int?[] { null, null, null, null }, () =>
         {
-            Assert.AreEqual("1101", state(), "no preference, dev mode off → 1,1,0,1");
-            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=0 noemptydetail=1", "defaults");
+            Assert.AreEqual("1111", state(), "no preference, dev mode off → 1,1,1,1 (fixb1 item 7: sparekeep ON by default)");
+            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=1 noemptydetail=1", "defaults");
         });
         withPrefs(true, new int?[] { null, null, null, null }, () =>
         {
-            Assert.AreEqual("1101", state(), "no preference, dev mode on → 1,1,0,1");
-            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=0 noemptydetail=1", "defaults in dev mode");
+            Assert.AreEqual("1111", state(), "no preference, dev mode on → 1,1,1,1");
+            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=1 noemptydetail=1", "defaults in dev mode");
         });
     }
 
@@ -139,42 +131,44 @@ public class PerfB1FlagsTests
     {
         withPrefs(false, new int?[] { 0, 0, 0, 0 }, () =>
         {
-            Assert.AreEqual("1101", state(), "dev mode off + stored 0 → the three ON flags stay ON");
-            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=0 noemptydetail=1", "dev off, stored 0");
+            Assert.AreEqual("1111", state(), "dev mode off + stored 0 → all four stay ON");
+            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=1 noemptydetail=1", "dev off, stored 0");
         });
         withPrefs(true, new int?[] { 0, 0, 0, 0 }, () =>
         {
             Assert.AreEqual("0000", state(), "dev mode on + stored 0 → OFF");
             oneLine("[FLAGS] warmidle=0 sparerearm=0 sparekeep=0 noemptydetail=0", "dev on, stored 0");
         });
-        string[] want = { "0101", "1001", "1101", "1100" };   // one key at 0 (the opt-in's 0 = its default)
+        string[] want = { "0111", "1011", "1101", "1110" };   // one key at 0
         for (int i = 0; i < Keys.Length; i++)
         {
-            int?[] st = { 1, 1, 0, 1 };
+            int?[] st = { 1, 1, 1, 1 };
             st[i] = 0;
             int k = i;
             withPrefs(true, st, () => Assert.AreEqual(want[k], state(), "dev mode on: only " + Keys[k] + " at 0 acts"));
         }
-        withPrefs(true, new int?[] { 2, -1, null, 7 }, () => Assert.AreEqual("1101", state(), "a stray value is the default ON"));
+        withPrefs(true, new int?[] { 2, -1, 7, 7 }, () => Assert.AreEqual("1111", state(), "a stray value is the default ON"));
     }
 
     [TestMethod]
-    public void init_opt_in()
+    public void init_spare_keep_on_by_default()
     {
         withPrefs(false, new int?[] { 1, 1, 1, 1 }, () =>
         {
-            Assert.IsFalse(SpixiFlags.SpareKeepShortSleep, "dev mode off + stored 1 → OFF");
-            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=0 noemptydetail=1", "opt-in, dev off");
+            Assert.IsTrue(SpixiFlags.SpareKeepShortSleep, "dev mode off + stored 1 → ON");
+            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=1 noemptydetail=1", "sparekeep, dev off");
         });
         withPrefs(true, new int?[] { 1, 1, 1, 1 }, () =>
         {
             Assert.IsTrue(SpixiFlags.SpareKeepShortSleep, "dev mode on + stored 1 → ON");
             Assert.AreEqual("1111", state(), "the other three stay ON");
-            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=1 noemptydetail=1", "opt-in, dev on");
+            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=1 noemptydetail=1", "sparekeep, dev on");
         });
-        foreach (int s in new[] { 0, 2, -1 })
+        withPrefs(true, new int?[] { 1, 1, 0, 1 }, () => Assert.IsFalse(SpixiFlags.SpareKeepShortSleep, "dev mode on + stored 0 → OFF"));
+        withPrefs(false, new int?[] { 1, 1, 0, 1 }, () => Assert.IsTrue(SpixiFlags.SpareKeepShortSleep, "dev mode off + stored 0 → ON (a stored 0 acts only in dev mode)"));
+        foreach (int s in new[] { 2, -1 })
         {
-            withPrefs(true, new int?[] { 1, 1, s, 1 }, () => Assert.IsFalse(SpixiFlags.SpareKeepShortSleep, "dev mode on + stored " + s + " → OFF"));
+            withPrefs(true, new int?[] { 1, 1, s, 1 }, () => Assert.IsTrue(SpixiFlags.SpareKeepShortSleep, "dev mode on + stored " + s + " → ON (only a 0 turns it off)"));
         }
     }
 
@@ -197,15 +191,17 @@ public class PerfB1FlagsTests
             {
                 P.d = d;
             }
-            Assert.AreEqual("1101", state(), "a read that throws keeps the defaults 1,1,0,1");
+            Assert.AreEqual("1111", state(), "a read that throws keeps the defaults 1,1,1,1");
             var w = IXICore.Meta.Logging.warns.Skip(w0).ToList();
             Assert.IsTrue(w.Count == 1 && w[0] == "[FLAGS] read failed (NullReferenceException)", "the one type-only warn — " + string.Join("|", w));
-            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=0 noemptydetail=1", "throwing read");
+            oneLine("[FLAGS] warmidle=1 sparerearm=1 sparekeep=1 noemptydetail=1", "throwing read");
         });
     }
 
     /* ── #46 r1 B-1 / S-5: the opt-in must not outlive dev mode. SpixiFlags.init runs once; `ixian:disableDevMode` removes the
-     * four PerfB1DevKeys and calls SpixiFlags.leaveDevMode BEFORE its dropSpareChat("devmode") (pins-perfb1/f-flags). ── */
+     * four PerfB1DevKeys and calls SpixiFlags.leaveDevMode BEFORE its dropSpareChat("devmode") (pins-perfb1/f-flags).
+     * ★ fixb1 item 7: sparekeep is ON by default now; leaveDevMode still takes it to the old path IN THIS PROCESS (fail to the
+     * old path), and the next start (keys removed) has it ON again — the default. ── */
     [TestMethod]
     public void leaving_dev_mode_turns_the_opt_in_off_in_process()
     {
@@ -220,8 +216,9 @@ public class PerfB1FlagsTests
         });
         withPrefs(false, new int?[] { null, null, null, null }, () =>
         {
+            Assert.AreEqual("1111", state(), "no dev mode: the defaults");
             SpixiFlags.leaveDevMode();
-            Assert.AreEqual("1101", state(), "no dev mode: the defaults, nothing else moves");
+            Assert.AreEqual("1101", state(), "leaveDevMode takes sparekeep to the old path in this process; nothing else moves");
         });
     }
 
@@ -235,7 +232,7 @@ public class PerfB1FlagsTests
             SpixiFlags.leaveDevMode();
             Assert.IsFalse(SpixiFlags.SpareKeepShortSleep, "OFF in this process");
             SpixiFlags.init();   // a later start, dev mode switched on again
-            Assert.AreEqual("1101", state(), "no stored 1 survives to revive the opt-in, no stored 0 survives either");
+            Assert.AreEqual("1111", state(), "no stored 0 survives: a later start has the defaults (sparekeep ON by default since fixb1 item 7)");
             Assert.AreEqual(string.Join(",", Keys), string.Join(",", SpixiFlags.PerfB1DevKeys), "PerfB1DevKeys are exactly the four keys");
         });
     }
@@ -258,7 +255,7 @@ public class PerfB1FlagsTests
                 SpixiFlags.leaveDevMode();   // the wipe's next statement
                 Assert.IsFalse(SpixiFlags.SpareKeepShortSleep, "after the wipe's leaveDevMode: OFF in this process");
                 SpixiFlags.init();
-                Assert.AreEqual("1101", state(), "and a later start reads the defaults");
+                Assert.AreEqual("1111", state(), "and a later start reads the defaults (sparekeep ON by default since fixb1 item 7)");
             }
             finally
             {

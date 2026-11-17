@@ -1,5 +1,6 @@
-/* ★ perfb1 (Speed batch 1a, #1312 rule 1, P38–P41) — the PURE half of the four runtime switches: the opt-in rule, the one
- * [FLAGS] line, the dev switch names and the dev verb map. No MAUI, no Core type: the harness runs it
+/* ★ perfb1 (Speed batch 1a, #1312 rule 1, P38–P41) — the PURE half of the four runtime switches: the one [FLAGS] line,
+ * the dev switch names and the dev verb map (★ fixb1 item 7: the opt-in rule (a stored 1 in dev mode) is gone — SpareKeepShortSleep
+ * takes S16PassRules.effectiveFlag like the other three). No MAUI, no Core type: the harness runs it
  * (scripts/csh/PerfB1FlagsTests.cs). SpixiFlags.init reads the preferences; DevPage stores them (the safety switches' rules). */
 using System;
 
@@ -7,13 +8,6 @@ namespace SPIXI
 {
     public static class PerfB1Rules
     {
-        /** The opt-in shape (SpixiFlags.SpareKeepShortSleep): a stored 1 turns the flag ON only while dev mode is on; anything
-         *  else — absent (0), 0, a stray value, dev mode off — is OFF (the old behaviour). */
-        public static bool effectiveOptIn(bool devMode, int stored)
-        {
-            return devMode && stored == 1;
-        }
-
         /** The one start line of this batch: fixed words and 0|1 only. */
         public static string flagsLine(bool warmIdle, bool spareRearm, bool spareKeep, bool noEmptyDetail)
         {

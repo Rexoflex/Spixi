@@ -168,6 +168,8 @@ differ by < 20 %, or ≤ 17 ms, or ≤ 1 for a count). It copies no raw line and
   file by SHA-256; the literal scan; the counts; the attribute).
 - Round 2 (B2-1, B2-2): `P1Perf.cs` frozen whole; the raw line-end check for the seven batch files; the exact
   comment tail of a mark line.
+- Counts, as built: 33 tokens = 32 marks at call sites (31 `cold` calls + `draw` in the listener) + the anchor
+  `logger`; where § 2 / § 3 say "33 marks + the anchor", read this line.
 
 ## 4 · What each agent returns
 The files it changed · per pin: the command, the green line, the break and the red line · what it could not prove

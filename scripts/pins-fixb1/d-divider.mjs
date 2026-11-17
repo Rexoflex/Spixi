@@ -1,11 +1,11 @@
 /* ==== fixb1 item 4 (P51) — Desktop: the hover / drag line of the chat-list divider (Windows + Mac).
  *
  * Mechanism: docs/fixb1-mechanisms.md § Item 4 (the grip `paneDivider` is a native, transparent 10 px BoxView over the home
- * WebView; nothing showed a hover). Fix: a second BoxView `paneDividerLine` (2 px, centred in the grip, input-transparent,
+ * WebView; nothing showed a hover). Fix: a second BoxView `paneDividerLine` (2 px, centred in the grip [superseded by fixb2 item 2: at the column edge], input-transparent,
  * below it) that shows in the accent of the active theme while the pointer is on the grip and for the whole drag. The state
  * rule is pure (FixB1Rules.DividerLine, executed in csh FixB1Tests); this SOURCE pin (stripCode; brace-matched bodies; the
  * preprocessor regions computed) holds the MAUI-bound half:
- *   XAML   — ONE `paneDividerLine`: Grid.Column 0, WidthRequest 2, End, VerticalOptions Fill, Margin 0,0,4,0 (centred: right margin +
+ *   XAML   — ONE `paneDividerLine`: Grid.Column 0, WidthRequest 2, End, VerticalOptions Fill, Margin 0,0,4,0 [superseded by fixb2 item 2: 0,0,0,0, key `atEdge`] (centred: right margin +
  *            half the width = half the grip's width), NO ZIndex (neither on the line nor on the grip: the order of declaration alone
  *            puts the line under the grip — #46 r1 O-C-1/2), InputTransparent True, IsVisible False, declared AFTER the WebView and BEFORE
  *            `paneDivider` (under the grip, above the WebView, before any overlay stage); the grip itself unchanged; no code-behind write of
@@ -32,6 +32,11 @@
  *             `if (SpixiFlags.DividerHoverLine) { … }` block, with only whitespace between each signature / `if (…)` and its `{`; (d) no line that names
  *             paneDivider also names `ZIndexProperty`, `InputTransparentProperty` or `SetValue(`.
  *   WHOLE   — ★ #46 r4 (R4-4 / R4-5): HomePage.xaml.cs has only \n / \r\n line ends and no \u escape outside a literal; onPaneDividerPan, the D1 block and the single-pane hide block are held exactly.
+ * re-based by fixb2 item 2 (the line moved onto the shell's hairline: Margin 0,0,4,0 → 0,0,0,0 in `xamlLine` and LINE_X; `centred` →
+ *   `atEdge` (right margin 0 = the column edge = the hairline's inset-inline-end 0; the measured position is pins-fixb2/b-divider + the
+ *   Chromium sweep pins-fixb2/b-hairline-sweep); XAML_FROZEN bef9f8f5… → 992a99e2…, after a look at the diff: the margin and its comment only).
+ * re-based by fixb2 item 2 (#46 r1 O2: D1_BLOCK — the double-click reset calls `updateInfoPaneWidth();` after storing the width, as the pan's
+ *   Running arm does; after a look at the diff: that one statement only).
  * Deliberate breaks (#802): fixb1 builder-a report — the `if (SpixiFlags.DividerHoverLine)` gate removed → red `gated`;
  * the Canceled/Completed dragEnd removed → red `panEnd`; WidthRequest="3" → red `xamlLine`; the hide site's
  * `paneDividerLine.IsVisible = false;` removed → red `hideSite`; "#769DFF" → "#769DFE" → red `colours`; the Mac `pop()` call
@@ -75,16 +80,16 @@ export default async function (h) {
   const LA = line ? line.attrs : {}, GA = grip ? grip.attrs : {};
   const xm = {
     found: !!line && !!grip && count(X, 'x:Name="paneDividerLine"') === 1,
-    xamlLine: LA['Grid.Column'] === '0' && LA.WidthRequest === '2' && LA.HorizontalOptions === 'End' && LA.Margin === '0,0,4,0'
+    xamlLine: LA['Grid.Column'] === '0' && LA.WidthRequest === '2' && LA.HorizontalOptions === 'End' && LA.Margin === '0,0,0,0'
       && LA.VerticalOptions === 'Fill' && !('ZIndex' in LA)
       && LA.InputTransparent === 'True' && LA.IsVisible === 'False' && !('Grid.ColumnSpan' in LA) && !('Color' in LA) && !('BackgroundColor' in LA),
-    centred: (() => { const m = (LA.Margin || '').split(',').map(Number); return m.length === 4 && m[2] + Number(LA.WidthRequest) / 2 === Number(GA.WidthRequest) / 2; })(),
+    atEdge: (() => { const m = (LA.Margin || '').split(',').map(Number); return m.length === 4 && m.every((v) => v === 0) && Number(LA.WidthRequest) <= Number(GA.WidthRequest); })(),   // re-based by fixb2 item 2: was `centred` (right margin + half the width = half the grip)
     order: !!line && !!grip && iWeb >= 0 && iWeb < line.at && line.at < grip.at,
     gripKept: GA['Grid.Column'] === '0' && GA.WidthRequest === '10' && GA.HorizontalOptions === 'End' && GA.Color === 'Transparent'
       && GA.BackgroundColor === 'Transparent' && GA.IsVisible === 'False' && !('InputTransparent' in GA) && !('ZIndex' in GA),
   };
   ok(F(xm).length === 0,
-    '★ fixb1 item 4 XAML: ONE BoxView paneDividerLine — column 0, 2 px, End, VerticalOptions Fill, no ZIndex, Margin 0,0,4,0 (centred in the 10 px grip), input-transparent, hidden at start, no colour of its own in XAML — declared after the WebView and BEFORE paneDivider (under the grip); the grip is unchanged (no ZIndex) — failing: ' + JSON.stringify(F(xm)) + ' ' + JSON.stringify({ line: LA }));
+    '★ fixb1 item 4 XAML: ONE BoxView paneDividerLine — column 0, 2 px, End, VerticalOptions Fill, no ZIndex, Margin 0,0,0,0 (at the column edge, over the shell hairline — fixb2 item 2), input-transparent, hidden at start, no colour of its own in XAML — declared after the WebView and BEFORE paneDivider (under the grip); the grip is unchanged (no ZIndex) — failing: ' + JSON.stringify(F(xm)) + ' ' + JSON.stringify({ line: LA }));
 
   /* ── WIRE ── */
   const HP = rd('Spixi/Pages/Home/HomePage.xaml.cs');
@@ -140,7 +145,7 @@ export default async function (h) {
   /* ── EXACT (★ #46 r2, R2-2 / R2-3 / R2-4): the whole text of what can move the line or the grip ── */
   const nz = (t) => t.replace(/\s+/g, ' ').trim();
   const XB = [...X.matchAll(/<BoxView\b[\s\S]*?\/>/g)].map((m) => nz(m[0]));
-  const LINE_X = '<BoxView x:Name="paneDividerLine" Grid.Column="0" WidthRequest="2" HorizontalOptions="End" VerticalOptions="Fill" Margin="0,0,4,0" InputTransparent="True" IsVisible="False" />';
+  const LINE_X = '<BoxView x:Name="paneDividerLine" Grid.Column="0" WidthRequest="2" HorizontalOptions="End" VerticalOptions="Fill" Margin="0,0,0,0" InputTransparent="True" IsVisible="False" />';   // re-based by fixb2 item 2 (Margin)
   /* the grip: its text at efcde241 (git show efcde241:Spixi/Pages/Home/HomePage.xaml) */
   const GRIP_X = '<BoxView x:Name="paneDivider" Grid.Column="0" WidthRequest="10" HorizontalOptions="End" VerticalOptions="Fill" Color="Transparent" BackgroundColor="Transparent" IsVisible="False" />';
   const treeXaml = (d) => readdirSync(join(root, d), { withFileTypes: true }).flatMap((e) =>
@@ -221,7 +226,7 @@ export default async function (h) {
 
   /* ── FILES (★ #46 r3, R3-3 / R3-1): HomePage.xaml WHOLE, and the pure rules the line leans on ── */
   const sha = (t) => createHash('sha256').update(t, 'utf8').digest('hex');
-  const XAML_FROZEN = 'bef9f8f525eca363fafa73c39355e9839027a19d55242d961ef5c50b37b7bd77';
+  const XAML_FROZEN = '992a99e2c56c8812af4c7d05e8d70b0245de82dc3d4993054f4175be8f3984b8';   // re-based by fixb2 item 2 (was bef9f8f5…: the line's Margin + its XAML comment)
   const RULES_FROZEN = 'e89f42e073f2ace5a34d63e8f8a47da60a9de0914569edc8892489f779262c68';   // the same freeze as pins-fixb1/a-confirm RULES (computed again, nothing imported)
   const hashFile = (f) => createHash('sha256').update(readBytes(join(root, f))).digest('hex');   // ★ #46 r4: the EXACT bytes
   const xamlGot = hashFile('Spixi/Pages/Home/HomePage.xaml');
@@ -254,7 +259,7 @@ export default async function (h) {
   const nzs = (t) => t.replace(/\s+/g, ' ').trim();
   const HPn = HPraw.replace(/\r\n/g, '\n');
   const d1a = HPn.indexOf('// D1 (#240): divider gestures'), d1b = HPn.indexOf('SizeChanged += OnPageSizeChanged;');
-  const D1_BLOCK = "leftPaneWidth = clampLeftPaneWidth(Preferences.Default.Get(\"leftPaneWidth\", leftPaneDefaultWidth)); var dividerPan = new PanGestureRecognizer(); dividerPan.PanUpdated += onPaneDividerPan; paneDivider.GestureRecognizers.Add(dividerPan); var dividerReset = new TapGestureRecognizer { NumberOfTapsRequired = 2 }; dividerReset.Tapped += (s, ev) => { leftPaneWidth = leftPaneDefaultWidth; applyLeftPaneWidth(); Preferences.Default.Set(\"leftPaneWidth\", leftPaneWidth); }; paneDivider.GestureRecognizers.Add(dividerReset); #if WINDOWS paneDivider.HandlerChanged += (s, ev) => { try { if (paneDivider.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement el) { var prop = typeof(Microsoft.UI.Xaml.UIElement).GetProperty( \"ProtectedCursor\", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public); prop?.SetValue(el, Microsoft.UI.Input.InputSystemCursor.Create( Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast)); } } catch (Exception ex) { Logging.warn(\"paneDivider cursor: \" + ex.Message); } }; #endif #if MACCATALYST var dividerHover = new PointerGestureRecognizer(); dividerHover.PointerEntered += (s, ev) => { Spixi.SMacCursor.hovered = true; Spixi.SMacCursor.pushResizeLeftRight(); }; dividerHover.PointerExited += (s, ev) => { Spixi.SMacCursor.hovered = false; if (!paneDividerPanning) Spixi.SMacCursor.pop(); }; paneDivider.GestureRecognizers.Add(dividerHover); #endif #if WINDOWS || MACCATALYST if (SpixiFlags.DividerHoverLine) { #if MACCATALYST PointerGestureRecognizer dividerLineHover = dividerHover; #else PointerGestureRecognizer dividerLineHover = new PointerGestureRecognizer(); paneDivider.GestureRecognizers.Add(dividerLineHover); #endif dividerLineHover.PointerEntered += (s, ev) => { paneDividerLineState.hoverEnter(); applyPaneDividerLine(); }; dividerLineHover.PointerMoved += (s, ev) => { paneDividerLineState.hoverEnter(); applyPaneDividerLine(); }; dividerLineHover.PointerExited += (s, ev) => { paneDividerLineState.hoverExit(); applyPaneDividerLine(); }; } #endif";
+  const D1_BLOCK = "leftPaneWidth = clampLeftPaneWidth(Preferences.Default.Get(\"leftPaneWidth\", leftPaneDefaultWidth)); var dividerPan = new PanGestureRecognizer(); dividerPan.PanUpdated += onPaneDividerPan; paneDivider.GestureRecognizers.Add(dividerPan); var dividerReset = new TapGestureRecognizer { NumberOfTapsRequired = 2 }; dividerReset.Tapped += (s, ev) => { leftPaneWidth = leftPaneDefaultWidth; applyLeftPaneWidth(); Preferences.Default.Set(\"leftPaneWidth\", leftPaneWidth); updateInfoPaneWidth(); }; paneDivider.GestureRecognizers.Add(dividerReset); #if WINDOWS paneDivider.HandlerChanged += (s, ev) => { try { if (paneDivider.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement el) { var prop = typeof(Microsoft.UI.Xaml.UIElement).GetProperty( \"ProtectedCursor\", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public); prop?.SetValue(el, Microsoft.UI.Input.InputSystemCursor.Create( Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast)); } } catch (Exception ex) { Logging.warn(\"paneDivider cursor: \" + ex.Message); } }; #endif #if MACCATALYST var dividerHover = new PointerGestureRecognizer(); dividerHover.PointerEntered += (s, ev) => { Spixi.SMacCursor.hovered = true; Spixi.SMacCursor.pushResizeLeftRight(); }; dividerHover.PointerExited += (s, ev) => { Spixi.SMacCursor.hovered = false; if (!paneDividerPanning) Spixi.SMacCursor.pop(); }; paneDivider.GestureRecognizers.Add(dividerHover); #endif #if WINDOWS || MACCATALYST if (SpixiFlags.DividerHoverLine) { #if MACCATALYST PointerGestureRecognizer dividerLineHover = dividerHover; #else PointerGestureRecognizer dividerLineHover = new PointerGestureRecognizer(); paneDivider.GestureRecognizers.Add(dividerLineHover); #endif dividerLineHover.PointerEntered += (s, ev) => { paneDividerLineState.hoverEnter(); applyPaneDividerLine(); }; dividerLineHover.PointerMoved += (s, ev) => { paneDividerLineState.hoverEnter(); applyPaneDividerLine(); }; dividerLineHover.PointerExited += (s, ev) => { paneDividerLineState.hoverExit(); applyPaneDividerLine(); }; } #endif";   // re-based by fixb2 item 2 (#46 r1 O2: the reset re-fits the info pane, `updateInfoPaneWidth();`)
   const spA = HPn.indexOf('paneDivider.IsVisible = false;'), spL = HPn.indexOf('paneDividerLine.IsVisible = false;', spA), spE = HPn.indexOf('#endif', spL) + 6;
   const SINGLE_BLOCK = "paneDivider.IsVisible = false; #if WINDOWS || MACCATALYST paneDividerLineState.dragEnd(); paneDividerLine.IsVisible = false; #endif";
   const PAN_BODY = "private void onPaneDividerPan(object? sender, PanUpdatedEventArgs e) { switch (e.StatusType) { case GestureStatus.Started: panStartPaneWidth = leftPaneWidth; paneDividerPanning = true; Logging.info(\"[DIVIDER] pan started\"); #if WINDOWS || MACCATALYST if (SpixiFlags.DividerHoverLine) { paneDividerLineState.dragStart(); applyPaneDividerLine(); } #endif break; case GestureStatus.Running: if (!paneDividerPanning) { panStartPaneWidth = leftPaneWidth; paneDividerPanning = true; #if WINDOWS || MACCATALYST if (SpixiFlags.DividerHoverLine) { paneDividerLineState.dragStart(); applyPaneDividerLine(); } #endif } leftPaneWidth = clampLeftPaneWidth(panStartPaneWidth + e.TotalX); applyLeftPaneWidth(); updateInfoPaneWidth(); break; case GestureStatus.Completed: case GestureStatus.Canceled: paneDividerPanning = false; Preferences.Default.Set(\"leftPaneWidth\", leftPaneWidth); Logging.info(\"[DIVIDER] pan ended width=\" + (int)leftPaneWidth); #if MACCATALYST if (!Spixi.SMacCursor.hovered) Spixi.SMacCursor.pop(); #endif #if WINDOWS || MACCATALYST if (SpixiFlags.DividerHoverLine) { paneDividerLineState.dragEnd(); applyPaneDividerLine(); } #endif break; } }";

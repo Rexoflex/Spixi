@@ -175,7 +175,7 @@ namespace SPIXI
         // double-click resets; width persisted across restarts.
         private const double leftPaneMinWidth = 280;
         private const double leftPaneMaxWidth = 624;   // #243: 520 + 20% (Damir)
-        private const double leftPaneDefaultWidth = 400;
+        private const double leftPaneDefaultWidth = 440;   // ★ fixb2 item 2 (🟡 dial): 400 + 40 — the double-click reset AND the first-run default
         // #245: the home shell's desktop nav rail is 72 CSS px (#237 r2 dial); CSS px
         // == DIPs in the WebView at default zoom, so the Account peer-pane insets by
         // this much to keep the rail visible. Single source C#-side; if the rail is
@@ -327,6 +327,7 @@ namespace SPIXI
                 leftPaneWidth = leftPaneDefaultWidth;
                 applyLeftPaneWidth();
                 Preferences.Default.Set("leftPaneWidth", leftPaneWidth);
+                updateInfoPaneWidth();   // ★ fixb2 item 2 (#46 r1 O2): as the pan's Running arm — keep the conversation >= detailMinWidth (#247)
             };
             paneDivider.GestureRecognizers.Add(dividerReset);
 

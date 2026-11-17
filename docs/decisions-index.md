@@ -145,3 +145,19 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1683 | What the later walk-rows batch (CS-01 + the summary rows, after `filewalk`) must add to `adb-walk-parse.ps1`; the scratch parser `split.py` is its reference. |
 | #1684 | The pins of Cold start 1 — the review stopped at round 3 by rule 9 (a define in a caller file, a shadow class: holes that need deliberately hidden code); Damir accepted the limits (#1627): `pins-coldstart1/a-lines` (6 rows: DEV ONLY, CALL SITES, NO MOVE, NOTHING NEW, HARNESS, FREEZE — `P1Perf.cs` and `ColdStartRules.cs` whole by SHA-256); csh `ColdStartTests` (15); re-bases: `a-extra` `OC_FROZEN` (#1596), `pins-s9/a3-wiring`, the inline #461 pin. |
 | #1685 | Session "Cold start 1" record: stopped at review round 3 on the pin (rule 9); Damir accepted the limits (#1627); CLEAN at round 4; merged `redesign/frontend` @ `8b3c4ae4`, smoke 6522, CSH 622; delivered by #1546; the operator block follows. |
+
+### Session Fix batch 2 (`fixb2`, 2026-11-17, #1695–#1706, L225–L230, packets P59–P62)
+| Row | Rule |
+|---|---|
+| #1695 | Windows safe-default confirm: on `Opened` (+ once at Low priority) the KEYBOARD focus goes to the Cancel (Close) part only, then its accent; the text sits in a non-focusable ScrollViewer (P59). |
+| #1696 🟡 | Item 3 has no switch of its own: the focus step is part of `ConfirmSafeDefault`. |
+| #1697 | Windows: the payment send confirm and the three mini-app confirms use `SConfirm.askPlainSafeWinAsync` (switches `PayConfirmSafeDefault`, `MiniAppConfirmSafeDefault`; `useSafeDialog` = own switch AND `NativeConfirm`); 🟡 D-1 the entry holds the ConfirmGate (P60, P61). |
+| #1698 | The payment confirm's recorded limits — every one toward Cancel (P60). |
+| #1699 | What each mini-app yes approves (unchanged) + the legacy risks seen on those paths (P61). |
+| #1700 🟡 | Divider line `Margin 0,0,0,0` = on the hairline; reset / default width 400 → 440 (dial); the reset re-fits chat info (P62). |
+| #1701 | "Unread messages" = a centred pill like the date pill on every platform; the both-edges gutter stays. |
+| #1702 | Centred desktop sheets: `max-height: max(76%, min(100% − 48px, 608px))`; the chat app picker shares it. |
+| #1703 🟡 | Desktop wallet tx rows take the chat row's inset (8 / 1 / radius 12) + padding 8 (dial). |
+| #1704 | Light Aurora ring: the dedicated token `--outline-select-ring` (#2B47A9, 3.05 : 1); the global action token unchanged. |
+| #1705 🟡 | #46 STOPPED at round 3 by rule 9 (three pin scanners); Damir's choice (a) accept limits / (b) redesign / (c) drop the keys. |
+| #1706 | Session record (STOPPED; not pushed). |

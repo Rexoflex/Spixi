@@ -28,8 +28,10 @@ namespace SPIXI
         public const string WinAppMarkerKey = "flagWinAppMarker";           // int pref; absent = default (1) — ★ Safety O-02 (P37)
         public const string WarmOnIdleKey = "flagWarmOnIdle";               // int pref; absent = default (1) — ★ perfb1 P-12 (P38)
         public const string SpareRearmKey = "flagSpareRearm";               // int pref; absent = default (1) — ★ perfb1 P-11 switch 1 (P39)
-        public const string SpareKeepShortSleepKey = "flagSpareKeepShortSleep";   // int pref; absent = default (0, opt-in) — ★ perfb1 P-11 switch 2 (P40)
+        public const string SpareKeepShortSleepKey = "flagSpareKeepShortSleep";   // int pref; absent = default (1) — ★ perfb1 P-11 switch 2 (P40); ON by default since ★ fixb1 item 7
         public const string PhoneNoEmptyDetailKey = "flagPhoneNoEmptyDetail";     // int pref; absent = default (1) — ★ perfb1 P-13 (P41)
+        public const string ConfirmSafeDefaultKey = "flagConfirmSafeDefault";     // int pref; absent = default (1) — ★ fixb1 item 1 (P50)
+        public const string DividerHoverLineKey = "flagDividerHoverLine";         // int pref; absent = default (1) — ★ fixb1 item 4 (P51)
 
         /** ★ perfb1: the four keys in PerfB1Rules.DevSwitchNames order (DevPage `ixian:devflash:<name>:<0|1>`). */
         public static readonly string[] PerfB1DevKeys = { WarmOnIdleKey, SpareRearmKey, SpareKeepShortSleepKey, PhoneNoEmptyDetailKey };
@@ -95,17 +97,28 @@ namespace SPIXI
         public static bool WarmOnIdle { get; private set; } = true;
         /** P-11 switch 1 (P39): the spare chat page is armed again after a drop. OFF = exactly the old behaviour. */
         public static bool SpareRearm { get; private set; } = true;
-        /** P-11 switch 2 (P40), OPT-IN: the spare chat page is kept over a short sleep. A stored 1 acts only in dev mode
-         *  (PerfB1Rules.effectiveOptIn); absent = OFF. OFF = exactly the old behaviour. */
+        /** P-11 switch 2 (P40): the spare chat page is kept over a short sleep (Android). ★ fixb1 item 7: ON by default —
+         *  absent = ON, a stored 0 turns it off only in dev mode (S16PassRules.effectiveFlag, the rule of the other three).
+         *  The start value stays `false`: before init runs, the old path. OFF = exactly the old behaviour. */
         public static bool SpareKeepShortSleep { get; private set; } = false;
         /** P-13 (P41): the phone "no empty detail" change. OFF = exactly the old behaviour. */
         public static bool PhoneNoEmptyDetail { get; private set; } = true;
 
+        /* ★ fixb1 (Fix batch 1, #1312 rule 1 / #1478, FixB1Rules.cs): one flag per change; OFF = the old path. */
+        /** Item 1 (P50), Windows only: SConfirm shows its own ContentDialog with Cancel as the default (Close) button, so
+         *  Enter cancels; only the Primary (OK) result is OK. OFF = exactly the old behaviour (MAUI DisplayAlert). */
+        public static bool ConfirmSafeDefault { get; private set; } = true;
+        /** Item 4 (P51), Windows + Mac only: the 2 px accent line in the pane divider grip on hover and for the whole drag.
+         *  OFF = no line, exactly the old behaviour. */
+        public static bool DividerHoverLine { get; private set; } = true;
+
         /** ★ perfb1 #46 r1 B-1 / S-5: leaving dev mode (HomePage `ixian:disableDevMode`, which also removes the four
-         *  PerfB1DevKeys) turns the OPT-IN off in THIS process too — init runs once, so without this the running app kept
-         *  the spare over a sleep until the next start, with nothing on screen showing it. The three ON flags need nothing:
-         *  a stored 0 acts only in dev mode at the NEXT start (S16PassRules.effectiveFlag) and the keys are removed, so the
-         *  next start has the defaults; until then a flag that is off only keeps the old path. Two callers: (1) that HomePage
+         *  PerfB1DevKeys) turns SpareKeepShortSleep off in THIS process — it falls to the old path (the drop at sleep) until
+         *  the next start. ★ fixb1 item 7: the switch is ON by default now; leaving dev mode removes the keys, so the NEXT
+         *  start has it ON again (the default), and in this process it stays on the old path (fail to the old path). The
+         *  other three ON flags need nothing: a stored 0 acts only in dev mode at the NEXT start (S16PassRules.effectiveFlag)
+         *  and the keys are removed, so the next start has the defaults; until then a flag that is off only keeps the old
+         *  path. Two callers: (1) that HomePage
          *  branch, called BEFORE its dropSpareChat("devmode"), so a kept spare goes with the drop; (2) the account wipe
          *  (SettingsPage.wipeEverything), right after the preference wipe and WalletPassStore.clear() — there a spare was already
          *  dropped at the wipe's first step with the word `stop` (IxianHandler.shutdown() → HomePage.stop() → dropSpareChat("stop")). */
@@ -121,7 +134,8 @@ namespace SPIXI
             int vi = 1, vh = 1;   // ★ V1A-M M1 / M2
             int ah = 1;           // ★ S20I
             int xi = 1, xs = 1, xp = 1, xc = 1, xh = 1, xw = 1;   // ★ Session Safety
-            int pw = 1, pr = 1, pk = 0, pn = 1;   // ★ perfb1 (pk = the opt-in: absent = 0)
+            int pw = 1, pr = 1, pk = 1, pn = 1;   // ★ perfb1 (pk: absent = 1 since ★ fixb1 item 7)
+            int fc = 1, fd = 1;                   // ★ fixb1 items 1 / 4
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -142,8 +156,10 @@ namespace SPIXI
                 xw = Preferences.Default.Get(WinAppMarkerKey, 1);
                 pw = Preferences.Default.Get(WarmOnIdleKey, 1);
                 pr = Preferences.Default.Get(SpareRearmKey, 1);
-                pk = Preferences.Default.Get(SpareKeepShortSleepKey, 0);
+                pk = Preferences.Default.Get(SpareKeepShortSleepKey, 1);
                 pn = Preferences.Default.Get(PhoneNoEmptyDetailKey, 1);
+                fc = Preferences.Default.Get(ConfirmSafeDefaultKey, 1);
+                fd = Preferences.Default.Get(DividerHoverLineKey, 1);
             }
             catch (Exception ex)
             {
@@ -177,9 +193,12 @@ namespace SPIXI
             Logging.info(SafetyRules.flagsLine(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker));
             WarmOnIdle = S16PassRules.effectiveFlag(dev, pw);
             SpareRearm = S16PassRules.effectiveFlag(dev, pr);
-            SpareKeepShortSleep = PerfB1Rules.effectiveOptIn(dev, pk);
+            SpareKeepShortSleep = S16PassRules.effectiveFlag(dev, pk);
             PhoneNoEmptyDetail = S16PassRules.effectiveFlag(dev, pn);
             Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));
+            ConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fc);
+            DividerHoverLine = S16PassRules.effectiveFlag(dev, fd);
+            Logging.info(FixB1Rules.flagsLine(ConfirmSafeDefault, DividerHoverLine));
         }
 
 #if SPIXI_DEV_COEXIST

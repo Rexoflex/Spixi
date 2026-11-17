@@ -307,7 +307,8 @@
      · The chevron and the @ FAB keep their 16px inset from the COLUMN's edge, not
        the window's — the same calc, plus the spacing term.
      · The composer slot (and the request pane that docks in the same slot) centres
-       at the same 760 so the pill's edge tracks the bubbles' edge. */
+       at the same 760, so the pill and the column share one centre (★ fixb1 item 3: with the gutter on both
+       edges of the log the pill sits one gutter wider than the column on each side). */
   :root[data-desktop] .messages { padding-inline: max(0px, calc((100% - 760px) / 2)); }
   /* ★ #1198: the reply swipe moves a row up to 72 px toward the end edge — the log never scrolls sideways for it */
   #messages { overflow-x: hidden; }
@@ -317,12 +318,18 @@
      child cannot see the scroller's 100%, but on desktop the scroller IS the pane:
      body is margin 0 / overflow hidden and .c-chat-canvas fills it, so 100vw == the
      .messages containing width and this term equals the padding term above to the
-     pixel. The negative margin pulls the strip back over both gutters; the 6px
-     scrollbar gutter (base.css .u-scroll) stays outside, so the strip runs from the
-     pane edge to the scrollbar edge and its text stays centred on the column.
+     pixel. The negative margin pulls the strip back over both paddings; the scrollbar gutter
+     (base.css .u-scroll) stays outside it.
+     ★ fixb1 item 3 (#1646): both edges reserve the gutter (rule below), so the strip has one equal inset on
+     both sides with and without a scroll bar, and the strip, the pills and the bubbles share the pane's centre.
      Inert below 760px (max floors at 0), phones untouched. Pinned to the .messages
      term: the two 760 literals must move together. */
   :root[data-desktop] .c-unread-divider { margin-inline: calc(-1 * max(0px, (100vw - 760px) / 2)); }
+  /* ★ fixb1 item 3: same pointer scope as base.css .u-scroll (touch WebViews reserve no gutter); a touch-only
+     desktop keeps its overlay bar and today's layout */
+  @media (hover: hover) and (pointer: fine) {
+    :root[data-desktop] .messages { scrollbar-gutter: stable both-edges; }
+  }
   :root[data-desktop] #chat-composer { max-width: 760px; margin-inline: auto; }   /* ★ Session I: the slot is absolute now — insets 0 + max-width + auto margins centre it */
   :root[data-desktop] .chat-request-pane { width: 100%; max-width: 760px; align-self: center; }
   :root[data-desktop] .c-scroll-latest,

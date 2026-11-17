@@ -1,12 +1,12 @@
 /* ==== perfb1 (Speed batch 1a) · F — the four switches' plumbing (P38–P41): SpixiFlags.WarmOnIdle · SpareRearm ·
- * SpareKeepShortSleep (OPT-IN) · PhoneNoEmptyDetail, read once at start; OFF = the old path (#1312 rule 1 / #1478).
+ * SpareKeepShortSleep (was opt-in; ON by default since fixb1 item 7) · PhoneNoEmptyDetail, read once at start; OFF = the old path (#1312 rule 1 / #1478).
  *
- * The pure rules and the REAL SpixiFlags.init run in the C# harness (scripts/csh/PerfB1FlagsTests.cs: defaults 1, 1, 0, 1;
- * a stored 0 acts only in dev mode; the opt-in's stored 1 acts only in dev mode; a throwing read keeps the defaults; the one
+ * The pure rules and the REAL SpixiFlags.init run in the C# harness (scripts/csh/PerfB1FlagsTests.cs: defaults 1, 1, 1, 1 (★ fixb1 item 7);
+ * a stored 0 acts only in dev mode; a throwing read keeps the defaults; the one
  * [FLAGS] line). This module pins the structure the harness cannot reach (comment-stripped C#, brace-matched bodies):
- *   INIT  — SpixiFlags: the four keys and property defaults; the four reads inside init's try (absent 1, 1, 0, 1); the three
- *           ON flags through S16PassRules.effectiveFlag and the opt-in through PerfB1Rules.effectiveOptIn (never
- *           effectiveFlag), all after the catch; ONE Logging.info(PerfB1Rules.flagsLine(…)) right after the safety line;
+ *   INIT  — SpixiFlags: the four keys and property defaults; the four reads inside init's try (absent 1, 1, 1, 1); the three
+ *           ON flags through S16PassRules.effectiveFlag and (★ fixb1 item 7) the spare-keep switch through it too — PerfB1Rules.effectiveOptIn is gone —
+ *           all after the catch, with the fixb1 statements an OPTIONAL trailing group; ONE Logging.info(PerfB1Rules.flagsLine(…)) right after the safety line;
  *           PerfB1DevKeys = the four keys in the DevSwitchNames order;
  *   RULES — PerfB1Rules.cs is pure (no MAUI / Core using) and the harness compiles it;
  *   DEV   — DevPage: ONE branch `PerfB1Rules.devSwitchVerb(current_url, …)` BEFORE the catch-all devflash branch; its body
@@ -15,6 +15,10 @@
  *   SHELL — dev.html (source and built) does not name the four words (no shell change in this batch);
  *   DEV MODE OFF — (#46 r1 B-1 / S-5) `ixian:disableDevMode` removes the four keys and calls SpixiFlags.leaveDevMode
  *           (the opt-in OFF in this process) BEFORE its dropSpareChat("devmode").
+ * ★ fixb1 item 7 re-base (#1596; the new site: SpixiFlags.init's sparekeep read + compute, and the fixb1 [FLAGS] line after
+ * the perfb1 one; pinned in full by pins-fixb1/g-sparekeep): the switch is ON by default — absent 1, S16PassRules.effectiveFlag,
+ * PerfB1Rules.effectiveOptIn gone; `optInDefaultOff` (the start value `= false`) and leaveDevMode are unchanged. The keys
+ * keep their names; each still fails on its first failure (the read's absent value, the rule, the tail after the safety line).
  * Deliberate breaks: builder-d report (perfb1); #46 r1: leaveDevMode moved after the drop → red `order`;
  * leaveDevMode's `= false` → `= true` → CSH red (PerfB1FlagsTests.leaving_dev_mode_… / after_leaving_dev_mode_…); #46 r2 R2-1:
  * the wipe's call removed → red `bothCallersNoThird` + `wipeRightAfterTheClear`; moved before the Clear → red
@@ -44,13 +48,17 @@ export default async function (h) {
   const at = (s) => init.indexOf(s);
   const iTry = init.search(/\btry\s*\{/), iCatch = at('catch (Exception ex)');
   const iCatchEnd = iCatch < 0 ? -1 : iCatch + body(init, 'catch (Exception ex)', iCatch).length;
-  const reads = [['pw', 'WarmOnIdleKey', 1], ['pr', 'SpareRearmKey', 1], ['pk', 'SpareKeepShortSleepKey', 0], ['pn', 'PhoneNoEmptyDetailKey', 1]];
+  const reads = [['pw', 'WarmOnIdleKey', 1], ['pr', 'SpareRearmKey', 1], ['pk', 'SpareKeepShortSleepKey', 1], ['pn', 'PhoneNoEmptyDetailKey', 1]];   // ★ fixb1 item 7: pk absent = 1
   const safetyLine = 'Logging.info(SafetyRules.flagsLine(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker));';
   const comp = ['WarmOnIdle = S16PassRules.effectiveFlag(dev, pw);', 'SpareRearm = S16PassRules.effectiveFlag(dev, pr);',
-    'SpareKeepShortSleep = PerfB1Rules.effectiveOptIn(dev, pk);', 'PhoneNoEmptyDetail = S16PassRules.effectiveFlag(dev, pn);',
+    'SpareKeepShortSleep = S16PassRules.effectiveFlag(dev, pk);', 'PhoneNoEmptyDetail = S16PassRules.effectiveFlag(dev, pn);',   // ★ fixb1 item 7
     'Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));'];
+  /* ★ fixb1 (pins-fixb1/g-sparekeep holds these in full): the two fixb1 switches and their ONE line follow the perfb1 line —
+   * an OPTIONAL trailing group here (as pins-v1am/c-csharp does), so a fixb1-only change no longer turns this key red (#1596 smallest re-base) */
+  const fixTail = ['ConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fc);', 'DividerHoverLine = S16PassRules.effectiveFlag(dev, fd);',
+    'Logging.info(FixB1Rules.flagsLine(ConfirmSafeDefault, DividerHoverLine));'];
   const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '\\s*\\}$');
+  const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '(?:\\s*' + fixTail.map(esc).join('\\s*') + ')?\\s*\\}$');
   const fl = {
     found: init.length > 0 && iTry > 0 && iCatch > iTry,
     keys: /public const string WarmOnIdleKey = "flagWarmOnIdle";/.test(SF) && /public const string SpareRearmKey = "flagSpareRearm";/.test(SF)
@@ -58,20 +66,21 @@ export default async function (h) {
     defaults: /public static bool WarmOnIdle \{ get; private set; \} = true;/.test(SF) && /public static bool SpareRearm \{ get; private set; \} = true;/.test(SF)
       && /public static bool PhoneNoEmptyDetail \{ get; private set; \} = true;/.test(SF),
     optInDefaultOff: /public static bool SpareKeepShortSleep \{ get; private set; \} = false;/.test(SF),
-    locals: /int pw = 1, pr = 1, pk = 0, pn = 1;/.test(init) && at('int pw = 1, pr = 1, pk = 0, pn = 1;') < iTry,
+    locals: /int pw = 1, pr = 1, pk = 1, pn = 1;/.test(init) && at('int pw = 1, pr = 1, pk = 1, pn = 1;') < iTry,   // ★ fixb1 item 7
     reads: reads.every(([v, k, d]) => {
       const s = v + ' = Preferences.Default.Get(' + k + ', ' + d + ');';
       return count(init, s) === 1 && at(s) > iTry && at(s) < iCatch;
     }),
     compute: tail.test(init) && at('WarmOnIdle = ') > iCatchEnd,
-    optInRule: !/SpareKeepShortSleep = S16PassRules\.effectiveFlag/.test(SF) && count(SF, 'PerfB1Rules.effectiveOptIn(') === 1
+    /* ★ fixb1 item 7: the rule is S16PassRules.effectiveFlag now (the name stays: the key of this rule) */
+    optInRule: /SpareKeepShortSleep = S16PassRules\.effectiveFlag\(dev, pk\);/.test(SF) && count(SF, 'effectiveOptIn') === 0
       && count(SF, 'SpareKeepShortSleep = ') === 2 && count(init, 'SpareKeepShortSleep = ') === 1   // + leaveDevMode's `= false` (#46 r1 B-1)
       && /public static void leaveDevMode\(\)\s*\{\s*SpareKeepShortSleep = false;\s*\}/.test(SF),
     oneLine: count(SF, 'PerfB1Rules.flagsLine(') === 1 && count(init, 'PerfB1Rules.flagsLine(') === 1,
     devKeys: /public static readonly string\[\] PerfB1DevKeys = \{ WarmOnIdleKey, SpareRearmKey, SpareKeepShortSleepKey, PhoneNoEmptyDetailKey \};/.test(SF),
   };
   ok(F(fl).length === 0,
-    '★ perfb1 F (P38–P41): SpixiFlags — four keys (absent 1, 1, 0, 1) read in init\'s try; WarmOnIdle / SpareRearm / PhoneNoEmptyDetail default ON through S16PassRules.effectiveFlag; SpareKeepShortSleep default OFF through PerfB1Rules.effectiveOptIn (never effectiveFlag); ONE [FLAGS] line right after the safety line; PerfB1DevKeys in the names\' order — failing: ' + JSON.stringify(F(fl)));
+    '★ perfb1 F (P38–P41; ★ fixb1 item 7): SpixiFlags — four keys (absent 1, 1, 1, 1) read in init\'s try; all four default ON through S16PassRules.effectiveFlag (SpareKeepShortSleep\'s start value before init stays false; PerfB1Rules.effectiveOptIn is gone); ONE [FLAGS] line right after the safety line, then the fixb1 switches and line; PerfB1DevKeys in the names\' order — failing: ' + JSON.stringify(F(fl)));
 
   /* ── RULES ── */
   const namesM = /DevSwitchNames = \{ ([^}]*) \};/.exec(RU);
@@ -80,12 +89,12 @@ export default async function (h) {
   const ru = {
     names: names.join(',') === NAMES.join(','),
     pure: !/using Microsoft\.Maui|using IXICore|Preferences\.|Logging\./.test(RU),
-    optIn: /public static bool effectiveOptIn\(bool devMode, int stored\)\s*\{\s*return devMode && stored == 1;\s*\}/.test(RU),
+    optIn: !/effectiveOptIn/.test(RU),   // ★ fixb1 item 7: the opt-in rule is gone (pins-fixb1/g-sparekeep)
     csh: /<Compile Include="\.\.\/\.\.\/Spixi\/Utils\/S16FixRules\.cs" \/>[^\n]*\n\s*<Compile Include="\.\.\/\.\.\/Spixi\/Utils\/PerfB1Rules\.cs" \/>/.test(CSH),
     tests: existsSync(join(root, 'scripts/csh/PerfB1FlagsTests.cs')) && /\[TestClass\]\s*public class PerfB1FlagsTests/.test(raw('scripts/csh/PerfB1FlagsTests.cs')),
   };
   ok(F(ru).length === 0,
-    '★ perfb1 F: PerfB1Rules.cs is pure (no MAUI / Core), names the four switches, effectiveOptIn = devMode && stored == 1, and the harness compiles it (csh.csproj, after S16FixRules) with PerfB1FlagsTests — failing: ' + JSON.stringify(F(ru)));
+    '★ perfb1 F: PerfB1Rules.cs is pure (no MAUI / Core), names the four switches, has no effectiveOptIn any more (★ fixb1 item 7), and the harness compiles it (csh.csproj, after S16FixRules) with PerfB1FlagsTests — failing: ' + JSON.stringify(F(ru)));
 
   /* ── DEV ── */
   const SIG = 'else if (PerfB1Rules.devSwitchVerb(current_url, out int perfIndex, out string perfTail))';

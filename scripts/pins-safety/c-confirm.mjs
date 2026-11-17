@@ -111,14 +111,18 @@ export default async function (h) {
     oneReset: (ask.match(/gate\.exit\(token\)/g) || []).length === 1 && /finally\s*\{\s*gate\.exit\(token\);\s*\}/.test(ask) && !/Interlocked/.test(SF),
     returnsAnswer: /Logging\.info\(SafetyRules\.confirmLine\(verb, yes \? "ok" : "cancel"\)\);\s*return yes;\s*\}$/.test(ask) && (ask.match(/return true/g) || []).length === 0
       && !/yes = true/.test(ask) && /yes = dialog != null && await dialog;/.test(ask),
-    okCancel: /page\.displaySpixiAlert\(title, text, ok, SpixiLocalization\._SL\("global-dialog-cancel"\), true\)/.test(ask),
+    /* ★ fixb1 item 1 re-base (#1596): today's call is written twice — the Windows switch-OFF arm and the `#else` arm (every other
+       platform); both must hold it (pins-fixb1/a-confirm) */
+    okCancel: (ask.match(/page\.displaySpixiAlert\(title, text, ok, SpixiLocalization\._SL\("global-dialog-cancel"\), true\)/g) || []).length === 2,
     /* ★ #46 r1/r2 (R2 MINOR-2, r2 m-3): the lock is checked BEFORE the dialog and AFTER it (a yes after the lock came up = no) */
     refusesOverOthers: /if \(lockUp\(\)\)\s*\{\s*Logging\.info\(SafetyRules\.confirmLine\(verb, "busy"\)\);\s*return false;\s*\}/.test(ask) && before(ask, 'if (lockUp())', 'page.displaySpixiAlert(') && /yes = dialog != null && await dialog;\s*if \(yes && lockUp\(\)\)\s*\{\s*yes = false;/.test(ask)
       && /private static bool lockUp\(\) => \(Application\.Current as global::Spixi\.App\)\?\.isAppLockActive == true;/.test(SF),
     logsFixed: (() => { const L = [...SF.matchAll(/Logging\.(info|warn|error)\(([^;]*)\);/g)].map((m) => m[2]);
       return L.length === 5 && L.every((a) => /^SafetyRules\.confirmLine\(verb, (?:"busy"|"fast"|yes \? "ok" : "cancel")\)$/.test(a) || a === '"[CONFIRM] the dialog failed (" + ex.GetType().Name + ")"'); })(),
     /* ★ #46 r4 (MINOR-1): an OK faster than SafetyRules.MinConfirmMs after the ask = Cancel (a timed double tap) */
-    tooFast: /long asked = Environment\.TickCount64;\s*Task<bool>\? dialog = page\.displaySpixiAlert\(/.test(ask)
+    /* ★ fixb1 item 1 re-base (#1596): between `asked` and today's call sits the Windows-only arm (SpixiFlags.ConfirmSafeDefault ?
+       showSafeDefaultConfirm(…) : today's call) — `asked` is still taken right before the dialog on both paths (pins-fixb1/a-confirm) */
+    tooFast: /long asked = Environment\.TickCount64;\s*#if WINDOWS\s*Task<bool>\? dialog = SpixiFlags\.ConfirmSafeDefault\s*\?\s*showSafeDefaultConfirm\([^;]*\)\s*:\s*page\.displaySpixiAlert\([^;]*;\s*#else\s*Task<bool>\? dialog = page\.displaySpixiAlert\(/.test(ask)
       && /if \(yes && SafetyRules\.tooFast\(Environment\.TickCount64 - asked\)\)\s*\{[^}]*Logging\.info\(SafetyRules\.confirmLine\(verb, "fast"\)\);\s*return false;\s*\}/.test(ask)
       && before(ask, 'SafetyRules.tooFast(', 'finally'),
     textsPure: /SafetyRules\.confirmTexts\(verb, name, fallback, SpixiLocalization\._SL, alsoLeaveGroups\)/.test(SF) && !/string\.Format/.test(SF),

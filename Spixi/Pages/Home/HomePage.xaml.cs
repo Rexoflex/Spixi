@@ -215,9 +215,6 @@ namespace SPIXI
         private ContactDetails? infoPaneCol2Page = null;      // the pane that owns col 2 (set at present, cleared at collapse)
         private int infoPaneMotionRun = 0;                    // the run a finish callback belongs to (a newer run wins)
         private bool paneDividerPanning = false;
-#if WINDOWS || MACCATALYST
-        private readonly FixB1Rules.DividerLine paneDividerLineState = new FixB1Rules.DividerLine();   // ★ fixb1 item 4 (P51): hover / drag
-#endif
 
         public bool devMode = false;
 
@@ -364,25 +361,6 @@ namespace SPIXI
             dividerHover.PointerEntered += (s, ev) => { Spixi.SMacCursor.hovered = true; Spixi.SMacCursor.pushResizeLeftRight(); };
             dividerHover.PointerExited += (s, ev) => { Spixi.SMacCursor.hovered = false; if (!paneDividerPanning) Spixi.SMacCursor.pop(); };
             paneDivider.GestureRecognizers.Add(dividerHover);
-#endif
-#if WINDOWS || MACCATALYST
-            /* ★ fixb1 item 4 (P51): the divider line (HomePage.xaml paneDividerLine) shows in the accent of the active theme
-             * while the pointer is on the grip and for the whole drag (FixB1Rules.DividerLine, executed in csh). PointerMoved
-             * shows it again after a drag ended on the grip. Switch SpixiFlags.DividerHoverLine OFF = no recognizer, no
-             * handler, the line never shows (the old behaviour). On the Mac the line rides on the cursor's own hover
-             * recognizer above (one hover recognizer on the grip; its cursor handlers stay as they are); Windows had none. */
-            if (SpixiFlags.DividerHoverLine)
-            {
-#if MACCATALYST
-                PointerGestureRecognizer dividerLineHover = dividerHover;
-#else
-                PointerGestureRecognizer dividerLineHover = new PointerGestureRecognizer();
-                paneDivider.GestureRecognizers.Add(dividerLineHover);
-#endif
-                dividerLineHover.PointerEntered += (s, ev) => { paneDividerLineState.hoverEnter(); applyPaneDividerLine(); };
-                dividerLineHover.PointerMoved += (s, ev) => { paneDividerLineState.hoverEnter(); applyPaneDividerLine(); };
-                dividerLineHover.PointerExited += (s, ev) => { paneDividerLineState.hoverExit(); applyPaneDividerLine(); };
-            }
 #endif
 
             SizeChanged += OnPageSizeChanged;
@@ -637,10 +615,6 @@ namespace SPIXI
                 setInfoColumnNow(0);   // #247 info pane · ★ #1166 lever 7: stops a running column motion first
                 rightContent.IsVisible = false;
                 paneDivider.IsVisible = false;   // D1: no divider in single-pane
-#if WINDOWS || MACCATALYST
-                paneDividerLineState.dragEnd();   // ★ fixb1 item 4: the line goes with the grip (dragEnd clears drag AND hover)
-                paneDividerLine.IsVisible = false;
-#endif
                 removeDetailContent(false);
                 // #225-M2: column-pinned overlays (chat col 1, info col 2) would strand
                 // invisible-but-open in a zero-width column — re-home them full-span
@@ -920,9 +894,6 @@ namespace SPIXI
                     panStartPaneWidth = leftPaneWidth;
                     paneDividerPanning = true;
                     Logging.info("[DIVIDER] pan started");   // ★ #980 (M2): did the grip receive the drag at all? (fixed words, no geometry)
-#if WINDOWS || MACCATALYST
-                    if (SpixiFlags.DividerHoverLine) { paneDividerLineState.dragStart(); applyPaneDividerLine(); }   // ★ fixb1 item 4
-#endif
                     break;
                 case GestureStatus.Running:
                     // Defensive: WinUI has been seen skipping Started — seed the
@@ -931,9 +902,6 @@ namespace SPIXI
                     {
                         panStartPaneWidth = leftPaneWidth;
                         paneDividerPanning = true;
-#if WINDOWS || MACCATALYST
-                        if (SpixiFlags.DividerHoverLine) { paneDividerLineState.dragStart(); applyPaneDividerLine(); }   // ★ fixb1 item 4
-#endif
                     }
                     leftPaneWidth = clampLeftPaneWidth(panStartPaneWidth + e.TotalX);
                     applyLeftPaneWidth();
@@ -947,27 +915,9 @@ namespace SPIXI
 #if MACCATALYST
                     if (!Spixi.SMacCursor.hovered) Spixi.SMacCursor.pop();   // a drag that ended off the grip never saw PointerExited
 #endif
-#if WINDOWS || MACCATALYST
-                    if (SpixiFlags.DividerHoverLine) { paneDividerLineState.dragEnd(); applyPaneDividerLine(); }   // ★ fixb1 item 4
-#endif
                     break;
             }
         }
-
-#if WINDOWS || MACCATALYST
-        /** ★ fixb1 item 4 (P51): the line shows only with the switch on, while the grip itself is shown, and while the state
-         *  says hover or drag. Its colour is the accent of the theme active at each apply while it shows (light → brand-600
-         *  #3050BD, dark → brand-400 #769DFF). */
-        private void applyPaneDividerLine()
-        {
-            bool show = SpixiFlags.DividerHoverLine && paneDivider.IsVisible && paneDividerLineState.visible;
-            if (show)   // ★ #46 r1 (O-C-6): every apply while shown — a theme flip during a hover or a drag takes the new accent
-            {
-                paneDividerLine.Color = Microsoft.Maui.Graphics.Color.FromArgb(ThemeManager.getResolvedAppearanceName() == "dark" ? "#769DFF" : "#3050BD");
-            }
-            paneDividerLine.IsVisible = show;
-        }
-#endif
 
         public void stop()
         {

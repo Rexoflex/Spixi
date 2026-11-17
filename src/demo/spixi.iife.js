@@ -29235,6 +29235,7 @@ function createEncPassScreen({
 
 
 
+
 const THEME_OPTIONS = [           // legacy enum ThemeAppearance (ThemeManager.cs:9)
   { value: 0, key: 'themeSystem', label: 'System' },
   { value: 1, key: 'themeLight', label: 'Light' },
@@ -29691,6 +29692,19 @@ function settingsThemeSheet({ current, host, strings = getStrings(), commit, onP
   return sheet;
 }
 
+/* ★ #1091 (#46 r1 MINOR-3): ONE document listener for the whole module (the hub is rebuilt on many pushes; a
+   per-hub listener piled up and kept every detached hub alive). A real key press gives every pressed header
+   control its focus ring back; a modifier or an IME composition does not. */
+let noRingKeyInstalled = false;
+function installNoRingKeyClear() {
+  if (noRingKeyInstalled || typeof document === 'undefined') return;
+  noRingKeyInstalled = true;
+  document.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229 || ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
+    for (const n of document.querySelectorAll('.c-settings__hero [data-noring]')) delete n.dataset.noring;
+  }, true);
+}
+
 function createSettingsHub({
   name = '',                     // account nickname (legacy setNickname push)
   address = '',                  // own address — identity truth
@@ -29964,16 +29978,113 @@ function createSettingsHub({
     }
   }
 
-  /* ★ fixb1 item 5 (#1539 Dial 1 = B, #1647) SUPERSEDES #1007 / #1091 (the truncated address, Copy, QR and the caption
-   * in the header): #575's ruling below is back in force.
-   * ★★ #575 (Damir, D13/F23) — THE ADDRESS LEAVES THE HERO. The header shows the photo and the name only — on the phone
-   * and in the desktop pane. No address, Copy, QR or "What is this?" caption sits in it.
-   * Nothing is lost: the "My address" row (below, #589 / S20I) opens `openAddressSheet` — the ONE address surface
-   * (#527) — which holds the QR code, the full address, its own Copy, Share and the explainer (addressInfoBody /
-   * addressInfoSafety). Three header-only strings left with the controls (addressWhatIsThis, copyFailedOpenQr, showQr —
-   * removed by the full pipeline); copyAddress, copied and addressInfoTitle stay (they have other readers).
-   * ⚠ `onShare` is forwarded into that sheet; `onAddressInfo` has no consumer here (a no-op kept in the options so an
-   * unrebuilt host that still passes it does not break). */
+  /* ⚠ SUPERSEDED BY #1007 (below) — kept as the record of the ruling it replaced.
+   * ★★ #575 (Damir, D13/F23) — THE ADDRESS LEAVES THE HERO.
+   *
+   * The hub carried THREE address affordances: the full base58 chip with copy and
+   * share (#137/#148⑤), a "What is this address?" text action (#443/#453), and a
+   * "Show QR" row (Batch E (d), #557). His spec collapses all of them into ONE row
+   * in the section below, and he confirmed the chip retires with them.
+   *
+   * Nothing is lost. `openAddressSheet` — the ONE address surface (#527) — carries
+   * the code, the full address, copy, Share and the explainer, and #575 puts copy
+   * and Share side by side on its chip. The hub keeps the identity (avatar and
+   * nickname) and nothing else, so the address is never at rest on the screen.
+   * (#1007: the TRUNCATED address is at rest in the header again; the FULL value still is not.)
+   *
+   * ⚠ `onShare` and `onAddressInfo` are NOT retired from the options. onShare is
+   * forwarded into the sheet below; onAddressInfo now has no consumer here, and the
+   * shells keep passing it — a signature change would silently break an unrebuilt host. */
+  /* ★★ #1007 (D-08, Damir 2026-09-28) SUPERSEDES the #575 row above: the address comes BACK
+   * to the profile header — middle-truncated (#211 canon, never the full base58 at rest),
+   * with Copy and QR buttons under the name — and the "Spixi address — Tap to view" row
+   * goes. The QR button opens the same `openAddressSheet` (#527) the row opened, so the
+   * code, the full address, Share and the explainer stay one tap away. */
+  if (address) {
+    /* ★★ #1091 (Damir 2026-10-01, A + B): a user who does not know what the address is had no reason to tap
+     * a QR icon to find the explanation. (A) the truncated address itself opens the address sheet; (B) a
+     * caption under it — "Your Ixian address · What is this?" — opens the same sheet. Copy and QR stay. */
+    const openSheet = () => openAddressSheet({
+      address, strings, host: hostFor(),
+      name, avatar: avatarSrc,   // ★ #1358: the identity card shows whose code it is
+      onShare: onShare ? (p) => onShare({ address: p.address }) : undefined,
+    });
+    /* ★ #1091 (Damir, Windows screenshot): the Copy button kept a blue focus ring after a MOUSE click.
+     * The click itself does not match :focus-visible — but the copy hands focus away and back (the native
+     * copy round-trip / the in-page textarea buffer, clipboard.js), and a programmatic re-focus DOES match
+     * it. So a header control that was PRESSED (pointer) carries data-noring until the next key press —
+     * the #1080 F9 grammar from call.html. A keyboard user still gets the ring. */
+    const noRingOnPointer = (b) => {
+      installNoRingKeyClear();
+      b.addEventListener('pointerdown', () => { b.dataset.noring = ''; });
+    };
+    const addr = document.createElement('div');
+    addr.className = 'c-settings__addr';
+    const txt = document.createElement('button');
+    txt.type = 'button';
+    txt.className = 'c-settings__addr-text u-tabular';
+    txt.textContent = truncateAddressMiddle(address);
+    txt.title = address;
+    txt.setAttribute('aria-haspopup', 'dialog');
+    txt.dataset.addr = 'text';
+    txt.addEventListener('click', openSheet);
+    noRingOnPointer(txt);
+    const copyBtn = createButton({
+      type: 'text', size: 32, icon: icon('copy', { size: 16 }),
+      ariaLabel: strings.copyAddress || 'Copy address',
+      onClick: () => {
+        copyText(address).then((ok) => {
+          // ⚠ #1012 (r1 m7): the header shows the TRUNCATED form, so "select the text" cannot work here —
+          // the failure points at the QR sheet, where the full address and its own Copy live.
+          live.textContent = ok ? (strings.copied || 'Copied') : (strings.copyFailedOpenQr || 'Couldn’t copy. Open the QR code to copy the full address.');
+          /* ★ #1028 (walk P.11): the live region is for a screen reader only — a sighted user saw nothing.
+             The button morphs to a ✓ for a copy that HAPPENED (the member-sheet / tx-sheet grammar, #134①),
+             and only then. */
+          if (ok !== true) return;
+          const idle = copyBtn.querySelector('.c-button__icon');
+          const check = icon('check', { size: 16 });
+          check.classList.add('c-button__icon');
+          if (idle) idle.replaceWith(check); else copyBtn.prepend(check);
+          copyBtn.dataset.copied = '';
+          clearTimeout(copyBtn._copiedTimer);
+          copyBtn._copiedTimer = setTimeout(() => {
+            if (check.isConnected) { const back = icon('copy', { size: 16 }); back.classList.add('c-button__icon'); check.replaceWith(back); }
+            delete copyBtn.dataset.copied;
+          }, 1400);
+        });
+      },
+    });
+    copyBtn.classList.add('c-settings__addr-btn');
+    const qrBtn = createButton({
+      type: 'text', size: 32, icon: icon('qrcode', { size: 16 }),
+      ariaLabel: strings.showQr || 'Show QR',
+      onClick: openSheet,
+    });
+    qrBtn.classList.add('c-settings__addr-btn');
+    qrBtn.dataset.addr = 'qr';   // structural hook for tests (r1 NIT: the retired row's aria-current key is not a thing here — nothing opens a sublevel)
+    copyBtn.dataset.addr = 'copy';
+    noRingOnPointer(copyBtn);
+    noRingOnPointer(qrBtn);
+    addr.append(txt, copyBtn, qrBtn);
+    // ★★ #1091 (B): the caption — one button (the whole line is the target), the question in action ink
+    const cap = document.createElement('button');
+    cap.type = 'button';
+    cap.className = 'c-settings__addr-cap';
+    cap.dataset.addr = 'caption';
+    cap.setAttribute('aria-haspopup', 'dialog');
+    const capLabel = document.createElement('span');
+    capLabel.textContent = strings.addressInfoTitle || 'Your Ixian address';
+    const capSep = document.createElement('span');
+    capSep.setAttribute('aria-hidden', 'true');
+    capSep.textContent = ' · ';
+    const capAsk = document.createElement('span');
+    capAsk.className = 'c-settings__addr-ask';
+    capAsk.textContent = strings.addressWhatIsThis || 'What is this?';
+    cap.append(capLabel, capSep, capAsk);
+    cap.addEventListener('click', openSheet);
+    noRingOnPointer(cap);
+    hero.append(addr, cap);
+  }
   body.append(hero);
 
   /* ——— row builders (disc + label · value · chevron; #142 grammar) ——— */
@@ -30109,18 +30220,23 @@ function createSettingsHub({
   };
 
   /* ——— the UNTITLED first section (#575) — about my people. It sits first, above
-     "Preferences", and carries no label because Contacts is not a setting. The My address
-     row opens it (S20I; the header carries no address since fixb1 item 5). ——— */
+     "Preferences", and carries no label because Contacts is not a setting. The address
+     row that shared it is retired by #1007 (the address lives in the header now). ——— */
   const me = group();
   /* ★ #1007 (D-08c): a subtitle that only restates its title is DROPPED — Contacts, Declined
      requests and Downloads lost theirs; Chat appearance, App lock and Backup keep theirs
      because they add information. No row may wrap to three lines in the 360px pane. */
 
+  /* ★ #589 / #575 history: the address row sat here, above Contacts, as the ONE address
+     entry (it replaced the hero chip, the "Show QR" row and "What is this address?").
+     #1007 retires it — `onAddressInfo` stays in the options as a no-op so an unrebuilt
+     host that still passes it does not break. */
+  /* ★ #1007: the "Spixi address" row is RETIRED — the address sits in the header now (above). */
   /* ★★ S20I (Damir 2026-10-15 23:25, user testing): "return the my address to be a row above the contacts in the
      account hub — user testing showed current solution is not visible / understandable". SUPERSEDES the #1007
      retirement of the row: ONE "My address" row, above Contacts, with a line that says what it is FOR, opening the
-     same ONE address sheet (#527 — code, full address, copy, Share, explainer). ★ fixb1 item 5 (#1539, #1647): the
-     header address went (the dial S20I left open); this row is now the ONLY way in from the hub. */
+     same ONE address sheet (#527 — code, full address, copy, Share, explainer). The header line (#1007 / #1091)
+     stays as it is — whether it goes now that the row is back is a dial for Damir (DECISIONS, S20I). */
   if (address) {
     const ar = settingRow({
       glyph: 'qrcode',
@@ -30134,7 +30250,7 @@ function createSettingsHub({
       }),
     });
     const arBtn = ar.section.querySelector('.c-settings__row');
-    if (arBtn) arBtn.setAttribute('aria-haspopup', 'dialog');   // #46 r1 N4: it opens the address sheet
+    if (arBtn) arBtn.setAttribute('aria-haspopup', 'dialog');   // #46 r1 N4: it opens the address sheet, like the header controls
     me.card.append(ar.section);
   }
 

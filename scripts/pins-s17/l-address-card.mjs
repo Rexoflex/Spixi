@@ -1,5 +1,5 @@
 /* ==== #1358 (Damir 2026-10-12 14:54, Direction A) — the address sheet is ONE identity card ====
- * On the BUILT settings.html (jsdom), through the real path (Account › My address row; ★ fixb1 item 5: was the header QR button):
+ * On the BUILT settings.html (jsdom), through the real path (Account › Show QR):
  *   · the card holds, in order, the band → the avatar + the name (Account passes them) → the explainer line → the QR plate
  *     → the address group; Share is the full-width filled button UNDER the card, then the safety line (the #589 order of the
  *     explainer / QR / address / safety hooks is kept);
@@ -28,9 +28,7 @@ export default async function (h) {
     s.push('setAddress', ADDR);
     s.push('setNickname', 'Shang Tsung');
     await sleep(300);
-    /* ★ fixb1 item 5 (#1539, #1647) RE-BASE: the header QR button is gone (pins-fixb1/e-header holds its absence); the way in is the
-       "My address" row — the same ONE sheet (#527). The rest of this pin is unchanged. */
-    const qr = d.querySelector('.c-settings__row[data-setting-key="address"]');
+    const qr = [...d.querySelectorAll('.c-settings__hero button')].find((x) => /Show QR/i.test(x.getAttribute('aria-label') || ''));
     if (qr) qr.click();
     await sleep(300);
     const sheet = d.querySelector('.c-addr-sheet');

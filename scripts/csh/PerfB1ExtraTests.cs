@@ -327,11 +327,10 @@ public class PerfB1ExtraTests
         withPrefs(true, new int?[] { null, null, null, null }, () =>
         {
             SpixiFlags.init();
-            // ★ fixb1 item 7 re-base: SpareKeepShortSleep is ON by default — the defaults are 1111 (were 1101)
-            Assert.AreEqual("1111", state(), "control: the defaults (fixb1 item 7: sparekeep ON by default)");
+            Assert.AreEqual("1101", state(), "control: the defaults");
             IXICore.Meta.Logging.lines.Clear();
             Assert.IsTrue(SpixiFlags.storePerfB1Extra("warmidle=0,sparerearm=0,sparekeep=1,noemptydetail=0"), "stored");
-            Assert.AreEqual("1111", state(), "the running process keeps its flags (read once at start)");
+            Assert.AreEqual("1101", state(), "the running process keeps its flags (read once at start)");
             Assert.IsFalse(IXICore.Meta.Logging.lines.Any(l => l.StartsWith("[FLAGS] warmidle=", StringComparison.Ordinal)), "no state line: init did not run again");
             SpixiFlags.init();   // the next start
             Assert.AreEqual("0010", state(), "the next start reads the stored state (dev mode on)");

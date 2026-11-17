@@ -1874,11 +1874,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   inset-inline-end: 0;
   width: 4px;                       /* sanctioned: indicator width */
   border-radius: var(--radius-full);
-  /* ★ fixb1 item 6 (#1648, 🟡 dial — Damir judges at the walk): the thumb took an ICON ink, so it read as the other theme;
-     now the outline family of the app's scroll bars (light: neutral-300 on neutral-100).
-     The tokens re-point under data-theme, so a live theme change follows.
-     Dark: the sheet re-points the track to neutral-700, so the thumb takes outline-neutral-04 (1.33 : 1; neutral-03 gave 1.13). */
-  background: var(--outline-neutral-01);
+  background: var(--surface-neutral-03);
   display: none;
 }
 .c-settings__opts-frame[data-overflow] > .c-scrollind { display: block; }
@@ -1886,14 +1882,13 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   position: absolute;
   top: 0; left: 0; right: 0;
   border-radius: var(--radius-full);
-  background: var(--outline-neutral-03);
+  background: var(--icon-neutral-02);
   touch-action: none;
   cursor: grab;
 }
 /* a wider invisible grab area, so a finger can catch a 4 px thumb */
 .c-scrollind__thumb::before { content: ''; position: absolute; inset: 0 -10px; }
-[data-theme="dark"] .c-scrollind__thumb { background: var(--outline-neutral-04); }   /* ★ fixb1 item 6: dark thumb = the dragged thumb's token (no lighter outline step); ★ #46 r1 (O-S-1): the same specificity as the drag rule below, so the later drag rule wins, and any dark subtree matches */
-.c-scrollind__thumb[data-drag] { cursor: grabbing; background: var(--outline-neutral-04); }
+.c-scrollind__thumb[data-drag] { cursor: grabbing; background: var(--icon-neutral-01); }
 /* a frame exists only in a long picker SHEET, and on a phone that sheet is always tall */
 :root:not([data-desktop]) .c-settings__opts-frame { flex: 1 1 auto; min-height: 0; }
 :root:not([data-desktop]) .c-settings__opts-frame > .c-settings__opts--scroll { max-height: none; height: 100%; }
@@ -2341,8 +2336,69 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
 }
 .c-settings__ignored-row .c-button { flex: none; }
 
-/* ★ fixb1 item 5 (#1539, #1647): the header address rules (.c-settings__addr / -addr-text / -addr-cap / -addr-ask /
-   -addr-btn, #1007 / #1091 / #1012 / #1013) left with the controls; the header is the photo and the name only. */
+/* ★ #1007 (D-08b): the address in the profile header — middle-truncated, Copy + QR under the name */
+.c-settings__addr {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin-top: calc(-1 * var(--spacing-4));
+  color: var(--text-neutral-02);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body-sm);
+}
+/* ★★ #1091 (A): the truncated address is a BUTTON now (opens the address sheet) — it keeps the text look,
+   no chrome; a 32px row like the icon buttons beside it. Its hit area grows 6px UP only (38px tall): the name
+   row is 4px above and the caption directly below, so it cannot take the full 44 without overlapping them —
+   a stated deviation from #990, the caption and the QR button reach the same sheet with full targets. */
+.c-settings__addr-text {
+  position: relative;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 var(--spacing-4);
+  border: 0;
+  border-radius: var(--radius-8, 8px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings__addr-text::after { content: ''; position: absolute; inset: -6px -4px 0; }
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__addr-text:hover { color: var(--text-neutral-01); }
+}
+.c-settings__addr-text:active { color: var(--text-neutral-01); }
+/* ★★ #1091 (B): "Your Ixian address · What is this?" — the caption under the address; the question in the
+   action ink. Pulled up to sit directly under the 32px row (the hero's 8px gap is the space above the row). */
+.c-settings__addr-cap {
+  position: relative;
+  min-height: 32px;
+  margin: calc(-1 * var(--spacing-8)) 0 0;
+  padding: 0 var(--spacing-8);
+  border: 0;
+  border-radius: var(--radius-8, 8px);
+  background: transparent;
+  color: var(--text-neutral-02);
+  font: inherit;
+  font-size: var(--font-size-body-xs);
+  line-height: var(--line-height-body-xs, var(--line-height-body-sm));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.c-settings__addr-cap::after { content: ''; position: absolute; inset: 0 -4px -12px; }   /* 32 + 12 = the 44px target (#990), grown DOWN only */
+.c-settings__addr-ask { color: var(--text-action-default); }
+@media (hover: hover) and (pointer: fine) {
+  .c-settings__addr-cap:hover .c-settings__addr-ask { text-decoration: underline; }
+}
+/* ★ #1091: a control PRESSED with a pointer shows no focus ring when focus comes back to it (settings-shell.js
+   noRingOnPointer); the next key press removes the flag. */
+.c-settings__hero [data-noring]:focus-visible { outline: none; }
+.c-settings__addr-btn { position: relative; }   /* ink = the text button's own action ink (#1013 r2 n4: a colour here lost to .c-button[data-type] and never applied) */
+/* ⚠ #1012 (Opus r1 m8): a 44px hit area on the 32px buttons (the #990 house rule) */
+.c-settings__addr-btn::after { content: ''; position: absolute; inset: -6px; }
+/* ★ #1013 (r2 n4): the two 44px areas overlapped by 8px across the 4px gap — a tap between them
+   reached whichever painted last. 12px between the buttons = the two -6px areas meet, no overlap. */
+.c-settings__addr-btn + .c-settings__addr-btn { margin-inline-start: var(--spacing-8); }
 /* r1 NIT: the nickname field in the hero sat on the grey ground in its own grey — it takes the
    card's surface there (white in light; dark = the same neutral-800 it had) */
 .c-settings__hero { --surface-input: var(--surface-settings-card); }

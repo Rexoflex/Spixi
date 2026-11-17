@@ -3,7 +3,4 @@
     <color name="colorPrimary">#17334F</color>
     <color name="colorPrimaryDark">#17334F</color>
     <color name="colorAccent">#2B0B98</color>
-    <!-- ★ fixb1 item 2 (P53, #1645): the accent of SpixiAlertDialog's buttons. Day = brand-600, as AND-14 chose
-         (6.98 : 1 on the white alert surface); the dark value lives in values-night/colors.xml. -->
-    <color name="spixiDialogAccent">#3050BD</color>
 </resources>

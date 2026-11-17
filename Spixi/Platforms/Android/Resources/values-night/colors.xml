@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- ★ fixb1 item 2 (P53, #1645): the dark-mode value of the dialog accent = tokens.css brand-300 (#98B5FC),
-         4.95 : 1 on AppCompat's dark alert surface #424242 (the old #3050BD was 1.44 : 1). -->
-    <color name="spixiDialogAccent">#98B5FC</color>
-</resources>

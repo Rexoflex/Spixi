@@ -1626,32 +1626,26 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
      What #575 protected still holds and is pinned: the FULL base58 is never at rest on the
      hub (above), and the QR opens the ONE shared address sheet (below). */
   const addrRow = d.querySelector('.c-settings__row[data-setting-key="address"]');
-  const hdr = d.querySelector('.c-settings__hero .c-settings__addr');
-  const hdrText = hdr && hdr.querySelector('.c-settings__addr-text');
-  const hdrBtns = hdr ? Array.from(hdr.querySelectorAll('button')) : [];
-  const qrBtn = hdrBtns.find((b) => b.dataset.addr === 'qr');
+  const heroEl = d.querySelector('.c-settings__hero');
   /* ★ S20I RE-BASE (Damir 2026-10-15 23:25, user testing: "return the my address to be a row above the contacts"): the row
      is BACK — ONE "My address" row above Contacts, opening the same ONE sheet (pins-s20i/f-addrhelp proves the order, the
      line and the sheet). What #575 / #1007 protected still holds: the full base58 is never at rest on the hub (above). */
   ok(!!addrRow && /My address/.test(addrRow.textContent) && !addrRow.textContent.includes('425HqzWpMkV3dTgJnS85CQen'),
     '★ S20I (was #1007 "the row is gone"): the "My address" ROW is back, and it never shows the raw address');
-  ok(!!hdrText && hdrText.textContent === S.truncateAddressMiddle('425HqzWpMkV3dTgJnS85CQen')
-     && hdrText.textContent !== '425HqzWpMkV3dTgJnS85CQen' && hdrText.title === '425HqzWpMkV3dTgJnS85CQen',
-    '★ #1007: the profile header shows the address MIDDLE-TRUNCATED (#211 canon) — the full value only in `title`');
+  /* ★ fixb1 item 5 (#1539, #1647) RE-BASE of #1007 / #1091: the header carries NO address, Copy or QR button — the photo and the name
+     only (pins-fixb1/e-header walks every path on the built settings shell). The sheet below is opened through the "My address" row,
+     the same ONE surface (#527). */
   const nameRowEl = d.querySelector('.c-settings__hero .c-settings__name-row');
-  /* ★ #1091 RE-BASE: the truncated address became a third button (it opens the sheet) — Copy and QR are still the
-     two LABELLED icon buttons; the text button is named by its own visible text. */
-  const iconBtns = hdrBtns.filter((b) => b.dataset.addr === 'copy' || b.dataset.addr === 'qr');
-  ok(hdrBtns.length === 3 && iconBtns.length === 2 && iconBtns.every((b) => (b.getAttribute('aria-label') || '').length > 0) && !!qrBtn
-     && !!nameRowEl && !!(nameRowEl.compareDocumentPosition(hdr) & W4.Node.DOCUMENT_POSITION_FOLLOWING),
-    '★ #1007: Copy and QR sit UNDER the name, each a labelled button');
-  qrBtn.dispatchEvent(new W4.MouseEvent('click', { bubbles: true }));
+  ok(!!heroEl && !!nameRowEl && !heroEl.querySelector('.c-settings__addr, .c-settings__addr-text, .c-settings__addr-cap, [data-addr]')
+     && !heroEl.textContent.includes('425HqzWpMkV3dTgJnS85CQen'.slice(0, 6)),
+    '★ fixb1 item 5 (was #1007): the profile header carries NO address, Copy, QR button or caption — the photo and the name only');
+  addrRow.dispatchEvent(new W4.MouseEvent('click', { bubbles: true }));
   {
     const eSheet = d.querySelector('.c-sheet--addr');
     const eQr = d.querySelector('.c-addr-sheet .c-qr');
     ok(!!eSheet && !!eQr && eQr.dataset.qrValue === '425HqzWpMkV3dTgJnS85CQen:ixi'
        && !!d.querySelector('.c-addr-sheet__explainicon'),
-      '★ #1007 (was #575): the header QR button opens the SHARED address sheet — legacy address:ixi encoding, the folded explainer riding along (one surface, no drift)');
+      '★ fixb1 item 5 (was #1007 / #575): the "My address" row opens the SHARED address sheet — legacy address:ixi encoding, the folded explainer riding along (one surface, no drift)');
     /* N86 ②'s protection MOVED here with the chip: copy and Share are always
        reachable on the sheet. ★ #1358 RE-BASE (Damir 14:54, Direction A): the address group keeps the FULL value + the
        labelled Copy pill; Share left the chip and is the sheet's primary act — the full-width FILLED button directly under
@@ -1755,8 +1749,9 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
   d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   await sleep(500);
 
-  /* —— ★★ #1091 (Damir 2026-10-01, A + B): the address text and a caption both open the address sheet; a
-     header control pressed with a pointer shows no focus ring when focus comes back (Windows screenshot) —— */
+  /* —— ★★ fixb1 item 5 (#1539, #1647) RE-BASE of #1091 (A + B + the focus-ring flag): the truncated address button, the caption and the
+     pointer-press ring flag left with the header controls; the header is the photo and the name only (pins-fixb1/e-header holds the
+     absence on the phone, the desktop window and the pane). The "My address" row is the way in. —— */
   {
     const h91 = d.createElement('div');
     d.body.append(h91);
@@ -1767,40 +1762,17 @@ console.log('settings.html — Account/Settings shell (#146 + #147 premium)');
       onNickname: () => {}, onTheme: () => {}, onLanguage: () => {}, onLock: () => {}, onBackup: () => {},
     });
     h91.append(hub91);
-    const t91 = hub91.querySelector('.c-settings__hero .c-settings__addr .c-settings__addr-text');
-    const c91 = hub91.querySelector('.c-settings__hero .c-settings__addr-cap');
-    ok(!!t91 && t91.tagName === 'BUTTON' && t91.type === 'button' && t91.dataset.addr === 'text'
-       && t91.getAttribute('aria-haspopup') === 'dialog' && t91.textContent === S.truncateAddressMiddle('425HqzWpMkV3dTgJnS85CQen'),
-      '★★ #1091 (A): the truncated address IS a button (type=button, aria-haspopup=dialog) and still shows only the #211 middle-truncated form');
-    const before91 = d.querySelectorAll('.c-addr-sheet').length;
-    t91.click();
-    const afterText = d.querySelectorAll('.c-addr-sheet').length;
-    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(500);
-    ok(afterText === before91 + 1, '★★ #1091 (A): a tap on the address opens the shared address sheet (' + before91 + ' → ' + afterText + ')');
-    ok(!!c91 && c91.tagName === 'BUTTON' && c91.type === 'button' && c91.dataset.addr === 'caption'
-       && c91.textContent === 'Your Ixian address · What is this?'
-       && (c91.querySelector('.c-settings__addr-ask') || {}).textContent === 'What is this?'
-       && !!(t91.closest('.c-settings__addr').compareDocumentPosition(c91) & W4.Node.DOCUMENT_POSITION_FOLLOWING),
-      '★★ #1091 (B): the caption "Your Ixian address · What is this?" sits UNDER the address row, one button, the question in its own span (the action ink)');
-    const before91b = d.querySelectorAll('.c-addr-sheet').length;
-    c91.click();
-    const afterCap = d.querySelectorAll('.c-addr-sheet').length;
-    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(500);
-    ok(afterCap === before91b + 1, '★★ #1091 (B): a tap on the caption opens the SAME address sheet (' + before91b + ' → ' + afterCap + ')');
-    /* the focus ring: a pointer press marks the control, a modifier keeps the mark, a real key clears it */
-    const copy91 = hub91.querySelector('[data-addr="copy"]');
-    copy91.dispatchEvent(new W4.Event('pointerdown', { bubbles: true }));
-    const marked = copy91.hasAttribute('data-noring');
-    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Shift', bubbles: true }));
-    const keptOnShift = copy91.hasAttribute('data-noring');
-    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
-    const clearedOnKey = !copy91.hasAttribute('data-noring');
     const css91 = stripCssComments(readFileSync(join(root, 'src/styles/components/settings-shell.css'), 'utf8'));
-    ok(marked && keptOnShift && clearedOnKey && /\.c-settings__hero \[data-noring\]:focus-visible \{ outline: none; \}/.test(css91)
-       && ['text', 'copy', 'qr', 'caption'].every((k) => { const b = hub91.querySelector('[data-addr="' + k + '"]'); b.dispatchEvent(new W4.Event('pointerdown', { bubbles: true })); return b.hasAttribute('data-noring'); }),
-      '★★ #1091 (Damir, Windows: "Copy keeps a blue focus ring after a MOUSE click"): a header control pressed with a pointer carries data-noring (no :focus-visible outline when the copy round-trip hands focus back), a modifier key keeps it, the next real key press gives the ring back — ' + JSON.stringify({ marked, keptOnShift, clearedOnKey }));
+    ok(!hub91.querySelector('.c-settings__addr, .c-settings__addr-text, .c-settings__addr-cap, .c-settings__addr-ask, [data-addr]')
+       && !/c-settings__addr-(text|cap|ask|btn)|\.c-settings__addr \{|\[data-noring\]/.test(css91),
+      '★★ fixb1 item 5 (was #1091 A + B + the focus ring): the hub header has no address button, caption, Copy or QR control, and the stylesheet carries no rule for them');
+    const row91 = hub91.querySelector('.c-settings__row[data-setting-key="address"]');
+    const before91 = d.querySelectorAll('.c-addr-sheet').length;
+    if (row91) row91.click();
+    const after91 = d.querySelectorAll('.c-addr-sheet').length;
+    d.dispatchEvent(new W4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(500);
+    ok(!!row91 && after91 === before91 + 1, '★★ fixb1 item 5 (was #1091): the "My address" row is the way in — it opens the shared address sheet (' + before91 + ' → ' + after91 + ')');
     h91.remove();
   }
 
@@ -16979,18 +16951,16 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
   {
     const meI = setNC.indexOf("const me = group()");
     const prefsI = setNC.indexOf("const prefs = group(");
-    /* ★ #1007 RE-BASE: the address (and the QR one tap away) moved INTO the profile header —
-       ABOVE the first group. The #147 property holds harder than before: the code is one tap
-       away from the very top of the hub. */
-    const addrI = setNC.indexOf("addr.className = 'c-settings__addr'");
-    const heroAppend = setNC.indexOf('body.append(hero);');
-    ok(meI > 0 && prefsI > meI && addrI > 0 && addrI < heroAppend && heroAppend < meI,
-      '★ #1007 (was #575): the address + its QR button are built in the profile HEADER, before the first group — the code stays one tap away (#147), from the top of the hub');
+    /* ★ #1007 RE-BASE (SUPERSEDED by ★ fixb1 item 5, #1647): the address had moved INTO the profile header; it is back in
+       the "My address" row of the first group only, and the code is one tap away through that row (#147). */
+    const addrI = setNC.indexOf("key: 'address'");
+    ok(meI > 0 && prefsI > meI && addrI > meI && addrI < prefsI && setNC.indexOf('body.append(hero);') < meI && !/c-settings__addr\b/.test(setNC),
+      '★ fixb1 item 5 (was #1007 / #575): the "My address" row is built in the FIRST group, above Preferences, and the header builds no address control — the code stays one tap away (#147) through the row');
     /* ★ #589 REBASE: Damir moved the address row ABOVE Contacts. Both rows are still
        in that first group — that is the part #575 fixed and this still asserts — and
        the ORDER is now his: address first, then Contacts. */
     ok(setNC.indexOf("strings.contacts ||") > meI && setNC.indexOf("strings.contacts ||") < prefsI,
-      '★ #1007 (was #589): Contacts still leads the first, untitled group — above Preferences (the address above it moved into the header)');
+      '★ #1007 (was #589): Contacts still leads the first, untitled group — above Preferences (the "My address" row above it, ★ fixb1 item 5)');
   }
 
   /* ③ ★ Batch E (d) (#557) REBASED: the two rows now do DIFFERENT things by design —
@@ -25987,7 +25957,7 @@ console.log('Session I ①: the bot address row + the desktop unread strip');
      && /\{ "AndroidInsetLeft", "0" \}/.test(rdF('Spixi/Lang/SpixiLocalization.cs')) && /\{ "AndroidInsetRight", "0" \}/.test(rdF('Spixi/Lang/SpixiLocalization.cs')),
     '★ Session I unread strip: the 100vw == .messages-width assumption holds ON DESKTOP — body is margin 0 / overflow hidden and its only inline padding is the two side insets (#926), which are the seeded "0" carriers on Windows/Mac and env() = 0 in WebView2, so the pane IS the viewport there; on a phone the strip sits under a side bar by exactly the inset');
   ok(/scrollbar-gutter: stable/.test(rdF('src/styles/base.css')),
-    '★ Session I unread strip: .u-scroll keeps scrollbar-gutter stable, so the strip ends at the scrollbar edge instead of running under a scrollbar that appears later');
+    '★ Session I unread strip: .u-scroll keeps scrollbar-gutter stable (★ fixb1 item 3: the desktop log reserves BOTH edges — pins-fixb1/c-unread — so the strip has one equal inset)');
 }
 
 /* ═══ ★★ SESSION I ③ — THE PREMIUM DENSITY PASS: every dial a PICK, every pick a pin ═══════ */
@@ -38175,10 +38145,8 @@ console.log('★★ #1001–#1010 — the premium polish round');
        && cbRules.length > 0 && !cbRules.some((r) => /tonal-(hover|pressed)/.test(r)),
       '★ #1012 (r1 m5/m6): the sent-side unanswered disc is one step deeper (neutral-03 was 1.04:1 on the #1003 tint), and the call-back disc never takes the SOLID dark tonal-hover/-pressed');
     const sc = stripCssComments(rdP('src/styles/components/settings-shell.css'));
-    ok(/\.c-settings__addr-btn::after \{ content: ''; position: absolute; inset: -6px; \}/.test(sc)
-       && /\.c-settings__addr-btn \{[^}]*position: relative;/.test(sc)
-       && /strings\.copyFailedOpenQr \|\| /.test(stripCode(rdP('src/components/settings-shell.js'))),
-      '★ #1012 (r1 m7/m8): the header\'s Copy/QR have a 44px hit area, and a failed Copy points at the QR sheet (the header text is truncated — "select the text" could not work there)');
+    ok(!/\.c-settings__addr-btn/.test(sc) && !/copyFailedOpenQr/.test(stripCode(rdP('src/components/settings-shell.js'))),
+      '★ fixb1 item 5 (was #1012 r1 m7/m8): the header Copy / QR buttons, their 44px hit-area rule and the QR-pointing failure text left with the header (pins-fixb1/e-header)');
   }
 
   /* —— #996 (the #995 reskin, Damir's pick "keep today's card, compact for settled"): the rule
@@ -38416,9 +38384,8 @@ console.log('★★ #1001–#1010 — the premium polish round');
     ok(/\.c-tcard__hit/.test(deadList) && /\.c-tcard__call-back/.test(deadList),
       '★ #1013 (r2 m4): while SELECTING, the pill\'s Details layer and the call-back disc are dead like every other in-card control — no pressed flash under a selection tap');
     const ss = stripCssComments(rdP('src/styles/components/settings-shell.css'));
-    ok(/\.c-settings__addr-btn \+ \.c-settings__addr-btn \{ margin-inline-start: var\(--spacing-8\); \}/.test(ss)
-       && !/\.c-settings__addr-btn \{[^}]*color:/.test(ss),
-      '★ #1013 (r2 n4): 12px between the header Copy and QR, so their two 44px hit areas meet without overlapping; the dead colour declaration is gone');
+    ok(!/\.c-settings__addr-btn/.test(ss),
+      '★ fixb1 item 5 (was #1013 r2 n4): the spacing rule of the header Copy / QR buttons left with the buttons');
   }
   dom.window.close();
 }
@@ -38565,26 +38532,12 @@ console.log('★★ #1028+ — the overnight finalization');
       '★★ #1028 security gate: the C# copy verb refuses a mini-app WebView before anything else, takes a ≤16-digit token and a base64url payload (alphabet + cap + strict UTF-8 checked BEFORE the clipboard), answers nativeCopyResult on both outcomes, logs only an exception TYPE (the decoder logs nothing), is refused in the background and rate-limited (#1035), and no C# file reads clipboard CONTENT except the four SClipboardImage files (an image, reached only from ixian:pasteImage — S9) — ' + JSON.stringify(r) + ' readers: ' + JSON.stringify(readers));
   }
   {
-    /* P.11: the Account header Copy shows a ✓ for a copy that happened — and only then */
+    /* ★ fixb1 item 5 (#1539, #1647) RE-BASE of #1028 P.11: the Account header Copy is gone (the sheet's own Copy keeps its ✓ — pins-fixb1/e-header (the Copy walk) and the #527 audit m1 rows of this file, pins-fixb1/e-header walks it); the hub has no Copy control */
     const W = mkWin(), S = W.Spixi, d = W.document;
-    let answer = true;
-    W.__spixiNativeCopy = () => Promise.resolve(answer);
-    W.document.execCommand = () => false;
-    try { Object.defineProperty(W.navigator, 'clipboard', { value: undefined, configurable: true }); } catch (e) {}
     const hub = S.createSettingsHub({ name: 'Ana', address: '42SpoxAddressForTheHubCopyTest000000000000', strings: {} });
     d.body.append(hub);
-    const btn = hub.querySelector('[data-addr="copy"]');
-    const iconName = () => { const u = btn && btn.querySelector('.c-button__icon'); return u ? (u.getAttribute('data-icon') || u.innerHTML.slice(0, 80)) : ''; };
-    const idle = iconName();
-    btn.click(); await sleep(20);
-    const okMorph = btn.dataset.copied !== undefined && iconName() !== idle && btn.querySelectorAll('.c-button__icon').length === 1;
-    await sleep(1500);
-    const back = btn.dataset.copied === undefined && iconName() === idle;
-    answer = false;
-    btn.click(); await sleep(20);
-    const noFalse = btn.dataset.copied === undefined && iconName() === idle;
-    ok(!!btn && okMorph && back && noFalse,
-      '★★ #1028 (P.11): the Account header Copy morphs to a ✓ (one icon, data-copied) for a NATIVE success, returns after 1.4 s, and shows nothing for a failed copy — ' + JSON.stringify({ okMorph, back, noFalse }));
+    ok(!hub.querySelector('[data-addr]') && !!hub.querySelector('.c-settings__row[data-setting-key="address"]'),
+      '★★ fixb1 item 5 (was #1028 P.11): the Account header has no Copy control (no [data-addr]); the "My address" row is the way in');
     W.close();
   }
   {
@@ -42529,9 +42482,10 @@ for (const mod of ['x-keys', 'a-desktop', 'b-launch', 'c-icons', 'd-claims']) aw
 for (const mod of ['e-select', 'f-addrhelp']) await (await import(new URL('./pins-s20i/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ S20I Drop D — e = OW-X-SELECT the desktop app chrome is not drag-selectable (fields, message text, addresses stay); the real drags = pins-s20i/e-sweep.mjs (Chromium, not in smoke) · f = the My address row back above Contacts + the "How people find you" moment (P32, flag S20AddrHelp)
 for (const mod of ['a-miniapp', 'b-share', 'c-confirm', 'd-lock-win']) await (await import(new URL('./pins-safety/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Safety — a = mini-app paths (S-1 storage table · S-2 app id · S-3 picked name, P33) · b = the Android share folders (S-4, P34, no flag) · c = native confirms on chat + chat info (S-5, P35) + the six dev switches · d = delete-all behind the lock (S-6, P36) + the mini-app marker on Windows (O-02, P37)
 for (const mod of ['a-thumb-type']) await (await import(new URL('./pins-hk1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session HK1 (housekeeping) — a = the iOS / Mac SThumbnail compile fix: `CGImageProperties` is never used bare in a .cs file of Spixi/ or Spixi-PushService/ that has CoreGraphics AND ImageIO in scope, and the SThumbnail read keeps a type that compiles + its guard (a source pin with its own comment mask: the smoke cannot compile for iOS / Mac)
-for (const mod of ['a-warm-idle', 'b-spare-rearm', 'c-spare-keep', 'd-empty-detail', 'e-image-seed', 'f-flags']) await (await import(new URL('./pins-perfb1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Speed batch 1a (perfb1, #1560–#1567) — C# only, so these are source pins with their own comment mask (the smoke cannot compile the app; the pure rules run in csh PerfB1*Tests): a = P-12 WarmOnIdle (every hidden boot behind the idle gate; the touch stamp is a time only) · b = P-11 switch 1 SpareRearm (the pending re-arm, its two takers, never under a lock) · c = P-11 switch 2 SpareKeepShortSleep (Android, opt-in: kept only through the rule, unproven = never handed out, the timers only drop) · d = P-13 PhoneNoEmptyDetail (no EmptyDetail outside the rule's gate; every reader null-safe) · e = the dev image seed (inside #if SPIXI_DEV_COEXIST, no network, C# names its files, Seed 01–50 untouched) · f = the four switches (the opt-in never ON without dev mode; the verb stores only in dev mode)
+for (const mod of ['a-warm-idle', 'b-spare-rearm', 'c-spare-keep', 'd-empty-detail', 'e-image-seed', 'f-flags']) await (await import(new URL('./pins-perfb1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Speed batch 1a (perfb1, #1560–#1567) — C# only, so these are source pins with their own comment mask (the smoke cannot compile the app; the pure rules run in csh PerfB1*Tests): a = P-12 WarmOnIdle (every hidden boot behind the idle gate; the touch stamp is a time only) · b = P-11 switch 1 SpareRearm (the pending re-arm, its two takers, never under a lock) · c = P-11 switch 2 SpareKeepShortSleep (Android, ON by default since fixb1 item 7: kept only through the rule, unproven = never handed out, the timers only drop) · d = P-13 PhoneNoEmptyDetail (no EmptyDetail outside the rule's gate; every reader null-safe) · e = the dev image seed (inside #if SPIXI_DEV_COEXIST, no network, C# names its files, Seed 01–50 untouched) · f = the four switches (all four ON by default since fixb1 item 7; a stored 0 acts only in dev mode; the verb stores only in dev mode)
 for (const mod of ['a-gates', 'b-css', 'c-js', 'd-package']) await (await import(new URL('./pins-perflean/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Speed lean (perflean) — a = the P-09 lean-build gates (the `*SL{…}` carrier multiset and the line invariant of the three external scripts, in build-shells) · b = P-06 the comment strip of every stylesheet at Release packaging (SpixiLeanCss) and the packaging CLI · c = P-07 the comment strip of the three external scripts (every line kept) and of the inline scripts (SpixiLeanJs) · d = the MSBuild targets of the two switches (off = today's packaging)
 for (const mod of ['a-extra', 'b-walk']) await (await import(new URL('./pins-perfb1toggle/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Speed 1a toggle (perfb1toggle, #1595) — the adb walk sets the four switches of batch 1a by ONE launch intent extra: a = the app side (C# only, source pins with their own comment mask; the cloud cannot compile the Android arm; the pure rule and the REAL store run in csh PerfB1ExtraTests): the reader and the store inside #if SPIXI_DEV_COEXIST, dev mode first, CANON or nothing, ONE fixed stored line, no echo of the value, the fa path byte-identical · b = the walk side (scripts/device: -Flags, the allowlist shape, the one filter alternative, no extra without -Flags)
+for (const mod of ['a-confirm', 'b-dialog-colors', 'c-unread', 'd-divider', 'e-header', 'f-scrollbar', 'g-sparekeep']) await (await import(new URL('./pins-fixb1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Fix batch 1 (fixb1, #1603 / #1611, DECISIONS #1645–#1654): a = the Windows safe-default confirm (P50) · b = the Android dialog accent by day and night (P53, resources) · c = the desktop unread strip with the gutter on both edges (the Chromium sweep c-unread-sweep.mjs runs by hand) · d = the divider hover line (P51) · e = the Account header without the address (#1539) · f = the drawn scroll indicator of long option sheets (the outline family, 🟡 dial) · g = sparekeep ON by default (P52)
 for (const mod of ['a-file-seed', 'b-walk-steps']) await (await import(new URL('./pins-filewalk/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch filewalk (File chats and walk steps 3, #1665–#1679) — a = the dev file seed (Seed 54-56: documents, voice, the 100-message photo chat; source checks of SDevSeed.cs / SDevSeedPlan.cs, 16 keys) · b = the five opt-in walk steps of scripts/device (scroll-files, scroll-voice, scroll-photos, viewer, downloads): the allowlist gains only five count polls, the filter is byte-identical, the three local keys, the gaps, a52s.json unchanged, no second input after a failed gate, no screenshot on the Account screen, every PNG deleted, the parser rows of contract § 3.4
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

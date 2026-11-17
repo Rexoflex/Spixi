@@ -1,0 +1,34 @@
+Commit messages of the batch coldstart1 (Session "Cold start 1"). No "#" before a number (DECISIONS 1512), no
+attribution line. Author and committer = Damir's identity (DECISIONS 1501). The review loop stopped at round 3 on the
+pin (DECISIONS 1684); Damir accepted the pin's limits (main chat ruling 1627); round 4 was CLEAN; the branch merges
+redesign/frontend (no rebase) and is pushed by DECISIONS 1546.
+
+1) Cold start 1: developer-only cold-start marks on the Android start path
+
+   32 marks [P1] cold <token> t=<ms> (ms since the Android process start) and the anchor line
+   [P1] cold logger t=<ms> req=<ms>, Android developer builds only (DECISIONS 1680, 1681; packet P57).
+   One inserted statement per mark in MainApplication.OnCreate, MauiProgram.CreateMauiApp, the App constructor,
+   MainActivity.OnCreate and OnResume, the first WebView and the first draw; the marks before the logger are
+   stored and written by one flush right after Logging.start, the anchor last. Conditional("SPIXI_DEV_COEXIST") on
+   the three entry points: a store build has no call. The C# of the Android arm is uncompiled.
+   Files: Spixi/Utils/ColdStartRules.cs (new), Spixi/Utils/P1Perf.cs, Spixi/App.xaml.cs, Spixi/MauiProgram.cs,
+   Spixi/Platforms/Android/MainApplication.cs, Spixi/Platforms/Android/MainActivity.cs,
+   Spixi/Platforms/Android/WebViewRenderer.cs.
+
+2) Cold start 1: pins, harness tests and three re-bases
+
+   Pin scripts/pins-coldstart1/a-lines.mjs (6 rows) and its registration in scripts/smoke-test.mjs; csh
+   ColdStartTests (15 tests; CSH 615); the re-bases of pins-perfb1toggle/a-extra.mjs (OC_FROZEN, DECISIONS 1596),
+   pins-s9/a3-wiring.mjs and the inline 461 pin of the smoke (DECISIONS 1684).
+   Files: scripts/pins-coldstart1/a-lines.mjs (new), scripts/csh/ColdStartTests.cs (new), scripts/csh/csh.csproj,
+   scripts/pins-perfb1toggle/a-extra.mjs, scripts/pins-s9/a3-wiring.mjs, scripts/smoke-test.mjs.
+
+3) Cold start 1: the export docs
+
+   DECISIONS 1680 to 1685, the decisions index, lessons L221 to L224, packet P57 and the review pack index, the
+   handover gate section, the contract, the review brief (stopped at round 3), the handoff, the status log entry,
+   CLAUDE.md "Where we are now", this file.
+   Files: DECISIONS.md, docs/decisions-index.md, docs/lessons.md, docs/be-review-pack/P57-coldstart-dev-marks.md
+   (new), docs/be-review-pack/README.md, docs/security-handover-gate.md, docs/contract-coldstart1.md (new),
+   docs/review-brief-coldstart1.md (new), docs/handoff-2026-11-16-coldstart1.md (new), docs/status-log.md,
+   CLAUDE.md, docs/commit-message-coldstart1.txt (new).

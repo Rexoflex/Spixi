@@ -190,8 +190,19 @@ public class SpixiWebViewClient : WebViewClient
         return false;
     }
 
+#if SPIXI_DEV_COEXIST
+    // ★ coldstart1 (#1680): the Page mark = the first page start of the process (dev builds only); the base call first,
+    // the mark holds no argument.
+    public override void OnPageStarted(global::Android.Webkit.WebView? view, string? url, global::Android.Graphics.Bitmap? favicon)
+    {
+        base.OnPageStarted(view, url, favicon);
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.Page);   // ★ coldstart1 (#1680)
+    }
+#endif
+
     public override void OnPageFinished(global::Android.Webkit.WebView view, string url)
     {
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.PageEnd);   // ★ coldstart1 (#1680)
         if (_renderer.Element == null)// || url == AssetBaseUrl)
         {
             base.OnPageFinished(view, url);
@@ -337,7 +348,9 @@ public class SpixiWebviewRenderer2 : ViewRenderer<Microsoft.Maui.Controls.WebVie
     public void LoadHtml(string html, string baseUrl)
     {
         _eventState = WebNavigationEvent.NewPage;
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.NavIn);   // ★ coldstart1 (#1680)
         Control.LoadDataWithBaseURL(baseUrl ?? AssetBaseUrl, html, "text/html", "UTF-8", null);
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.NavOut);   // ★ coldstart1 (#1680)
     }
 
     public void LoadUrl(string url)
@@ -437,8 +450,11 @@ public class SpixiWebviewRenderer2 : ViewRenderer<Microsoft.Maui.Controls.WebVie
     [PortHandler]
     protected override SpixiWebview CreateNativeControl()
     {
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.WvIn);   // ★ coldstart1 (#1680)
         var webView = new SpixiWebview(Context);
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.WvNew);   // ★ coldstart1 (#1680)
         webView.Settings.SetSupportMultipleWindows(true);
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.WvOut);   // ★ coldstart1 (#1680)
         return webView;
     }
 

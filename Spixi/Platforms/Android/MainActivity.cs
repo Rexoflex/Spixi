@@ -437,9 +437,11 @@ public class MainActivity : MauiAppCompatActivity
 
     protected override void OnCreate(Bundle? bundle)
     {
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.ActIn);   // ★ coldstart1 (#1680)
         Instance = this;
 
         base.OnCreate(bundle);
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.ActBase);   // ★ coldstart1 (#1680)
 
         // ★ S14 (#1280): our back callback, added AFTER MAUI's (base.OnCreate) so the dispatcher asks it first. See SpixiBackCallback.
         // No managed field: the dispatcher holds the Java callback, and the Android GC bridge keeps its managed peer alive with it.
@@ -489,6 +491,8 @@ public class MainActivity : MauiAppCompatActivity
         }
         // End of edge-to-edge setup
 
+        SPIXI.P1Perf.coldDraw(this);   // ★ coldstart1 (#1680)
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.ActHold);   // ★ coldstart1 (#1680)
         startBootHold(rootView);   // ★ S9 A-FLASH C1 (#1205)
 
         if (ContextCompat.CheckSelfPermission(Instance, Manifest.Permission.Camera) != Permission.Granted)
@@ -499,6 +503,7 @@ public class MainActivity : MauiAppCompatActivity
         }
         Permissions.RequestAsync<Permissions.StorageWrite>();
 
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.ActOut);   // ★ coldstart1 (#1680)
         handleNotificationIntent(Intent);
 #if SPIXI_DEV_COEXIST
         if (bundle == null)   // ★ perfb1toggle (#1595): a fresh creation only — a re-created activity gets the same launch intent again
@@ -563,6 +568,7 @@ public class MainActivity : MauiAppCompatActivity
 
     protected override void OnResume()
     {
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.ResumeIn);   // ★ coldstart1 (#1680)
         base.OnResume();
         applyRecentsPrivacy();   // #461: keep it in step with the lock preference
         /* ★ S16 (#1311 (a)): the [THEME] resume line — a flip while backgrounded shows here as req ≠ baked or cfg ≠ req, with
@@ -576,6 +582,7 @@ public class MainActivity : MauiAppCompatActivity
         catch (Exception)
         {
         }
+        SPIXI.P1Perf.cold(SPIXI.ColdMark.ResumeOut);   // ★ coldstart1 (#1680)
     }
 
     /* ★ F3 — the lock's deferred auth is released HERE, from OnPostResume, and through a

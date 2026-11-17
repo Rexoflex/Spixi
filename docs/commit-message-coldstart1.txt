@@ -1,7 +1,7 @@
 Commit messages of the batch coldstart1 (Session "Cold start 1"). No "#" before a number (DECISIONS 1512), no
-attribution line. Author and committer = Damir's identity (DECISIONS 1501). The batch is NOT pushed: the review
-loop stopped at round 3 (DECISIONS 1684, 1685); these commits are in the session's cloud clone and in the git bundle
-on Damir's PC.
+attribution line. Author and committer = Damir's identity (DECISIONS 1501). The review loop stopped at round 3 on the
+pin (DECISIONS 1684); Damir accepted the pin's limits (main chat ruling 1627); round 4 was CLEAN; the branch merges
+redesign/frontend (no rebase) and is pushed by DECISIONS 1546.
 
 1) Cold start 1: developer-only cold-start marks on the Android start path
 

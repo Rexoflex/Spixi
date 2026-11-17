@@ -1,4 +1,4 @@
-# Handoff 2026-11-16 coldstart1 — the developer-only cold-start marks are built; the review STOPPED at round 3 (the pin); NOT pushed
+# Handoff 2026-11-16 / 17 coldstart1 — the developer-only cold-start marks are built; CLEAN at round 4 under ruling #1627; delivered by #1546
 
 File name: `docs/handoff-2026-11-16-coldstart1.md`. Read this FIRST, then DECISIONS #1680–#1685 and #1626 (project doc
 `claude/talk-rulings-2026-11-16-coldstart.md`). Number block of this session: #1680–#1694 (used: #1680–#1685;
@@ -7,19 +7,19 @@ chat gives the next block; it writes the next prompt.
 
 ## 0 · State
 - Branch: `work/coldstart1` @ the commits of this batch in the session's cloud clone · base: `redesign/frontend` @
-  "Merge pull request #10 from Rexoflex/work/docs-2026-11-16" (`cdc4f717`) · **NOT PUSHED**: the #46 loop stopped at
-  round 3 by rule 9 (#1684, #1685), and an un-CLEAN tree never goes to GitHub. The tree is saved on Damir's PC in
-  `Claude outputs\_transfer\coldstart1-2026-11-16\` (a git bundle of the branch, `git diff --binary`, SHA-256; the
-  status doc `claude/session-coldstart1-status.md` names them) · merge = Damir, after his choice of question 1.
-- CI (`redesign-ci`): not run (no push).
-- Smoke (final tree, 2026-11-17 01:05): 6468 pass / the 2 KNOWN + 1 row red only in the full run (`S15 E v2`, a timing pin outside this batch, `scripts/pins-s15/e-send-enter.mjs`; green alone 3 / 3 on this tree and 1 / 1 on the base) = 6469 rows = 6463 + 6 · the round-1 tree read `BASELINE OK — 6468 / the 2 KNOWN` (= 6463 + 5) · environment: cloud twin + Ixian-Core @ `097341a` ·
+  "Merge pull request #10 from Rexoflex/work/docs-2026-11-16" (`cdc4f717`) · the branch holds a merge of `redesign/frontend` @ `8b3c4ae4`
+  ("Merge pull request #11 from Rexoflex/work/fixb1"; no rebase) · push: ONE push of `work/coldstart1` by the session
+  (#1546), after Damir's ruling #1627 and the CLEAN round 4; the pull request is Damir's (the compare link and the
+  texts are in the status doc `claude/session-coldstart1-status.md`) · merge = Damir (a merge commit, #1505).
+- CI (`redesign-ci`): runs on the pull request.
+- Smoke of the MERGED tree (2026-11-17 14:20): `BASELINE OK — 6522 pass / the 2 KNOWN` on `work/coldstart1` merged with `redesign/frontend` @ `8b3c4ae4` (= 6516 + 6; observed 2026-11-17 14:20, cloud twin, jsdom 29.1.1) · CSH **622** (= 607 + 15). Before the merge (2026-11-17 01:05): 6468 pass / the 2 KNOWN + 1 row red only in the full run (`S15 E v2`, a timing pin outside this batch, `scripts/pins-s15/e-send-enter.mjs`; green alone 3 / 3 on this tree and 1 / 1 on the base) = 6469 rows = 6463 + 6 · the round-1 tree read `BASELINE OK — 6468 / the 2 KNOWN` (= 6463 + 5) · environment: cloud twin + Ixian-Core @ `097341a` ·
   jsdom 29.1.1, eslint 10.14.0, globals 17.14.0, tree-sitter 0.25.1, tree-sitter-c-sharp 0.23.5, .NET SDK 10.0.115 ·
   delta **+6** = the six rows of `pins-coldstart1/a-lines` (base: `BASELINE OK — 6463`, observed on the untouched tree
   2026-11-16) · CSH **615** (= 600 + 15, `ColdStartTests`).
 - Checks: `build-shells --check` ✓ · `build-locales --check` ✓ · `cs-syntax-check` 279 files ✓ (3 known grammar
   skips) · the pins between rounds (`a-lines`, `a-extra`, `pins-s9/a3-wiring`). Pipeline: none (C# + scripts only).
-- Review: security-only #46 — **STOPPED at round 3, CLEAN not claimed** (MAJOR 2 → 1 → 2; after round 1 every
-  MAJOR was in the source pin; the C# had no finding in rounds 2 and 3) — `docs/review-brief-coldstart1.md` § 5
+- Review: security-only #46 — stopped at round 3 by rule 9 (the source pin), Damir accepted the pin's limits
+  (#1627), **CLEAN at round 4** (MAJOR 2 → 1 → 2 → 0; the C# had no finding in rounds 2, 3 and 4) — `docs/review-brief-coldstart1.md` § 5
   (readers by #1606: Fable 5.2 for the security pass and the riskiest file `Spixi/App.xaml.cs`, Opus for the pins in
   round 1).
 - ⚠ C# UNCOMPILED: the Android arm — `Spixi/Platforms/Android/MainActivity.cs`, `MainApplication.cs`,
@@ -64,7 +64,7 @@ Outcome: Damir picks the next cold-start lever with the split in his hands.
 ## 4 · Open questions and dials
 | For | Question (with its options) | Blocks |
 |---|---|---|
-| Damir | **Q1 — the source pin's limits (#1684):** (a) accept the pin with the round-3 holes recorded (they need deliberately hidden code; BE reads the diff at handover) → a follow-up session runs ONE fresh Fable reader over the unchanged tree and the docs, then pushes by #1546 · (b) one more design round for the pin in a follow-up session (a code-only census of the six names per file + a raw directive rule + a raw-string count; rounds 4–5) · (c) the marks wait for a compile-based proof in a later batch | the push, the pull request, the operator block |
+| Damir | Q1 (the source pin's limits) — ANSWERED: (a) "Accept the limits" (#1627, 2026-11-17 12:45) | — |
 | Damir | the default build settings — his ruling AFTER the numbers (#1626) | — |
 
 ## 5 · Recorded, not changed

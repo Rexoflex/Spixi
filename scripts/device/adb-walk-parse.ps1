@@ -13,6 +13,9 @@ Switch state (batch perfb1toggle): summary.md names the state of the app's own [
          (same rows and columns) and summary.md says the numbers are withheld. A run without flags.asked (an old run
          too) reads the state from its coldstart logs, else says "not read"; its summary.csv is not changed.
 Steps added in batch walksteps2: chatinfo, tab-apps, tab-wallet, tab-account, history, resume-now, resume-3s, scroll-image.
+Steps added in batch filewalk: scroll-files, scroll-voice, scroll-photos, viewer, downloads (the scroll and long-task rows and
+         the viewer close row count only lines whose own stamp is >= the rep's stamp2 from run.json; a step that is not in
+         run.json adds no row and no note line).
 
 Safety rules (this script is read by a security reviewer):
 - Reads ONLY files named by run.json inside -RunDir (plain file names; any name with a path part is refused).
@@ -190,6 +193,13 @@ $script:L = @{
     TabWalletFr = @{ Gram = $true; Label = 'shell frames-tab-wallet';          Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-tab-wallet(?=\s)')) }
     TabAccountFr = @{ Gram = $true; Label = 'shell frames-tab-account';        Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-tab-account(?=\s)')) }
     Load        = @{ Gram = $true; Label = 'chat load';                        Rx = (New-Rx ($script:Cm + '\[P1\] chat load(?=\s|$)')) }
+    SendViewImage   = @{ Gram = $true; Label = 'shell send viewimage';            Rx = (New-Rx ($script:Cm + '\[P1\] shell send viewimage(?=\s)')) }
+    OverlayOpen     = @{ Gram = $true; Label = 'shell overlay-open';              Rx = (New-Rx ($script:Cm + '\[P1\] shell overlay-open(?=\s)')) }
+    OverlayOpenFr   = @{ Gram = $true; Label = 'shell frames-overlay-open';       Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-overlay-open(?=\s)')) }
+    OverlayCloseFr  = @{ Gram = $true; Label = 'shell frames-overlay-close';      Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-overlay-close(?=\s)')) }
+    SendLoadDl      = @{ Gram = $true; Label = 'shell send loaddownloads';        Rx = (New-Rx ($script:Cm + '\[P1\] shell send loaddownloads(?=\s)')) }
+    SubOpen         = @{ Gram = $true; Label = 'shell subscreen-open';            Rx = (New-Rx ($script:Cm + '\[P1\] shell subscreen-open(?=\s)')) }
+    SubOpenFr       = @{ Gram = $true; Label = 'shell frames-subscreen-open';     Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-subscreen-open(?=\s)')) }
     # These two start directly after the colon (no WEBVIEW prefix); the address that follows is never read.
     Conn    = @{ Gram = $false; Label = 'Network client connected to'; Rx = (New-Rx '^[A-Za-z]{1,10}\|[0-9]{1,6}: Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}[ \t]*\z') }
     Hello   = @{ Gram = $false; Label = 'Received Hello:';             Rx = (New-Rx '^[A-Za-z]{1,10}\|[0-9]{1,6}: Received Hello: Node version [0-9]{1,6}[ \t]*\z') }
@@ -499,6 +509,95 @@ function X-Long {
     return (New-Res 'value' $max '')
 }
 
+function Get-HitsFrom {
+    # Like Get-Hits, but only the lines whose own stamp is >= the rep's stamp2 (callers check that T2 exists).
+    param($C, $LineDef)
+    $hits = New-Object System.Collections.Generic.List[object]
+    foreach ($h in (Get-Hits $C $LineDef).Items) {
+        if ($h.Stamp -ge $C.T2) { $hits.Add($h) }
+    }
+    return [pscustomobject]@{ Items = $hits }
+}
+
+function Test-ReadyT2 {
+    # Test-Ready, and in addition a readable stamp2 (the windowed rows of the filewalk steps).
+    param($C)
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    if ($null -eq $C.T2) { return (New-Res 'missing' $null $C.T2Why) }
+    return $null
+}
+
+function X-FirstNonNeg {
+    # key=<int> of the FIRST such line whose value is >= 0 (the shell writes -1 when it saw no tap: no value, as X-Send).
+    param($C, $LineDef, [string]$Key)
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    foreach ($h in (Get-Hits $C $LineDef).Items) {
+        $v = Get-Tok $h.Tail $Key
+        if (($null -ne $v) -and ($v -ge 0)) { return (New-Res 'value' ([double]$v) '') }
+    }
+    return (New-Res 'missing' $null ($C.Label + ': no "' + $LineDef.Label + '" line with ' + $Key + '>=0 in ' + $C.LogName))
+}
+
+function X-TokenW {
+    # key=<int> of the FIRST such line from stamp2 on.
+    param($C, $LineDef, [string]$Key)
+    $r = Test-ReadyT2 $C
+    if ($null -ne $r) { return $r }
+    $hits = (Get-HitsFrom $C $LineDef).Items
+    if ($hits.Count -eq 0) { return (New-Res 'missing' $null ($C.Label + ': no "' + $LineDef.Label + '" line from stamp2 on in ' + $C.LogName)) }
+    $v = Get-Tok $hits[0].Tail $Key
+    if (($null -eq $v) -or ($v -lt 0)) { return (Get-MissingTok $C $LineDef $Key) }
+    return (New-Res 'value' ([double]$v) '')
+}
+
+function X-ScrollW {
+    # X-Scroll over the "shell scroll" lines from stamp2 on only.
+    param($C, [string]$Kind)
+    $r = Test-ReadyT2 $C
+    if ($null -ne $r) { return $r }
+    $hits = (Get-HitsFrom $C $script:L.Scroll).Items
+    # #46 r2 (B2-3): the rep does two swipes after stamp2, each with its own scroll line: fewer than two = the pull came too
+    # early, a partial sum is no value (the rep counts as a rep without a value, as one with no line).
+    if ($hits.Count -lt 2) { return (New-Res 'missing' $null ($C.Label + ': fewer than two "' + $script:L.Scroll.Label + '" lines from stamp2 on in ' + $C.LogName + ' (the two swipes)')) }
+    $sum = 0.0
+    $max = 0.0
+    foreach ($h in $hits) {
+        $n = Get-Tok $h.Tail 'n'
+        $drop = Get-Tok $h.Tail 'drop'
+        $gap = Get-Tok $h.Tail 'max'
+        if (($null -eq $n) -or ($null -eq $drop) -or ($null -eq $gap) -or ($n -lt 0) -or ($drop -lt 0) -or ($gap -lt 0)) {
+            return (Get-MissingTok $C $script:L.Scroll 'n/drop/max')
+        }
+        if ($Kind -eq 'drops') { $sum += [double]$drop }
+        elseif ($Kind -eq 'frames') { $sum += [double]$n }
+        elseif ([double]$gap -gt $max) { $max = [double]$gap }
+    }
+    if ($Kind -eq 'gap') { return (New-Res 'value' $max '') }
+    return (New-Res 'value' $sum '')
+}
+
+function X-LongW {
+    # X-Long over the "shell longtask" lines from stamp2 on only (zero is a real value; no stamp2 = missing).
+    param($C, [string]$Kind)
+    $r = Test-ReadyT2 $C
+    if ($null -ne $r) { return $r }
+    # #46 r3 (B3-4): a pull before both swipes' scroll lines were in the log also misses their long tasks: the same rule as
+    # X-ScrollW (fewer than two scroll lines from stamp2 on = no value for this rep).
+    if (((Get-HitsFrom $C $script:L.Scroll).Items).Count -lt 2) { return (New-Res 'missing' $null ($C.Label + ': fewer than two "' + $script:L.Scroll.Label + '" lines from stamp2 on in ' + $C.LogName + ' (the two swipes): no long-task value')) }
+    $hits = (Get-HitsFrom $C $script:L.Long).Items
+    $max = 0.0
+    foreach ($h in $hits) {
+        $v = Get-Tok $h.Tail 'ms'
+        if (($null -eq $v) -or ($v -lt 0)) { return (Get-MissingTok $C $script:L.Long 'ms') }
+        if ([double]$v -gt $max) { $max = [double]$v }
+    }
+    if ($Kind -eq 'count') { return (New-Res 'value' ([double]$hits.Count) '') }
+    if ($hits.Count -eq 0) { return (New-Res 'empty' $null '') }
+    return (New-Res 'value' $max '')
+}
+
 function X-Am {
     # am.totalTime from run.json (no log needed). EmptyOk = the field is optional for this step.
     param($C, [bool]$EmptyOk)
@@ -544,6 +643,24 @@ $script:ScrollGapDef = (New-Def 'scroll max gap (max)' 'ms' $true 'log' { param(
 $script:ScrollFramesDef = (New-Def 'scroll frames n (sum)' 'count' $true 'log' { param($c) X-Scroll $c 'frames' })
 $script:LongCountDef = (New-Def 'long tasks' 'count' $false 'log' { param($c) X-Long $c 'count' })
 $script:LongMaxDef = (New-Def 'longest long task' 'ms' $false 'log' { param($c) X-Long $c 'longest' })
+# Windowed variants for the filewalk steps: only lines from the rep's stamp2 on.
+$script:ScrollDropWDef = (New-Def 'scroll drops (sum)' 'count' $true 'log' { param($c) X-ScrollW $c 'drops' })
+$script:ScrollGapWDef = (New-Def 'scroll max gap (max)' 'ms' $true 'log' { param($c) X-ScrollW $c 'gap' })
+$script:ScrollFramesWDef = (New-Def 'scroll frames n (sum)' 'count' $true 'log' { param($c) X-ScrollW $c 'frames' })
+$script:LongCountWDef = (New-Def 'long tasks' 'count' $false 'log' { param($c) X-LongW $c 'count' })
+$script:LongMaxWDef = (New-Def 'longest long task' 'ms' $false 'log' { param($c) X-LongW $c 'longest' })
+# The three file / voice / photo chats: open rows of the chat intent (no spare, no send row), then the windowed scroll rows.
+$script:ChatScrollDefs = @(
+    (New-Def 'intent -> present' 'ms' $true 'log' { param($c) X-Delta $c $script:L.Present }),
+    (New-Def 'present ms=' 'ms' $true 'log' { param($c) X-Token $c $script:L.Present 'ms' }),
+    (New-Def 'frames drop' 'count' $true 'log' { param($c) X-Token $c $script:L.Frames 'drop' }),
+    (New-Def 'frames max gap' 'ms' $true 'log' { param($c) X-Token $c $script:L.Frames 'max' }),
+    $script:ScrollDropWDef,
+    $script:ScrollGapWDef,
+    $script:ScrollFramesWDef,
+    $script:LongCountWDef,
+    $script:LongMaxWDef
+)
 
 $script:StepTable = [ordered]@{
     'coldstart'   = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
@@ -614,6 +731,28 @@ $script:StepTable = [ordered]@{
             $script:ScrollFramesDef,
             $script:LongCountDef,
             $script:LongMaxDef
+        ) }
+    'scroll-files'  = @{ Kind = 'reps'; Reps = 'repeats'; Defs = $script:ChatScrollDefs }
+    'scroll-voice'  = @{ Kind = 'reps'; Reps = 'repeats'; Defs = $script:ChatScrollDefs }
+    'scroll-photos' = @{ Kind = 'reps'; Reps = 'repeats'; Defs = $script:ChatScrollDefs }
+    'viewer'      = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
+            (New-Def 'tap -> viewimage sent dt=' 'ms' $true 'log' { param($c) X-SendLine $c $script:L.SendViewImage }),
+            (New-Def 'tap -> viewer shown first=' 'ms' $true 'log' { param($c) X-FirstNonNeg $c $script:L.OverlayOpen 'first' }),
+            (New-Def 'viewer frames drop' 'count' $true 'log' { param($c) X-Token $c $script:L.OverlayOpenFr 'drop' }),
+            (New-Def 'viewer frames max gap' 'ms' $true 'log' { param($c) X-Token $c $script:L.OverlayOpenFr 'max' }),
+            (New-Def 'close frames drop' 'count' $true 'log' { param($c) X-TokenW $c $script:L.OverlayCloseFr 'drop' }),
+            (New-Def 'close frames max gap' 'ms' $true 'log' { param($c) X-TokenW $c $script:L.OverlayCloseFr 'max' })
+        ) }
+    'downloads'   = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
+            (New-Def 'tap -> loaddownloads sent dt=' 'ms' $true 'log' { param($c) X-SendLine $c $script:L.SendLoadDl }),
+            (New-Def 'tap -> list shown first=' 'ms' $true 'log' { param($c) X-FirstNonNeg $c $script:L.SubOpen 'first' }),
+            (New-Def 'list frames drop' 'count' $true 'log' { param($c) X-Token $c $script:L.SubOpenFr 'drop' }),
+            (New-Def 'list frames max gap' 'ms' $true 'log' { param($c) X-Token $c $script:L.SubOpenFr 'max' }),
+            $script:ScrollDropWDef,
+            $script:ScrollGapWDef,
+            $script:ScrollFramesWDef,
+            $script:LongCountWDef,
+            $script:LongMaxWDef
         ) }
 }
 
@@ -726,6 +865,7 @@ function New-Ctx {
         Am = $null
         Swipes = $null
         T0 = $null; T0Why = ''
+        T2 = $null; T2Why = ''
         LogName = ''; LogWhy = $null; Window = @()
         AppName = ''; RendName = ''
         MemApp = $null; MemRend = $null
@@ -771,6 +911,15 @@ function New-RepCtx {
     $c.Swipes = $sw
     $c.T0 = $T0
     $c.T0Why = $T0Why
+    # stamp2 (filewalk steps): the device time of the second stamp, same format as t0; only read when a row asks for it.
+    $s2 = Get-Prop $Entry 'stamp2'
+    if (($null -eq $s2) -or ([string]$s2 -eq '')) { $c.T2Why = $label + ': no stamp2 in run.json' }
+    elseif ($null -eq $T0) { $c.T2Why = $label + ': stamp2 needs a readable t0' }
+    else {
+        $t2 = Convert-T0 ([string]$s2) $T0 $T0
+        if (($null -eq $t2) -or ($t2 -le $T0)) { $c.T2Why = $label + ': stamp2 not readable' }
+        else { $c.T2 = $t2 }
+    }
     $logName = Get-Prop $Entry 'log'
     $expLog = Get-RepFileName $Step ([double]$RepText) 'log'
     $raw = $null
@@ -1297,6 +1446,17 @@ function Invoke-Main {
         '- Switch state: the four digits of the app''s own `[FLAGS] warmidle= sparerearm= sparekeep= noemptydetail=` line (printed re-built, never the raw line). With -Flags the flags pull must show the asked state (none = no data, exit 2) and no pulled log may show another (exit 4).'
     )
     foreach ($l in $legend) { [void]$md.Append($l + "`n") }
+    # One note line per filewalk step, only for a step that is in this run (an old run prints none of them).
+    $legendNew = [ordered]@{
+        'scroll-files'  = '- scroll-files: the chat of the file seed (local key fileChatAddress), opened by the notification intent; t0 = before the intent; the open rows as for chat-intent (no spare, no send row); the scroll and long-task rows count only lines whose own stamp is >= stamp2 (the stamp before the first swipe) from run.json.'
+        'scroll-voice'  = '- scroll-voice: the same rows for the chat of the voice seed (local key voiceChatAddress).'
+        'scroll-photos' = '- scroll-photos: the same rows for the chat of the photo seed (local key photoChatAddress).'
+        'viewer'        = '- viewer: t0 = the tap on the photo tile in the image chat; tap -> viewimage sent dt= = `dt=` of the first `[P1] shell send viewimage` line with dt >= 0; tap -> viewer shown first= = `first=` of the first `[P1] shell overlay-open` line with first >= 0 (-1 = no tap seen = no value); viewer frames = `drop=` / `max=` of the first `[P1] shell frames-overlay-open` line; close frames = the first `[P1] shell frames-overlay-close` line from stamp2 (the BACK) on.'
+        'downloads'     = '- downloads: t0 = the tap on Downloads in the Account tab; tap -> loaddownloads sent dt= = `dt=` of the first `[P1] shell send loaddownloads` line with dt >= 0; tap -> list shown first= = `first=` of the first `[P1] shell subscreen-open` line with first >= 0; list frames = `drop=` / `max=` of the first `[P1] shell frames-subscreen-open` line; the scroll and long-task rows (`shell scroll` / `shell longtask` lines) count only lines from stamp2 (the first swipe) on.'
+    }
+    foreach ($k in $legendNew.Keys) {
+        if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }
+    }
     [void]$md.Append("`nFiles`n`n")
     $seen = New-Object System.Collections.Generic.List[string]
     $fileLines = New-Object System.Collections.Generic.List[string]

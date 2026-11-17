@@ -30,6 +30,33 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
   Chats), history (seed chat k+4, swipes to older until 3 older pages were asked for).
   scroll-image runs only when named in -Steps: it needs imageChatAddress in walk.local.json. imageChatAddress must be
   the address of a dev-seed chat (Spixi/Utils/SDevSeed.cs), never a real contact; scroll-image keeps no screenshot.
+  Batch filewalk - five more opt-in steps, only when named in -Steps, run after scroll-image in this order:
+  scroll-files, scroll-voice, scroll-photos (per rep: logcat -c, stamp + the fa intent of the chat of fileChatAddress /
+    voiceChatAddress / photoChatAddress = the file seed chats Seed 54 / 55 / 56 (t0), chatSettleMs, the chat check, a
+    second stamp (stamp2 in run.json) + swipe chatOlder, swipe chatNewer, a wait (at most 4 s) until two shell scroll
+    lines more than before stamp2 are in the log (the open writes its own), the log pull, BACK; a failed chat check sends no swipe and no BACK) - viewer (the chat of
+    imageChatAddress = Seed 51, 52 or 53 is opened once; per rep: the chat check,
+    logcat -c, stamp + tap taps.photoTile (t0), a gate on the app's own lines (shell send viewimage exactly once and
+    shell frames-overlay-open, 6 s), the viewer check (screens.viewer), stamp2 + BACK, a wait (at most 4 s) for the
+    frames-overlay-close line, the log pull; a failed gate or check sends no more input in that rep, a foreign window
+    (the OS chooser of a tap before the thumbnail) gets none and the app is restarted, the next rep opens the chat
+    again) - downloads (from Chats: the home check, the tap on
+    tabAccount with the tab-account gates, logcat -c, stamp + tap taps.accountDownloads (t0), a gate (shell send
+    loaddownloads exactly once and shell frames-subscreen-open, 6 s), the Downloads check (screens.downloads), stamp2 +
+    swipe chatNewer FIRST (the list opens at the top), then swipe chatOlder, the wait for two shell scroll lines, the log pull, BACK with the
+    frames-subscreen-close gate, the tap on tabChats with its gates; from the tabAccount tap command on, any failure
+    restarts the app at once: no second input on Account).
+  Every restart of these steps is PROVEN (the app pid read before the rep's first tap, one different pid after, our app
+  in front, then a home check whose PNG is deleted; an unread pid = not proven, no screenshot); a
+  proven restart sends no recovery BACK, a restart that is not proven stops the run (no further input).
+  The local keys are masked like a seed and must equal the address that the script derives for the seed (addressFor of
+  Spixi/Utils/SDevSeed.cs): fileChatAddress = Seed 54, voiceChatAddress = Seed 55, photoChatAddress = Seed 56; for viewer
+  imageChatAddress must be Seed 51, 52 or 53 (scroll-image keeps its old check). A missing, invalid or other key, or a missing map key
+  (taps.photoTile, taps.accountDownloads, screens.viewer, screens.downloads: absent until the calibrate run of the
+  operator block), makes every rep of that step skipped ("no data", exit 2) with no command sent. No PNG of these
+  steps is kept: the checks (also those before the input) photograph our app's screen for the probes, then the PNG is
+  deleted (in a finally; a sweep at the end of each step and of the run deletes any shot-<step>-*.png left); they never
+  photograph the Account screen. "send" and "live" are not steps (questions for Damir: DECISIONS #1669, #1670).
   New steps take a screenshot before the input too (shot-<step>-NN-pre.png): no input when that check fails
   (except resume-now, resume-3s and scroll-image: a focus check only, as the old resume). A pre-check PNG that fails is
   deleted. The tab steps wait for the app's own frames log lines (a count only): the first tab tap is gated by the
@@ -42,9 +69,19 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
             It also tries each tap point of the new steps once (cal-08..13; no screenshot on Apps, Wallet, Account;
             cal-11 and cal-12 use the same frames-line gates and screen checks; a cal-11, cal-12 or cal-13 PNG that is not
             the expected screen is deleted; when cal-11 failed or was not confirmed, cal-12..13 are skipped).
+            Batch filewalk (nothing at all after a failed cal-11): cal-14 (the image chat, no tap, so the photoTile
+            point can be read; deleted when it is not the chat screen) whenever imageChatAddress is an image seed and
+            screens.chat exists; only with taps.photoTile: cal-15 (the viewer with a dev-seed photo, only after its gate
+            passed; a failed gate sends no BACK), then cal-16 (home); only with taps.accountDownloads (with tabAccount
+            and tabChats): cal-17a (a fresh home check right before the tabAccount tap), cal-17 (the Downloads list,
+            only after its gate passed; no PNG of the Account screen; it shows the newest downloads: take it right
+            after "Remove the seed, then Seed"), cal-18 (home). A cal-15 or cal-17 PNG is kept while its screen is not
+            calibrated and deleted when it fails its probes; a failure after an Account tap, or a foreign window after
+            the photo tap, restarts the app and the restart is proven (not proven: no further input).
 Inputs: a52s.json next to this script (timing, taps, swipes, screen probes; the package is pinned below);
         <repo>\Claude outputs\adbwalk\walk.local.json (optional, never in git): { "seedAddresses": [...],
-        "imageChatAddress": "..." (optional) }; both are masked in everything the script writes.
+        "imageChatAddress": "...", "fileChatAddress": "...", "voiceChatAddress": "...", "photoChatAddress": "..."
+        (each optional) }; all are masked in everything the script writes.
 Output: <repo>\Claude outputs\adbwalk\<yyyyMMdd-HHmm>\ (walk) or calibrate-<yyyyMMdd-HHmm>\.
 Exit:   0 ok - 1 driver failure (bad arguments, pre-flight, crash, a -Flags stop) - else the parser's code (2 no data,
         3 no run.json, 4 the switch state in a pulled log differs from the one asked with -Flags).
@@ -113,10 +150,34 @@ $script:Inv = [System.Globalization.CultureInfo]::InvariantCulture
 $script:Utf8 = New-Object System.Text.UTF8Encoding($false)
 $script:Ws = [char[]]@(32, 9, 13, 10)
 $script:AllSteps = @('coldstart', 'mem-home', 'chat-intent', 'chat-tap', 'scroll', 'resume', 'resume-long', 'network', 'mem-end', 'mem-trim',
-    'resume-now', 'resume-3s', 'chatinfo', 'tab-apps', 'tab-wallet', 'tab-account', 'history', 'scroll-image')
+    'resume-now', 'resume-3s', 'chatinfo', 'tab-apps', 'tab-wallet', 'tab-account', 'history', 'scroll-image',
+    'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads')
 # Walk steps 2: the new steps run AFTER the old ones, so every old row keeps its place and its meaning. scroll-image
 # runs only when it is named in -Steps (it needs the local key imageChatAddress, the image seed of speed batch 1a).
-$script:DefaultSteps = @($script:AllSteps | Where-Object { $_ -cne 'scroll-image' })
+# Batch filewalk: the five file-walk steps run after scroll-image and are opt-in too (local keys and new map keys).
+$script:OptInSteps = @('scroll-image', 'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads')
+$script:DefaultSteps = @($script:AllSteps | Where-Object { $script:OptInSteps -cnotcontains $_ })
+# Batch filewalk: the local key of each file chat step (walk.local.json) and its index in $script:Seeds (-1 = no valid key).
+$script:FileChatKeys = @{ 'scroll-files' = 'fileChatAddress'; 'scroll-voice' = 'voiceChatAddress'; 'scroll-photos' = 'photoChatAddress' }
+$script:FileSeed = @{ 'fileChatAddress' = -1; 'voiceChatAddress' = -1; 'photoChatAddress' = -1 }
+# Batch filewalk: the fixed time of the viewer and downloads gates (no a52s.json key: the file stays unchanged).
+$script:FileGateMs = 6000
+$script:ViewerReopen = $false
+# #46 r1 (B1-3): the bounded wait before the log pull of a file-walk rep (the logcat mirror can lag the app's lines).
+$script:FilePullWaitMs = 4000
+# #46 r1 (S-W-1): set by Invoke-FileReset when the restart after a failed rep is PROVEN; Complete-Rep then clears the
+# recovery flags so no BACK follows. A restart that is not proven halts the run (no further input).
+$script:FileResetOk = $false
+$script:FileResetN = 0
+# #46 r2 (B2-2): the app pid read while adb is healthy, BEFORE the first tap command of a viewer / downloads rep (and of
+# the calibrate tries); the restart proof needs a pid that differs from it. '' = not read: no tap is sent.
+$script:FileRepPid = ''
+# #46 r1 (S-W-4): the dev-seed addresses are derived here (Spixi/Utils/SDevSeed.cs addressFor) and a local key that is
+# not the expected one is refused. $script:ImageViewerOk: imageChatAddress is one of the image seeds (Seed 51-53).
+$script:FileSeedIndex = @{ 'fileChatAddress' = 53; 'voiceChatAddress' = 54; 'photoChatAddress' = 55 }
+$script:FileKeyNote = @{}
+$script:ImageViewerOk = $false
+$script:CalSkip12 = ''
 $script:TabNames = @{ 'tab-apps' = 'tabApps'; 'tab-wallet' = 'tabWallet'; 'tab-account' = 'tabAccount' }
 $script:TabFrames = @{ 'tab-apps' = 'apps'; 'tab-wallet' = 'wallet'; 'tab-account' = 'account' }
 $script:ImageSeed = -1
@@ -145,6 +206,15 @@ $script:FramePoll = @{
     # Batch perfb1toggle (-Flags): the app's fixed "stored" line and its own start-up state line (a count only).
     flagsstored = ($script:LogCmd + ' | grep -c -e FLAGS..perfb1.extra.stored')
     flagsstate = ($script:LogCmd + ' | grep -c -e FLAGS..warmidle=')
+    # Batch filewalk (viewer, downloads): the gate lines of the photo viewer and of the Downloads list (a count only).
+    viewimage = ($script:LogCmd + ' | grep -c -e P1..shell.send.viewimage')
+    overlayopen = ($script:LogCmd + ' | grep -c -e P1..shell.frames-overlay-open')
+    loaddownloads = ($script:LogCmd + ' | grep -c -e P1..shell.send.loaddownloads')
+    subscreenopen = ($script:LogCmd + ' | grep -c -e P1..shell.frames-subscreen-open')
+    subscreenclose = ($script:LogCmd + ' | grep -c -e P1..shell.frames-subscreen-close')
+    # #46 r1 (B1-3): the lines a file-walk rep waits for before its log pull (a count only).
+    scrolllines = ($script:LogCmd + ' | grep -c -e P1..shell.scroll')
+    overlayclose = ($script:LogCmd + ' | grep -c -e P1..shell.frames-overlay-close')
 }
 # The ONE command that may hold quotes, brackets and a redirect: matched by exact string equality.
 $script:LogRe = '^[0-9]{2}-[0-9]{2} [0-9:.]{12} +[0-9]+ +[0-9]+ [A-Z] DOTNET *: [0-9]{2}-[0-9]{2} [0-9:.]{8,16}\|[A-Za-z]{1,10}\|[0-9]{1,6}: ((\[WEBVIEW\] [A-Z]{1,12} )?\[(P1|CDPERF)\] [a-z0-9_.=-]{1,40}( [a-z0-9_.=-]{1,40}){0,15}( \(file:///android_asset/html/[a-z.]{0,24}:[0-9]{1,6}\))?$|Starting Spixi [a-z0-9.-]{1,24} \([a-z0-9.-]{1,24}\)$|Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}$|Received Hello: Node version [0-9]{1,6}$|\[FLAGS\] warmidle=[01] sparerearm=[01] sparekeep=[01] noemptydetail=[01]$)'
@@ -443,6 +513,13 @@ function Initialize-Allowlist {
         $script:FramePoll['settingsclosed'],
         $script:FramePoll['flagsstored'],
         $script:FramePoll['flagsstate'],
+        $script:FramePoll['viewimage'],
+        $script:FramePoll['overlayopen'],
+        $script:FramePoll['loaddownloads'],
+        $script:FramePoll['subscreenopen'],
+        $script:FramePoll['subscreenclose'],
+        $script:FramePoll['scrolllines'],
+        $script:FramePoll['overlayclose'],
         'dumpsys window | grep -e mCurrentFocus=',
         'dumpsys window | grep -e mDreamingLockscreen= -e isKeyguardShowing= -e mShowingLockscreen= -e mKeyguardShowing= -e mCurrentFocus=',
         'dumpsys activity activities | grep -e mKeyguardShowing=',
@@ -731,6 +808,11 @@ function Get-StepGap([string]$Step) {
     elseif ($script:TabNames.ContainsKey($Step)) { $need = @(('tap:' + $script:TabNames[$Step]), 'tap:tabChats', 'screen:home') }
     elseif ($Step -eq 'history') { $need = @('swipe:historyOlder', 'screen:chat', 'count:historyMaxSwipes') }
     elseif ($Step -eq 'scroll-image') { $need = @('swipe:chatOlder', 'swipe:chatNewer', 'screen:chat', 'image:') }
+    # Batch filewalk: the new map keys (taps.photoTile, taps.accountDownloads, screens.viewer, screens.downloads) are absent
+    # until the calibrate run of the operator block fills them: their absence is a gap, never a tap at a guessed point.
+    elseif ($script:FileChatKeys.ContainsKey($Step)) { $need = @('swipe:chatOlder', 'swipe:chatNewer', 'screen:chat', ('key:' + $script:FileChatKeys[$Step])) }
+    elseif ($Step -eq 'viewer') { $need = @('tap:photoTile', 'screen:chat', 'screen:viewer', 'image:', 'vimage:') }
+    elseif ($Step -eq 'downloads') { $need = @('tap:tabAccount', 'tap:accountDownloads', 'tap:tabChats', 'swipe:chatOlder', 'swipe:chatNewer', 'screen:home', 'screen:downloads') }
     foreach ($n in $need) {
         $kind, $name = $n -split ':', 2
         $gap = ''
@@ -740,6 +822,13 @@ function Get-StepGap([string]$Step) {
         elseif ($kind -eq 'seed') { $gap = Get-SeedGap ([int]$name) }
         elseif ($kind -eq 'count') { if ($script:Tm[$name] -lt 1) { $gap = ('a52s.json timing.' + $name + ' is 0') } }
         elseif ($kind -eq 'image') { if ($script:ImageSeed -lt 0) { $gap = 'walk.local.json has no valid imageChatAddress (the image seed of speed batch 1a)' } }
+        elseif ($kind -eq 'key') {
+            if ($script:FileSeed[$name] -lt 0) {
+                if ($script:FileKeyNote.ContainsKey($name)) { $gap = $script:FileKeyNote[$name] }
+                else { $gap = ('walk.local.json has no valid ' + $name + ' (the file seed of batch filewalk)') }
+            }
+        }
+        elseif ($kind -eq 'vimage') { if (-not $script:ImageViewerOk) { $gap = 'walk.local.json imageChatAddress is not the address of an image seed (Seed 51-53): viewer refused' } }
         if ($gap) { return $gap }
     }
     return ''
@@ -771,6 +860,13 @@ function Set-RepStamp($Rec, [string]$Text) {
     $s = Read-Stamp $Text
     if ($s.T0) { $Rec['t0'] = $s.T0 }
     else { throw ('ADBWALK-REP: ' + $s.Note) }
+}
+
+function Set-RepStamp2($Rec, [string]$Text) {
+    # Batch filewalk: the second stamp of a rep (before the first swipe / the BACK), same phone-clock format as t0.
+    $s = Read-Stamp $Text
+    if ($s.T0) { $Rec['stamp2'] = $s.T0 }
+    else { throw ('ADBWALK-REP: ' + $s.Note + ' (stamp2)') }
 }
 
 function Read-AmOutput([string]$Text) {
@@ -1154,7 +1250,7 @@ function Save-RunJson([bool]$Finished) {
 
 function Complete-Rep($Rec, [int]$Of) {
     $out = [ordered]@{ step = $Rec.step; rep = $Rec.rep; status = $Rec.status }
-    foreach ($k in @('t0', 'log', 'shot', 'shotPre', 'screen', 'screenOk', 'swipes', 'am')) { if ($Rec.ContainsKey($k)) { $out[$k] = $Rec[$k] } }
+    foreach ($k in @('t0', 'stamp2', 'log', 'shot', 'shotPre', 'screen', 'screenOk', 'swipes', 'am')) { if ($Rec.ContainsKey($k)) { $out[$k] = $Rec[$k] } }
     $full = ($Rec.notes -join ', ')
     $out['note'] = Get-SafeNote $full
     $script:Reps.Add($out)
@@ -1166,6 +1262,8 @@ function Complete-Rep($Rec, [int]$Of) {
         $script:ErrStreak = 0
         $script:NeedRecover = $false; $script:LastFailed = $false
     }
+    # #46 r1 (S-W-1): a file-walk rep whose restart was PROVEN (the app is new and on Chats): no recovery BACK follows.
+    if ($script:FileResetOk) { $script:FileResetOk = $false; $script:NeedRecover = $false; $script:LastFailed = $false }
     Save-RunJson $false
     $line = '[' + $Rec.step + ' ' + $Rec.rep + '/' + $Of + '] ' + $Rec.status
     if ($Rec.ContainsKey('am') -and $Rec['am'].Contains('totalTime')) { $line += ' TotalTime=' + $Rec['am']['totalTime'] }
@@ -1578,6 +1676,329 @@ function Invoke-HistoryRep($Rec) {
     Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
 }
 
+# ---------------------------------------------------------------- batch filewalk: the file chats, the viewer, Downloads
+function ConvertTo-Base58([byte[]]$Bytes) {
+    # #46 r1 (S-W-4): base58 (Bitcoin alphabet) by long division of the byte array; one '1' per leading zero byte.
+    $alpha = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+    $digits = New-Object System.Collections.Generic.List[int]
+    foreach ($b in $Bytes) {
+        $carry = [int]$b
+        for ($j = 0; $j -lt $digits.Count; $j++) {
+            $carry += $digits[$j] * 256
+            $digits[$j] = $carry % 58
+            $carry = [math]::Floor($carry / 58)
+        }
+        while ($carry -gt 0) { $digits.Add($carry % 58); $carry = [math]::Floor($carry / 58) }
+    }
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($b in $Bytes) { if ($b -eq 0) { [void]$sb.Append('1') } else { break } }
+    for ($j = $digits.Count - 1; $j -ge 0; $j--) { [void]$sb.Append($alpha[$digits[$j]]) }
+    return $sb.ToString()
+}
+
+function Get-DevSeedAddress([int]$Index) {
+    # #46 r1 (S-W-4): the address of dev-seed contact $Index as Spixi/Utils/SDevSeed.cs addressFor makes it:
+    # base58( raw33 + checksum3 ), raw33 = 0x00 + SHA-256(UTF-8 "spixi-dev-seed:" + i), checksum3 = the first 3 bytes of
+    # SHA-512(SHA-512(raw33)). Only compared, never printed.
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $sha512 = [System.Security.Cryptography.SHA512]::Create()
+    try {
+        $h = $sha256.ComputeHash($script:Utf8.GetBytes('spixi-dev-seed:' + $Index.ToString($script:Inv)))
+        $raw = New-Object byte[] 33
+        [System.Array]::Copy($h, 0, $raw, 1, 32)
+        $ck = $sha512.ComputeHash($sha512.ComputeHash($raw))
+        $all = New-Object byte[] 36
+        [System.Array]::Copy($raw, 0, $all, 0, 33)
+        [System.Array]::Copy($ck, 0, $all, 33, 3)
+    } finally { $sha256.Dispose(); $sha512.Dispose() }
+    return (ConvertTo-Base58 $all)
+}
+
+function Clear-FileStepPngs {
+    # #46 r1 (S-W-3): no PNG of the file-walk steps stays in the run folder (end of each new step and the main finally);
+    # #46 r2 (B2-2): also the restart checks of -Calibrate (cal-reset-NN.png).
+    if (-not $script:RunDir -or -not (Test-Path -LiteralPath $script:RunDir)) { return }
+    foreach ($f in @(Get-ChildItem -LiteralPath $script:RunDir -File -ErrorAction SilentlyContinue)) {
+        if ($f.Name -cmatch '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads)-[A-Za-z0-9-]{1,40}\.png\z' -or $f.Name -cmatch '^cal-reset-[0-9]{2,4}\.png\z') {
+            if (Remove-LocalFile $f.FullName) { Write-WalkLog ('sweep: ' + $f.Name + ' deleted') }
+            else { Say-Log ('  WARNING: a PNG of a file-walk step could not be deleted: ' + $f.Name + ' (delete it by hand)') }
+        }
+    }
+}
+
+function Invoke-FileShot($Rec, [string]$Expect, [string]$LocalName) {
+    # #46 r1 (S-W-3): focus, screenshot, focus, the probe check, and the PNG deleted in a finally (a probe read that throws
+    # leaves no PNG). Returns $true when the screen is $Expect. Never records the file in the rep.
+    if (-not (Test-AppFront)) { Add-Note $Rec 'foreign window in front (no screenshot)'; return $false }
+    $local = Save-Shot $LocalName
+    $ok = $false
+    try {
+        if (-not (Test-AppFront)) { Add-Note $Rec 'foreign window during the screenshot'; return $false }
+        $chk = Test-Screen $local $Expect
+        $ok = [bool]$chk.Ok
+        if (-not $ok) { Add-Note $Rec ($Expect + ' check failed: ' + $chk.Note) }
+    } finally {
+        if (Remove-LocalFile $local) { Add-Note $Rec ('PNG deleted (' + $Expect + ' check)') }
+        else { Add-Note $Rec 'PNG not deleted: local file not deleted'; $ok = $false }
+    }
+    return $ok
+}
+
+function Invoke-FileShotCheck($Rec, [string]$Expect) {
+    # The screen check AFTER an input (the rep's own check): screen + screenOk in the rep, no-screen when it fails.
+    $Rec['screen'] = $Expect
+    $ok = Invoke-FileShot $Rec $Expect ('shot-' + $Rec.step + '-' + (Get-Nn $Rec.rep) + '.png')
+    $Rec['screenOk'] = $ok
+    if (-not $ok -and $Rec.status -eq 'ok') { $Rec.status = 'no-screen' }
+    return $ok
+}
+
+function Invoke-FilePreCheck($Rec, [string]$Expect) {
+    # The check BEFORE the first input of a rep: a failure throws (no input, no-screen).
+    if (-not (Invoke-FileShot $Rec $Expect ('shot-' + $Rec.step + '-' + (Get-Nn $Rec.rep) + '-pre.png'))) {
+        throw ('ADBWALK-NOSCREEN: before the input the ' + $Expect + ' screen check failed: no input')
+    }
+}
+
+function Invoke-FileReset($Rec, [string]$Why) {
+    # #46 r1 (S-W-1, S-W-5) and r2 (B2-2): Reset-AppToChats (force-stop, am start -W; it reports nothing), then the
+    # restart is PROVEN: the pid stored at the rep start (Save-FileRepPid, read while adb was healthy, before the first tap
+    # command) exists, exactly one app pid is read after the restart and it differs from the stored one, our app has the
+    # focus, and a fresh home check passes (the cold start lands on Chats; the PNG is deleted in a finally). The screenshot
+    # comes only after the pid and focus proof: a missing stored pid or an unreadable pid after = NOT proven with NO
+    # screenshot, so a restart that failed with Account in front (an adb outage too) is never photographed. Proven:
+    # $script:FileResetOk (Complete-Rep then clears the recovery flags: no BACK follows). Not proven: the run is halted,
+    # no further input. Returns: proven.
+    Say-Log ('  ' + $Why + ': the app is restarted (am force-stop, am start -W)')
+    $before = $script:FileRepPid
+    $script:FileRepPid = ''
+    Reset-AppToChats
+    $after = @(Get-Pids (Invoke-Shell ('pidof ' + $script:Pkg)).StdOut)
+    $why = ''
+    if (-not $before) { $why = 'no app pid was stored before the tap' }
+    elseif ($after.Count -ne 1) { $why = 'no single app pid after the restart' }
+    elseif (Test-Ordinal ([string]$before) ([string]$after[0])) { $why = 'the app pid did not change' }
+    elseif (-not (Test-AppFront)) { $why = 'the app is not in front after the restart' }
+    else {
+        $script:FileResetN++
+        $name = 'shot-' + $Rec.step + '-reset-' + $script:FileResetN.ToString('00', $script:Inv) + '.png'
+        if ($script:Mode -eq 'calibrate') { $name = 'cal-reset-' + $script:FileResetN.ToString('00', $script:Inv) + '.png' }
+        try { if (-not (Invoke-FileShot $Rec 'home' $name)) { $why = 'the home check after the restart failed' } }
+        catch {
+            if (([string]$_.Exception.Message).StartsWith('ADBWALK-STOP:')) { throw }
+            $why = 'the home check after the restart failed'
+        }
+    }
+    if (-not $why) {
+        $script:FileResetOk = $true
+        Say-Log '  restart proven: a new app process, Chats in front'
+        return $true
+    }
+    $script:Halted = $true
+    $script:HaltNote = 'run stopped: an app restart was not proven (no further input)'
+    Add-Note $Rec ('restart not proven: ' + $why + ': the run stops')
+    Say-Log ('  restart NOT proven (' + $why + '): the run sends no further input')
+    return $false
+}
+
+function Save-FileRepPid {
+    # #46 r2 (B2-2): the app pid while adb is healthy, before the first tap command; none or several = no tap at all.
+    $script:FileRepPid = ''
+    $ids = @(Get-Pids (Invoke-Shell ('pidof ' + $script:Pkg)).StdOut)
+    if ($ids.Count -eq 1) { $script:FileRepPid = [string]$ids[0]; return $true }
+    return $false
+}
+
+function Get-ScrollBase($Rec) {
+    # #46 r2 (B2-3): every chat open writes its own shell scroll line (ms=0): the count right BEFORE the stamp2 command is
+    # the base, and the pull waits for base + 2 (the two swipes). Unreadable = the full bound is waited.
+    $c = Get-LogCount 'scrolllines'
+    if ($null -eq $c) { Add-Note $Rec 'scroll line count unreadable before the swipes'; return 999999 }
+    return $c
+}
+
+function Wait-FilePull($Rec, [string]$Key, [int]$Above) {
+    # #46 r1 (B1-3): the logcat mirror can lag the app's lines: wait (bounded) for the rep's own lines, then pull anyway.
+    if (-not (Wait-LogCount $Key $script:FilePullWaitMs $Above)) { Add-Note $Rec ('pulled before all ' + $Key + ' lines were in the log') }
+}
+
+function Wait-FileGate([string]$OneKey, [string]$AnyKey, [int]$TimeoutMs, [int]$BaseOne = 0, [int]$BaseAny = 0) {
+    # The gate of the viewer and of the Downloads list (a count only, no line leaves the phone): the count of $OneKey
+    # must be EXACTLY one above $BaseOne and the count of $AnyKey at least one above $BaseAny (the walk: 0 after its
+    # logcat -c; the calibrate run: the counts read before the tap). A second $OneKey line fails at once; a count that
+    # cannot be read never passes; $false at the timeout (at least one poll). The gate never frees itself on a timer.
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($true) {
+        $a = Get-LogCount $OneKey
+        $b = Get-LogCount $AnyKey
+        if ($null -ne $a -and ($a - $BaseOne) -gt 1) { Write-WalkLog ('gate ' + $OneKey + ': ' + ($a - $BaseOne) + ' lines, 1 expected'); return $false }
+        if ($null -ne $a -and $null -ne $b -and ($a - $BaseOne) -eq 1 -and ($b - $BaseAny) -ge 1) {
+            Write-WalkLog ('gate ' + $OneKey + ' + ' + $AnyKey + ' after ' + $sw.ElapsedMilliseconds + ' ms')
+            return $true
+        }
+        if ($sw.ElapsedMilliseconds -ge $TimeoutMs) { Write-WalkLog ('no gate ' + $OneKey + ' + ' + $AnyKey + ' within ' + $TimeoutMs + ' ms'); return $false }
+        Start-Sleep -Milliseconds 300
+    }
+}
+
+function Invoke-FileChatRep($Rec) {
+    # scroll-files / scroll-voice / scroll-photos: the seed chat of the step's local key by fa (t0), the chat check (PNG
+    # deleted), stamp2 + the two swipes, the wait for the scroll lines, the log pull, BACK. A failed chat check sends no
+    # swipe and no BACK: the rep is no-screen and the next rep (or the step end) recovers by Invoke-EnsureHome.
+    $addr = Get-Seed $script:FileSeed[$script:FileChatKeys[$Rec.step]]
+    [void](Invoke-ShellReq 'logcat -c')
+    $r = Invoke-ShellReq ($script:StampCmd + '; am start -n ' + $script:Comp + ' --es fa ' + $addr)
+    $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
+    Add-AmResult $Rec $am
+    Set-RepStamp $Rec $r.StdOut
+    if ($am.Error) { throw ('ADBWALK-REP: am: ' + $am.Error) }
+    Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+    # The key names a dev-seed chat (checked against the derived address); still no PNG is kept.
+    if (-not (Invoke-FileShotCheck $Rec 'chat')) {
+        Invoke-LogPull $Rec
+        throw 'ADBWALK-NOSCREEN: the chat screen check failed: no swipe, no BACK'
+    }
+    $sbase = Get-ScrollBase $Rec
+    Assert-AppFront
+    $r2 = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-SwipeText 'chatOlder'))
+    Set-RepStamp2 $Rec $r2.StdOut
+    Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
+    Assert-AppFront
+    [void](Invoke-ShellReq (Get-SwipeText 'chatNewer'))
+    Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
+    Wait-FilePull $Rec 'scrolllines' ($sbase + 1)
+    Invoke-LogPull $Rec
+    Invoke-BackReq
+    Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
+}
+
+function Invoke-ViewerRep($Rec) {
+    # The image chat is open (Invoke-ViewerStep). Per rep: the chat check before the tap (PNG deleted), logcat -c, stamp +
+    # tap photoTile (t0), the gate (viewimage = 1 and frames-overlay-open >= 1), the viewer check (PNG deleted), stamp2 +
+    # BACK, the wait for the close line, the log pull. A failed gate or check: no more input in this rep; a foreign window
+    # (the OS chooser that a tap before the thumbnail opens) gets no input: the app is restarted and the restart proven
+    # (Invoke-FileReset); the next rep opens the image chat again by fa before its chat check.
+    if ($script:ScrollOpen) {
+        if ($Rec.rep -eq 1) { throw ('ADBWALK-REP: ' + $script:ScrollOpen) }
+        throw ('ADBWALK-SKIP: ' + $script:ScrollWhat + ' did not open (see rep 1)')
+    }
+    if ($script:ViewerReopen) {
+        if (-not (Invoke-EnsureHome)) { throw 'ADBWALK-NOSCREEN: foreign window in front (the app did not come back)' }
+        Invoke-OpenSeedChat $script:ImageSeed
+        $script:ViewerReopen = $false
+        Add-Note $Rec 'the image chat was opened again after a failed rep'
+    }
+    [void](Invoke-ShellReq 'logcat -c')
+    Invoke-FilePreCheck $Rec 'chat'
+    if (-not (Save-FileRepPid)) { throw 'ADBWALK-REP: cannot read the app pid before the tap: no input' }
+    Assert-AppFront
+    # From the tap command on the screen may not be the chat: any failure re-opens the chat at the next rep.
+    $script:ViewerReopen = $true
+    try {
+        $r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-TapText 'photoTile'))
+        Set-RepStamp $Rec $r.StdOut
+        if (-not (Wait-FileGate 'viewimage' 'overlayopen' $script:FileGateMs)) {
+            throw 'ADBWALK-REP: the viewer did not open (gate viewimage = 1 and frames-overlay-open): no more input in this rep'
+        }
+        if (-not (Invoke-FileShotCheck $Rec 'viewer')) { throw 'ADBWALK-NOSCREEN: the viewer screen check failed: no more input in this rep' }
+        Assert-AppFront
+        $r2 = Invoke-ShellReq ($script:StampCmd + '; input keyevent 4')
+        Set-RepStamp2 $Rec $r2.StdOut
+        Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
+        Wait-FilePull $Rec 'overlayclose' 0
+        Invoke-LogPull $Rec
+        $script:ViewerReopen = $false
+    } catch {
+        if (-not ([string]$_.Exception.Message).StartsWith('ADBWALK-STOP:') -and -not (Test-AppFront)) {
+            [void](Invoke-FileReset $Rec 'viewer: a foreign window is in front after the tap (the OS chooser?), no input to it')
+        }
+        throw
+    }
+}
+
+function Invoke-ViewerStep {
+    # viewer: the image chat (imageChatAddress, one of Seed 51-53) is opened ONCE by fa, as in Invoke-ScrollStep; after the
+    # reps BACK closes it (or, after a failed last rep, one bounded recovery).
+    $script:ScrollOpen = ''
+    $script:ScrollWhat = 'the image chat'
+    $script:ViewerReopen = $false
+    $opened = $false
+    if (-not (Get-StepGap 'viewer') -and -not $script:Halted) {
+        if (-not (Invoke-EnsureHome)) {
+            $script:ScrollOpen = 'the app is not in front: the image chat was not opened'
+        } else {
+            $r = Invoke-Shell ('am start -n ' + $script:Comp + ' --es fa ' + (Get-Seed $script:ImageSeed))
+            $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
+            if ($r.ExitCode -ne 0 -or $r.TimedOut -or $am.Error) {
+                $why = $am.Error
+                if (-not $why) { $why = Get-AdbWhy $r }
+                $script:ScrollOpen = 'the image chat did not open: ' + $why
+                $script:NeedRecover = $true; $script:LastFailed = $true
+            } else {
+                $opened = $true
+                # chatSettleMs: the thumbnails must have arrived (a tap before that opens the OS chooser).
+                Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+            }
+        }
+    }
+    Invoke-Step 'viewer' $script:RepeatsN $false
+    if ($opened -and -not $script:Halted) {
+        if ($script:NeedRecover -or $script:ViewerReopen) { [void](Invoke-EnsureHome) }
+        elseif (Invoke-Back) { Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs' }
+        else { Say-Log '  viewer: foreign window in front, BACK not sent'; $script:NeedRecover = $true; $script:LastFailed = $true }
+    }
+    $script:ViewerReopen = $false
+    Clear-FileStepPngs
+}
+
+function Invoke-DownloadsRep($Rec) {
+    # From Chats: the home check (PNG deleted), the tap on tabAccount with the gates of tab-account, logcat -c, stamp + tap
+    # accountDownloads (t0), the gate (loaddownloads = 1 and frames-subscreen-open >= 1), the Downloads check (PNG deleted
+    # at once: it shows file names and senders), stamp2 + the two swipes, the wait for the scroll lines, the log pull, BACK
+    # with the subscreen-close gate, the tap on Chats with its gates. NO screenshot while the Account screen is in front.
+    # From the tabAccount tap command on, any failure restarts the app at once and proves the restart (Invoke-FileReset):
+    # a wrong tap on the Account screen never gets a second input.
+    $to = 3 * $script:Tm['tabSettleMs']
+    [void](Invoke-ShellReq 'logcat -c')
+    Invoke-FilePreCheck $Rec 'home'
+    if (-not (Save-FileRepPid)) { throw 'ADBWALK-REP: cannot read the app pid before the tap: no input' }
+    Assert-AppFront
+    try {
+        [void](Invoke-ShellReq (Get-TapText 'tabAccount'))
+        if (-not (Wait-LogCount 'account' $to)) { throw 'ADBWALK-REP: the account tab did not show (no frames line): no further input' }
+        if (-not (Wait-LogCount 'settings' $to)) { throw 'ADBWALK-REP: the account settings page did not show (no frames line): no further input' }
+        [void](Invoke-ShellReq 'logcat -c')
+        Assert-AppFront
+        $r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-TapText 'accountDownloads'))
+        Set-RepStamp $Rec $r.StdOut
+        if (-not (Wait-FileGate 'loaddownloads' 'subscreenopen' $script:FileGateMs)) {
+            throw 'ADBWALK-REP: the Downloads list did not show (gate loaddownloads = 1 and frames-subscreen-open): no further input'
+        }
+        if (-not (Invoke-FileShotCheck $Rec 'downloads')) { throw 'ADBWALK-NOSCREEN: the downloads screen check failed: no further input' }
+        # #46 r2 (B2-3): the list opens at the TOP: chatNewer first (finger up, the list moves), then chatOlder.
+        $sbase = Get-ScrollBase $Rec
+        Assert-AppFront
+        $r2 = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-SwipeText 'chatNewer'))
+        Set-RepStamp2 $Rec $r2.StdOut
+        Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
+        Assert-AppFront
+        [void](Invoke-ShellReq (Get-SwipeText 'chatOlder'))
+        Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
+        Wait-FilePull $Rec 'scrolllines' ($sbase + 1)
+        Invoke-LogPull $Rec
+        Invoke-BackReq
+        if (-not (Wait-LogCount 'subscreenclose' $to)) { throw 'ADBWALK-REP: the Downloads list did not close (no frames line): no tap on Chats' }
+        Assert-AppFront
+        [void](Invoke-ShellReq (Get-TapText 'tabChats'))
+        if (-not (Wait-LogCount 'settingsclosed' $to)) { throw 'ADBWALK-REP: the account settings page did not close (no close line)' }
+        if (-not (Wait-LogCount 'chats' $to)) { throw 'ADBWALK-REP: Chats did not come back (no frames line)' }
+        Wait-Ms 300 'after the Chats frames line'
+    } catch {
+        if (-not ([string]$_.Exception.Message).StartsWith('ADBWALK-STOP:')) { [void](Invoke-FileReset $Rec 'downloads: a failed rep after the Account tap') }
+        throw
+    }
+}
+
 function Test-TcpSerial {
     return ($script:DevSerial -cmatch ':[0-9]+\z' -or $script:DevSerial.Contains('_adb-tls-connect'))
 }
@@ -1639,6 +2060,9 @@ function Invoke-RepBody($Rec) {
     elseif ($script:TabNames.ContainsKey($s)) { Invoke-TabRep $Rec }
     elseif ($s -eq 'history') { Invoke-HistoryRep $Rec }
     elseif ($s -eq 'scroll-image') { Invoke-ScrollRep $Rec }
+    elseif ($script:FileChatKeys.ContainsKey($s)) { Invoke-FileChatRep $Rec }
+    elseif ($s -eq 'viewer') { Invoke-ViewerRep $Rec }
+    elseif ($s -eq 'downloads') { Invoke-DownloadsRep $Rec }
     elseif ($s -eq 'network') { Invoke-NetworkRep $Rec }
     elseif ($s -eq 'killrenderer') { Invoke-KillRendererRep $Rec }
 }
@@ -1940,6 +2364,9 @@ function Get-EstimateSec {
         elseif ($script:TabNames.ContainsKey($s)) { $sum += $n * (2 * $t['tabSettleMs'] / 1000 + 7) }
         elseif ($s -eq 'history') { $sum += $n * (($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 10 * ($t['historySwipeMs'] / 1000 + 1) + 8) }
         elseif ($s -eq 'scroll-image') { $sum += 5 + $n * (2 * $t['scrollSettleMs'] / 1000 + 6) }
+        elseif ($script:FileChatKeys.ContainsKey($s)) { $sum += $n * (($t['chatSettleMs'] + 2 * $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 10) }
+        elseif ($s -eq 'viewer') { $sum += 5 + $t['chatSettleMs'] / 1000 + $n * ($t['backSettleMs'] / 1000 + 12) }
+        elseif ($s -eq 'downloads') { $sum += $n * ((2 * $t['scrollSettleMs'] + 3 * $t['tabSettleMs']) / 1000 + 16) }
     }
     return [int]$sum
 }
@@ -1963,6 +2390,13 @@ function Invoke-Walk {
             if ($script:NeedRecover -and -not $script:Halted) { [void](Invoke-EnsureHome) }
         }
         elseif ($s -eq 'scroll-image') { Invoke-ScrollStep 'scroll-image' $script:ImageSeed 'the image chat' }
+        elseif ($script:FileChatKeys.ContainsKey($s) -or $s -eq 'downloads') {
+            # Batch filewalk: each rep starts from Chats and leaves the app there; after a failed rep, one bounded recovery.
+            Invoke-Step $s $script:RepeatsN $true
+            if ($script:NeedRecover -and -not $script:Halted -and -not (Get-StepGap $s)) { [void](Invoke-EnsureHome) }
+            Clear-FileStepPngs
+        }
+        elseif ($s -eq 'viewer') { Invoke-ViewerStep }
         elseif ($s -eq 'resume') { Invoke-Step 'resume' $script:RepeatsN $true }
         elseif ($s -eq 'resume-long') { Invoke-Step 'resume-long' 1 $true }
         elseif ($s -eq 'network') { Invoke-Step 'network' 1 $false }
@@ -2189,6 +2623,141 @@ function Invoke-CalNewTaps($Cal) {
             if ($s13 -and $s13.Path -and -not (Test-CalShotScreen $s13 'home')) { Remove-CalShot $Cal $s13 'not home' }
         }
     }
+    # Batch filewalk (#46 r1 B1-1): Invoke-CalFileTaps honours a failed cal-11 (no further input).
+    $script:CalSkip12 = $skip12
+}
+
+function Test-CalGateShot($Cal, $Shot, [string]$Expect) {
+    # Batch filewalk: a cal PNG taken after its gate passed. While screens.<Expect> is not calibrated the gate is its only
+    # check (the PNG is kept, so the probes can be read from it); once it is calibrated a PNG that fails the probes is deleted.
+    if ($null -eq $Shot -or -not $Shot.Path) { return $false }
+    if (Get-ScreenGap $Expect) { return $true }
+    if (Test-CalShotScreen $Shot $Expect) { return $true }
+    Remove-CalShot $Cal $Shot ('not ' + $Expect)
+    return $false
+}
+
+function Invoke-CalReset($Cal, [string]$Why) {
+    # #46 r1 (S-W-1): the calibrate form of Invoke-FileReset (the restart is proven, its notes go to calibrate.json).
+    # Returns: proven. Not proven = no further input in this calibrate run.
+    $rec = New-Rep 'cal' 0
+    $ok = Invoke-FileReset $rec $Why
+    foreach ($n in $rec.notes) { $Cal.notes.Add($n) }
+    if ($ok) { $Cal.notes.Add($Why + ': the app was restarted, the restart is proven') }
+    else { $Cal.notes.Add($Why + ': the restart is NOT proven: no further input') }
+    return $ok
+}
+
+function Invoke-CalFileTaps($Cal) {
+    # Batch filewalk: cal-14 (the image chat, no tap) whenever imageChatAddress is an image seed and screens.chat exists, so
+    # the photoTile point can be read from it; cal-15..16 (one tap of taps.photoTile) only when that key exists; cal-17..18
+    # (one try of taps.accountDownloads) only when that key exists. Nothing at all after a failed cal-11 (#46 r1 B1-1). No
+    # logcat -c here: the counts before each tap are read and the gates wait for counts above them. Never a screenshot while
+    # the Account screen is in front; a viewer or Downloads PNG only after its gate passed; any failure after an Account tap,
+    # or a foreign window after the photo tap, restarts the app and proves the restart.
+    $to = 3 * $script:Tm['tabSettleMs']
+    if ($script:CalSkip12) { $Cal.notes.Add('cal-14..18 not taken: ' + $script:CalSkip12 + ' (no further input)'); return }
+    if (-not $script:ImageViewerOk) { $Cal.notes.Add('cal-14..16 not taken: walk.local.json imageChatAddress is not an image seed (Seed 51-53)') }
+    elseif (Get-ScreenGap 'chat') { $Cal.notes.Add('cal-14..16 not taken: ' + (Get-ScreenGap 'chat')) }
+    else {
+        [void](Invoke-Shell ('am start -n ' + $script:Comp + ' --es fa ' + (Get-Seed $script:ImageSeed)))
+        Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+        Save-CalShot 'cal-14-image-chat.png' 'chat' $Cal
+        $s14 = Get-LastCalShot
+        $reset = $false
+        $vOk = $false
+        if (-not (Test-CalShotScreen $s14 'chat')) {
+            if ($s14 -and $s14.Path) { Remove-CalShot $Cal $s14 'not chat' }
+            $Cal.notes.Add('cal-15 not taken: the image chat was not confirmed before the tap')
+        } elseif (Get-TapGap 'photoTile') {
+            $Cal.notes.Add('cal-15 not taken: ' + (Get-TapGap 'photoTile') + ' (read the point from cal-14)')
+            $vOk = $true
+        } else {
+            $bv = Get-LogCount 'viewimage'
+            $bo = Get-LogCount 'overlayopen'
+            if ($null -eq $bv -or $null -eq $bo) { $Cal.notes.Add('cal-15 not taken: cannot count the viewer lines in the phone log'); $vOk = $true }
+            elseif (-not (Save-FileRepPid)) { $Cal.notes.Add('cal-15 not taken: cannot read the app pid before the tap'); $vOk = $true }
+            elseif (Invoke-CalInput $Cal (Get-TapText 'photoTile') 'cal-15 tap') {
+                $vOk = Wait-FileGate 'viewimage' 'overlayopen' $script:FileGateMs $bv $bo
+                if ($vOk) {
+                    Add-CalTry $Cal 'viewer' 'ok' 'viewimage and frames-overlay-open lines seen'
+                    Save-CalShot 'cal-15-viewer.png' 'viewer' $Cal
+                    [void](Test-CalGateShot $Cal (Get-LastCalShot) 'viewer')
+                } else {
+                    Add-CalTry $Cal 'viewer' 'error' 'no viewimage / frames-overlay-open gate: no screenshot, no BACK'
+                }
+                if (-not (Test-AppFront)) {
+                    # The OS chooser (a tap before the thumbnail arrived) or another window: no input to it.
+                    $reset = $true
+                    if (-not (Invoke-CalReset $Cal 'cal-15: a foreign window after the tap')) { return }
+                } elseif ($vOk -and (Invoke-Back)) { Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs' }
+            } else { $vOk = $true }
+        }
+        # #46 r1 (S-W-8): after a failed viewer gate no BACK at all: cal-16 decides (deleted unless home).
+        if (-not $reset -and $vOk) {
+            if (Invoke-Back) { Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs' } else { $Cal.notes.Add('cal-16 BACK not sent: foreign window in front') }
+        }
+        Save-CalShot 'cal-16-home-after-viewer.png' 'home' $Cal
+        $s16 = Get-LastCalShot
+        if ($s16 -and $s16.Path -and -not (Test-CalShotScreen $s16 'home')) { Remove-CalShot $Cal $s16 'not home' }
+    }
+    $gapDl = ''
+    foreach ($tn in @('tabAccount', 'accountDownloads', 'tabChats')) { if (-not $gapDl) { $gapDl = Get-TapGap $tn } }
+    if ($gapDl) { $Cal.notes.Add('cal-17..18 not taken: ' + $gapDl); return }
+    # #46 r1 (B1-1): a FRESH home check right before the tabAccount tap (no stale earlier shot); a home PNG is kept as
+    # the old home shots are, and deleted when it is not home.
+    Save-CalShot 'cal-17a-home-before.png' 'home' $Cal
+    $s17a = Get-LastCalShot
+    if (-not (Test-CalShotScreen $s17a 'home')) {
+        if ($s17a -and $s17a.Path) { Remove-CalShot $Cal $s17a 'not home' }
+        $Cal.notes.Add('cal-17..18 not taken: the home screen was not confirmed right before the tabAccount tap')
+        return
+    }
+    $ba = Get-LogCount 'account'; $bs = Get-LogCount 'settings'; $bcl = Get-LogCount 'settingsclosed'; $bc = Get-LogCount 'chats'
+    $bl = Get-LogCount 'loaddownloads'; $bso = Get-LogCount 'subscreenopen'; $bsc = Get-LogCount 'subscreenclose'
+    if ($null -eq $ba -or $null -eq $bs -or $null -eq $bcl -or $null -eq $bc -or $null -eq $bl -or $null -eq $bso -or $null -eq $bsc) {
+        $Cal.notes.Add('cal-17..18 not taken: cannot count the frames lines in the phone log')
+        return
+    }
+    if (-not (Save-FileRepPid)) { $Cal.notes.Add('cal-17..18 not taken: cannot read the app pid before the tap'); return }
+    if (-not (Test-AppFront)) { $Cal.notes.Add('cal-17 tabAccount skipped: foreign window in front'); return }
+    # From the tap command on the Account screen may be in front: every failure restarts the app, no second input.
+    $why = ''
+    $gateOk = $false
+    $r = Invoke-Shell (Get-TapText 'tabAccount')
+    if ($r.ExitCode -ne 0 -or $r.TimedOut) { $why = 'the tabAccount tap command failed' }
+    elseif (-not (Wait-LogCount 'account' $to $ba)) { $why = 'no account frames line' }
+    elseif (-not (Wait-LogCount 'settings' $to $bs)) { $why = 'no SettingsPage frames line' }
+    elseif (-not (Invoke-CalInput $Cal (Get-TapText 'accountDownloads') 'cal-17 accountDownloads')) { $why = 'accountDownloads not sent' }
+    elseif (-not (Wait-FileGate 'loaddownloads' 'subscreenopen' $script:FileGateMs $bl $bso)) { $why = 'no loaddownloads / frames-subscreen-open gate' }
+    else {
+        $gateOk = $true
+        Add-CalTry $Cal 'downloads' 'ok' 'loaddownloads and frames-subscreen-open lines seen'
+        # #46 r1 (S-W-7 / B1-5): the Downloads list shows the newest files first.
+        $Cal.notes.Add('cal-17 shows the newest downloads: take it right after Remove the seed, then Seed')
+        Say '  cal-17 shows the newest downloads: take it right after Remove the seed, then Seed'
+        Save-CalShot 'cal-17-downloads.png' 'downloads' $Cal
+        $s17 = Get-LastCalShot
+        if (-not $s17.Path) { $why = 'the Downloads screenshot was not taken' }
+        elseif (-not (Test-CalGateShot $Cal $s17 'downloads')) { $why = 'the Downloads screenshot is not the Downloads list' }
+        elseif (-not (Invoke-Back)) { $why = 'BACK not sent' }
+        elseif (-not (Wait-LogCount 'subscreenclose' $to $bsc)) { $why = 'no frames-subscreen-close line' }
+        elseif (-not (Invoke-CalInput $Cal (Get-TapText 'tabChats') 'cal-18 tabChats')) { $why = 'tabChats not sent' }
+        elseif (-not (Wait-LogCount 'settingsclosed' $to $bcl)) { $why = 'the SettingsPage did not close (no close line)' }
+        elseif (-not (Wait-LogCount 'chats' $to $bc)) { $why = 'Chats did not come back (no frames line)' }
+    }
+    if ($why) {
+        if (-not $gateOk) { Add-CalTry $Cal 'downloads' 'error' $why }
+        [void](Invoke-CalReset $Cal ('cal-17 failed (' + $why + ')'))
+        return
+    }
+    Wait-Ms 300 'after the Chats frames line'
+    Save-CalShot 'cal-18-home-after-downloads.png' 'home' $Cal
+    $s18 = Get-LastCalShot
+    if ($s18 -and $s18.Path -and -not (Test-CalShotScreen $s18 'home')) {
+        Remove-CalShot $Cal $s18 'not home'
+        [void](Invoke-CalReset $Cal 'cal-18 screenshot is not home')
+    }
 }
 
 function Invoke-Calibrate {
@@ -2258,6 +2827,8 @@ function Invoke-Calibrate {
     Wait-Sec 3 'after am start'
     Save-CalShot 'cal-07-home-resumed.png' 'home' $cal
     Invoke-CalNewTaps $cal
+    Invoke-CalFileTaps $cal
+    Clear-FileStepPngs
 
     Say '  renderer lookup (lines in tries.txt):'
     $fr = Find-Renderer
@@ -2431,7 +3002,7 @@ $cfgPkg = [string](Get-Field $script:Cfg 'package')
 # The store app holds a real account: only the pinned package is ever driven.
 if ($cfgPkg -cne $script:PinnedPackage) { Exit-Usage ('a52s.json package "' + (Get-SafeNote $cfgPkg) + '" is not the pinned ' + $script:PinnedPackage + ': refused') }
 $script:Pkg = $script:PinnedPackage
-foreach ($scrName in @('home', 'chat', 'chatinfo')) {
+foreach ($scrName in @('home', 'chat', 'chatinfo', 'viewer', 'downloads')) {
     if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') $scrName) 'probes').Count -gt 16) { Exit-Usage ('a52s.json screens.' + $scrName + ' has more than 16 probes') }
 }
 $cdev = Get-Field $script:Cfg 'device'
@@ -2471,6 +3042,21 @@ if (Test-Path -LiteralPath $localJson) {
         # Walk steps 2: the optional address of the image chat (the image seed of speed batch 1a). It is masked like a seed.
         $img = [string](Get-Field $lj 'imageChatAddress')
         if ($img -cmatch '^[1-9A-HJ-NP-Za-km-z]{30,60}\z') { $script:Seeds.Add($img); $script:ImageSeed = $script:Seeds.Count - 1 }
+        # Batch filewalk: the optional addresses of the three file chats (the file seed), checked and masked the same way.
+        # #46 r1 (S-W-4): each must be the derived address of its seed; another address is masked, never used.
+        foreach ($fileKey in @('fileChatAddress', 'voiceChatAddress', 'photoChatAddress')) {
+            $fileAddr = [string](Get-Field $lj $fileKey)
+            if ($fileAddr -cmatch '^[1-9A-HJ-NP-Za-km-z]{30,60}\z') {
+                $script:Seeds.Add($fileAddr)
+                $want = Get-DevSeedAddress $script:FileSeedIndex[$fileKey]
+                if (Test-Ordinal $fileAddr $want) { $script:FileSeed[$fileKey] = $script:Seeds.Count - 1 }
+                else { $script:FileKeyNote[$fileKey] = ('walk.local.json ' + $fileKey + ' is not the address of Seed ' + ($script:FileSeedIndex[$fileKey] + 1) + ': step refused') }
+            }
+        }
+        # viewer only (scroll-image keeps its old check): the image chat must be one of the image seeds 50..52.
+        if ($script:ImageSeed -ge 0) {
+            foreach ($imgIdx in @(50, 51, 52)) { if (Test-Ordinal ([string]$script:Seeds[$script:ImageSeed]) (Get-DevSeedAddress $imgIdx)) { $script:ImageViewerOk = $true } }
+        }
     } catch { Write-Host 'adb-walk: walk.local.json is unreadable: steps that need a seed address are skipped' }
 }
 
@@ -2530,6 +3116,7 @@ try {
     else { Say-Log ('driver failure: ' + ((Get-ErrText $_) -replace '^driver: ', '')) }
 } finally {
     Restore-Phone
+    try { Clear-FileStepPngs } catch { }
     if ($script:WalkStarted) { try { Save-RunJson $ok } catch { } }
     Exit-Lock
 }

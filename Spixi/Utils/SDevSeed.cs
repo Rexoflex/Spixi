@@ -16,8 +16,8 @@
  *
  * IDEMPOTENT: addresses derive from SHA-256("spixi-dev-seed:" + i) and message ids from
  * SHA-256("spixi-dev-seed:" + i + ":" + j); a re-tap finds every contact present and adds
- * nothing (Core refuses duplicate ids too). "Remove seeded contacts" removes the 53 seeded
- * contacts (the fifty and the three image chats of the perfb1 seed), history and metadata
+ * nothing (Core refuses duplicate ids too). "Remove seeded contacts" removes the 56 seeded
+ * contacts (the fifty, the three image chats of the perfb1 seed and the three file chats of the filewalk seed), history and metadata
  * included (FriendList.removeFriend), their photo-group entries and the photo files C# wrote
  * for them, and nothing else — a real contact can never match a seed address.
  *
@@ -52,6 +52,14 @@
  * temp leaf in the app's own Sent/ folder (the app's pending-name shape, so its own sweeps clean a leftover) and moved into place; a file
  * with a seed name is kept, deleted or adopted ONLY when its SHA-256 equals that of the deterministic PNG — a foreign file is refused.
  * The Seed 01–50 lines below are unchanged.
+ *
+ * ★ filewalk seed (contract docs/contract-filewalk.md § 3.1) — THE FILE CHATS. Seed index 53, 54, 55 ("Seed 54 Tjaša Kranjc" documents,
+ * "Seed 55 Rok Mlinar" voice, "Seed 56 Maja Debeljak" a chat of exactly 100 messages with 96 photos) follow the image chats with the image
+ * seed's rules (fixed times below the image chats, names and bytes from (i, j), the temp leaf in Sent/ with its own salt, the content
+ * proof). Three statements hook them in: one each in seed(profile), unseed() and status(); unseed's ONE removal loop has a new bound
+ * (SDevSeedPlan.FileChatFirst + FileChats, so it removes the file chats' contacts too). seedFileChats / unseedFileChats /
+ * fileChatsPresent and their helpers are new; no other Seed 01–53 statement changed. unseedFileChats clears files only. status(): when anything is seeded the sentence is the old one with ", n of 3 file chats
+ * (Seed 54-56)" before its full stop — always, so it is the same shape on every account; "Nothing seeded." when nothing is.
  */
 #if SPIXI_DEV_COEXIST
 using IXICore;
@@ -213,6 +221,7 @@ namespace SPIXI
                 + " messages written in " + clock.ElapsedMilliseconds + " ms (" + perMsg.ToString("0.00") + " ms/msg"
                 + (refused > 0 ? ", " + refused + " already present" : "") + ").";
             status += " " + seedImageChats();   // ★ perfb1 seed: after the clock stopped — the ms/msg above stays the fifty's
+            status += " " + seedFileChats();   // ★ filewalk seed: Seed 54–56 (documents, voice, the 100-message photo chat)
             Logging.info("[DEVSEED] " + status);
             return status;
         }
@@ -448,12 +457,291 @@ namespace SPIXI
             return "Image chats (Seed 51-53): " + deleted + " files deleted" + (refused > 0 ? ", " + refused + " refused" : "") + ".";
         }
 
+        /* ★ filewalk seed — THE FILE CHATS (SDevSeedPlan.filePlan: seed index 53 documents, 54 voice, 55 the 100-message photo chat).
+         * The image seed's rules, statement for statement where they apply: the rows are the app's own shapes (a received file =
+         * StreamProcessor.handleFileHeader's "uid:name:size" + TransferManager.completeFileTransfer's fields, the file in Downloads/;
+         * a sent document or photo = SingleChatPage.sendPreparedFile's "uid:name" with its durable copy Sent/<uid><ext> (#1200); a
+         * sent voice file = sendVoiceFile's Voice/<voice name>; an inline voice row = sendVoiceInline's standard text). Every file is
+         * written to a temp leaf in Sent/ (the app's pending-name shape, its own salt) and moved into place; a file under our name is
+         * kept only when its SHA-256 = our bytes, a foreign one is refused (never written over, never adopted, never deleted). Never
+         * throws; the log lines carry the seed index and exception TYPES only. Runs on the seed's thread, after the image chats. */
+        private static string seedFileChats()
+        {
+            int added = 0, present = 0, newest = 0, partly = 0, rows = 0, texts = 0, files = 0, refused = 0;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                string fSent = Path.Combine(Config.spixiUserFolder, PhotoRules.SentFolderName);
+                string fRecv = TransferManager.downloadsPath;
+                string fVoice = Path.Combine(Config.spixiUserFolder, SDevSeedPlan.VoiceFolderName);
+                bool fDirsOk = Path.IsPathRooted(fSent) && Path.IsPathRooted(fRecv) && Path.IsPathRooted(fVoice);   // TransferManager.start set the root
+                if (fDirsOk)
+                {
+                    Directory.CreateDirectory(fSent);
+                    Directory.CreateDirectory(fRecv);
+                    Directory.CreateDirectory(fVoice);
+                }
+                for (int i = SDevSeedPlan.FileChatFirst; i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats; i++)
+                {
+                    Address address = addressFor(i);
+                    Friend? friend = FriendList.addFriend(FriendType.Normal, FriendState.Approved, address, null, SDevSeedPlan.fileNick(i), null, null, 0, true);
+                    bool fPresent = false;
+                    if (friend == null)
+                    {
+                        friend = FriendList.getFriend(address);   // already there: top up
+                        if (friend == null) { refused++; continue; }
+                        present++;
+                        fPresent = true;
+                    }
+                    else
+                    {
+                        added++;
+                    }
+                    /* ★ #46 r1 C-S-1: Core refuses a known id ONLY while it is in the friend's in-memory list (FriendList.cs:258), and that list
+                     * is NOT the whole chat: after the chat page opened it (loadMessages), channel 0 holds about 51 rows, so the older ids of the
+                     * 100-message chat are no longer seen and a top-up would store them twice. ★ #46 r2 B2-5: so a PRESENT chat is never topped
+                     * up through that window (fail closed, SDevSeedPlan.topUpAction): an EMPTY list (never written) → write; the plan's newest row
+                     * there → skip (no row, no file; a refused middle row is NOT claimed complete); the newest row absent → partial: no write, the
+                     * status says "Remove the seed, then Seed" (#1571). */
+                    if (fPresent)
+                    {
+                        string fTopUp = SDevSeedPlan.topUpAction(presentIds(friend), i);
+                        if (fTopUp == SDevSeedPlan.TopUpSkip) { newest++; continue; }
+                        if (fTopUp != SDevSeedPlan.TopUpWrite) { partly++; continue; }
+                    }
+                    foreach (SDevSeedPlan.FileMsg m in SDevSeedPlan.filePlan(i))
+                    {
+                        byte[] id = messageIdFor(i, m.j);
+                        try
+                        {
+                            if (!SDevSeedPlan.hasFile(m))
+                            {
+                                if (FriendList.addMessageWithType(id, FriendMessageType.standard, address, 0, SDevSeedPlan.rowText(m), m.local, null, m.ts, false, 0) != null) texts++;
+                                continue;
+                            }
+                            if (!fDirsOk) { refused++; continue; }
+                            string fFolder = SDevSeedPlan.folderOf(m);
+                            string fDir = fFolder == SDevSeedPlan.FolderSent ? fSent : fFolder == SDevSeedPlan.FolderVoice ? fVoice : fRecv;
+                            string fLeaf = SDevSeedPlan.fileLeaf(i, m);
+                            string fPath = Path.Combine(fDir, fLeaf);
+                            long size = SDevSeedPlan.fileLength(m);
+                            if (!SDevSeedPlan.leafShapeOk(i, m, fLeaf)
+                                || (fFolder == SDevSeedPlan.FolderSent && PhotoRules.sentFileName(SDevSeedPlan.transferUid(i, m.j), m.ext) != fLeaf)
+                                || (m.kind == SDevSeedPlan.KindVoiceFile && !VoiceCodec.isVoiceFileName(fLeaf))
+                                || (fFolder == SDevSeedPlan.FolderDownloads && !TransferManager.isInsideDownloadsRoot(fPath)))
+                            {
+                                refused++;   // fail closed: the name is not the shape the app's own rules accept
+                                continue;
+                            }
+                            int wrote = ensureFileChatFile(fSent, fPath, i, m);
+                            if (wrote < 0) { refused++; continue; }
+                            files += wrote;
+                            FriendMessage? fm = FriendList.addMessageWithType(id, FriendMessageType.fileHeader, address, 0, SDevSeedPlan.fileHeaderText(i, m),
+                                m.local, null, m.ts, false, 0);
+                            if (fm == null)
+                            {
+                                continue;   // already there (a top-up): Core refused the id, its stored fields stay
+                            }
+                            // the fields a COMPLETED transfer leaves (TransferManager.completeFileTransfer; handleFileHeader)
+                            // ★ #46 r1 B-5: `completed` BEFORE `filePath`, as TransferManager.completeFileTransfer sets them (:918-919) —
+                            // Core's writer thread reads the row without a lock, and a SENT row with a filePath and completed == false is
+                            // re-armed as a transfer on read
+                            fm.transferId = SDevSeedPlan.transferUid(i, m.j);
+                            if (!m.local)
+                            {
+                                fm.fileSize = (ulong)size;
+                            }
+                            fm.completed = true;
+                            fm.filePath = fPath;
+                            rows++;
+                        }
+                        catch (Exception e)
+                        {
+                            refused++;
+                            Logging.warn("[DEVSEED] file chat message " + i + ":" + m.j + " skipped (" + e.GetType().Name + ")");
+                        }
+                    }
+                    IxianHandler.localStorage.requestWriteMessages(address, 0);   // the file fields set above reach the disk
+                    friend.save();
+                }
+            }
+            catch (Exception e)
+            {
+                refused++;
+                Logging.warn("[DEVSEED] file chats stopped (" + e.GetType().Name + ")");
+            }
+            clock.Stop();
+            UIHelpers.shouldRefreshContacts = true;
+            return "File chats (Seed 54-56): " + added + " added, " + present + " present (" + newest + " with the newest row, skipped" + (partly > 0 ? "; " + partly + " partial: Remove the seed, then Seed" : "") + "), " + rows + " file rows and " + texts
+                + " texts written, " + files + " files written in " + clock.ElapsedMilliseconds + " ms"
+                + (refused > 0 ? ", " + refused + " refused" : "") + ".";
+        }
+
+        /** ★ filewalk seed: absent / OURS (SHA-256 of the file = that of SDevSeedPlan.fileBytes, read only when the length matches) /
+         *  foreign — SDevSeedPlan.fileState, the image seed's proof. */
+        private static string fileChatStateOf(string fPath, int i, SDevSeedPlan.FileMsg m, byte[]? fWant = null)
+        {
+            FileInfo fInfo = new FileInfo(fPath);
+            return SDevSeedPlan.fileState(fInfo.Exists, fInfo.Exists ? fInfo.Length : 0, SDevSeedPlan.fileLength(m),
+                () => File.ReadAllBytes(fPath), () => fWant ?? SDevSeedPlan.fileBytes(i, m));
+        }
+
+        /** ★ filewalk seed: 1 = written (a temp leaf in Sent/, then a move) and PROVEN ours after the move, 0 = there with OUR bytes
+         *  (kept), -1 = a foreign file holds the name, or the file under our name is not ours after the move (the caller writes no row).
+         *  ★ #46 r1 S-S-1 / r2 B2-4: File.Move(a, b) is not an atomic no-replace on Unix (.NET checks that b does not exist, then
+         *  rename(2), which REPLACES a file that appeared between the two). The content proof after the move guards the ADOPT direction
+         *  only (a row is written only for a file that holds our bytes); it cannot see a foreign file that rename(2) replaced in that
+         *  window — the path then holds our bytes. That replace direction is a recorded residual (DECISIONS #1672). ★ #46 r2 B2-7: the
+         *  proof compares the file read back with the array just written (no second build of the bytes). Sent/, Voice/ and Downloads/
+         *  are children of Config.spixiUserFolder, so the move is a rename on one volume. An IO error throws to the caller (counted, its
+         *  type logged); our temp is deleted on the way out. */
+        private static int ensureFileChatFile(string fSent, string fPath, int i, SDevSeedPlan.FileMsg m)
+        {
+            string fAction = SDevSeedPlan.fileAction(fileChatStateOf(fPath, i, m));
+            if (fAction == SDevSeedPlan.FileKeep)
+            {
+                return 0;
+            }
+            if (fAction != SDevSeedPlan.FileWrite)
+            {
+                return -1;
+            }
+            string fTmp = Path.Combine(fSent, SDevSeedPlan.fileTmpLeaf(i, m.j));
+            byte[] fBytes = SDevSeedPlan.fileBytes(i, m);
+            try
+            {
+                File.WriteAllBytes(fTmp, fBytes);   // truncates a temp of OUR name left by a kill
+                File.Move(fTmp, fPath);
+            }
+            catch (Exception)
+            {
+                try { deleteFileChatTmp(fSent, i, m.j); } catch (Exception) { }
+                throw;
+            }
+            return fileChatStateOf(fPath, i, m, fBytes) == SDevSeedPlan.StateOurs ? 1 : -1;
+        }
+
+        /** ★ filewalk seed: delete the temp leaf of (i, j) in Sent/ — only the exact name the plan builds, only in Sent/. 1 = deleted. */
+        private static int deleteFileChatTmp(string fSent, int i, int j)
+        {
+            string fTmpName = SDevSeedPlan.fileTmpLeaf(i, j);
+            string fTmp = Path.Combine(fSent, fTmpName);
+            if (SDevSeedPlan.mayDeleteFileTmp(fTmpName, i, j) && File.Exists(fTmp))
+            {
+                File.Delete(fTmp);
+                return 1;
+            }
+            return 0;
+        }
+
+        /** ★ filewalk seed: after unseed's ONE removal loop removed the file chats' contacts (its bound now ends at the file chats; Core
+         *  deletes their history; FriendList.removeFriend + SNotificationPrefs.forgetContact there): the files of a REMOVED chat only, by
+         *  the content proof (SDevSeedPlan.mayDelete), and the temp leaves by their exact name (mayDeleteFileTmp). There is no album. */
+        private static string unseedFileChats()
+        {
+            int refused = 0, deleted = 0;
+            try
+            {
+                string fSent = Path.Combine(Config.spixiUserFolder, PhotoRules.SentFolderName);
+                string fRecv = TransferManager.downloadsPath;
+                string fVoice = Path.Combine(Config.spixiUserFolder, SDevSeedPlan.VoiceFolderName);
+                bool fDirsOk = Path.IsPathRooted(fSent) && Path.IsPathRooted(fRecv) && Path.IsPathRooted(fVoice);
+                for (int i = SDevSeedPlan.FileChatFirst; i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats; i++)
+                {
+                    Address address = addressFor(i);
+                    if (FriendList.getFriend(address) != null)
+                    {
+                        refused++;   // the contact is still there (its removal was refused): its files stay with it
+                        continue;
+                    }
+                    // ★ #46 r1 C-S-2: the per-contact Spixi stores of THIS address (SAppJoins, SVoicePlayed — the played voice rows —
+                    // and SPhotoGroups), as the app's own contact removal forgets them (SContacts.cs:175, ContactDetails.xaml.cs:1296)
+                    SPeerLocalStores.forget(address.ToString());
+                    if (!fDirsOk)
+                    {
+                        continue;
+                    }
+                    foreach (SDevSeedPlan.FileMsg m in SDevSeedPlan.filePlan(i))
+                    {
+                        if (!SDevSeedPlan.hasFile(m))
+                        {
+                            continue;
+                        }
+                        try
+                        {
+                            string fFolder = SDevSeedPlan.folderOf(m);
+                            string fDir = fFolder == SDevSeedPlan.FolderSent ? fSent : fFolder == SDevSeedPlan.FolderVoice ? fVoice : fRecv;
+                            string fLeaf = SDevSeedPlan.fileLeaf(i, m);
+                            string fPath = Path.Combine(fDir, fLeaf);
+                            deleted += deleteFileChatTmp(fSent, i, m.j);   // a temp a kill left in Sent/ (its exact name only)
+                            if (!SDevSeedPlan.leafShapeOk(i, m, fLeaf) || (fFolder == SDevSeedPlan.FolderDownloads && !TransferManager.isInsideDownloadsRoot(fPath)))
+                            {
+                                continue;
+                            }
+                            string fState = fileChatStateOf(fPath, i, m);
+                            if (SDevSeedPlan.mayDelete(fState))
+                            {
+                                File.Delete(fPath);
+                                deleted++;
+                            }
+                            else if (fState == SDevSeedPlan.StateForeign)
+                            {
+                                refused++;   // a file with our name and not our bytes: never deleted
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            refused++;
+                            Logging.warn("[DEVSEED] file chat file " + i + ":" + m.j + " not removed (" + e.GetType().Name + ")");
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                refused++;
+                Logging.warn("[DEVSEED] file chats removal stopped (" + e.GetType().Name + ")");
+            }
+            return "File chats (Seed 54-56): " + deleted + " files deleted" + (refused > 0 ? ", " + refused + " refused" : "") + ".";
+        }
+
+        /** ★ filewalk seed: how many of the three file chats are present. */
+        private static int fileChatsPresent()
+        {
+            int n = 0;
+            for (int i = SDevSeedPlan.FileChatFirst; i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats; i++)
+            {
+                if (FriendList.getFriend(addressFor(i)) != null) n++;
+            }
+            return n;
+        }
+
+        /** ★ #46 r1 C-S-1: the ids in Core's in-memory list of channel 0 (Friend.getMessages; Core locks the list itself the same way,
+         *  FriendList.cs:253) — a copy, for SDevSeedPlan.topUpAction; null when Core could not read the chat. */
+        private static List<byte[]?>? presentIds(Friend friend)
+        {
+            List<FriendMessage>? msgs = friend.getMessages(0);
+            if (msgs == null)
+            {
+                return null;   // Core could not read the chat: SDevSeedPlan.topUpAction fails closed (partial)
+            }
+            List<byte[]?> ids = new List<byte[]?>();
+            lock (msgs)
+            {
+                foreach (FriendMessage fmsg in msgs)
+                {
+                    ids.Add(fmsg.id);
+                }
+            }
+            return ids;
+        }
+
         /// <summary>Remove exactly the seeded contacts. Returns the status sentence.</summary>
         public static string unseed()
         {
             int removed = 0, missing = 0, refused = 0;
             // ★ perfb1 seed: the same ONE removal walks the image chats too (seed index 50–52 follow the fifty)
-            for (int i = 0; i < SDevSeedPlan.ImageChatFirst + SDevSeedPlan.ImageChats; i++)
+            for (int i = 0; i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats; i++)   // ★ filewalk seed: … and the file chats (53–55 follow 52 without a gap)
             {
                 Friend? friend = FriendList.getFriend(addressFor(i));
                 if (friend == null) { missing++; continue; }
@@ -470,6 +758,7 @@ namespace SPIXI
             }
             string status = "Removed " + removed + " seeded contacts (" + missing + " absent, " + refused + " refused).";
             status += " " + unseedImageChats();   // ★ perfb1 seed: Seed 51–53, their photo groups and their files
+            status += " " + unseedFileChats();   // ★ filewalk seed: Seed 54–56, their files (the loop above removed the contacts)
             UIHelpers.shouldRefreshContacts = true;
             Logging.info("[DEVSEED] " + status);
             return status;
@@ -488,6 +777,7 @@ namespace SPIXI
             {
                 if (FriendList.getFriend(addressFor(i)) != null) images++;
             }
+            if (present > 0 || images > 0 || fileChatsPresent() > 0) return present + " of " + Count + " seeded contacts present, " + images + " of " + SDevSeedPlan.ImageChats + " image chats (Seed 51-53), " + fileChatsPresent() + " of " + SDevSeedPlan.FileChats + " file chats (Seed 54-56).";   // ★ filewalk seed
             if (present == 0 && images == 0)
             {
                 return "Nothing seeded.";

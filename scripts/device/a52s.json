@@ -8,7 +8,8 @@
               "historyMaxSwipes": 40, "resumeLateTapMs": 3000 },
   "taps": { "chatRow1": { "x": 540, "y": 654 }, "chatHeader": { "x": 500, "y": 166 },
             "tabChats": { "x": 151, "y": 2268 }, "tabApps": { "x": 410, "y": 2268 },
-            "tabWallet": { "x": 670, "y": 2268 }, "tabAccount": { "x": 928, "y": 2268 } },
+            "tabWallet": { "x": 670, "y": 2268 }, "tabAccount": { "x": 928, "y": 2268 },
+            "photoTile": { "x": 450, "y": 1560 } },
   "swipes": { "chatOlder": { "x1": 540, "y1": 900, "x2": 540, "y2": 1700, "ms": 350 },
               "chatNewer": { "x1": 540, "y1": 1700, "x2": 540, "y2": 900, "ms": 350 },
               "historyOlder": { "x1": 540, "y1": 700, "x2": 540, "y2": 1900, "ms": 150 } },
@@ -20,5 +21,9 @@
                "chatinfo": { "probes": [ { "x": 130, "y": 1130, "rgb": "#EDF0F2", "tol": 6 },
                                          { "x": 60, "y": 1356, "rgb": "#EDF0F2", "tol": 6 },
                                          { "x": 1000, "y": 1356, "rgb": "#EDF0F2", "tol": 6 },
-                                         { "x": 540, "y": 1920, "rgb": "#F9FAFB", "tol": 6 } ], "minMatch": 4 } }
+                                         { "x": 540, "y": 1920, "rgb": "#F9FAFB", "tol": 6 } ], "minMatch": 4 },
+               "viewer": { "probes": [ { "x": 540, "y": 2240, "rgb": "#646565", "tol": 16 },
+                                       { "x": 20, "y": 1000, "rgb": "#434A3C", "tol": 16 },
+                                       { "x": 20, "y": 1900, "rgb": "#424A3B", "tol": 16 },
+                                       { "x": 954, "y": 2278, "rgb": "#102D24", "tol": 16 } ], "minMatch": 4 } }
 }

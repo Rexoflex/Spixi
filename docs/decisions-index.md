@@ -155,3 +155,14 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1683 | What the later walk-rows batch (CS-01 + the summary rows, after `filewalk`) must add to `adb-walk-parse.ps1`; the scratch parser `split.py` is its reference. |
 | #1684 | The pins of Cold start 1 — the review stopped at round 3 by rule 9 (a define in a caller file, a shadow class: holes that need deliberately hidden code); Damir accepted the limits (#1627): `pins-coldstart1/a-lines` (6 rows: DEV ONLY, CALL SITES, NO MOVE, NOTHING NEW, HARNESS, FREEZE — `P1Perf.cs` and `ColdStartRules.cs` whole by SHA-256); csh `ColdStartTests` (15); re-bases: `a-extra` `OC_FROZEN` (#1596), `pins-s9/a3-wiring`, the inline #461 pin. |
 | #1685 | Session "Cold start 1" record: stopped at review round 3 on the pin (rule 9); Damir accepted the limits (#1627); CLEAN at round 4; merged `redesign/frontend` @ `8b3c4ae4`, smoke 6522, CSH 622; delivered by #1546; the operator block follows. |
+| #1715 | Photo open 1a PO-1 (P65, switch `PhotoMediaAfterPaint`): a chat open's media pushes wait for the paint signal / the 400 ms backstop; the push text is built off the main thread, byte-identical. |
+| #1716 | PO-5 (P66, switch `PhotoFewerFileChecks`): one file-check pass per row; the 1:1 avatar + two prefs once per load (`readReceipts` stays live); the re-check only when a process-wide delete generation moved (`noteFileDeleted()`). |
+| #1717 | PO-0 (P69): `[P1] chat onload-main` / `chat read` / `chat media` (dev builds) and `[FLAGS] photo1a mediaafterpaint= fewerchecks=`. |
+| #1718 | The walk steps `open-seed` (`-SeedIndex`, a proven restart + a cold rep, the (pid, index) warm-up) and `mem-photos`; new parser rows not required. |
+| #1719 ❓ | PO-3 + PO-6 (the thumbnail / waveform store) stopped after review round 2 — the Fable 5.2 limit; parked as `docs/parked/photo1a-po3-po6.patch` with its open findings. |
+| #1720 | What images by URL (#1642) can read from the parked store, and what it still needs. |
+| #1721 | The spec for "Photo open 1b" (the shell half). |
+| #1722 | BE ask CORE-17: keep the last load window of a chat in memory (Core reads the whole file per open). |
+| #1723 | The pins of photo1a (`pins-photo1a/a-open`, `c-walk`) and the re-bases (#1568, #1596). |
+| #1724 ❓ | The #46 loop: CLEAN NOT CLAIMED at round 5 on a pin gap (no code defect in r3–r5); not delivered; options for Damir. |
+| #1725 | Session "Photo open 1a" record. |

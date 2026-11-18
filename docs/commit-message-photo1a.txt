@@ -1,0 +1,47 @@
+Commit messages of batch photo1a (Session "Photo open 1a", 2026-11-17 / 18). Commits on work/photo1a, author and
+committer = Damir's identity (DECISIONS 1501), unsigned, no attribution line, no number sign before a number (1512).
+
+1) Photo open 1a: media after the first paint and fewer file checks (PO-1, PO-5) with the open lines (PO-0)
+
+A chat open holds its thumbnail, waveform and offer-preview jobs until the shell's paint signal (or the 400 ms
+backstop); the push text is built off the main thread, byte-identical (switch PhotoMediaAfterPaint, packet P65).
+One file-check pass per file row, the 1:1 avatar and two preferences read once per load, the re-check after the
+pushes only when a process-wide delete generation moved (switch PhotoFewerFileChecks, packet P66). Three developer-only
+[P1] chat lines (onload-main, read, media) and one [FLAGS] photo1a line (packet P69). Old path = the fallback, byte for
+byte, with each switch OFF. DECISIONS 1715-1717.
+Files: Spixi/Pages/Chat/SingleChatPage.xaml.cs, Spixi/Utils/PhotoOpenRules.cs, Spixi/Utils/SharedItems.cs,
+Spixi/Utils/SpixiFlags.cs, Spixi/Pages/Downloads/DownloadsPage.xaml.cs, Spixi/Pages/Settings/SettingsPage.xaml.cs,
+scripts/csh/PhotoOpenTests.cs, scripts/csh/csh.csproj.
+
+2) Photo open 1a: the walk steps open-seed and mem-photos
+
+Opt-in: -SeedIndex, a proven restart and a cold rep per index, an unrecorded warm-up whenever the app process or the
+index changed, the warm reps, one count poll for the media line; mem-photos after the photo steps. The parser rows of
+the new lines are not required (a build without them reads n/a). Old steps and old run folders byte-identical.
+DECISIONS 1718.
+Files: scripts/device/adb-walk.ps1, scripts/device/adb-walk-parse.ps1.
+
+3) Photo open 1a: pins, re-bases and the smoke registration
+
+New pins pins-photo1a/a-open and c-walk; the re-based keys of the pins the batch changes on purpose (DECISIONS 1568,
+1596); one registration line in the smoke. DECISIONS 1723.
+Files: scripts/pins-photo1a/a-open.mjs, scripts/pins-photo1a/c-walk.mjs, scripts/pins-fixb1/g-sparekeep.mjs,
+scripts/pins-perfb1/f-flags.mjs, scripts/pins-s16/b-l8.mjs, scripts/pins-v1am/c-csharp.mjs, scripts/pins-s20/s-filesize.mjs,
+scripts/pins-s11/g-cs.mjs, scripts/pins-s4/chat.mjs, scripts/pins-s6/rows.mjs, scripts/pins-s6b/cs.mjs,
+scripts/pins-s7/cs.mjs, scripts/pins-s8/cs-wiring.mjs, scripts/pins-filewalk/b-walk-steps.mjs,
+scripts/pins-perfb1toggle/b-walk.mjs, scripts/smoke-test.mjs.
+
+4) Photo open 1a: PO-3 and PO-6 parked (the thumbnail and waveform store)
+
+The store stopped after review round 2 (the review model's limit); its code is a patch that applies on top of this
+branch, with its open findings and its two packets. DECISIONS 1719.
+Files: docs/parked/photo1a-po3-po6.patch, docs/parked/photo1a-po3-po6.md, docs/parked/P67-thumbnail-store.md,
+docs/parked/P68-voice-peaks-store.md.
+
+5) Photo open 1a: DECISIONS 1715-1725, packets, gate section, handoff, status log, lessons
+
+Files: DECISIONS.md, docs/decisions-index.md, docs/be-review-pack/P65-media-after-paint.md,
+docs/be-review-pack/P66-fewer-file-checks.md, docs/be-review-pack/P69-open-lines-and-walk-step.md,
+docs/be-review-pack/core-asks.md, docs/security-handover-gate.md, docs/contract-photo1a.md, docs/photo1a-mechanisms.md,
+docs/review-brief-photo1a.md, docs/handoff-2026-11-17-photo1a.md, docs/status-log.md, docs/lessons.md, CLAUDE.md,
+docs/commit-message-photo1a.txt.

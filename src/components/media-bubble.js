@@ -99,6 +99,7 @@ export function createMediaBubble({
   sizeHint = null,         // #46 r1 B-6: { w, h } of a src not loaded yet (the shell read it from the JPEG header)
   onSrcError = null,       // #46 r1 B-1: a src that fails to decode is dropped (idle, no retry) and this is told
   instantIfShown = false,  // #46 r3 R3-m1: a src this document already showed appears at once on a re-built tile
+  lite = false,            // ★ photo1b PO-4: the overlay icon / spinner are not built (see setState); false = the old path, byte-equal
 } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -180,6 +181,11 @@ export function createMediaBubble({
     el.dataset.state = s;
     el.setAttribute('aria-label', typeof ariaFor === 'function' ? ariaFor(s, el) : mediaAria(s, kind, alt, strings));
     overlay.textContent = '';
+    /* ★ photo1b PO-4 (`photoTileLite`): a tile that passes `lite` is an image-FILE tile (createImageFileBubble), whose CSS hides
+       the whole overlay (`.c-mbubble[data-file] .c-mbubble__overlay { display: none }` — "the face says what a tap does"). Its
+       download / retry icon (an `icon()` innerHTML parse) and its spinner span were built for nothing: the overlay stays an
+       EMPTY span and the three states keep their data-state and aria-label. Old path (lite false): built as before. */
+    if (lite) return;
     if (s === 'idle') overlay.append(icon(kind === 'gif' ? 'player-play' : 'download', { size: 22 }));
     else if (s === 'loading') {
       const sp = document.createElement('span');

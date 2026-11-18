@@ -10,7 +10,7 @@ export function photo1bKit(h) {
   const { root, readFileSync, join, JSDOM, VirtualConsole, sleep } = h;
   const b64 = (x) => Buffer.from(String(x), 'utf8').toString('base64');
   const NOW = Math.floor(Date.now() / 1000);
-  const boot = async ({ p1 = false, tree = root, wait = 1500, beforeParse = null } = {}) => {
+  const boot = async ({ p1 = false, tree = root, wait = 1500, beforeParse = null, storage = false } = {}) => {
     const f = join(tree, 'Spixi/Resources/Raw/html/chat.html');
     let html = readFileSync(f, 'utf8');
     const rep = (a, b) => {
@@ -37,6 +37,12 @@ export function photo1bKit(h) {
         const sym = Object.getOwnPropertySymbols(w.location).find((s) => s.description === 'impl');
         const impl = sym ? w.location[sym] : null;
         if (impl) Object.defineProperty(impl, 'href', { configurable: true, get() { return 'file://' + f; }, set(v) { const c = String(v); if (/^ixian:/.test(c)) sent.push(c); } });
+        /* `storage: true` — an in-memory localStorage (a file:// document has an opaque origin: jsdom refuses its storage) */
+        if (storage) {
+          const m = new Map();
+          const st = { getItem: (k) => (m.has(String(k)) ? m.get(String(k)) : null), setItem: (k, v) => { m.set(String(k), String(v)); }, removeItem: (k) => { m.delete(String(k)); }, clear: () => m.clear(), key: (i) => [...m.keys()][i] || null, get length() { return m.size; } };
+          Object.defineProperty(w, 'localStorage', { configurable: true, get: () => st });
+        }
         if (beforeParse) beforeParse(w);
       },
     });

@@ -11,21 +11,21 @@
  *       UNDONE — the row first visible at addMessages is back at the y it had then.
  * LIMITS: the layout is a model (no fonts, no margins, no wrapping); a browser's own scroll anchoring is absent here as in
  *   WKWebView. The Chromium harness (harness-history.mjs) runs the real engine but does not assert the position.
- * Deliberate breaks (#802), each in a full temp copy + build-shells, the pin run with --root (all observed, 2026-11-18):
- *   (1) addMessages `… && !bridge.cap('olderAnchor1')) prependAnchor = firstVisibleAnchor();` → the cap test removed (the anchor is
- *       taken at addMessages again) → GREEN — an EQUIVALENT mutation: messagesDone re-takes the anchor under the cap; with BOTH that
- *       cap test removed AND the messagesDone line `if (prependAnswer && bridge.cap('olderAnchor1')) prependAnchor = …` deleted →
- *       red `★ photo1b HV-3 b-anchor (2): …` (the scroll is undone under the cap);
- *   (2) renderOlderInsert `if (prependAnchor && restorePrependAnchor())` → `if (false && …)` → red `… b-anchor (1) caps
- *       {olderInsert,olderAnchor1}`, `… (1) caps {olderInsert}` and `… (2)` (the inserted rows push the reader down).
- * ★ fix r1 (R2): (3) the burst SAFETY TIMER paints the page before messagesDone — the anchor row keeps its y after that paint and
- *   after the late messagesDone, for all four cap sets. The anchor is now taken at addMessages under `olderAnchor1` too;
- *   messagesDone re-takes it while the page is not painted yet. Breaks (observed 2026-11-18): (a1) addMessages back to
- *   `… && !bridge.cap('olderAnchor1')` → red `★ photo1b HV-3 b-anchor (3) (fix r1 R2)`; (a4) the messagesDone re-take deleted →
- *   red `… b-anchor (2)` (the scroll between the pushes is undone under the cap — this replaces break (1) above, which is
- *   folded into a4 now); (a2) the `!olderPagePainted` guard dropped → GREEN, an EQUIVALENT mutation: the timer's paint consumes
- *   the addMessages anchor (restorePrependAnchor clears it), so the late messagesDone anchors only the top-affordance change,
- *   where a fresh anchor is the right one either way. */
+ *   (3) ★ fix r1 (R2): the burst SAFETY TIMER paints the page before messagesDone — the anchor row keeps its y after that paint
+ *       and after the late messagesDone, for all four cap sets.
+ * The anchor (today's #1166 B2 line) is taken at addMessages for every cap set; under `olderAnchor1` messagesDone RE-takes it
+ * while the page is still in flight (olderPageBase ≥ 0) — fix r2 (R2-6): a render of the page (the safety timer) ends that by
+ * resetting olderPageBase.
+ * Deliberate breaks (#802), each in a full temp copy + build-shells, the pin run with --root (re-observed 2026-11-18, fix r2):
+ *   (a1) addMessages `if (pos === 'prepend' && !prependAnchor)` → `… && !bridge.cap('olderAnchor1'))` (no anchor at addMessages
+ *        under the cap — the round-0 shape) → red `★ photo1b HV-3 b-anchor (3) (fix r1 R2)`;
+ *   (a3) renderOlderInsert `if (prependAnchor && restorePrependAnchor())` → `if (false && …)` → red `… b-anchor (1) caps
+ *        {olderInsert,olderAnchor1}`, `… (1) caps {olderInsert}` and `… (2)` (the inserted rows push the reader down);
+ *   (a4) the messagesDone re-take `if (prependAnswer && bridge.cap('olderAnchor1') && olderPageBase >= 0) prependAnchor = …`
+ *        deleted → red `… b-anchor (2)` (the scroll between the two pushes is undone under the cap);
+ *   (a5) the renderLogNow reset `olderPageBase = -1;` deleted → GREEN, an EQUIVALENT mutation: the timer's paint consumes the
+ *        addMessages anchor (restorePrependAnchor clears it), so the late messagesDone anchors only the top-affordance change,
+ *        where a fresh anchor is right either way (with the reset that page's dev line reads rows=0 at messagesDone: the timer's paint already drew them). */
 import { photo1bKit } from './a-kit.mjs';
 export default async function (h) {
   const { ok } = h;

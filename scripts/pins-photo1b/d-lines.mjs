@@ -19,7 +19,12 @@
  *   (3) cdLateEnd `if (window[name] === wrap) window[name] = orig;` → `if (false && …)` → red `… d-lines (data-p1)` (restored false);
  *   (4) ★ fix r1 (S-2) the wrap `orig.apply(this, a)` → `orig.apply(this, [])` → red `★ photo1b PO-0 d-lines (fix r1 S-2)` (no picture, flat bars).
  * ★ fix r1 (S-2): the EFFECT of the wrapped pushes under data-p1 (the tile's picture, a refused value, the voice bars) must equal the
- *   run without data-p1. */
+ *   run without data-p1.
+ * ★ fix r2 (S2-2 / R2-5): two more keys — (a) an open with no onChatScreenLoaded: wrapped, then the originals back by 5.3 s;
+ *   (b) a re-flush and a peer switch after the first onChatScreenLoaded never wrap, and only the first open writes a late line.
+ *   Breaks (observed 2026-11-18): (5) the backstop `cdLate.timer = setTimeout(cdLateEnd, CD_LATE_MAX_MS);` deleted → red
+ *   `★ photo1b PO-0 d-lines (fix r2 S2-2 a)`; (6) the gate `|| chatScreenLoadedOnce` removed → red `… (fix r2 S2-2 b)`;
+ *   (7) R2-5 reverted (a null count prints zeros) → red `… (fix r2 S2-2 b)`. */
 import { photo1bKit } from './a-kit.mjs';
 export default async function (h) {
   const { ok } = h;
@@ -101,4 +106,54 @@ export default async function (h) {
   ok(!!on.effect && !!off.effect && JSON.stringify(on.effect) === JSON.stringify(off.effect) && on.effect.src === JPG && on.effect.refused !== 'javascript:window.__pwn=1'
      && !flat(on.effect.bars) && !on.effect.pwn,
     '★ photo1b PO-0 d-lines (fix r1 S-2): under data-p1 the wrapped setFileThumb / voiceInfo pushes do exactly what they do without it — the photo tile shows the pushed JPEG, a refused value (javascript:) stays refused, the voice row\'s bars take the pushed peaks — ' + JSON.stringify({ on: on.effect, off: off.effect }));
+
+  /* ★ fix r2 (S2-2 / R2-5): the late count wraps the two globals ONLY on a document's first open, and never for long.
+     (a) an open with NO onChatScreenLoaded: wrapped after messagesDone, the originals back after the 5 s backstop (5.3 s);
+     (b) after the first onChatScreenLoaded, a re-flush (clearMessages → addMessages → messagesDone) and a peer switch
+         (onChatScreenReady → … → messagesDone → onChatScreenLoaded) never wrap them, and no second `late` line is written
+         (no count ran — no fixed zeros). */
+  {
+    const s = await K.boot({ p1: true });
+    let a = null;
+    try {
+      const g0 = { t: s.W.setFileThumb, v: s.W.voiceInfo };
+      s.push('onChatScreenReady', 'addrPeer');
+      s.push('clearMessages', 'true');
+      s.push('addMessages', JSON.stringify({ strs: [], items: items.slice(0, 10) }), 'append');
+      s.push('messagesDone');
+      const wrapped = s.W.setFileThumb !== g0.t && s.W.voiceInfo !== g0.v;
+      await sleep(5300);
+      a = { wrapped, back: s.W.setFileThumb === g0.t && s.W.voiceInfo === g0.v, late: s.warns.filter((w) => /^\[CDPERF\] chat-shell late /.test(w)).length };
+    } finally { s.close(); }
+    ok(a && a.wrapped && a.back && a.late === 0,
+      '★ photo1b PO-0 d-lines (fix r2 S2-2 a): an open whose onChatScreenLoaded never comes wraps setFileThumb / voiceInfo at messagesDone and puts the originals back by the 5 s backstop (read at 5.3 s); no late line — ' + JSON.stringify(a));
+  }
+  {
+    const s = await K.boot({ p1: true });
+    let b = null;
+    try {
+      s.push('onChatScreenReady', 'addrPeer');
+      s.push('clearMessages', 'true');
+      s.push('addMessages', JSON.stringify({ strs: [], items: items.slice(0, 10) }), 'append');
+      s.push('messagesDone');
+      s.push('onChatScreenLoaded');
+      await sleep(300);
+      const g0 = { t: s.W.setFileThumb, v: s.W.voiceInfo };
+      const seen = [];
+      s.push('clearMessages', 'true');   // a re-flush of the same chat
+      s.push('addMessages', JSON.stringify({ strs: [], items: items.slice(0, 12) }), 'append');
+      s.push('messagesDone');
+      seen.push(s.W.setFileThumb === g0.t && s.W.voiceInfo === g0.v);
+      s.push('onChatScreenReady', 'addrOther');   // a peer switch (the desktop reuses the document)
+      s.push('clearMessages', 'true');
+      s.push('addMessages', JSON.stringify({ strs: [], items: items.slice(0, 8) }), 'append');
+      s.push('messagesDone');
+      seen.push(s.W.setFileThumb === g0.t && s.W.voiceInfo === g0.v);
+      s.push('onChatScreenLoaded');
+      await sleep(300);
+      b = { neverWrapped: seen.every(Boolean), seen, late: s.warns.filter((w) => /^\[CDPERF\] chat-shell late /.test(w)).length };
+    } finally { s.close(); }
+    ok(b && b.neverWrapped && b.late === 1,
+      '★ photo1b PO-0 d-lines (fix r2 S2-2 b): after the first onChatScreenLoaded a re-flush and a peer switch never wrap setFileThumb / voiceInfo, and only the first open writes a late line — ' + JSON.stringify(b));
+  }
 }

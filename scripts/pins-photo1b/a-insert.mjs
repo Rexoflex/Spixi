@@ -23,10 +23,12 @@
  * LIMITS: jsdom has no layout — every rect is 0, so no anchor fix runs here (b-anchor stubs the geometry) and the fade pass masks
  *   nothing (c-fade); the dev line is read in a developer build (data-p1) — d-lines pins it is absent without it. A row patched IN
  *   PLACE between two renders (a tick, a thumbnail, a voice wave) is compared as it stands: the full render rebuilds it, the insert
- *   keeps the patched node. They are equal in every case here, but NOT in general: an in-place animation mark (c-reactions--in,
- *   data-enter, a tile's own fade class) stays on an old row where a fresh build has none — inert (it styles a finished
- *   animation), accepted by the lead (fix r1 R4). A spent one-shot button ([data-acted]) and a lifted row ([data-menu-lift]) are
- *   NOT inert: the insert refuses while one is in the log.
+ *   keeps the patched node. Byte-equal in the pinned cases; outside them DOM-equal up to inert marks on KEPT rows: an animation
+ *   mark (c-reactions--in, data-enter, a tile's own fade class, data-live-complete), the attribute ORDER after an in-place select /
+ *   reaction / hover change, an empty `style=""` after the fade pass cleared a mask, and a remote GIF tile already 'loaded' where
+ *   a fresh tile starts 'loading' (the KEY chain dispatches the loads in both documents) — accepted by the lead (fix r1 R4, fix r2
+ *   R2-3). A spent one-shot button ([data-acted]) and a lifted row ([data-menu-lift]) are NOT inert: the insert refuses while one is
+ *   in the log.
  *   A photo tile's markup depends on TIME (typed-bubbles.js PHOTO_QUIET_MS: inside 600 ms of its first build it stands quiet,
  *   then its own timer shows the face in place) — so case P compares 750 ms after each push, when both documents are past
  *   the window; inside it the insert keeps the tile built earlier while the full render builds it again (not a seam fault).
@@ -45,7 +47,21 @@
  *   ★ fix r1 (all red, 2026-11-18): (k1) `String(composerLock || '')` taken out of renderCtxKey → red `… S1-V1`, `S1-V2`, `S1-V3`;
  *   (k2) the re-quote rule back to "targets in the NEW part only" (`!model.has(tid)` → `!newIdSet.has(tid)`) → red `… R1`;
  *   (k3) `call` (liveCallInLog) taken out of renderCtxKey → red `… R3`; (1) / (2) / (4) above are red on all nine cases now, (5)
- *   on T and R1, (3) on P, (7) on Y. */
+ *   on T and R1, (3) on P, (7) on Y.
+ *   ★ fix r2 — the KEY chain (one GROUP, 20 steps × 2 pages of 8 rows; each step changes ONE build-time state or makes ONE refusal
+ *   true, so a red step names its term). Breaks (observed 2026-11-18):
+ *   (kall) in ONE copy: renderCtxKey reduced to identity avatar / address, photoPreviews, groupOwner, rec, auto, loadedMedia → 0,
+ *       the day, composerLock, self nick / address, callVisible, call, unreadBoundaryId (mode, identity.name, selfAvatar, the caps,
+ *       roster, avatars, data-desktop, loc dropped) + the SL test, the [data-acted] / [data-menu-lift] test (one line — both), the
+ *       tick test, the later-quote test and both arming checks deleted → red KEY at setNickname, setSelfAvatar, setAvatarFor,
+ *       addContact, modeBlind + modeAdmin (one term: mode), lateCapPayRequest, hourCycle, dataDesktop, newSL, renderLogInBurst,
+ *       dirtyAtAdd, spentOneShot + liftedRow (one line), tickIn300ms, gifLoadAutoloadOff, quoteOfLaterRow — every step but plain,
+ *       gifLoadAutoloadOn and autoloadOff (whose term `auto` the copy kept);
+ *   (karm) roster + `olderInsertArmed = firstRenderDone && !logDirty && !bursting` → `= firstRenderDone` + the renderLog disarm
+ *       deleted → red KEY at addContact, renderLogInBurst, dirtyAtAdd (the three steps the other guards do not also catch);
+ *   (kgif) R2-1 reverted (`auto === 'true' ? 0 : loadedMedia.size` → `loadedMedia.size`) → red KEY at gifLoadAutoloadOn only;
+ *   (kauto) the `auto` term alone deleted → GREEN, an EQUIVALENT mutation here: GIFs have loaded by then, so the loadedMedia term
+ *       (0 while autoload is ON, the set's size while OFF) changes with it and still refuses the autoloadOff page. */
 import { photo1bKit } from './a-kit.mjs';
 export default async function (h) {
   const { ok } = h;
@@ -199,5 +215,96 @@ export default async function (h) {
     all[150] = K.call(hid('a', 150), tsOf(150), { active: true });
     const callBacks = (s) => s.box.querySelectorAll('.c-tcard__call-back').length;
     await runCase('R3', { parts: slices(all), expect: ['full', 'insert', 'insert'], pre: (s) => s.push('showCallButton'), probe: callBacks, want: (pr) => pr[0] === 1 && pr.slice(1).every((n) => n === 0) });
+  }
+
+  /* ★ fix r2 (S2-1 / R2-2 / R2-1) — THE KEY TERMS, THE REFUSALS AND THE ARMING, one chain of cheap pages (8 rows each) in a GROUP:
+     each step changes ONE piece of build-time state (or makes one refusal true) between two pages, in A (the cap) and B (no
+     cap) alike; the next page must be mode=full (the insert refused) and the one after it insert again — and after every page
+     A's log is byte-equal to B's. A GIF row's load (rememberLoadedMedia) with autoload ON must NOT refuse (the build does not
+     read loadedMedia then); with autoload OFF it must. The last step: an old row quoting a row LATER in the log refuses for
+     good. Each step's break is listed in the header. */
+  {
+    const AV = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const C0 = K.NOW - 9 * 86400;
+    let n = 0;
+    const rowsOf = (cnt) => {
+      const out = [];
+      for (let i = 0; i < cnt; i++) {
+        const k = n++;
+        const who = k % 3;
+        const text = k % 11 === 4 ? 'https://media.tenor.com/gif' + k + '.gif' : 'm' + k;   // GIF tiles (remote media rows)
+        out.push(K.txt('q' + k.toString(16).padStart(4, '0'), who === 0, C0 + 400000 - k * 300, text, { nick: who === 1 ? 'Ana' : '', addr: who === 0 ? 'addrMe' : (who === 1 ? 'addrAna' : 'addrNoNick') }));
+      }
+      return out.reverse();
+    };
+    const oldOwn = (s, nth = 0) => {   // the nth old OWN text row (k % 3 === 0, not a GIF row) from the newest end
+      const all = [...s.box.querySelectorAll(':scope > .c-bubble-row[data-msgid]')].reverse();
+      return all.filter((r) => { const k = parseInt(r.dataset.msgid.slice(1), 16); return /^q[0-9a-f]{4}$/.test(r.dataset.msgid) && k % 3 === 0 && k % 11 !== 4; })[nth];
+    };
+    const loadGifs = (s) => { for (const img of s.box.querySelectorAll('.c-mbubble__img')) img.dispatchEvent(new s.W.Event('load')); };
+    const steps = [
+      { label: 'plain', expect: ['insert', 'insert'] },
+      { label: 'gifLoadAutoloadOn', fn: loadGifs, after: loadGifs, expect: ['insert', 'insert'] },   // `after`: the rebuilt tiles of B load too (a fresh tile starts 'loading')
+      { label: 'setNickname', fn: (s) => s.push('setNickname', 'Group <b>X</b>'), expect: ['full', 'insert'] },
+      { label: 'setSelfAvatar', fn: (s) => s.push('setSelfAvatar', AV), expect: ['full', 'insert'] },
+      { label: 'setAvatarFor', fn: (s) => s.push('setAvatarFor', 'addrNoNick', AV), expect: ['full', 'insert'] },
+      { label: 'addContact', fn: (s) => s.push('addContact', 'addrNoNick', 'Ana', '', '', ''), expect: ['full', 'insert'] },   // a roster name for the nameless sender — the name is already in the @-list, so only the roster term sees it
+      { label: 'modeBlind', fn: (s) => s.push('setChatMode', '2', '0', '', 'False', '', 'True', 'True'), expect: ['full', 'insert'] },
+      { label: 'modeAdmin', fn: (s) => s.push('setChatMode', '2', '0', '', 'True', '', 'True', 'True'), expect: ['full', 'insert'] },
+      { label: 'lateCapPayRequest', fn: (s) => s.push('setCaps', 'payRequest'), expect: ['full', 'insert'] },
+      { label: 'hourCycle', fn: (s) => { const e = s.d.documentElement; e.dataset.hourCycle = e.dataset.hourCycle === 'h23' ? 'h12' : 'h23'; }, expect: ['full', 'insert'] },
+      { label: 'dataDesktop', fn: (s) => { const e = s.d.documentElement; if (e.hasAttribute('data-desktop')) e.removeAttribute('data-desktop'); else e.setAttribute('data-desktop', ''); }, expect: ['full', 'insert'] },
+      { label: 'newSL', fn: (s) => { s.W.SL = Object.assign({}, s.W.SL); }, expect: ['full', 'insert'] },
+      /* the arming: an EDIT of an old row (updateMessage → renderLog, the order unchanged) inside the burst · just before addMessages, in the same task (a dirty log) */
+      { label: 'renderLogInBurst', mid: (s) => { const r = oldOwn(s, 1); s.push('updateMessage', r.dataset.msgid, 'edited in the burst', 'True', 'True', 'True', 'False', 'False'); }, expect: ['full', 'insert'] },
+      { label: 'dirtyAtAdd', pre: (s) => { const r = oldOwn(s, 2); s.push('updateMessage', r.dataset.msgid, 'edited before the page', 'True', 'True', 'True', 'False', 'False'); }, expect: ['full', 'insert'] },
+      { label: 'spentOneShot', fn: (s) => { oldOwn(s).querySelector('.c-bubble').dataset.acted = ''; }, expect: ['full', 'insert'] },
+      { label: 'liftedRow', fn: (s) => { oldOwn(s).setAttribute('data-menu-lift', ''); }, expect: ['full', 'insert'] },
+      { label: 'tickIn300ms', fn: (s) => { const r = oldOwn(s); const k = parseInt(r.dataset.msgid.slice(1), 16); s.push('updateMessage', r.dataset.msgid, 'm' + k, 'True', 'True', 'False', 'False', 'False'); }, gap: 350, expect: ['full', 'insert'] },   // read → delivered: an in-place tick, no renderLog
+      { label: 'autoloadOff', fn: (s) => s.W.localStorage.setItem('spixi.media.autoload', 'off'), expect: ['full', 'insert'] },
+      { label: 'gifLoadAutoloadOff', fn: loadGifs, expect: ['full', 'insert'] },
+      { label: 'quoteOfLaterRow', later: true, expect: ['insert', 'full'] },
+    ];
+    const A = await K.boot({ p1: true, storage: true });
+    const B = await K.boot({ p1: true, storage: true });
+    const out = [];
+    try {
+      const open = rowsOf(40);
+      const pages = steps.map(() => [rowsOf(8), rowsOf(8)]);
+      /* the last step: page 1 holds N quoting M, M LATER in the same page (equal by construction); on page 2 N is old and its
+         target is later in the log → refused */
+      const lq = pages[pages.length - 1][0];
+      const N = lq[1], M = lq[5];
+      N.a[12] = M.a[0]; N.a[14] = 'Ana'; N.a[15] = 'later';
+      K.open(A, { group: true, caps: 'olderInsert', items: open });
+      K.open(B, { group: true, items: open });
+      await sleep(120);
+      const modes = (s) => s.warns.filter((w) => /^\[P1\] shell older insert /.test(w)).map((w) => (/ mode=(\w+) /.exec(w) || [])[1]);
+      for (let i = 0; i < steps.length; i++) {
+        const st = steps[i];
+        if (st.fn) { st.fn(A); st.fn(B); }
+        if (!st.pre && !st.mid) await sleep(40);   // any rAF the change queued has run (then the page sees a painted log)
+        const got = [];
+        for (let p = 0; p < 2; p++) {
+          const items = pages[i][p];
+          for (const s of [A, B]) {
+            if (p === 0 && st.pre) st.pre(s);
+            s.push('addMessages', JSON.stringify({ strs: [], items }), 'prepend');
+            if (p === 0 && st.mid) st.mid(s);
+            s.push('messagesDone', 'true');
+          }
+          await sleep(p === 0 && st.gap ? st.gap : 30);
+          if (st.after) { st.after(A); st.after(B); await sleep(20); }
+          got.push(modes(A).pop());
+          got.push(A.box.innerHTML === B.box.innerHTML && A.rowsSig() === B.rowsSig() ? 'eq' : 'DIFF');
+        }
+        out.push({ label: st.label, got: got.join(','), ok: got[0] === st.expect[0] && got[2] === st.expect[1] && got[1] === 'eq' && got[3] === 'eq' });
+      }
+      out.push({ label: 'errors', got: A.errs.concat(B.errs).slice(0, 2).join(' | '), ok: A.errs.length + B.errs.length === 0 });
+    } finally { A.close(); B.close(); }
+    const bad = out.filter((o) => !o.ok);
+    ok(bad.length === 0,
+      '★ photo1b HV-1 a-insert KEY (fix r2): every build-time state change and refusal — setNickname, setSelfAvatar, setAvatarFor, addContact, a group → blind setChatMode, admin, a late setCaps(payRequest), the hour cycle, data-desktop, a new SL object, a renderLog inside the burst, a dirty log at addMessages, a spent one-shot button, a lifted row, a tick inside 300 ms, autoload OFF, a GIF load with autoload OFF, a quote of a LATER row — makes its next page mode=full and the one after it insert, a GIF load with autoload ON refuses nothing, and A is byte-equal to the full render after every page — '
+      + JSON.stringify(bad.length ? bad : out.map((o) => o.label + ':' + o.got)));
   }
 }

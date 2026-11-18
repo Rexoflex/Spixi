@@ -12751,7 +12751,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     const spT0 = devP1 ? performance.now() : 0;   // ★ photo1b PO-0 / HV-0: the split of this render (dev builds only, data-p1)
     let spPhoto = 0, spVoice = 0;
     olderInsertArmed = false;   // ★ photo1b HV-1: a full render spends the prepend's insert chance (the old path)
-    if (olderPageBase >= 0) olderPagePainted = true;   // ★ photo1b HV-3 fix r1 (R2): this page's rows are on glass now
+    olderPageBase = -1;   // ★ photo1b HV-3 fix r1 (R2) / r2 (R2-6): a page in flight is on glass now (the burst safety timer) — messagesDone re-takes no anchor for it
     invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     /* ★ S15 #46 r1 m-1: a running rise translates the rows DOWN, and a transform grows scrollHeight — so nearBottom() and the
        riseFromH base would read the inflated box (no re-pin, the rows jump). Take the rise off FIRST; keep what is left of it. */
@@ -12886,16 +12886,17 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    * of `order` before the old first shown row (the SAME builders and per-row steps as the loop above), re-builds the seam
    * row whose group position changed, drops the day separator above the old first row when the last new row is on its day,
    * re-makes the top affordance like the full render, and inserts the fragment before the old first row. The result is the
-   * full render's, row for row (the log's serialised markup, the `rows` map, gridCells / gridMembers / gridGroups). Whenever that is not
+   * full render's: byte-equal in the pinned cases (the log's serialised markup, the `rows` map, gridCells / gridMembers /
+   * gridGroups); outside them DOM-equal up to the inert marks named at the end of the audit below. Whenever that is not
    * PROVABLY local it returns false and the caller runs renderLogNow() (the old path, `mode=full`):
    *   · the insert chance is not armed (a render or a renderLog outside the prepend since the page started, a burst already
    *     running at its start), the first render not done, an empty log, select mode, a jump pulse, a rise or a log slide;
-   *   · the render context changed since the last render (renderCtxKey: the chat mode, the peer's name / avatar / address,
-   *     my picture, the photo-preview and media switches, the caps, the composer's recording state, the strings object,
-   *     the DAY — a date label is relative to today) or the @-mention name list changed (it highlights old rows too);
+   *   · the render context changed since the last render (renderCtxKey — its terms are the audit below), the strings
+   *     object changed, or the @-mention name list changed (it highlights old rows too); a spent one-shot button, a lifted
+   *     row or a tick crossfade inside its window is in the log;
    *   · the old shown rows are not EXACTLY the tail of the new full plan (payment dedup / photo groups moved a row), a
    *     photo group crosses the seam or an old group changed, a payment txid is in both parts, the unread divider's row is
-   *     in the new part, a new row quotes an old one, an old grid row quotes a new one, an old row's position other than
+   *     in the new part, a new row quotes an old one, an old row quotes a row LATER in the log, an old row's position other than
    *     the seam row's changed, the DOM around the seam is not the shape the full render made, focus sits in a node it
    *     would replace.
    * Every old row that QUOTES a row the model holds is re-built in place (its quote box reads the target's live state —
@@ -12908,7 +12909,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    * wireReplyGestures / the hover button; createDateSeparator / createUnreadDivider), and how the insert stays exact:
    *   in renderCtxKey (compared with the last render's): mode (type, blind, admin, answeredFor …) · identity name / avatar /
    *     address · selfAvatar, selfNickPushed, selfNick, selfAddress (voice faces) · photoPreviews · mediaAutoloadOn() ·
-   *     loadedMedia.size · groupOwner (Owner chip) · the caps · composerLock (isMenuableRec → menu, swipe, hover button,
+   *     loadedMedia.size only while autoload is OFF (the build reads `mediaAutoloadOn() || loadedMedia.has(url)`: with autoload
+   *     ON the set is never read, and it grows after every render that loaded a GIF — fix r2 R2-1) · groupOwner (Owner chip) · the caps · composerLock (isMenuableRec → menu, swipe, hover button,
    *     a file's Cancel — S-1) · the composer's recording state (canReplyRec) · callVisible + liveCallInLog() (a call card's
    *     Call back — R3) · groupRoster names (memberQuoteName: reply-button labels, quote senders) · avatarByAddr (recAvatar:
    *     gutters, tile heads, voice faces) · unreadBoundaryId (positionsFor) · <html data-desktop> (the hover button, the
@@ -12924,8 +12926,10 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
    *     (setFileThumb), declinedApps / canceledApps (their writers call renderLog → the insert chance is spent), the photo
    *     quiet window (per message, time-based on both paths), rec.celebrate (one-shot, consumed at the first build),
    *     menuOptsFor's getters (read at menu OPEN time), the event chip and the payment / app / call fields (own record).
-   *   Not exact by design (inert): an in-place animation mark on an old row (c-reactions--in, data-enter, a tile's own
-   *     fade) stays where the full render would build the row without it. */
+   *   Not exact by design (inert — DOM-equal, not byte-equal): on a KEPT old row an in-place mark stays where a fresh build
+   *     has none or puts it elsewhere — an animation mark (c-reactions--in, data-enter, a tile's own fade class,
+   *     data-live-complete), the attribute ORDER after an in-place select / reaction / hover change, and an empty `style=""`
+   *     after the fade pass cleared a mask. They style or describe a finished change; nothing reads them back. */
   function renderCtxKey() {
     let rec = false;
     try { rec = !!(composerEl && getComposerRecording(composerEl)); } catch (e) { rec = true; }   // TDZ before the composer exists → never equal
@@ -12933,20 +12937,21 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     try { auto = String(mediaAutoloadOn()); } catch (e) { auto = 'x'; }
     let call = false;
     try { call = !!liveCallInLog(); } catch (e) { call = true; }
+    /* fix r2 (S2-3): every list goes INTO the JSON as an array — no hand-made separators a name could contain */
     const roster = [];
-    for (const [k, m] of groupRoster) roster.push(k + '=' + ((m && m.name) || ''));
+    for (const [k, m] of groupRoster) roster.push([k, (m && m.name) || '']);
     const avatars = [];
-    for (const [k, u] of avatarByAddr) avatars.push(k + ':' + String(u).length + ':' + String(u).slice(-24));
-    let loc = '';
-    try { loc = String(docLocale() || '') + '|' + String(document.documentElement.dataset.hourCycle || ''); } catch (e) { loc = 'x'; }
+    for (const [k, u] of avatarByAddr) avatars.push([k, String(u).length, String(u).slice(-24)]);
+    let loc = null;
+    try { loc = [String(docLocale() || ''), String(document.documentElement.dataset.hourCycle || '')]; } catch (e) { loc = ['x']; }
     return JSON.stringify([mode, identity.name || '', identity.avatar || '', identity.address || '', selfAvatar || '', !!photoPreviews,
-      groupOwner || '', Object.keys(bridge.capabilities || {}).sort().join(','), rec, auto, loadedMedia.size, new Date().toDateString(),
-      String(composerLock || ''), selfNickPushed || '', selfNick || '', selfAddress || '', !!callVisible, call, roster.join('\u0001'),
-      avatars.join('\u0001'), String(unreadBoundaryId || ''), document.documentElement.hasAttribute('data-desktop'), loc]);
+      groupOwner || '', Object.keys(bridge.capabilities || {}).sort(), rec, auto, auto === 'true' ? 0 : loadedMedia.size, new Date().toDateString(),
+      String(composerLock || ''), selfNickPushed || '', selfNick || '', selfAddress || '', !!callVisible, call, roster,
+      avatars, String(unreadBoundaryId || ''), document.documentElement.hasAttribute('data-desktop'), loc]);
   }
   function mentionKey() {
     const m = mentionCtx();
-    return m.names.join('\u0001') + '\u0002' + m.self.join('\u0001');
+    return JSON.stringify([m.names, m.self]);
   }
   function noteRendered(shownIds, pos, lastMsgRow) {
     shownWas = shownIds.slice();
@@ -13011,7 +13016,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
     /* payments: no txid in both parts (the dedup and the request card's story are not local) — every model row counts */
     const txNew = new Set();
     for (const nid of newIdSet) { const r = model.get(nid); if (r && r.kind === 'payment' && r.txid) txNew.add(r.txid); }
-    /* quotes: a new row quoting an old one is not local; an old text row quoting a new one is re-built in place */
+    /* quotes: a new row quoting an old one is not local; every old row quoting a model row is re-built in place (below) */
     for (const nid of newIdSet) {
       const r = model.get(nid);
       if (r && r.replyTo && !newIdSet.has(String(r.replyTo)) && model.has(String(r.replyTo))) return false;
@@ -13447,7 +13452,6 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
   let olderRowsAtRequest = 0;    // order.length when the loadmore went out
   let prependAnchor = null;      // { id, off } — the first visible row and its offset from the log's top, before a prepend paints
   let olderPageBase = -1;        // ★ photo1b HV-0: order.length when this page's first prepend landed (-1 = no page in flight)
-  let olderPagePainted = false;  // ★ photo1b HV-3 fix r1 (R2): a render ran after this page's addMessages (the burst safety timer)
   const LAZY_HISTORY_MIN_PX = 160;   // the trigger band: one screen from the top, never less than this
   function olderPillMode() {
     return olderFailed || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -14171,7 +14175,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
          yet (a scroll between the two pushes is then kept). */
       if (pos === 'prepend' && !prependAnchor) prependAnchor = firstVisibleAnchor();
       /* ★ photo1b HV-1: the insert chance of this page — only on a painted, clean log (no change waiting, no burst running) */
-      if (pos === 'prepend' && olderPageBase < 0) { olderPageBase = order.length; olderPagePainted = false; olderInsertArmed = firstRenderDone && !logDirty && !bursting; }
+      if (pos === 'prepend' && olderPageBase < 0) { olderPageBase = order.length; olderInsertArmed = firstRenderDone && !logDirty && !bursting; }
       if (!bursting) beginBurst();          // a prepend has no clearMessages before it — still ONE paint
       prependBatch = pos === 'prepend';
       if (prependBatch) cancelQuoteJumpWait();   // ★ r2 (MINOR-5): the older-history prepend a quotejump asked for has started
@@ -14234,7 +14238,7 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
          it, while this page's rows are not on glass yet — the fix below is then one `scrollTop +=` of what the slice added
          above it. Fix r1 (R2): when the burst safety timer already painted them, the addMessages anchor did its work there;
          the line above (#1166 r1 M2) anchors the top-affordance change as before. */
-      if (prependAnswer && bridge.cap('olderAnchor1') && olderPageBase >= 0 && !olderPagePainted) prependAnchor = firstVisibleAnchor();
+      if (prependAnswer && bridge.cap('olderAnchor1') && olderPageBase >= 0) prependAnchor = firstVisibleAnchor();
       const pageRows = olderPageBase >= 0 ? Math.max(0, order.length - olderPageBase) : 0;
       olderPageBase = -1;
       if (!prependAnswer) cdLateStart();   // ★ photo1b PO-0 (dev builds): the open's late media pushes are counted from here
@@ -14707,8 +14711,8 @@ button.c-wallet-send__picked:active, .c-wallet-receive__chip:active { background
             const r = (v) => Math.max(0, Math.round(Number(v) || 0));
             console.warn('[CDPERF] chat-shell build=' + r(sp.build) + ' layout=' + r((sp.swap || 0) + (sp.fix || 0)) + ' fade=' + r(sp.fade)
               + ' nodes=' + box.getElementsByTagName('*').length + ' photo=' + r(sp.photo) + ' voice=' + r(sp.voice));
-            const late = cdLateEnd() || { thumbs: 0, voice: 0, ms: 0 };
-            console.warn('[CDPERF] chat-shell late thumbs=' + r(late.thumbs) + ' voice=' + r(late.voice) + ' js=' + r(late.ms));
+            const late = cdLateEnd();   // fix r2 (R2-5): no count running (not the first open, or the backstop ended it) → no line, never fixed zeros
+            if (late) console.warn('[CDPERF] chat-shell late thumbs=' + r(late.thumbs) + ' voice=' + r(late.voice) + ' js=' + r(late.ms));
           } catch (e) {}
         }
         /* ★★ Session K — THE PRESENT SIGNAL (permanent, unlike the stamp above it). The

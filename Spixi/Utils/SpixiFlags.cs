@@ -34,6 +34,11 @@ namespace SPIXI
         public const string DividerHoverLineKey = "flagDividerHoverLine";         // int pref; absent = default (1) — ★ fixb1 item 4 (P51)
         public const string PayConfirmSafeDefaultKey = "flagPayConfirmSafeDefault";           // int pref; absent = default (1) — ★ fixb2 item 4
         public const string MiniAppConfirmSafeDefaultKey = "flagMiniAppConfirmSafeDefault";   // int pref; absent = default (1) — ★ fixb2 item 4
+        /* ★ photo1a (Photo open 1a, #1478: one switch per change; DECISIONS #1715–#1734; packets P65–P68) */
+        public const string PhotoMediaAfterPaintKey = "flagPhotoMediaAfterPaint";   // int pref; absent = default (1) — ★ photo1a PO-1 (P65)
+        public const string PhotoFewerFileChecksKey = "flagPhotoFewerFileChecks";   // int pref; absent = default (1) — ★ photo1a PO-5 (P66)
+        public const string PhotoThumbStoreKey = "flagPhotoThumbStore";             // int pref; absent = default (1) — ★ photo1a PO-3 (P67)
+        public const string VoicePeaksStoreKey = "flagVoicePeaksStore";             // int pref; absent = default (1) — ★ photo1a PO-6 (P68)
 
         /** ★ perfb1: the four keys in PerfB1Rules.DevSwitchNames order (DevPage `ixian:devflash:<name>:<0|1>`). */
         public static readonly string[] PerfB1DevKeys = { WarmOnIdleKey, SpareRearmKey, SpareKeepShortSleepKey, PhoneNoEmptyDetailKey };
@@ -128,6 +133,20 @@ namespace SPIXI
          *  two conditions. OFF — this switch or NativeConfirm — = exactly the old behaviour (MAUI DisplayAlert through
          *  displaySpixiAlert). */
         public static bool MiniAppConfirmSafeDefault { get; private set; } = true;
+        /* ★ photo1a (Photo open 1a, PhotoOpenRules.cs / ChatMediaStore.cs): one flag per change; OFF = the old path, byte
+         * for byte. The start value is `false` (before init runs: the old path); init sets the effective value. */
+        /** PO-1 (P65): the thumbnail, waveform and offer-preview jobs of a chat open start at the shell's paint signal (or the
+         *  present's 400 ms backstop), not at messagesDone; each push is built off the main thread. OFF = exactly the old path. */
+        public static bool PhotoMediaAfterPaint { get; private set; } = false;
+        /** PO-5 (P66): one file-check pass per file row, the 1:1 avatar resolved once per load, the preferences read once per
+         *  load; the arguments that reach the shell are byte-identical. OFF = exactly the old path. */
+        public static bool PhotoFewerFileChecks { get; private set; } = false;
+        /** PO-3 (P67): the 320 px chat thumbnail is kept in the app cache (ChatMediaStore) and the memory cache is a true
+         *  LRU of 128 entries. Android only (ChatMediaStore.platformOn). OFF = exactly the old path. */
+        public static bool PhotoThumbStore { get; private set; } = false;
+        /** PO-6 (P68): a voice message's duration + 40 peaks are kept in the app cache (ChatMediaStore). Android only.
+         *  OFF = exactly the old path. */
+        public static bool VoicePeaksStore { get; private set; } = false;
 
         /** ★ perfb1 #46 r1 B-1 / S-5: leaving dev mode (HomePage `ixian:disableDevMode`, which also removes the four
          *  PerfB1DevKeys) turns SpareKeepShortSleep off in THIS process — it falls to the old path (the drop at sleep) until
@@ -154,6 +173,7 @@ namespace SPIXI
             int pw = 1, pr = 1, pk = 1, pn = 1;   // ★ perfb1 (pk: absent = 1 since ★ fixb1 item 7)
             int fc = 1, fd = 1;                   // ★ fixb1 items 1 / 4
             int fp = 1, fm = 1;                   // ★ fixb2 item 4
+            int qa = 1, qf = 1, qt = 1, qv = 1;   // ★ photo1a PO-1 / PO-5 / PO-3 / PO-6
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -180,6 +200,10 @@ namespace SPIXI
                 fd = Preferences.Default.Get(DividerHoverLineKey, 1);
                 fp = Preferences.Default.Get(PayConfirmSafeDefaultKey, 1);
                 fm = Preferences.Default.Get(MiniAppConfirmSafeDefaultKey, 1);
+                qa = Preferences.Default.Get(PhotoMediaAfterPaintKey, 1);
+                qf = Preferences.Default.Get(PhotoFewerFileChecksKey, 1);
+                qt = Preferences.Default.Get(PhotoThumbStoreKey, 1);
+                qv = Preferences.Default.Get(VoicePeaksStoreKey, 1);
             }
             catch (Exception ex)
             {
@@ -222,6 +246,11 @@ namespace SPIXI
             PayConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fp);
             MiniAppConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fm);
             Logging.info(FixB2Rules.flagsLine(PayConfirmSafeDefault, MiniAppConfirmSafeDefault));
+            PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);
+            PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);
+            PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;
+            VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;
+            Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));
         }
 
 #if SPIXI_DEV_COEXIST

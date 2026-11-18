@@ -4,7 +4,7 @@ adb-walk.ps1 - device timing walk of the Spixi Dev app on ONE Android phone over
 Usage:
   powershell -ExecutionPolicy Bypass -File scripts\device\adb-walk.ps1 [-Calibrate] [-Steps coldstart,scroll]
              [-Repeats 5] [-Serial <id>] [-Apk <path>] [-KillRenderer]
-             [-Flags warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1>]
+             [-Flags warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1>] [-SeedIndex 0,50,51,52,55]
 
 Walk: pre-flight, then each step x Repeats (one screenshot + one DOTNET log pull per rep), run.json after
 every rep, then adb-walk-parse.ps1 -RunDir <run folder>; the exit code is the parser's.
@@ -57,6 +57,23 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
   steps is kept: the checks (also those before the input) photograph our app's screen for the probes, then the PNG is
   deleted (in a finally; a sweep at the end of each step and of the run deletes any shot-<step>-*.png left); they never
   photograph the Account screen. "send" and "live" are not steps (questions for Damir: DECISIONS #1669, #1670).
+  Batch photo1a - two more opt-in steps, only when named in -Steps, run after downloads in this order:
+  open-seed (needs -SeedIndex: 1 to 8 whole numbers 0..55 = the dev-seed index, 0 = Seed 01, 50 = Seed 51, 55 = Seed 56; a
+    comma list, no repeat; anything else is a usage error before any adb command; without -SeedIndex the step is a gap, "no
+    data", no input). Per index k: a PROVEN restart (the pid read before, am force-stop, am start -W, one different pid
+    after, our app in front, a home check whose PNG is deleted; not proven = the run halts, no further input), the settle of
+    that restart (coldStartSettleSec), then ONE cold rep and then -Repeats warm reps; each rep: logcat -c, stamp + the fa
+    intent with the address that THIS script derives for index k (Get-DevSeedAddress: never read from a file, never typed;
+    walk.local.json gets no new key; masked as <seed-index k>) (t0), chatSettleMs, the chat check (PNG deleted), a wait (at most
+    4 s, a count only) for the app's "[P1] chat media" line, the log pull, BACK. A failed rep (from the intent on) restarts
+    the app and proves the restart before anything else is sent (fail closed); the next recorded rep of that index then
+    follows ONE unrecorded warm-up open (same intent, chat check, BACK; no log pull, no row), so a new process is never
+    counted as a warm open; a failed warm-up = the proven restart again and the rest of that index is skipped. A build without the new lines gives the
+    old rows only (the new rows say n/a). -Flags cannot be combined with open-seed (every index restarts the app: the
+    switch state of the new process would not be proven). The steps keep the AllSteps order whatever the order in
+    -Steps: coldstart, mem-home, chat-intent, ..., mem-end, ..., scroll-files, scroll-voice, scroll-photos, viewer,
+    downloads, open-seed, mem-photos.
+  mem-photos (the app + renderer PSS, the shape of mem-end, files meminfo-photos-app.txt / -renderer.txt): runs LAST.
   New steps take a screenshot before the input too (shot-<step>-NN-pre.png): no input when that check fails
   (except resume-now, resume-3s and scroll-image: a focus check only, as the old resume). A pre-check PNG that fails is
   deleted. The tab steps wait for the app's own frames log lines (a count only): the first tab tap is gated by the
@@ -117,7 +134,7 @@ Safety rules (Assert-AdbCommand is an allowlist of every command shape this scri
   developer preferences of the dev app are changed and STAY changed after the run (the next start of the app, by any
   means, runs with them), and the app was force-stopped twice and cold-started twice before the first step.
 - no seed address and no serial in the files the SCRIPT writes (walk.log, run.json, calibrate.json, device.txt,
-  tries.txt) and on the console (masked as <seed k> / <serial>, "seed k" / "serial" in notes); device text
+  tries.txt) and on the console (masked as <seed k> (list position) / <seed-index k> (open-seed, dev-seed index) / <serial>, "seed k" / "seed-index k" / "serial" in notes); device text
   reaches them only through a strict capture or Get-SafeNote. meminfo files, pulled logs and screenshots are
   stored as the phone returns them.
 - local folders (run folder, output root, repo, APK folder, profile, local app data, temp; only when the value
@@ -137,7 +154,8 @@ param(
     [int]$Repeats = 5,
     [switch]$Calibrate,
     [switch]$KillRenderer,
-    [string[]]$Flags
+    [string[]]$Flags,
+    [string[]]$SeedIndex
 )
 
 $ErrorActionPreference = 'Stop'
@@ -151,11 +169,11 @@ $script:Utf8 = New-Object System.Text.UTF8Encoding($false)
 $script:Ws = [char[]]@(32, 9, 13, 10)
 $script:AllSteps = @('coldstart', 'mem-home', 'chat-intent', 'chat-tap', 'scroll', 'resume', 'resume-long', 'network', 'mem-end', 'mem-trim',
     'resume-now', 'resume-3s', 'chatinfo', 'tab-apps', 'tab-wallet', 'tab-account', 'history', 'scroll-image',
-    'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads')
+    'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads', 'open-seed', 'mem-photos')
 # Walk steps 2: the new steps run AFTER the old ones, so every old row keeps its place and its meaning. scroll-image
 # runs only when it is named in -Steps (it needs the local key imageChatAddress, the image seed of speed batch 1a).
 # Batch filewalk: the five file-walk steps run after scroll-image and are opt-in too (local keys and new map keys).
-$script:OptInSteps = @('scroll-image', 'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads')
+$script:OptInSteps = @('scroll-image', 'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads', 'open-seed', 'mem-photos')
 $script:DefaultSteps = @($script:AllSteps | Where-Object { $script:OptInSteps -cnotcontains $_ })
 # Batch filewalk: the local key of each file chat step (walk.local.json) and its index in $script:Seeds (-1 = no valid key).
 $script:FileChatKeys = @{ 'scroll-files' = 'fileChatAddress'; 'scroll-voice' = 'voiceChatAddress'; 'scroll-photos' = 'photoChatAddress' }
@@ -177,6 +195,16 @@ $script:FileRepPid = ''
 $script:FileSeedIndex = @{ 'fileChatAddress' = 53; 'voiceChatAddress' = 54; 'photoChatAddress' = 55 }
 $script:FileKeyNote = @{}
 $script:ImageViewerOk = $false
+# Batch photo1a (open-seed): the checked -SeedIndex values (dev-seed index, 0-based), the addresses this script derives for them
+# (index text -> address; masked as <seed-index k> in everything the script writes).
+$script:SeedIdx = @()
+$script:OpenSeedAddr = @{}
+# Round 1 F1 / round 2: "<app pid>:<index>" of the last successful open (recorded or warm-up) of the current index, '' = none. A recorded
+# warm rep runs after a warm-up unless the pid read before it and its index are the remembered pair (so a process that was
+# restarted by anything, or an index that has no open yet, is never counted as warm); $script:OpenSeedSkipIdx: the warm-up
+# open of an index failed, its remaining reps are skipped.
+$script:OpenSeedWarmKey = ''
+$script:OpenSeedSkipIdx = $false
 $script:CalSkip12 = ''
 $script:TabNames = @{ 'tab-apps' = 'tabApps'; 'tab-wallet' = 'tabWallet'; 'tab-account' = 'tabAccount' }
 $script:TabFrames = @{ 'tab-apps' = 'apps'; 'tab-wallet' = 'wallet'; 'tab-account' = 'account' }
@@ -215,6 +243,8 @@ $script:FramePoll = @{
     # #46 r1 (B1-3): the lines a file-walk rep waits for before its log pull (a count only).
     scrolllines = ($script:LogCmd + ' | grep -c -e P1..shell.scroll')
     overlayclose = ($script:LogCmd + ' | grep -c -e P1..shell.frames-overlay-close')
+    # Batch photo1a (open-seed): the app's "[P1] chat media" line, which the app writes 2 s after the present (a count only).
+    chatmedia = ($script:LogCmd + ' | grep -c -e P1..chat.media')
 }
 # The ONE command that may hold quotes, brackets and a redirect: matched by exact string equality.
 $script:LogRe = '^[0-9]{2}-[0-9]{2} [0-9:.]{12} +[0-9]+ +[0-9]+ [A-Z] DOTNET *: [0-9]{2}-[0-9]{2} [0-9:.]{8,16}\|[A-Za-z]{1,10}\|[0-9]{1,6}: ((\[WEBVIEW\] [A-Z]{1,12} )?\[(P1|CDPERF)\] [a-z0-9_.=-]{1,40}( [a-z0-9_.=-]{1,40}){0,15}( \(file:///android_asset/html/[a-z.]{0,24}:[0-9]{1,6}\))?$|Starting Spixi [a-z0-9.-]{1,24} \([a-z0-9.-]{1,24}\)$|Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}$|Received Hello: Node version [0-9]{1,6}$|\[FLAGS\] warmidle=[01] sparerearm=[01] sparekeep=[01] noemptydetail=[01]$)'
@@ -312,6 +342,14 @@ function Protect-Text([string]$Text) {
     }
     if ($script:DevSerial -and (Test-SerialMaskable $script:DevSerial)) { $t = $t.Replace($script:DevSerial, '<serial>') }
     if ($Serial -and (Test-SerialMaskable $Serial)) { $t = $t.Replace($Serial, '<serial>') }
+    # Batch photo1a: the addresses of the open-seed indexes, derived by this script (k = the dev-seed index, not a list position).
+    # Round 1 F3: their own label <seed-index k>, so "<seed i>" always means a list position and never a dev-seed index.
+    # Round 2: this loop runs FIRST, so an address that is also in the walk.local.json list still gets <seed-index k>; with no
+    # open-seed index the table is empty and the output is the old one.
+    foreach ($sk in @($script:OpenSeedAddr.Keys)) {
+        $sa = [string]$script:OpenSeedAddr[$sk]
+        if ($sa) { $t = $t.Replace($sa, '<seed-index ' + $sk + '>') }
+    }
     for ($i = 0; $i -lt $script:Seeds.Count; $i++) {
         $s = $script:Seeds[$i]
         if ($s) { $t = $t.Replace([string]$s, '<seed ' + $i + '>') }
@@ -343,6 +381,7 @@ function Get-SafeNote([string]$Text, [int]$Max = 120) {
     # Notes in the json files and adb error text: a fixed character set, at most 120 characters, no links.
     $t = Protect-Text $Text
     $t = [regex]::Replace($t, '<seed ([0-9]{1,2})>', 'seed $1')
+    $t = [regex]::Replace($t, '<seed-index ([0-9]{1,2})>', 'seed-index $1')
     $t = $t.Replace('<serial>', 'serial')
     if ($t -match '[A-Za-z][A-Za-z0-9+.-]{1,15}:/' -or $t -match '(?i)www\.|data:') { return '(removed)' }
     $t = [regex]::Replace($t, '[^A-Za-z0-9 _.,:=/()%+-]', '?')
@@ -520,6 +559,7 @@ function Initialize-Allowlist {
         $script:FramePoll['subscreenclose'],
         $script:FramePoll['scrolllines'],
         $script:FramePoll['overlayclose'],
+        $script:FramePoll['chatmedia'],
         'dumpsys window | grep -e mCurrentFocus=',
         'dumpsys window | grep -e mDreamingLockscreen= -e isKeyguardShowing= -e mShowingLockscreen= -e mKeyguardShowing= -e mCurrentFocus=',
         'dumpsys activity activities | grep -e mKeyguardShowing=',
@@ -813,6 +853,8 @@ function Get-StepGap([string]$Step) {
     elseif ($script:FileChatKeys.ContainsKey($Step)) { $need = @('swipe:chatOlder', 'swipe:chatNewer', 'screen:chat', ('key:' + $script:FileChatKeys[$Step])) }
     elseif ($Step -eq 'viewer') { $need = @('tap:photoTile', 'screen:chat', 'screen:viewer', 'image:', 'vimage:') }
     elseif ($Step -eq 'downloads') { $need = @('tap:tabAccount', 'tap:accountDownloads', 'tap:tabChats', 'swipe:chatOlder', 'swipe:chatNewer', 'screen:home', 'screen:downloads') }
+    # Batch photo1a: open-seed needs the home check of the proven restart, the chat check and -SeedIndex (no map key is new).
+    elseif ($Step -eq 'open-seed') { $need = @('screen:home', 'screen:chat', 'seedidx:') }
     foreach ($n in $need) {
         $kind, $name = $n -split ':', 2
         $gap = ''
@@ -829,6 +871,7 @@ function Get-StepGap([string]$Step) {
             }
         }
         elseif ($kind -eq 'vimage') { if (-not $script:ImageViewerOk) { $gap = 'walk.local.json imageChatAddress is not the address of an image seed (Seed 51-53): viewer refused' } }
+        elseif ($kind -eq 'seedidx') { if ($script:SeedIdx.Count -lt 1) { $gap = 'no -SeedIndex was given (open-seed needs the dev-seed indexes, 0-55)' } }
         if ($gap) { return $gap }
     }
     return ''
@@ -1242,6 +1285,7 @@ function Save-RunJson([bool]$Finished) {
     $doc['flags'] = $flg
     $doc['repeats'] = $script:RepeatsN
     $doc['stepsRequested'] = [string[]]$script:StepsReq
+    if ($script:SeedIdx.Count -gt 0) { $doc['seedIndex'] = [int[]]$script:SeedIdx }
     $doc['reps'] = $script:Reps
     $doc['memory'] = $script:Mem
     $doc['finished'] = $Finished
@@ -1719,7 +1763,7 @@ function Clear-FileStepPngs {
     # #46 r2 (B2-2): also the restart checks of -Calibrate (cal-reset-NN.png).
     if (-not $script:RunDir -or -not (Test-Path -LiteralPath $script:RunDir)) { return }
     foreach ($f in @(Get-ChildItem -LiteralPath $script:RunDir -File -ErrorAction SilentlyContinue)) {
-        if ($f.Name -cmatch '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads)-[A-Za-z0-9-]{1,40}\.png\z' -or $f.Name -cmatch '^cal-reset-[0-9]{2,4}\.png\z') {
+        if ($f.Name -cmatch '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads|open-seed)-[A-Za-z0-9-]{1,40}\.png\z' -or $f.Name -cmatch '^cal-reset-[0-9]{2,4}\.png\z') {
             if (Remove-LocalFile $f.FullName) { Write-WalkLog ('sweep: ' + $f.Name + ' deleted') }
             else { Say-Log ('  WARNING: a PNG of a file-walk step could not be deleted: ' + $f.Name + ' (delete it by hand)') }
         }
@@ -1997,6 +2041,140 @@ function Invoke-DownloadsRep($Rec) {
         if (-not ([string]$_.Exception.Message).StartsWith('ADBWALK-STOP:')) { [void](Invoke-FileReset $Rec 'downloads: a failed rep after the Account tap') }
         throw
     }
+}
+
+function Invoke-OpenSeedRestart($Rec, [int]$K) {
+    # Batch photo1a: the proven restart before the cold rep of the index $K (the filewalk method, Invoke-FileReset): the app
+    # pid is read BEFORE (exactly one), force-stop + am start -W + the settle (Reset-AppToChats), exactly one different pid
+    # after, our app in front, a home check (the PNG is deleted). Not proven: Invoke-FileReset has halted the run (no
+    # further input) and this throws. Round 1 F2: no single pid before = the restart cannot be proven = the SAME halt as
+    # Invoke-FileReset (Halted + HaltNote: no restart, no further input in this run), then this throws.
+    if (-not (Invoke-EnsureHome)) { throw 'ADBWALK-NOSCREEN: foreign window in front (the app did not come back)' }
+    if (-not (Save-FileRepPid)) {
+        $script:Halted = $true
+        $script:HaltNote = 'run stopped: an app restart was not proven (no further input)'
+        Add-Note $Rec 'restart not proven: no app pid was stored before the restart: the run stops'
+        Say-Log '  restart NOT proven (no app pid was stored before the restart): the run sends no further input'
+        throw 'ADBWALK-REP: cannot read the app pid before the restart: no restart, no input'
+    }
+    # Round 1 F5: the shared restart helper prints its own fixed "tab step" text; this line says what this restart is.
+    Say-Log ('  open-seed k=' + $K + ': planned restart before the cold rep (the "tab step" line below is the shared helper text, no tab rep ran)')
+    if (-not (Invoke-FileReset $Rec ('open-seed k=' + $K + ': the restart before the cold rep'))) {
+        throw 'ADBWALK-REP: no restart proof, so no further input'
+    }
+    # The restart is proven and consumed here: the rep that follows judges its own end state.
+    $script:FileResetOk = $false; $script:NeedRecover = $false; $script:LastFailed = $false
+    # Round 1 F1: a new process: no chat of this index was opened in it yet.
+    $script:OpenSeedWarmKey = ''
+    Add-Note $Rec 'restart proven before this rep'
+}
+
+function Invoke-OpenSeedRep($Rec, [int]$K, [bool]$Warmup = $false) {
+    # One rep (cold or warm): logcat -c, stamp + the fa intent of the dev-seed address THIS script derives for the index
+    # (t0), chatSettleMs, the chat check (PNG deleted), the wait (bounded, a count only) for the "[P1] chat media" line,
+    # the log pull, BACK. The address is derived (Get-DevSeedAddress), never read from a file or typed; no input text.
+    # From the intent command on, any failure restarts the app and proves the restart (Invoke-FileReset): fail closed.
+    # Round 1 F1: $Warmup = the unrecorded warm-up open (the same shape, but no log pull; its $Rec is a scratch record).
+    $addr = Get-DevSeedAddress $K
+    $script:OpenSeedAddr[[string]$K] = $addr
+    if (-not (Save-FileRepPid)) { throw 'ADBWALK-REP: cannot read the app pid before the intent: no input' }
+    [void](Invoke-ShellReq 'logcat -c')
+    try {
+        $r = Invoke-ShellReq ($script:StampCmd + '; am start -n ' + $script:Comp + ' --es fa ' + $addr)
+        $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
+        Add-AmResult $Rec $am
+        Set-RepStamp $Rec $r.StdOut
+        if ($am.Error) { throw ('ADBWALK-REP: am: ' + $am.Error) }
+        Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+        if (-not (Invoke-FileShotCheck $Rec 'chat')) {
+            if (-not $Warmup) { Invoke-LogPull $Rec }
+            throw 'ADBWALK-NOSCREEN: the chat screen check failed: no BACK'
+        }
+        Wait-FilePull $Rec 'chatmedia' 0
+        if (-not $Warmup) { Invoke-LogPull $Rec }
+        Invoke-BackReq
+        Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
+        # Round 1 F1 / round 2: this process (the pid read before the intent) has now opened the chat of this index.
+        $script:OpenSeedWarmKey = $script:FileRepPid + ':' + $K
+    } catch {
+        if (-not ([string]$_.Exception.Message).StartsWith('ADBWALK-STOP:')) {
+            # Round 1 F1: the restart makes a new process (the next open is a first open); F5: the neutral line comes first.
+            $script:OpenSeedWarmKey = ''
+            Say-Log '  open-seed: a failed rep, the app is restarted (the "tab step" line below is the shared helper text, no tab rep ran)'
+            [void](Invoke-FileReset $Rec 'open-seed: a failed rep after the intent')
+        }
+        throw
+    }
+}
+
+function Invoke-OpenSeedWarmup($Rec, [int]$K) {
+    # Round 1 F1: ONE unrecorded warm-up open of the index $K before a recorded warm rep whose app process or index differs from the last successful open (a restart, a
+    # relaunch after the app died, a cold rep that failed): the same intent, the chat check, BACK (Invoke-OpenSeedRep
+    # with $Warmup: no log pull, no row; a scratch record). A failed warm-up has already run the proven restart again
+    # (Invoke-FileReset in Invoke-OpenSeedRep): the remaining reps of the index are skipped (fail closed) and this throws a SKIP.
+    $w = New-Rep ($Rec.step + '-warmup') 0
+    Say-Log ('  open-seed k=' + $K + ': one unrecorded warm-up open (the app process is new)')
+    try {
+        Invoke-OpenSeedRep $w $K $true
+    } catch {
+        $msg = [string]$_.Exception.Message
+        if ($msg.StartsWith('ADBWALK-STOP:')) { throw }
+        $script:OpenSeedSkipIdx = $true
+        Add-Note $Rec 'warm-up open failed, rest of index skipped'
+        foreach ($n in $w.notes) { $Rec.notes.Add($n) }
+        throw 'ADBWALK-SKIP: the warm-up open failed'
+    }
+    Add-Note $Rec 'warm-up open before this rep'
+}
+
+function Invoke-OpenSeedOne($Rec, [int]$K, [bool]$Cold, [int]$Of) {
+    # One recorded rep of open-seed (the status mapping of Invoke-Step). A halted run skips it.
+    if ($script:Halted) {
+        $Rec.status = 'skipped'
+        Add-Note $Rec $script:HaltNote
+    } else {
+        try {
+            if ($script:OpenSeedSkipIdx) { throw 'ADBWALK-SKIP: the warm-up open of this index failed, rep skipped' }
+            if ($Cold) { Invoke-OpenSeedRestart $Rec $K }
+            elseif (-not (Invoke-EnsureHome)) { throw 'ADBWALK-NOSCREEN: foreign window in front (the app did not come back)' }
+            if ((-not $Cold) -and (Save-FileRepPid) -and ($script:OpenSeedWarmKey -cne ($script:FileRepPid + ':' + $K))) { Invoke-OpenSeedWarmup $Rec $K }
+            Invoke-OpenSeedRep $Rec $K
+        } catch {
+            $msg = [string]$_.Exception.Message
+            if ($msg.StartsWith('ADBWALK-STOP:')) { throw }
+            if ($msg.StartsWith('ADBWALK-SKIP:')) { $Rec.status = 'skipped' }
+            elseif ($msg.StartsWith('ADBWALK-NOSCREEN:')) { $Rec.status = 'no-screen' }
+            else { $Rec.status = 'error' }
+            Add-Note $Rec (Get-ErrText $_)
+        }
+    }
+    Complete-Rep $Rec $Of
+}
+
+function Invoke-OpenSeedStep {
+    # open-seed: per index (-SeedIndex, in the order given) the steps open-seed-kNN-cold (one rep, after a proven restart) and
+    # open-seed-kNN (-Repeats reps). Calibration or -SeedIndex missing = ONE skipped rep "open-seed" with the gap, no input.
+    $gap = Get-StepGap 'open-seed'
+    if ($gap) {
+        $rec = New-Rep 'open-seed' 1
+        $rec.status = 'skipped'
+        Add-Note $rec $gap
+        Complete-Rep $rec 1
+        return
+    }
+    foreach ($k in $script:SeedIdx) {
+        $script:OpenSeedSkipIdx = $false
+        $script:OpenSeedWarmKey = ''
+        $nn = ([int]$k).ToString('00', $script:Inv)
+        Invoke-OpenSeedOne (New-Rep ('open-seed-k' + $nn + '-cold') 1) ([int]$k) $true 1
+        for ($i = 1; $i -le $script:RepeatsN; $i++) {
+            Invoke-OpenSeedOne (New-Rep ('open-seed-k' + $nn) $i) ([int]$k) $false $script:RepeatsN
+        }
+    }
+    # The step leaves Chats in front; after a failed rep, one bounded recovery.
+    if ($script:NeedRecover -and -not $script:Halted) { [void](Invoke-EnsureHome) }
+    # Round 1 F6: no PNG of this step stays in the run folder (the file steps sweep at their end too).
+    Clear-FileStepPngs
 }
 
 function Test-TcpSerial {
@@ -2367,6 +2545,9 @@ function Get-EstimateSec {
         elseif ($script:FileChatKeys.ContainsKey($s)) { $sum += $n * (($t['chatSettleMs'] + 2 * $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 10) }
         elseif ($s -eq 'viewer') { $sum += 5 + $t['chatSettleMs'] / 1000 + $n * ($t['backSettleMs'] / 1000 + 12) }
         elseif ($s -eq 'downloads') { $sum += $n * ((2 * $t['scrollSettleMs'] + 3 * $t['tabSettleMs']) / 1000 + 16) }
+        # Batch photo1a: per index one restart (its own settle + 12 s of proof) and Repeats + 1 reps (the chat settle, the media wait, BACK).
+        elseif ($s -eq 'open-seed') { $sum += $script:SeedIdx.Count * ($t['coldStartSettleSec'] + 12 + ($n + 1) * (($t['chatSettleMs'] + $t['backSettleMs']) / 1000 + 10)) }
+        elseif ($s -eq 'mem-photos') { $sum += $t['memQuietSec'] + 6 }
     }
     return [int]$sum
 }
@@ -2397,6 +2578,8 @@ function Invoke-Walk {
             Clear-FileStepPngs
         }
         elseif ($s -eq 'viewer') { Invoke-ViewerStep }
+        elseif ($s -eq 'open-seed') { Invoke-OpenSeedStep }
+        elseif ($s -eq 'mem-photos') { Invoke-MemPhase 'photos' }
         elseif ($s -eq 'resume') { Invoke-Step 'resume' $script:RepeatsN $true }
         elseif ($s -eq 'resume-long') { Invoke-Step 'resume-long' 1 $true }
         elseif ($s -eq 'network') { Invoke-Step 'network' 1 $false }
@@ -2992,6 +3175,31 @@ foreach ($stepArg in $Steps) {
 if ($want.Count -eq 0) { $script:StepsReq = @($script:DefaultSteps) }
 else { $script:StepsReq = @($script:AllSteps | Where-Object { $want -contains $_ }) }
 if ($KillRenderer) { $script:StepsReq = @($script:StepsReq) + @('killrenderer') }
+
+# Batch photo1a: -SeedIndex = the dev-seed indexes of open-seed (0..55, 0 = Seed 01; 1 to 8 values, no repeat). A string array
+# on purpose: with powershell -File a comma list reaches [int[]] as ONE number (0,50,51 -> 05051), so the script splits
+# and checks the text itself. Any other value, -Calibrate, -Flags with open-seed, or no open-seed step: refused here,
+# before any adb command. The addresses are derived by this script and armed as masks (<seed-index k>) at once; nothing is
+# read from a file and nothing is typed.
+if ($PSBoundParameters.ContainsKey('SeedIndex')) {
+    if ($Calibrate) { Exit-Usage '-SeedIndex cannot be used with -Calibrate' }
+    $seedText = (@($SeedIndex) | ForEach-Object { [string]$_ }) -join ','
+    $seedParts = @($seedText -split ',')
+    if ($seedParts.Count -lt 1 -or $seedParts.Count -gt 8) { Exit-Usage '-SeedIndex takes 1 to 8 whole numbers 0..55 (the dev-seed index, 0 = Seed 01), as a comma list' }
+    $seedCheck = New-Object System.Collections.Generic.List[int]
+    foreach ($seedPart in $seedParts) {
+        $seedTrim = $seedPart.Trim(' ')
+        if ($seedTrim -cnotmatch '\A[0-9]{1,2}\z') { Exit-Usage '-SeedIndex takes only whole numbers 0..55 (the dev-seed index), as a comma list' }
+        $seedNum = [int]::Parse($seedTrim, $script:Inv)
+        if ($seedNum -lt 0 -or $seedNum -gt 55) { Exit-Usage '-SeedIndex takes only whole numbers 0..55 (the dev-seed index, 0 = Seed 01)' }
+        if ($seedCheck.Contains($seedNum)) { Exit-Usage '-SeedIndex names an index twice' }
+        $seedCheck.Add($seedNum)
+    }
+    if ($script:StepsReq -notcontains 'open-seed') { Exit-Usage '-SeedIndex needs the step open-seed in -Steps' }
+    if ($script:FlagsAsked) { Exit-Usage '-SeedIndex (open-seed) cannot be combined with -Flags (every index restarts the app: the new process has no proven switch state)' }
+    $script:SeedIdx = @($seedCheck.ToArray())
+    foreach ($seedNum in $script:SeedIdx) { $script:OpenSeedAddr[[string]$seedNum] = Get-DevSeedAddress $seedNum }
+}
 
 $cfgPath = Join-Path $PSScriptRoot 'a52s.json'
 if (-not (Test-Path -LiteralPath $cfgPath)) { Exit-Usage 'a52s.json is missing next to this script' }

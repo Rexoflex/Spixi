@@ -16,6 +16,10 @@ Steps added in batch walksteps2: chatinfo, tab-apps, tab-wallet, tab-account, hi
 Steps added in batch filewalk: scroll-files, scroll-voice, scroll-photos, viewer, downloads (the scroll and long-task rows and
          the viewer close row count only lines whose own stamp is >= the rep's stamp2 from run.json; a step that is not in
          run.json adds no row and no note line).
+Steps added in batch photo1a: open-seed (per index k of run.json seedIndex the rows "open-seed k=<k>": the warm reps, then the
+         same rows prefixed "cold " for the one cold rep; the app's new "[P1] chat onload-main / read / media" lines and the
+         old chat batch / chat-shell lines are OPTIONAL rows: a build that has no such line gives n/a, never "no data" and
+         never exit 2; intent -> present, present ms= and attach spare= stay required) and mem-photos (the rows of mem-end).
 
 Safety rules (this script is read by a security reviewer):
 - Reads ONLY files named by run.json inside -RunDir (plain file names; any name with a path part is refused).
@@ -107,6 +111,13 @@ function Test-Same {
     return [string]::Equals($A, $B, [System.StringComparison]::Ordinal)
 }
 
+function Test-OpenSeedName {
+    # Batch photo1a: the step names the driver gives the reps of open-seed (case-sensitive, anchored, the index 00..55).
+    param($Name)
+    if ($Name -isnot [string]) { return $false }
+    return [regex]::IsMatch($Name, '\Aopen-seed-k(?:[0-4][0-9]|5[0-5])(?:-cold)?\z', [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+}
+
 function Get-StepKey {
     # The step table's OWN key for a manifest step name, or $null. Print the key, never the manifest string.
     param($Name)
@@ -114,6 +125,8 @@ function Get-StepKey {
     foreach ($k in $script:StepTable.Keys) {
         if (Test-Same $k $Name) { return [string]$k }
     }
+    # Batch photo1a: the per-index names of open-seed (open-seed-kNN, open-seed-kNN-cold; NN = 00..55).
+    if (Test-OpenSeedName $Name) { return $Name }
     return $null
 }
 
@@ -138,8 +151,8 @@ function Test-SafeName {
     if (Test-Same $Name 'run.json') { return $true }
     $keys = New-Object System.Collections.Generic.List[string]
     foreach ($k in $script:StepTable.Keys) { $keys.Add([regex]::Escape([string]$k)) }
-    $alt = $keys.ToArray() -join '|'
-    $re = '^(shot-(' + $alt + ')-[0-9]{2}\.png|android-walk-(' + $alt + ')-[0-9]{2}\.txt|meminfo-(home|end|trim)-(app|renderer)\.txt)\z'
+    $alt = ($keys.ToArray() -join '|') + '|open-seed-k(?:[0-4][0-9]|5[0-5])(?:-cold)?'
+    $re = '^(shot-(' + $alt + ')-[0-9]{2}\.png|android-walk-(' + $alt + ')-[0-9]{2}\.txt|meminfo-(home|end|trim|photos)-(app|renderer)\.txt)\z'
     return [regex]::IsMatch($Name, $re)
 }
 
@@ -200,9 +213,25 @@ $script:L = @{
     SendLoadDl      = @{ Gram = $true; Label = 'shell send loaddownloads';        Rx = (New-Rx ($script:Cm + '\[P1\] shell send loaddownloads(?=\s)')) }
     SubOpen         = @{ Gram = $true; Label = 'shell subscreen-open';            Rx = (New-Rx ($script:Cm + '\[P1\] shell subscreen-open(?=\s)')) }
     SubOpenFr       = @{ Gram = $true; Label = 'shell frames-subscreen-open';     Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-subscreen-open(?=\s)')) }
+    # Batch photo1a: the three new app lines (developer builds) and the two old lines of the chat open that open-seed also reads.
+    ChatOnloadMain = @{ Gram = $true; Label = 'chat onload-main';           Rx = (New-Rx ($script:Cm + '\[P1\] chat onload-main(?=\s)')) }
+    ChatRead        = @{ Gram = $true; Label = 'chat read';                  Rx = (New-Rx ($script:Cm + '\[P1\] chat read(?=\s)')) }
+    ChatMedia       = @{ Gram = $true; Label = 'chat media';                 Rx = (New-Rx ($script:Cm + '\[P1\] chat media(?=\s)')) }
+    ChatBatch       = @{ Gram = $true; Label = 'chat batch';                 Rx = (New-Rx ($script:Cm + '\[CDPERF\] chat batch(?=\s)')) }
+    ChatShell       = @{ Gram = $true; Label = 'chat-shell n=';              Rx = (New-Rx ($script:Cm + '\[CDPERF\] chat-shell(?= n=)')) }
     # These two start directly after the colon (no WEBVIEW prefix); the address that follows is never read.
     Conn    = @{ Gram = $false; Label = 'Network client connected to'; Rx = (New-Rx '^[A-Za-z]{1,10}\|[0-9]{1,6}: Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}[ \t]*\z') }
     Hello   = @{ Gram = $false; Label = 'Received Hello:';             Rx = (New-Rx '^[A-Za-z]{1,10}\|[0-9]{1,6}: Received Hello: Node version [0-9]{1,6}[ \t]*\z') }
+}
+
+function Get-TokMs {
+    # Integer value of "key=<int>ms" in the tail of a line (the chat-shell line writes its times with the unit); $null otherwise.
+    param([string]$Tail, [string]$Key)
+    $m = [regex]::Match($Tail, '(?<![A-Za-z0-9_])' + [regex]::Escape($Key) + '=(-?[0-9]{1,12})ms(?![A-Za-z0-9_.])')
+    if (-not $m.Success) { return $null }
+    $v = [long]::Parse($m.Groups[1].Value, $script:Inv)
+    if (($v -gt 1000000000) -or ($v -lt -1000000000)) { return $null }
+    return $v
 }
 
 function Get-Tok {
@@ -418,6 +447,18 @@ function X-Token {
     $v = Get-Tok $hits[0].Tail $Key
     if ($null -eq $v) { return (Get-MissingTok $C $LineDef $Key) }
     if ($v -lt 0) { return (Get-MissingTok $C $LineDef $Key) }
+    return (New-Res 'value' ([double]$v) '')
+}
+
+function X-TokenMs {
+    # key=<int>ms of the FIRST such line (the chat-shell line: paint=, glass=).
+    param($C, $LineDef, [string]$Key)
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    $hits = (Get-Hits $C $LineDef).Items
+    if ($hits.Count -eq 0) { return (Get-MissingLine $C $LineDef) }
+    $v = Get-TokMs $hits[0].Tail $Key
+    if (($null -eq $v) -or ($v -lt 0)) { return (Get-MissingTok $C $LineDef $Key) }
     return (New-Res 'value' ([double]$v) '')
 }
 
@@ -662,6 +703,33 @@ $script:ChatScrollDefs = @(
     $script:LongMaxWDef
 )
 
+# Batch photo1a: the rows of one open-seed index. $Prefix = '' for the warm reps, 'cold ' for the one cold rep. The first three
+# rows are the old lines (required, as in chat-intent); every row that reads a line of the chat open that a base build may not
+# write (the new [P1] chat lines) or that is not always written (chat batch, chat-shell) is OPTIONAL: no value = n/a, not
+# "no data", not exit 2.
+function New-OpenSeedDefs {
+    param([string]$Prefix)
+    return @(
+        (New-Def ($Prefix + 'intent -> present') 'ms' $true 'log' { param($c) X-Delta $c $script:L.Present }),
+        (New-Def ($Prefix + 'present ms=') 'ms' $true 'log' { param($c) X-Token $c $script:L.Present 'ms' }),
+        (New-Def ($Prefix + 'attach spare=') '0/1' $true 'log' { param($c) X-Spare $c } 'spare'),
+        (New-Def ($Prefix + 'onload-main ms=') 'ms' $false 'log' { param($c) X-Token $c $script:L.ChatOnloadMain 'ms' }),
+        (New-Def ($Prefix + 'read ms=') 'ms' $false 'log' { param($c) X-Token $c $script:L.ChatRead 'ms' }),
+        (New-Def ($Prefix + 'read passes') 'count' $false 'log' { param($c) X-Token $c $script:L.ChatRead 'passes' }),
+        (New-Def ($Prefix + 'read rows') 'count' $false 'log' { param($c) X-Token $c $script:L.ChatRead 'rows' }),
+        (New-Def ($Prefix + 'batch json=') 'chars' $false 'log' { param($c) X-Token $c $script:L.ChatBatch 'json' }),
+        (New-Def ($Prefix + 'shell paint=') 'ms' $false 'log' { param($c) X-TokenMs $c $script:L.ChatShell 'paint' }),
+        (New-Def ($Prefix + 'shell glass=') 'ms' $false 'log' { param($c) X-TokenMs $c $script:L.ChatShell 'glass' }),
+        (New-Def ($Prefix + 'media thumbs') 'count' $false 'log' { param($c) X-Token $c $script:L.ChatMedia 'thumbs' }),
+        (New-Def ($Prefix + 'media hit') 'count' $false 'log' { param($c) X-Token $c $script:L.ChatMedia 'hit' }),
+        (New-Def ($Prefix + 'media pre') 'count' $false 'log' { param($c) X-Token $c $script:L.ChatMedia 'pre' }),
+        (New-Def ($Prefix + 'media voice') 'count' $false 'log' { param($c) X-Token $c $script:L.ChatMedia 'voice' }),
+        (New-Def ($Prefix + 'media vpre') 'count' $false 'log' { param($c) X-Token $c $script:L.ChatMedia 'vpre' })
+    )
+}
+$script:OpenSeedWarmDefs = New-OpenSeedDefs ''
+$script:OpenSeedColdDefs = New-OpenSeedDefs 'cold '
+
 $script:StepTable = [ordered]@{
     'coldstart'   = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
             (New-Def 'am TotalTime' 'ms' $true 'run' { param($c) X-Am $c $false }),
@@ -686,6 +754,7 @@ $script:StepTable = [ordered]@{
     'mem-home'    = @{ Kind = 'mem'; Phase = 'home' }
     'mem-end'     = @{ Kind = 'mem'; Phase = 'end' }
     'mem-trim'    = @{ Kind = 'mem'; Phase = 'trim' }
+    'mem-photos'  = @{ Kind = 'mem'; Phase = 'photos' }
     'network'     = @{ Kind = 'reps'; Reps = 'one'; Defs = @(
             (New-Def 'wifi on -> first node connected' 'ms' $true 'log' { param($c) X-Delta $c $script:L.Conn }),
             (New-Def 'wifi on -> first Hello' 'ms' $false 'log' { param($c) X-Delta $c $script:L.Hello })
@@ -754,6 +823,8 @@ $script:StepTable = [ordered]@{
             $script:LongCountWDef,
             $script:LongMaxWDef
         ) }
+    # Batch photo1a: the rows are built per index in Invoke-Main (the step names of the reps are open-seed-kNN[-cold]).
+    'open-seed'   = @{ Kind = 'open-seed' }
 }
 
 $script:MemDefs = @(
@@ -765,6 +836,22 @@ $script:MemDefs = @(
 # ---------------------------------------------------------------------------------------------------------------
 # Statistics and rows
 # ---------------------------------------------------------------------------------------------------------------
+function Get-SeedIndexes {
+    # Batch photo1a: run.json seedIndex = 1 to 8 distinct whole numbers 0..55 (round 1 F4: a negative number is none too); anything else = none (the step shows "no data").
+    param($M)
+    $raw = Get-Prop $M 'seedIndex'
+    if ($null -eq $raw) { return @() }
+    $out = New-Object System.Collections.Generic.List[int]
+    foreach ($v in @($raw)) {
+        $n = Get-Num $v
+        if (($null -eq $n) -or ($n -ne [Math]::Floor($n)) -or ($n -lt 0) -or ($n -gt 55)) { return @() }
+        if ($out.Contains([int]$n)) { return @() }
+        $out.Add([int]$n)
+    }
+    if (($out.Count -lt 1) -or ($out.Count -gt 8)) { return @() }
+    return $out.ToArray()
+}
+
 function Get-Median {
     param([double[]]$Values)
     $s = [double[]]$Values.Clone()
@@ -779,6 +866,11 @@ function Get-StepDef {
     param([string]$Name)
     $k = Get-StepKey $Name
     if ($null -eq $k) { return $null }
+    # Batch photo1a: a per-index open-seed name is a rep step with the rows of one index (cold = one rep, warm = repeats).
+    if (Test-OpenSeedName $k) {
+        if ($k.EndsWith('-cold', [StringComparison]::Ordinal)) { return @{ Kind = 'reps'; Reps = 'one'; Defs = $script:OpenSeedColdDefs } }
+        return @{ Kind = 'reps'; Reps = 'repeats'; Defs = $script:OpenSeedWarmDefs }
+    }
     return $script:StepTable[$k]
 }
 
@@ -1251,7 +1343,8 @@ function Invoke-Main {
         $step = [string](Get-Prop $e 'step')
         if (-not $stepRepCount.ContainsKey($step)) { $stepRepCount[$step] = 0 }
         $stepRepCount[$step] = $stepRepCount[$step] + 1
-        if (-not $steps.Contains($step)) { continue }
+        # Batch photo1a: the reps of open-seed carry per-index step names; they count when open-seed was requested.
+        if ((-not $steps.Contains($step)) -and (-not ((Test-OpenSeedName $step) -and $steps.Contains('open-seed')))) { continue }
         $def = Get-StepDef $step
         if (($null -eq $def) -or ($def.Kind -ne 'reps')) { continue }
         $repNum = Get-Num (Get-Prop $e 'rep')
@@ -1280,6 +1373,47 @@ function Invoke-Main {
             continue
         }
         $step = Get-StepKey $step
+        if ($def.Kind -eq 'open-seed') {
+            # Batch photo1a: per index k of run.json seedIndex, the warm rows (n = repeats) and then the cold rows (n = 1).
+            $seedIdx = @(Get-SeedIndexes $m)
+            if ($seedIdx.Count -eq 0) {
+                $osNote = 'no seedIndex in run.json'
+                for ($i = $reps.Count - 1; $i -ge 0; $i--) {
+                    if (Test-Same ([string](Get-Prop $reps[$i] 'step')) 'open-seed') {
+                        $osNote = 'status ' + (Format-Safe ([string](Get-Prop $reps[$i] 'status')) 20)
+                        $osNt = Format-Safe ([string](Get-Prop $reps[$i] 'note')) 80
+                        if ($osNt.Length -gt 0) { $osNote = $osNote + '; ' + $osNt }
+                        break
+                    }
+                }
+                $rows.Add((New-Row $step 'seed chats' '' $script:NoData $script:NoData $script:NoData '' $osNote '' 'nodata'))
+                continue
+            }
+            foreach ($seedK in $seedIdx) {
+                $nnK = ([int]$seedK).ToString('00', $script:Inv)
+                $labelK = 'open-seed k=' + ([int]$seedK).ToString($script:Inv)
+                foreach ($cold in @($false, $true)) {
+                    $sk = 'open-seed-k' + $nnK
+                    $countK = $repeats
+                    $defsK = $script:OpenSeedWarmDefs
+                    if ($cold) { $sk = $sk + '-cold'; $countK = 1; $defsK = $script:OpenSeedColdDefs }
+                    $ctxK = New-Object System.Collections.Generic.List[object]
+                    if (-not $stepRepCount.ContainsKey($sk)) { $ctxK.Add((New-Ctx 'step' $false $false 'no reps in run.json')) }
+                    else {
+                        for ($k = 1; $k -le $countK; $k++) {
+                            $keyK = $sk + '|' + $k.ToString($script:Inv)
+                            if ($repCtx.ContainsKey($keyK)) { $ctxK.Add($repCtx[$keyK]) }
+                            else {
+                                $labelR = 'rep ' + $k.ToString($script:Inv)
+                                $ctxK.Add((New-Ctx $labelR $false $false ($labelR + ': not in run.json')))
+                            }
+                        }
+                    }
+                    foreach ($dK in $defsK) { $rows.Add((Get-DataRow $labelK $dK $ctxK.ToArray())) }
+                }
+            }
+            continue
+        }
         if ($def.Kind -eq 'info-kill') {
             $note = 'no reps in run.json'
             for ($i = $reps.Count - 1; $i -ge 0; $i--) {
@@ -1453,6 +1587,8 @@ function Invoke-Main {
         'scroll-photos' = '- scroll-photos: the same rows for the chat of the photo seed (local key photoChatAddress).'
         'viewer'        = '- viewer: t0 = the tap on the photo tile in the image chat; tap -> viewimage sent dt= = `dt=` of the first `[P1] shell send viewimage` line with dt >= 0; tap -> viewer shown first= = `first=` of the first `[P1] shell overlay-open` line with first >= 0 (-1 = no tap seen = no value); viewer frames = `drop=` / `max=` of the first `[P1] shell frames-overlay-open` line; close frames = the first `[P1] shell frames-overlay-close` line from stamp2 (the BACK) on.'
         'downloads'     = '- downloads: t0 = the tap on Downloads in the Account tab; tap -> loaddownloads sent dt= = `dt=` of the first `[P1] shell send loaddownloads` line with dt >= 0; tap -> list shown first= = `first=` of the first `[P1] shell subscreen-open` line with first >= 0; list frames = `drop=` / `max=` of the first `[P1] shell frames-subscreen-open` line; the scroll and long-task rows (`shell scroll` / `shell longtask` lines) count only lines from stamp2 (the first swipe) on.'
+        'open-seed'     = '- open-seed k=<k>: the dev-seed chat of index k (0 = Seed 01), opened by the notification intent (address derived by the script); t0 = before the intent; the warm rows (n = repeats) come first, then the same rows prefixed `cold ` (one rep, after a proven restart of the app). intent -> present / present ms= / attach spare= as for chat-intent (required). Optional rows (n/a on a build without the line, never exit 2): onload-main ms= = `ms=` of the first `[P1] chat onload-main` line; read ms= / passes / rows = the first `[P1] chat read` line; batch json= = `json=` of the first `[CDPERF] chat batch` line; shell paint= / glass= = the first `[CDPERF] chat-shell n=` line; media thumbs / hit / pre / voice / vpre = the first `[P1] chat media` line (written once, 2 s after the present).'
+        'mem-photos'    = '- mem-photos: the app and renderer PSS read last (after open-seed), as mem-end.'
     }
     foreach ($k in $legendNew.Keys) {
         if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }
@@ -1486,7 +1622,7 @@ function Invoke-Main {
         $ph = [string](Get-Prop $me 'phase')
         $expA = $null
         $expR = $null
-        foreach ($known in @('home', 'end', 'trim')) {
+        foreach ($known in @('home', 'end', 'trim', 'photos')) {
             if (Test-Same $ph $known) { $expA = 'meminfo-' + $known + '-app.txt'; $expR = 'meminfo-' + $known + '-renderer.txt' }
         }
         & $addFile (Get-Prop $me 'appFile') $expA

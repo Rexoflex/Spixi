@@ -13253,8 +13253,8 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     /* ★ A2 re-base (#1132 (4)): the ring is 1 px in its own keyframes (chat-jump-ring); the WASH now paints the row BAND only */
     const kf = txt.slice(txt.indexOf('@keyframes chat-jump-ring'), txt.indexOf('@keyframes chat-jump-ring') + 300);
     /* ★ #1147 (1) re-base: Damir's walk (#1146 W-A2) — the ring is 1 px of the BLUE action outline (the solid role still: never the wash) */
-    ok(/box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\),/.test(kf) && !/surface-warning/.test(kf),   /* #46 r1 B-m1 (session 4 fix): behind a 1 px band-coloured gap */
-      '★ N52 (' + label + '): the pulse ring is a SOLID role (#1147: --outline-action-default, blue) — the shipped ring was the WASH tone (orange-100/orange-900), near-zero contrast on the canvas in both themes, which is why the pulse never read on device');
+    ok(/box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-select-ring\),/.test(kf) && !/surface-warning/.test(kf),   /* #46 r1 B-m1 (session 4 fix): behind a 1 px band-coloured gap */
+      '★ N52 (' + label + '): the pulse ring is a SOLID role (#1147: --outline-select-ring = --outline-action-default, blue; fixb2 #1614: its own token) — the shipped ring was the WASH tone (orange-100/orange-900), near-zero contrast on the canvas in both themes, which is why the pulse never read on device');
   }
   ok(/const live = rows\.get\(id\);/.test(chatNc)
     && /if \(mentionRowVisible\(live\) \|\| performance\.now\(\) - pulseFrom > 1500\)/.test(chatNc)
@@ -13262,7 +13262,7 @@ console.log('N51–N59 + N36b — chat back grammar · reading set · toast · p
     '★ N52: the pulse starts when the target row is VISIBLE (rAF poll, 1.5s cap) and RE-BINDS through the id each frame (loop B-4: renderLogNow rebuilds every row — a delivery tick mid-scroll silently killed a closed-over node\'s pulse)');
   for (const [label, txt] of [['source', chatSrc], ['built', chatBuilt]]) {
     const rm = txt.slice(txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]'), txt.indexOf('prefers-reduced-motion: reduce) {\n    .c-bubble-row[data-mention-pulse]') + 900);   /* G-4 re-base: the selector now names every bubble kind · A2 re-base: + the band rule */
-    ok(/animation: none; box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\),/.test(rm),   /* #1147 (1) re-base · #46 r1 B-m1 gap + ring (the WINNING value: pins-s4/fixr1.mjs) */
+    ok(/animation: none; box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-select-ring\),/.test(rm),   /* #1147 (1) re-base · #46 r1 B-m1 gap + ring (the WINNING value: pins-s4/fixr1.mjs) */
       'N52 (' + label + ', loop B-3): reduced motion gets a STATIC held ring — "animation: none" alone meant the jump highlighted NOTHING for exactly the users who asked for less motion');
   }
 
@@ -25950,12 +25950,14 @@ console.log('Session I ①: the bot address row + the desktop unread strip');
     '★ #731 bot address: chat-info still suppresses the row for kind \'group\' only (a group id is a session id, not an address) — bot rows render and now have a handler');
   const ch = rdF('src/shells/chat.html');
   const pad = /:root\[data-desktop\] \.messages \{ padding-inline: max\(0px, calc\(\(100% - (\d+)px\) \/ 2\)\); \}/.exec(ch);
-  const div = /:root\[data-desktop\] \.c-unread-divider \{ margin-inline: calc\(-1 \* max\(0px, \(100vw - (\d+)px\) \/ 2\)\); \}/.exec(ch);
-  ok(pad && div && pad[1] === div[1] && pad[1] === '760',
-    '★ Session I (Damir, Windows): the unread strip pulls back over the 760 gutters on desktop — its 100vw term carries the SAME column literal as the .messages padding (' + (pad && pad[1]) + ' / ' + (div && div[1]) + '); phones untouched (data-desktop only, max floors at 0)');
-  ok(div && ch.indexOf(div[0]) > ch.indexOf(pad[0]) && /html, body \{ margin: 0; height: 100%;/.test(ch) && /body \{ display: flex; flex-direction: column; overflow: hidden; padding-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); \}/.test(ch)
+  /* ★ fixb2 item 1 (#1629 / #1639) RE-BASE: the unread marker is a centred PILL on every platform — the Session I full-bleed rule
+     (`:root[data-desktop] .c-unread-divider { margin-inline: calc(-1 * max(0px, (100vw - 760px) / 2)); }`) is GONE; `div` is now "no such rule". */
+  const div = /\.c-unread-divider[^{}]*\{[^{}]*(margin-inline|100vw)/.exec(ch);
+  ok(pad && !div && pad[1] === '760',
+    '★ fixb2 item 1 (re-base of Session I, Damir, Windows): the unread marker no longer pulls back over the 760 gutters — NO `.c-unread-divider` margin-inline / 100vw rule is left in the chat shell (a centred pill on every platform, pins-fixb2/c-unread-pill) and the .messages padding keeps the 760 column literal (' + (pad && pad[1]) + ')');
+  ok(pad && /html, body \{ margin: 0; height: 100%;/.test(ch) && /body \{ display: flex; flex-direction: column; overflow: hidden; padding-inline: var\(--safe-left, 0px\) var\(--safe-right, 0px\); \}/.test(ch)
      && /\{ "AndroidInsetLeft", "0" \}/.test(rdF('Spixi/Lang/SpixiLocalization.cs')) && /\{ "AndroidInsetRight", "0" \}/.test(rdF('Spixi/Lang/SpixiLocalization.cs')),
-    '★ Session I unread strip: the 100vw == .messages-width assumption holds ON DESKTOP — body is margin 0 / overflow hidden and its only inline padding is the two side insets (#926), which are the seeded "0" carriers on Windows/Mac and env() = 0 in WebView2, so the pane IS the viewport there; on a phone the strip sits under a side bar by exactly the inset');
+    '★ Session I (re-based by fixb2 item 1: the unread strip\'s 100vw term is gone, this row stays for its OTHER dependant): on the desktop the pane IS the viewport — body is margin 0 / overflow hidden and its only inline padding is the two side insets (#926), the seeded "0" carriers on Windows / Mac and env() = 0 in WebView2 — so the pane centre the pill sweeps measure (pins-fixb2/c-unread-pill-sweep: pill centre = the composer\'s = the pane\'s) is the window centre; on a phone a side bar shifts it by exactly the inset');
   ok(/scrollbar-gutter: stable/.test(rdF('src/styles/base.css')),
     '★ Session I unread strip: .u-scroll keeps scrollbar-gutter stable (★ fixb1 item 3: the desktop log reserves BOTH edges — pins-fixb1/c-unread — so the strip has one equal inset)');
 }
@@ -33578,7 +33580,9 @@ console.log('\n— handover gate: the third pin pass (loop C repairs · the thre
 /* ══ GATE 48 — THE GLASS SEPARATORS, AND THE FALLBACK THEY DEPEND ON ══════════════
    Damir picked option B off a four-option render (docs/sheets/session-s/): the day pill and
    the unread strip go translucent over a real backdrop blur. He kept the strip FULL-BLEED —
-   option D turned it into a centred pill and was not taken.
+   option D turned it into a centred pill and was not taken. ★ fixb2 item 1 (#1629 "Centred pill",
+   #1639 "The same pill everywhere") SUPERSEDES that: the marker is now the day pill's centred pill
+   on every platform; the glass fill, the @supports fallback and this gate are unchanged.
 
    ★★ THE FALLBACK IS THE LOAD-BEARING HALF, and every way it can die is silent:
    ⓐ a malformed @supports condition is simply never true, so the block is dead and an
@@ -40275,7 +40279,7 @@ console.log('#1080 — walk #1074–#1078 fix round');
   {
     const strip = rulesFor('.c-unread-divider').find((r) => r.selector.trim() === '.c-unread-divider');
     const uses = !!strip && /background:\s*var\(--surface-unread-strip\)/.test(strip.body)
-      && /border-block:[^;]*var\(--outline-unread-strip\)/.test(strip.body) && /color:\s*var\(--text-unread-strip\)/.test(strip.body);
+      && /(^|[;\s])border:[^;]*var\(--outline-unread-strip\)/.test(strip.body) && /color:\s*var\(--text-unread-strip\)/.test(strip.body);
     const lightSame = lightTok('surface-unread-strip') === 'var(--surface-chat-glass)';
     const dBg = darkTok('surface-unread-strip'), dGlass = darkTok('surface-chat-glass');
     const a = (v) => { const m = /rgba\(\s*(\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\s*\)/.exec(v); return m ? m.slice(1).map(Number) : null; };
@@ -41844,7 +41848,7 @@ console.log('#1101–#1107 — session 1');
     const kinds = ['.c-bubble', '.c-fbubble', '.c-mbubble', '.c-tcard'];
     /* ★ A2 re-base (#1132 (4)): the 1 px ring keyframes (2 s since the Damir walk fix — timing pinned in pins-s4/chat.mjs A2 TIMING); reduced motion = the band rule, then the static ring rule */
     const anim = (built.match(/([^{}]*)\{ animation: chat-jump-ring var\(--duration-highlight\) var\(--easing-standard\) var\(--jump-delay, 0ms\) 1; \}/) || [])[1] || '';
-    const rm = (built.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.c-bubble-row\[data-mention-pulse\] \{[^{}]*\}\s*([^{}]*)\{ animation: none; box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-action-default\), var\(--jump-keep, 0 0 0 0 transparent\); \}/) || [])[1] || '';   /* #1147 (1) re-base · #46 r1 B-m1/B-M1 re-base: gap + ring, each kind lifted by [data-direction] */
+    const rm = (built.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.c-bubble-row\[data-mention-pulse\] \{[^{}]*\}\s*([^{}]*)\{ animation: none; box-shadow: 0 0 0 1px var\(--surface-select-row-gap\), 0 0 0 2px var\(--outline-select-ring\), var\(--jump-keep, 0 0 0 0 transparent\); \}/) || [])[1] || '';   /* #1147 (1) re-base · #46 r1 B-m1/B-M1 re-base: gap + ring, each kind lifted by [data-direction] */
     const r = {
       animated: kinds.every((k) => anim.includes('.c-bubble-row[data-mention-pulse] ' + k)),
       reduced: kinds.every((k) => rm.includes('.c-bubble-row[data-mention-pulse][data-direction] ' + k)),
@@ -42488,6 +42492,7 @@ for (const mod of ['a-extra', 'b-walk']) await (await import(new URL('./pins-per
 for (const mod of ['a-confirm', 'b-dialog-colors', 'c-unread', 'd-divider', 'e-header', 'f-scrollbar', 'g-sparekeep']) await (await import(new URL('./pins-fixb1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Fix batch 1 (fixb1, #1603 / #1611, DECISIONS #1645–#1654): a = the Windows safe-default confirm (P50) · b = the Android dialog accent by day and night (P53, resources) · c = the desktop unread strip with the gutter on both edges (the Chromium sweep c-unread-sweep.mjs runs by hand) · d = the divider hover line (P51) · e = the Account header without the address (#1539) · f = the drawn scroll indicator of long option sheets (the outline family, 🟡 dial) · g = sparekeep ON by default (P52)
 for (const mod of ['a-file-seed', 'b-walk-steps']) await (await import(new URL('./pins-filewalk/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch filewalk (File chats and walk steps 3, #1665–#1679) — a = the dev file seed (Seed 54-56: documents, voice, the 100-message photo chat; source checks of SDevSeed.cs / SDevSeedPlan.cs, 16 keys) · b = the five opt-in walk steps of scripts/device (scroll-files, scroll-voice, scroll-photos, viewer, downloads): the allowlist gains only five count polls, the filter is byte-identical, the three local keys, the gaps, a52s.json unchanged, no second input after a failed gate, no screenshot on the Account screen, every PNG deleted, the parser rows of contract § 3.4
 for (const mod of ['a-lines']) await (await import(new URL('./pins-coldstart1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Cold start 1 (coldstart1, #1680) — the cold-start marks are developer-only LOG LINES: a = source pins (the cloud cannot compile the Android arm; the pure rule runs in csh ColdStartTests): DEV ONLY, CALL SITES, NO MOVE (the rest of each touched body hashes to the base cdc4f717), NOTHING NEW, HARNESS
+for (const mod of ['a-confirm-focus', 'b-divider', 'c-unread-pill', 'd-pay-confirm', 'e-sheet-height', 'f-txrow', 'g-aurora-ring']) await (await import(new URL('./pins-fixb2/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Fix batch 2 (fixb2, #1629 / #1633 / #1639 / #1614, DECISIONS #1695–#1714): a = the Windows confirm takes the keyboard focus on Cancel + the text scrolls (P59) · b = the divider line on the hairline + the reset width (P62) · c = the unread marker is a centred pill (the Chromium sweep c-unread-pill-sweep.mjs runs by hand) · d = the payment and mini-app confirms on Windows (P60, P61) · e = centred desktop sheets use the free height · f = desktop tx rows take the chat-row inset · g = the light Aurora ring at 3 : 1 (b-hairline-sweep.mjs by hand)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

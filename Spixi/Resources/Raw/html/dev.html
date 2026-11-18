@@ -2710,6 +2710,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   opacity: 1;
   transition-timing-function: var(--easing-decelerate);
 }
+/* ★ fixb2 item 5: the 76 % cap left 12 % free each side in a short window; centred sheets may grow to a 24 px margin, never past 608 px (sanctioned; = 76 % of 800: hosts >= 800 unchanged) */
+:root[data-desktop] .c-sheet:not([data-dt-anchor]) {
+  max-height: max(76%, min(calc(100% - 2 * var(--spacing-24)), 608px));
+}
 :root[data-desktop] .c-sheet .c-sheet__handle { display: none; }
 /* anchored variants: dropdowns FADE IN PLACE — no transform at any point, so
    nothing can visually "arrive from" anywhere (06d). Inline left/top/bottom/

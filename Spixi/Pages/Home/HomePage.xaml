@@ -20,10 +20,12 @@
 
             <WebView x:Name="webView" Navigating="onNavigating" Navigated="onNavigated" VerticalOptions="Fill" HorizontalOptions="Fill"  Grid.Column="0"/>
             <ContentView x:Name="rightContent" Grid.Column="1"/>
-            <!-- ★ fixb1 item 4 (P51): the divider's hover / drag line — 2 px, centred in the 10 px grip, input-transparent,
+            <!-- ★ fixb1 item 4 (P51): the divider's hover / drag line — 2 px, input-transparent,
                  BELOW the grip (declared before it) and above the WebView. Shown only by code-behind (Windows + Mac,
-                 switch SpixiFlags.DividerHoverLine); hidden whenever paneDivider is hidden. -->
-            <BoxView x:Name="paneDividerLine" Grid.Column="0" WidthRequest="2" HorizontalOptions="End" VerticalOptions="Fill" Margin="0,0,4,0" InputTransparent="True" IsVisible="False" />
+                 switch SpixiFlags.DividerHoverLine); hidden whenever paneDivider is hidden.
+                 ★ fixb2 item 2: at the column edge (Margin 0), over the home shell's 1 px hairline (body::after,
+                 inset-inline-end 0 = the WebView's last CSS px = DIP); the old Margin 0,0,4,0 put it 4 px left of it. -->
+            <BoxView x:Name="paneDividerLine" Grid.Column="0" WidthRequest="2" HorizontalOptions="End" VerticalOptions="Fill" Margin="0,0,0,0" InputTransparent="True" IsVisible="False" />
             <!-- D1 (#240): native pane divider — a thin pan-grip on column 0's trailing
                  edge (the visible hairline is painted by the home shell, #237 ⑦; this
                  stays transparent). Gestures + visibility wired in code-behind; sits

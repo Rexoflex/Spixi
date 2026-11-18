@@ -574,7 +574,7 @@
   }
 
   boxD.append(createDateSeparator(now));
-  boxD.append(createUnreadDivider()); // full-width banner (Damir; computed from read flags in the shell)
+  boxD.append(createUnreadDivider()); // centred pill like the date pill (★ fixb2 item 1; was a full-width banner; computed from read flags in the shell)
   const napkinRow = createMessageBubble({ direction: 'received', position: 'single', text: 'Chewbacca owes me money. And before you ask — yes, again, and yes, I have it in writing this time. Well. A napkin.', timestamp: now - 2 * H });
   // demo media (file:// safe): inline SVG stands in for a real GIF/photo
   const DEMO_MEDIA = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="320" height="240" fill="%232C6BAA"/><circle cx="250" cy="60" r="36" fill="%23F5D76E"/><path d="M0 190 L90 120 L150 170 L220 110 L320 180 L320 240 L0 240 Z" fill="%231F4E7A"/></svg>';

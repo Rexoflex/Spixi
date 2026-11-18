@@ -95,6 +95,7 @@
     <Compile Include="../../Spixi/Utils/EmptyDetailRules.cs" />   <!-- ★ perfb1 P-13 (PhoneNoEmptyDetail): no EmptyDetail page on a phone until the layout is wide (tests: PerfB1EmptyDetailTests.cs) -->
     <Compile Include="../../Spixi/Utils/PerfB1ExtraRules.cs" />   <!-- ★ perfb1toggle (#1595): the adb walk's launch intent extra — name, stored line, CANON grammar (tests: PerfB1ExtraTests.cs; SpixiFlags.storePerfB1Extra calls it) -->
     <Compile Include="../../Spixi/Utils/FixB1Rules.cs" />   <!-- ★ fixb1 (P50 / P51): the [FLAGS] line, the Windows confirm's answer rule, the divider line state (tests: FixB1Tests.cs; SpixiFlags.init, SConfirm and HomePage call it) -->
+    <Compile Include="../../Spixi/Utils/FixB2Rules.cs" />   <!-- ★ fixb2 (item 3; item 4 adds its members): the Windows confirm's focus step — which part may take the focus, the accent state (tests: FixB2ConfirmTests.cs; SConfirm calls it) -->
     <Compile Include="../../Spixi/Utils/ColdStartRules.cs" />   <!-- ★ coldstart1 (#1680): the cold-start marks' pure rule — 33 tokens, the one-shot slots, the flush + the logger anchor (tests: ColdStartTests.cs; P1Perf.cold / coldFlush call it on Android only) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />

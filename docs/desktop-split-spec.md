@@ -333,7 +333,7 @@ change-password (S7) · backup status (S2).
 - **Contributors un-gated:** static component screen (`createSettingsContributors`) —
   no verb needed; S10 obsolete (be-cutover updated).
 - **D1 divider (native):** 6px transparent BoxView grip at col 0's trailing edge
-  (`HomePage.xaml`), pan 280–520, dbl-tap reset 400, `Preferences leftPaneWidth`
+  (`HomePage.xaml`), pan 280–520, dbl-tap reset 440 (🟡 dial, fixb2 item 2; was 400 — also the first-run default), `Preferences leftPaneWidth`
   persisted; hidden <700px; overlay/lock stages cover it (added later in z-order).
 - **Locks:** pane-hosted SettingsPage confirm-locks stage via the overlay-host
   fallback → full-span, in-place over HomePage (`op.host == overlayHost` holds) —

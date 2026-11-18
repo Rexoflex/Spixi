@@ -300,7 +300,7 @@
      · .messages keeps full width, so the SCROLLBAR stays at the window edge; the
        max(0px, …) term is inert below 760px of pane — a narrow desktop pane and every
        phone are byte-identical (the calc floors to the rows' own 16px inset).
-     · Bubble rows, date pills, the unread strip and the secure notice are #messages
+     · Bubble rows, date pills, the unread pill and the secure notice are #messages
        children — they centre with the padding for free; bubbles keep
        --layout-bubble-max (680 desktop, #337 W4) INSIDE the column and cards hold
        their 360 rail.
@@ -312,21 +312,11 @@
   :root[data-desktop] .messages { padding-inline: max(0px, calc((100% - 760px) / 2)); }
   /* ★ #1198: the reply swipe moves a row up to 72 px toward the end edge — the log never scrolls sideways for it */
   #messages { overflow-x: hidden; }
-  /* ★ Session I (Damir 2026-09-02, Windows): "the unread bar is cut off on both sides" —
-     the strip is a #messages child, so it centred INSIDE the 760 column and its two
-     hairlines + tint stopped dead at the gutters. Ruled FULL PANE, edge to edge. The
-     child cannot see the scroller's 100%, but on desktop the scroller IS the pane:
-     body is margin 0 / overflow hidden and .c-chat-canvas fills it, so 100vw == the
-     .messages containing width and this term equals the padding term above to the
-     pixel. The negative margin pulls the strip back over both paddings; the scrollbar gutter
-     (base.css .u-scroll) stays outside it.
-     ★ fixb1 item 3 (#1646): both edges reserve the gutter (rule below), so the strip has one equal inset on
-     both sides with and without a scroll bar, and the strip, the pills and the bubbles share the pane's centre.
-     Inert below 760px (max floors at 0), phones untouched. Pinned to the .messages
-     term: the two 760 literals must move together. */
-  :root[data-desktop] .c-unread-divider { margin-inline: calc(-1 * max(0px, (100vw - 760px) / 2)); }
-  /* ★ fixb1 item 3: same pointer scope as base.css .u-scroll (touch WebViews reserve no gutter); a touch-only
-     desktop keeps its overlay bar and today's layout */
+  /* ★ fixb2 item 1 (#1629, #1639): the marker is a centred pill (typed-bubbles.css); the Session I full-bleed rule here is GONE. */
+  /* ★ fixb1 item 3 (KEPT by fixb2 item 1, measured): the log reserves the scroll-bar gutter on BOTH edges, so the column — the
+     bubbles, the date pills and the unread pill — keeps the pane's centre, the composer's centre; with the end edge alone it
+     would sit half a gutter left of the composer. Same pointer scope as base.css .u-scroll (touch WebViews reserve no gutter);
+     a touch-only desktop keeps its overlay bar and today's layout */
   @media (hover: hover) and (pointer: fine) {
     :root[data-desktop] .messages { scrollbar-gutter: stable both-edges; }
   }
@@ -418,7 +408,7 @@
   .chat-app-picker[data-many] .chat-app-picker__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   :root[data-desktop] .c-sheet.chat-app-picker-sheet[data-tall] {
     display: flex; flex-direction: column; overflow: hidden;
-    height: min(560px, 76%);
+    height: min(560px, max(76%, min(calc(100% - 2 * var(--spacing-24)), 608px)));   /* ★ fixb2: the shared centred-sheet cap (overlay.css) — a fixed height beat it at 360 px */
   }
   :root[data-desktop] .c-sheet.chat-app-picker-sheet[data-tall] > .c-sheet__content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   /* ★ Session Z (#882 (c)): the `.chat-info-takeover` cover rules are gone with the dead
@@ -580,7 +570,7 @@
      "almost instant". Damir pick 10-03: LINEAR (tint left at 1.5/1.7/1.9 s: 83/50/17 %; decelerate 43/11/1). */
   /* ★★ #1147 (1) A2 restyle (Damir walk #1146 W-A2 FAIL: "a colour similar to selected for the band, blueish for the
      outline, rounded like selected"): the band = the multi-select selected-row look (--surface-select-row + --radius-12,
-     chat-select.css:47), the ring = 1 px --outline-action-default (blue). Same length, same reduced-motion rule. */
+     chat-select.css:47), the ring = 1 px --outline-select-ring (blue, = --outline-action-default; light Aurora darker, #1614). Same length, same reduced-motion rule. */
   /* #46 r1 (session 4 fix): B-m1 the ring is a 1 px GAP in the band's colour (--surface-select-row-gap, the band composited
      over the chat ground — opaque, because a translucent gap would let the ring's own blue show through it) and then the
      1 px blue ring, so the blue never touches my blue bubble (1.17:1 in light). B-m3 the lit row raises the sent card's
@@ -607,7 +597,7 @@
     100% { background-color: transparent; }
   }
   @keyframes chat-jump-ring {
-    0%, 70% { box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default), var(--jump-keep, 0 0 0 0 transparent); animation-timing-function: linear; }
+    0%, 70% { box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-select-ring), var(--jump-keep, 0 0 0 0 transparent); animation-timing-function: linear; }
     100% { box-shadow: 0 0 0 1px transparent, 0 0 0 2px transparent, var(--jump-keep, 0 0 0 0 transparent); }
   }
   /* reduced motion: NO animation — the band (and the ring) held static for the attribute's 2 s; the JS timeout removes it (no fade).
@@ -616,7 +606,7 @@
     .c-bubble-row[data-mention-pulse] { animation: none; background-color: var(--surface-select-row); }
     .c-bubble-row[data-mention-pulse][data-direction] .c-bubble, .c-bubble-row[data-mention-pulse][data-direction] .c-fbubble,
     .c-bubble-row[data-mention-pulse][data-direction] .c-mbubble, .c-bubble-row[data-mention-pulse][data-direction] .c-mbubble[data-file],
-    .c-bubble-row[data-mention-pulse][data-direction] .c-tcard { animation: none; box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-action-default), var(--jump-keep, 0 0 0 0 transparent); }
+    .c-bubble-row[data-mention-pulse][data-direction] .c-tcard { animation: none; box-shadow: 0 0 0 1px var(--surface-select-row-gap), 0 0 0 2px var(--outline-select-ring), var(--jump-keep, 0 0 0 0 transparent); }
   }
 </style>
 </head>

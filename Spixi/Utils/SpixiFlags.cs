@@ -32,6 +32,8 @@ namespace SPIXI
         public const string PhoneNoEmptyDetailKey = "flagPhoneNoEmptyDetail";     // int pref; absent = default (1) — ★ perfb1 P-13 (P41)
         public const string ConfirmSafeDefaultKey = "flagConfirmSafeDefault";     // int pref; absent = default (1) — ★ fixb1 item 1 (P50)
         public const string DividerHoverLineKey = "flagDividerHoverLine";         // int pref; absent = default (1) — ★ fixb1 item 4 (P51)
+        public const string PayConfirmSafeDefaultKey = "flagPayConfirmSafeDefault";           // int pref; absent = default (1) — ★ fixb2 item 4
+        public const string MiniAppConfirmSafeDefaultKey = "flagMiniAppConfirmSafeDefault";   // int pref; absent = default (1) — ★ fixb2 item 4
 
         /** ★ perfb1: the four keys in PerfB1Rules.DevSwitchNames order (DevPage `ixian:devflash:<name>:<0|1>`). */
         public static readonly string[] PerfB1DevKeys = { WarmOnIdleKey, SpareRearmKey, SpareKeepShortSleepKey, PhoneNoEmptyDetailKey };
@@ -112,6 +114,21 @@ namespace SPIXI
          *  OFF = no line, exactly the old behaviour. */
         public static bool DividerHoverLine { get; private set; } = true;
 
+        /* ★ fixb2 (Fix batch 2, #1312 rule 1 / #1478, FixB2Rules.cs): one flag per call-site family. Both ACT only on Windows
+         * (only `#if WINDOWS` code reads them); init reads them and writes their [FLAGS] line on EVERY platform — on iPhone,
+         * Mac and Android the values change nothing. The safe dialog needs TWO things on: the call site's own switch AND
+         * NativeConfirm (FixB2Rules.useSafeDialog: with the alert drop of Session Safety off, nothing keeps a MAUI alert
+         * away from the dialog). Either one OFF = the old path. */
+        /** Item 4, acts on Windows only: the payment send confirm (SPayments.confirmAndAuth) is SConfirm's safe-default
+         *  dialog — Cancel is the default (Close) button, so Enter cancels; only the Primary (send) result is yes. ON takes
+         *  effect only while NativeConfirm is on too. OFF — this switch or NativeConfirm — = exactly the old behaviour (MAUI
+         *  DisplayAlert through displaySpixiAlert). */
+        public static bool PayConfirmSafeDefault { get; private set; } = true;
+        /** Item 4, acts on Windows only: the three mini-app confirms (MiniAppPage.handleAction) the same way, under the same
+         *  two conditions. OFF — this switch or NativeConfirm — = exactly the old behaviour (MAUI DisplayAlert through
+         *  displaySpixiAlert). */
+        public static bool MiniAppConfirmSafeDefault { get; private set; } = true;
+
         /** ★ perfb1 #46 r1 B-1 / S-5: leaving dev mode (HomePage `ixian:disableDevMode`, which also removes the four
          *  PerfB1DevKeys) turns SpareKeepShortSleep off in THIS process — it falls to the old path (the drop at sleep) until
          *  the next start. ★ fixb1 item 7: the switch is ON by default now; leaving dev mode removes the keys, so the NEXT
@@ -136,6 +153,7 @@ namespace SPIXI
             int xi = 1, xs = 1, xp = 1, xc = 1, xh = 1, xw = 1;   // ★ Session Safety
             int pw = 1, pr = 1, pk = 1, pn = 1;   // ★ perfb1 (pk: absent = 1 since ★ fixb1 item 7)
             int fc = 1, fd = 1;                   // ★ fixb1 items 1 / 4
+            int fp = 1, fm = 1;                   // ★ fixb2 item 4
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -160,6 +178,8 @@ namespace SPIXI
                 pn = Preferences.Default.Get(PhoneNoEmptyDetailKey, 1);
                 fc = Preferences.Default.Get(ConfirmSafeDefaultKey, 1);
                 fd = Preferences.Default.Get(DividerHoverLineKey, 1);
+                fp = Preferences.Default.Get(PayConfirmSafeDefaultKey, 1);
+                fm = Preferences.Default.Get(MiniAppConfirmSafeDefaultKey, 1);
             }
             catch (Exception ex)
             {
@@ -199,6 +219,9 @@ namespace SPIXI
             ConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fc);
             DividerHoverLine = S16PassRules.effectiveFlag(dev, fd);
             Logging.info(FixB1Rules.flagsLine(ConfirmSafeDefault, DividerHoverLine));
+            PayConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fp);
+            MiniAppConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fm);
+            Logging.info(FixB2Rules.flagsLine(PayConfirmSafeDefault, MiniAppConfirmSafeDefault));
         }
 
 #if SPIXI_DEV_COEXIST

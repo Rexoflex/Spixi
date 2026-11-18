@@ -9,12 +9,14 @@
  *       (the same scope as base.css .u-scroll — a touch-only desktop keeps its overlay bar);
  *   (2) it is the ONLY `scrollbar-gutter` rule on #messages / .messages in the shell's own style blocks, and no phone-scope
  *       (not under :root[data-desktop]) rule in the shell sets `both-edges`;
- *   (3) the strip's margin rule is unchanged (`margin-inline: calc(-1 * max(0px, (100vw - 760px) / 2))`) and pairs with the
- *       log's padding rule (`max(0px, calc((100% - 760px) / 2))`) — the two 760 literals;
+ *   (3) ★ RE-BASED by fixb2 item 1 (#1629 / #1639: the marker is a centred pill, no full-bleed strip): the strip's negative-margin rule
+ *       (`margin-inline: calc(-1 * max(0px, (100vw - 760px) / 2))`) is GONE — no `.c-unread-divider` rule carries a `margin-inline` /
+ *       `100vw` term any more (pins-fixb2/c-unread-pill reads the pill itself) — while the log's padding rule
+ *       (`max(0px, calc((100% - 760px) / 2))`) is unchanged, so the pill centres in the 760 column;
  *   (4) base.css `.u-scroll` (the shared sheet) still says `scrollbar-gutter: stable` (NOT both-edges) — phones and every other
  *       scroller are untouched.
  * Deliberate breaks (fixb1 report): `both-edges` → `stable` in src/shells/chat.html (+ build-shells) → (1) fails;
- *   the 760 in the strip's margin → 780 → (3) fails; `both-edges` added to base.css `.u-scroll` → (4) fails. */
+ *   (re-based by fixb2: the old strip rule put back in chat.html → (3) fails; the 760 in the log's padding → 780 → (3) fails); `both-edges` added to base.css `.u-scroll` → (4) fails. */
 export default async function (h) {
   const { ok, root, readFileSync, join, stripCssComments } = h;
   const html = readFileSync(join(root, 'Spixi/Resources/Raw/html/chat.html'), 'utf8');
@@ -35,7 +37,7 @@ export default async function (h) {
   const rule2 = onMessages.length === 1 && /^:root\[data-desktop\] \.messages$/.test(onMessages[0].sel)
     && /^scrollbar-gutter: stable both-edges;?$/.test(onMessages[0].body) && phoneBoth.length === 0;
 
-  const strip = /:root\[data-desktop\] \.c-unread-divider \{ margin-inline: calc\(-1 \* max\(0px, \(100vw - 760px\) \/ 2\)\); \}/.test(flat);
+  const strip = !/c-unread-divider[^{}]*\{[^{}]*(margin-inline|100vw)/.test(flat);   // ★ fixb2 item 1: the full-bleed strip rule is gone
   const pad = /:root\[data-desktop\] \.messages \{ padding-inline: max\(0px, calc\(\(100% - 760px\) \/ 2\)\); \}/.test(flat);
   const rule3 = strip && pad;
 
@@ -43,6 +45,6 @@ export default async function (h) {
 
   ok(rule1, '★ fixb1 item 3 (#1646): the BUILT chat shell has `:root[data-desktop] .messages { scrollbar-gutter: stable both-edges }` INSIDE the pointer media (hover: hover) and (pointer: fine)');
   ok(rule2, `★ fixb1 item 3: that is the ONLY scrollbar-gutter rule on the chat log, and no rule outside :root[data-desktop] sets both-edges (phones untouched) — ${JSON.stringify({ onMessages, phoneBoth })}`);
-  ok(rule3, `★ fixb1 item 3: the strip's margin rule is unchanged and pairs with the log's padding rule (the two 760 literals) — ${JSON.stringify({ strip, pad })}`);
+  ok(rule3, `★ fixb1 item 3 (re-based by fixb2 item 1): the full-bleed strip rule is GONE (no .c-unread-divider margin-inline / 100vw rule) and the log's 760 padding rule is unchanged (the pill centres in the column) — ${JSON.stringify({ strip, pad })}`);
   ok(uScroll, '★ fixb1 item 3: base.css .u-scroll still reserves the gutter on the end edge only (`stable`, inside the pointer media) — every other scroller and every phone is untouched');
 }

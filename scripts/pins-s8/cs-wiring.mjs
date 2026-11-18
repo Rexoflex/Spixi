@@ -39,6 +39,7 @@
  *   HomePage remove: drop `SAppDeclines.clear(friend.walletAddress.ToString());`                       → A4 per-contact declines (MINOR-3) */
 import { readdirSync, statSync } from 'node:fs';
 
+// ★ photo1a re-base (2026-11-17): S8 PR1 receipts + typing — round 1 put the msgRead gate back to the OLD live read (no once-per-load value); the pin is the original statement again, plus one read only and no rowOnce.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, join } = h;
   const rd = (p) => readFileSync(join(root, p), 'utf8');
@@ -206,7 +207,11 @@ export default async function (h) {
     const urs = bodyOf(SCP, 'private void updateMessageReadStatus(') || bodyOf(SCP, 'void updateMessageReadStatus(');
     const dt = bodyOf(SCP, 'private void deliveryTicks(');
     const ty = SP.slice(SP.indexOf('case SpixiMessageCode.msgTyping:'), SP.indexOf('case SpixiMessageCode.avatar:'));
+    /* ★ photo1a re-base (2026-11-17, round 1): the receipt gate is the OLD statement again — SPrivacyPrefs.readReceipts is read LIVE per row (it gates a network
+       send, so never once per load: #46 r1 C-open MINOR-3) — and the body reads the preference exactly once */
     ok(/if \(PrivacyRules\.sendsReadReceipt\(SPrivacyPrefs\.readReceipts, friend\.bot, UnreadRule\.isAddedToGroupLineId\(message\.id\)\)\)\s*\{[^}]*SpixiMessageCode\.msgRead/.test(urs)
+      && (urs.match(/SPrivacyPrefs\.readReceipts/g) || []).length === 1
+      && !/rowOnce|LoadOnce\.ReadReceipts/.test(urs)
       && /PrivacyRules\.shownStatus\(SPrivacyPrefs\.readReceipts, ref sent, ref confirmed, ref read\);/.test(dt)
       && /type = PrivacyRules\.shownStatus\(SPrivacyPrefs\.readReceipts, "read"\);/.test(HOME)
       && /if \(PrivacyRules\.sendsTyping\(SPrivacyPrefs\.typingIndicators\)\)\s*\{\s*StreamProcessor\.sendTyping\(friend\);/.test(SCP)

@@ -4,6 +4,7 @@
  * elements (el.matches), not as source text. The C# guards of the new push are SOURCE pins — SingleChatPage is
  * MAUI-only (Preferences, MainThread, SThumbnail per platform) and cannot run here; each names the rule it guards.
  * Every pin was broken on purpose before it was believed (the breaks are listed in the agent report). */
+// ★ photo1a re-base (2026-11-17): A5 C# `afterDone` (the thumb loop through the PO-1 hold, the old `enqueueThumb(t.Key, t.Value);` as its fallback) · `candidate` (noteThumbCandidate held WHOLE: the PO-5 ON branch and the old else-if, round 3 M-4) · `threads` (the main-thread push takes a drainer-built text under PhotoMediaAfterPaint; OFF = the old Utils.sendUiCommand statement, now over `plainUri` — the closure captures the data URI only when no text was built, round 1) — same claims, new shape.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, join, JSDOM, VirtualConsole, sleep } = h;
   const rd = (p) => readFileSync(join(root, p), 'utf8');
@@ -779,11 +780,17 @@ export default async function (h) {
         && /public const int ChatThumbPx = 320;/.test(sc) && /public const long ChatThumbMaxBytes = 64 \* 1024;/.test(sc),
       /* candidates: an image file ON THIS DEVICE (completed, or MY OWN — A-M2), pref on; a burst defers to messagesDone,
          C-c7: a LIVE row (no batch) enqueues at once */
-      candidate: /if \(message == null \|\| message\.id == null \|\| !\(message\.completed \|\| message\.localSender\) \|\| !SharedItems\.isImageName\(name\) \|\| !SChatPrefs\.photoPreviews\)\s*\{\s*return;\s*\}/.test(cand)
+      /* ★ photo1a re-base (round 3 M-4): noteThumbCandidate WHOLE — it has a PO-5 ON branch (the pref read once per load) with its own copy of the condition and the OLD condition as the else-if;
+         the unanchored regex of before matched the else-if and let the ON copy drift (dropping `|| !SharedItems.isImageName(name)` stayed green) */
+      candidate: cand.replace(/\s+/g, ' ').trim() === "private void noteThumbCandidate(FriendMessage message, string name, UiBatch? batch) { RowCache? rowOnce = rowCacheFor(batch); if (rowOnce != null) { if (message == null || message.id == null || !(message.completed || message.localSender) || !SharedItems.isImageName(name) || !rowOnce.once.flag(PhotoOpenRules.LoadOnce.PhotoPreviews, () => SChatPrefs.photoPreviews)) { return; } } else if (message == null || message.id == null || !(message.completed || message.localSender) || !SharedItems.isImageName(name) || !SChatPrefs.photoPreviews) { return; } string id = Crypto.hashToString(message.id); if (batch != null) { batch.thumbs.Add(new KeyValuePair<string, FriendMessage>(id, message)); return; } enqueueThumb(id, message); }"
         && /if \(batch != null\)\s*\{\s*batch\.thumbs\.Add\(new KeyValuePair<string, FriendMessage>\(id, message\)\);\s*return;\s*\}\s*enqueueThumb\(id, message\);\s*\}$/.test(cand),
       afterPush: /push\(batch, "addFile", [^;]*\);\s*noteThumbCandidate\(message, name, batch\);/.test(sc),
       /* ★ #1166 B2 re-base: the full triple and the prepend branch both end before the thumb queue (a prepended photo gets its preview too) */
-      afterDone: /Utils\.sendUiCommand\(this, "messagesDone"\);\s*pushPendingJump\(\);\s*\}\s*else\s*\{[^{}]*\{[^{}]*\}\s*Utils\.sendUiCommand\(this, "messagesDone", show_more\);\s*pushPendingJump\(\);\s*\}\s*foreach \(KeyValuePair<string, FriendMessage> t in batch\.thumbs\)\s*\{\s*enqueueThumb\(t\.Key, t\.Value\);/.test(loadM),
+      /* ★ photo1a re-base (2026-11-17): the burst's thumbs are still queued right after the messagesDone of the full triple and of the prepend branch,
+         now through the PO-1 hold: `if (!(holdOpen && holdMedia(prepend, holdDoc, () => enqueueThumb(t.Key, t.Value)))) { enqueueThumb(t.Key, t.Value); }` —
+         held until the shell's paint signal only when `holdOpen` (= !prepend && SpixiFlags.PhotoMediaAfterPaint); switch OFF / a prepend / no hold = the OLD
+         statement `enqueueThumb(t.Key, t.Value);` in the same place (pins-photo1a/a-open holds the gate's four release points) */
+      afterDone: /Utils\.sendUiCommand\(this, "messagesDone"\);\s*pushPendingJump\(\);\s*\}\s*else\s*\{[^{}]*\{[^{}]*\}\s*Utils\.sendUiCommand\(this, "messagesDone", show_more\);\s*pushPendingJump\(\);\s*\}\s*int holdDoc = thumbDoc;\s*bool holdOpen = !prepend && SpixiFlags\.PhotoMediaAfterPaint;\s*foreach \(KeyValuePair<string, FriendMessage> t in batch\.thumbs\)\s*\{\s*if \(!\(holdOpen && holdMedia\(prepend, holdDoc, \(\) => enqueueThumb\(t\.Key, t\.Value\)\)\)\)\s*\{\s*enqueueThumb\(t\.Key, t\.Value\);/.test(loadM),
       /* C-c3: updateFile's COMPLETE tick is what asks for the preview of a finished transfer */
       updateFile: /^public void updateFile\(string uid, string progress, bool complete, int channel\)\s*\{\s*Utils\.sendUiCommand\(this, "updateFile", uid, progress, complete\.ToString\(\)\);\s*if \(complete\)\s*\{\s*thumbAfterTransfer\(uid, channel\);\s*voiceAfterTransfer\(uid, channel\);\s*\}\s*\}$/.test(upd),   /* ★ #1166 A-N4 re-base · ★ #1208 re-base: + the voice waveform / play-after-download */
       transfer: /if \(fm == null \|\| fm\.id == null \|\| fm\.type != FriendMessageType\.fileHeader \|\| !\(fm\.completed \|\| fm\.localSender\)\)/.test(after) && /!SharedItems\.isImageName\(name\)/.test(after)
@@ -805,9 +812,15 @@ export default async function (h) {
         && !/chatThumbCache\.Clear\(\)/.test(sc),
       /* OFF the UI thread (one drainer), the push ON the main thread, re-checked there (a closed page pushes nothing); id + JPEG only;
          #46 r2 R2-N1: a preview the re-check DROPS gives its once-slot back (the OFF → ON re-flush must find it free) */
-      threads: /MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*if \(isDisposed \|\| doc != thumbDoc \|\| friend == null \|\| !SChatPrefs\.photoPreviews\)\s*\{\s*lock \(thumbsSent\)\s*\{\s*thumbsSent\.Remove\(sentKey\);\s*\}\s*return;\s*\}\s*Utils\.sendUiCommand\(this, "setFileThumb", id, uri\);/.test(proc)
+      /* ★ photo1a re-base (2026-11-17): the push is still ON the main thread behind the SAME re-check (a closed page / an older document / the pref
+         off → the once-slot back, nothing sent), and sends the message id + the JPEG only — now as a command text the DRAINER built
+         (`builtCmd`, PhotoOpenRules.uiCommandText, switch PhotoMediaAfterPaint) handed to sendBuiltCommand; switch OFF = `builtCmd` null = the OLD statement
+         `Utils.sendUiCommand(this, "setFileThumb", id, uri);` (still the only sendUiCommand of the name). Two "setFileThumb" words in the file, no more. */
+      threads: /MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*if \(isDisposed \|\| doc != thumbDoc \|\| friend == null \|\| !SChatPrefs\.photoPreviews\)\s*\{\s*lock \(thumbsSent\)\s*\{\s*thumbsSent\.Remove\(sentKey\);\s*\}\s*return;\s*\}\s*if \(builtCmd != null\)\s*\{\s*sendBuiltCommand\(builtCmd\);\s*\}\s*else\s*\{\s*Utils\.sendUiCommand\(this, "setFileThumb", id, plainUri!\);\s*\}/.test(proc) && /string\? plainUri = builtCmd == null \? uri : null;/.test(proc)
+        && /string\? builtCmd = SpixiFlags\.PhotoMediaAfterPaint \? PhotoOpenRules\.uiCommandText\("setFileThumb", id, uri\) : null;/.test(proc)
         && (sc.match(/thumbsSent\.Remove\(/g) || []).length === 1
-        && (sc.match(/"setFileThumb"/g) || []).length === 1,
+        && (sc.match(/Utils\.sendUiCommand\(this, "setFileThumb"/g) || []).length === 1
+        && (sc.match(/"setFileThumb"/g) || []).length === 2,
       /* setPhotoPreviews: told in onLoad BEFORE the history load, again on a re-appear, and only on a change */
       tell: /pushHeaderAvatar\(\);\s*thumbDoc\+\+;\s*lock \(thumbsSent\)\s*\{\s*thumbsSent\.Clear\(\);\s*\}\s*photoPreviewsPushed = null;\s*pushPhotoPreviews\(\);/.test(onLoad)
         && onLoad.indexOf('pushPhotoPreviews();') < onLoad.indexOf('loadMessages();')

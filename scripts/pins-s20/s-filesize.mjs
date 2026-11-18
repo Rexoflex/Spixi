@@ -13,6 +13,7 @@
  * Deliberate breaks (S20 S report): the exact-uid test dropped → `body` fails; (#46 r1) the restart fallback dropped →
  * `body` fails; the s20size branch moved after the generic
  * devflash branch → `dev` fails; the flag's default set to false → `flag` fails. */
+// ★ photo1a re-base (2026-11-17): S20 E `site` — arg 20 is computed in two branches now (PO-5 once-pass: fileSizeArgOnce with the path localArgOf resolved; else the OLD statement text, checked here); same claim: S20 rule when SpixiFlags.S20FileSize, else offerSizeArg, after localArgOf.
 export default async function (h) {
   const { ok, root, readFileSync, join, stripCode } = h;
   const rd = (p) => stripCode(readFileSync(join(root, p), 'utf8'));
@@ -38,9 +39,16 @@ export default async function (h) {
   const norm = (x) => x.replace(/\s+/g, ' ').trim();
   const r = {}, n = {};
   /* the call site */
-  r.site = /string fSize = SpixiFlags\.S20FileSize \? fileSizeArgOf\(message, fBytes, fLocal\) : S11MediaRules\.offerSizeArg\(message\.localSender, message\.completed, fBytes\);/.test(cs)
+  /* ★ photo1a re-base (2026-11-17): the row's size argument now sits in a two-branch statement — a batch load with PO-5 ON
+     (`rowOnce != null`) reads the length of the path localArgOf resolved (fileSizeArgOnce), every other row (a live insert, a
+     re-push, PhotoFewerFileChecks OFF = rowOnce never set) keeps the OLD statement text. The claim is the same in both: arg 20 =
+     the S20 rule when SpixiFlags.S20FileSize, else the S11 offerSizeArg, computed AFTER localArgOf and pushed as the last addFile argument. */
+  const fSizeIf = /string fSize;\s*if \(rowOnce != null\)\s*\{\s*fSize = SpixiFlags\.S20FileSize \? fileSizeArgOnce\(message, fBytes, fLocal, fPath\) : S11MediaRules\.offerSizeArg\(message\.localSender, message\.completed, fBytes\);\s*\}\s*else\s*\{\s*fSize = SpixiFlags\.S20FileSize \? fileSizeArgOf\(message, fBytes, fLocal\) : S11MediaRules\.offerSizeArg\(message\.localSender, message\.completed, fBytes\);\s*\}/;
+  const fLocalIf = /string fLocal;\s*string fCase;\s*string\? fPath = null;\s*if \(rowOnce != null\)\s*\{\s*fLocal = SharedItems\.localArgOf\(message, out fCase, out fPath\);\s*\}\s*else\s*\{\s*fLocal = SharedItems\.localArgOf\(message, out fCase\);\s*\}/;
+  r.site = fSizeIf.test(cs) && fLocalIf.test(cs)
     && /push\(batch, "addFile",[^;]*fGroup, fPlayed, fSize\);/.test(cs)
-    && cs.indexOf('string fLocal = SharedItems.localArgOf(message, out string fCase);') < cs.indexOf('string fSize = SpixiFlags.S20FileSize');
+    && cs.search(fLocalIf) < cs.search(fSizeIf)
+    && (cs.match(/SpixiFlags\.S20FileSize \?/g) || []).length === 2;   // both branches of the one statement, no third copy
   /* the helper, WHOLE */
   const body = bodyOf(cs, 'private static string fileSizeArgOf(FriendMessage message, ulong headerBytes, string fLocal)');
   n.body = norm(body).slice(0, 200);

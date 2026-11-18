@@ -20,6 +20,7 @@
  * slot hook → one main-thread pump → autoDownloadNow; the backstop re-check) · Android Save (the image MIME into the
  * picker; the copy off the UI thread). The pure halves run in csh (S11MediaTests · S11ChatTests).
  * Deliberate breaks (G-brk, G3-brk): see the S11 G / G3 reports. */
+// ★ photo1a re-base (2026-11-17): S11 G `gate` (noteOfferPreview WHOLE: PO-5 once-flag branch + the OLD condition as the else), `burst` (the offer loop through the PO-1 hold, the old statement as its fallback), `arg20` (two-branch fSize, the old statement as the else) — same claims, new shape.
 export default async function (h) {
   const { ok, root, readFileSync, join, stripCode } = h;
   const rd = (p) => readFileSync(join(root, p), 'utf8');
@@ -64,7 +65,16 @@ export default async function (h) {
   r.receiverKeep = /if \(fm != null && !fm\.localSender && fm\.id != null && transfer\.preview != null\s*&& S11MediaRules\.offerPreviews\.put\(S11MediaRules\.offerKey\(sender\.ToString\(\), Crypto\.hashToString\(fm\.id\)\), transfer\.preview\)\)\s*\{\s*FriendMessage offer = fm;\s*int offerChannel = data\.channel;\s*MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*try\s*\{\s*Utils\.getChatPage\(friend\)\?\.offerPreviewArrived\(offer, offerChannel\);/.test(hfh)
     && !/Logging\.\w+\([^;]*preview\b(?!\s*could)/.test(hfh.replace(/"[^"]*"/g, '""'));
   /* ★ S11 G3 (MINOR-4, the lead's decision): the preview follows the auto-download CONTACT rule — WHOLE */
-  r.gate = whole(bodyOf(cs, 'private void noteOfferPreview('), `{ if (message == null || message.id == null || friend == null
+  /* ★ photo1a re-base (2026-11-17): the gate is WHOLE again, in its new shape — a batch load with PO-5 ON (`rowOnce != null`) asks the
+     same offerPreviewPushOk with the two preferences read ONCE per load (rowOnce.once.flag: loadPictures, photoPreviews); every other
+     call (a live row, PhotoFewerFileChecks OFF = rowOnce never set) takes the `else if` = the OLD condition text, byte for byte (inside
+     the body below). The rest of the body (the offer key, the batch / live split) is unchanged. */
+  r.gate = whole(bodyOf(cs, 'private void noteOfferPreview('), `{ RowCache? rowOnce = rowCacheFor(batch);
+      if (rowOnce != null) { if (message == null || message.id == null || friend == null
+          || !S11MediaRules.offerPreviewPushOk(rowOnce.once.flag(PhotoOpenRules.LoadOnce.LoadPictures, () => SAutoDownload.loadPictures),
+            rowOnce.once.flag(PhotoOpenRules.LoadOnce.PhotoPreviews, () => SChatPrefs.photoPreviews), message.localSender, message.completed,
+            SharedItems.isImageName(name), autoDownloadContactOk(friend, message))) { return; } }
+      else if (message == null || message.id == null || friend == null
       || !S11MediaRules.offerPreviewPushOk(SAutoDownload.loadPictures, SChatPrefs.photoPreviews, message.localSender, message.completed, SharedItems.isImageName(name), autoDownloadContactOk(friend, message))) { return; }
     string id = Crypto.hashToString(message.id);
     if (S11MediaRules.offerPreviews.raw(offerKeyOf(id)) == null) { return; }
@@ -115,12 +125,19 @@ export default async function (h) {
       if (autoLedger.HasPending) { armAutoRecheck(); } }`);
   r.recheck = whole(bodyOf(cs, 'private static void armAutoRecheck()'), `{ if (Interlocked.Exchange(ref autoRecheckArmed, 1) == 1) { return; }
       Task.Delay(S11ChatRules.AutoPendingRecheckMs).ContinueWith(_ => { Interlocked.Exchange(ref autoRecheckArmed, 0); autoDownloadSlotMaybeFree(); }); }`);
-  r.burst = /enqueueVoiceInfo\(v\.Key, v\.Value\);\s*\}\s*foreach \(KeyValuePair<string, FriendMessage> o in batch\.offers\)\s*\{\s*enqueueOfferPreview\(o\.Key\);\s*\}/.test(cs)
+  /* ★ photo1a re-base (2026-11-17): the burst's offer previews are still queued AFTER messagesDone and after the voices, now through the PO-1
+     gate: each loop body is `if (!(holdOpen && holdMedia(prepend, holdDoc, () => enqueue…))) { <the old statement> }` — held until the
+     shell's paint signal only when `holdOpen` (= !prepend && SpixiFlags.PhotoMediaAfterPaint), else (switch OFF, a load-more prepend,
+     no hold open, already released) the OLD statement `enqueueOfferPreview(o.Key);` runs where it always did. */
+  r.burst = /enqueueVoiceInfo\(v\.Key, v\.Value\);\s*\}\s*\}\s*foreach \(KeyValuePair<string, FriendMessage> o in batch\.offers\)\s*\{\s*if \(!\(holdOpen && holdMedia\(prepend, holdDoc, \(\) => enqueueOfferPreview\(o\.Key\)\)\)\)\s*\{\s*enqueueOfferPreview\(o\.Key\);\s*\}\s*\}/.test(cs)
+    && /bool holdOpen = !prepend && SpixiFlags\.PhotoMediaAfterPaint;/.test(cs)
     && cs.indexOf('foreach (KeyValuePair<string, FriendMessage> o in batch.offers)') > cs.indexOf('Utils.sendUiCommand(this, "messagesDone");');
   /* ALBUM: arg 20 */
   /* ★ re-based by S20 S (#1376, P29): arg 20 picks the S20 rule behind SpixiFlags.S20FileSize, the S11 rule = the OFF path;
      the S20 rule's own wiring is pinned by scripts/pins-s20/s-filesize.mjs */
-  r.arg20 = /string fSize = SpixiFlags\.S20FileSize \? fileSizeArgOf\(message, fBytes, fLocal\) : S11MediaRules\.offerSizeArg\(message\.localSender, message\.completed, fBytes\);/.test(cs)
+  /* ★ photo1a re-base (2026-11-17): arg 20 sits in the two-branch statement of PO-5 (rowOnce != null: fileSizeArgOnce with the path localArgOf
+     resolved; else the OLD statement text, checked here byte for byte); the push and the two notes after it are unchanged */
+  r.arg20 = /string fSize;\s*if \(rowOnce != null\)\s*\{\s*fSize = SpixiFlags\.S20FileSize \? fileSizeArgOnce\(message, fBytes, fLocal, fPath\) : S11MediaRules\.offerSizeArg\(message\.localSender, message\.completed, fBytes\);\s*\}\s*else\s*\{\s*fSize = SpixiFlags\.S20FileSize \? fileSizeArgOf\(message, fBytes, fLocal\) : S11MediaRules\.offerSizeArg\(message\.localSender, message\.completed, fBytes\);\s*\}/.test(cs)
     && /push\(batch, "addFile",[^;]*fGroup, fPlayed, fSize\);\s*noteThumbCandidate\(message, name, batch\);\s*noteOfferPreview\(message, name, batch\);/.test(cs);
   /* SAVE */
   r.saveBranch = /else if \(current_url\.StartsWith\("ixian:savePhoto:", StringComparison\.Ordinal\)\)\s*\{\s*onSavePhoto\(current_url\.Substring\("ixian:savePhoto:"\.Length\)\);\s*\}/.test(cs);

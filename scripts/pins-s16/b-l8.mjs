@@ -18,6 +18,7 @@
  *       malformed ignored, says "after a restart").
  * Deliberate breaks (S16 a-l8 report): one per key. */
 import { b2Kit } from '../pins-s9/b2-kit.mjs';
+// ★ photo1a re-base (2026-11-17): S16 FLAGS-i — init now holds 12 Logging.info (the ONE photo1a [FLAGS] line, PhotoOpenRules.flagsLine, after the fixb1 line); the claim "one fixed [FLAGS] line per flag family" is unchanged.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, readdirSync, join, sleep } = h;
   const raw = (f) => readFileSync(join(root, f), 'utf8');
@@ -232,8 +233,9 @@ export default async function (h) {
        ★ S20I re-base: + the s20addrhelp line (P32; executed in csh S20ITests.flag_line_through_the_real_init)
        ★ Session Safety re-base: + the ONE safety line (P33–P37; executed in csh SafetyRulesTests.flags_line_and_dev_arg)
        ★ perfb1 re-base: + the ONE line of the four speed switches (P38–P41; executed in csh PerfB1FlagsTests.init_defaults; pins-perfb1/f-flags)
-       ★ fixb1 re-base: + the ONE fixb1 line (P50 / P51; executed in csh FixB1Tests.new_flags_defaults_and_dev_mode; pins-fixb1/g-sparekeep) */
-    oneLine: (init.match(/Logging\.info\(/g) || []).length === 11 && /Logging\.info\(FixB1Rules\.flagsLine\(ConfirmSafeDefault, DividerHoverLine\)\);/.test(init) && /Logging\.info\(PerfB1Rules\.flagsLine\(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail\)\);/.test(init) && /Logging\.info\(SafetyRules\.flagsLine\(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker\)\);/.test(init) && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
+       ★ fixb1 re-base: + the ONE fixb1 line (P50 / P51; executed in csh FixB1Tests.new_flags_defaults_and_dev_mode; pins-fixb1/g-sparekeep)
+       ★ photo1a re-base: + the ONE photo1a line (PhotoOpenRules.flagsLine; pins-photo1a/a-open holds its place and shape) */
+    oneLine: (init.match(/Logging\.info\(/g) || []).length === 12 && /Logging\.info\(PhotoOpenRules\.flagsLine\(PhotoMediaAfterPaint, PhotoFewerFileChecks\)\);/.test(init) && /Logging\.info\(FixB1Rules\.flagsLine\(ConfirmSafeDefault, DividerHoverLine\)\);/.test(init) && /Logging\.info\(PerfB1Rules\.flagsLine\(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail\)\);/.test(init) && /Logging\.info\(SafetyRules\.flagsLine\(SafeAppId, SafeStorage, SafePick, NativeConfirm, HistoryLock, WinAppMarker\)\);/.test(init) && /Logging\.info\(S16PassRules\.flagsLine\(SecureWalletPass, MediaInputGate\)\);/.test(init)
       && /Logging\.info\(S17Rules\.flagLine\(S17Bridge\)\);/.test(init) && /Logging\.info\(S17MomentRules\.flagLine\(S17Moments\)\);/.test(init)
       && /Logging\.info\(S11MediaRules\.fileSizeFlagLine\(S20FileSize\)\);/.test(init) && /Logging\.info\(S20GRules\.flagLine\(S20G\)\);/.test(init) && !/DtTitleBar/.test(init)
       && /Logging\.info\(V1AMRules\.flagLineIxiHelp\(V1IxiHelp\)\);/.test(init) && /Logging\.info\(V1AMRules\.flagLineHints\(V1Hints\)\);/.test(init)

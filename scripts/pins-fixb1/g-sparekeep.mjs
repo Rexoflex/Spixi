@@ -19,6 +19,7 @@
  * line moved before the perfb1 line → red `oneLineAfterPerfb1`; `dividerline=` → `divider=` → red `lineWords`. Restored. */
 import { createHash } from 'node:crypto';
 import { readFileSync as readBytes } from 'node:fs';
+// ★ photo1a re-base (2026-11-17): fixb1 NEW FLAGS (the fixb1 line is no longer init's last statement: an optional EXACT photo1a tail may follow: 2 computes + the one `Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks));`) · fixb1 item 7 FLAGSFILE (new SHA-256 b89f31b4… after a look at `git diff -- Spixi/Utils/SpixiFlags.cs`: pure insertion, 0 deleted lines, no #if — 2 key consts, 2 `{ get; private set; } = false` props, `int qa = 1, qf = 1;`, 2 `Preferences.Default.Get(…, 1)` reads inside the try, 2 `effectiveFlag` computes, ONE flagsLine log line) — same claims, new shape.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, readdirSync, existsSync, join } = h;
   const raw = (f) => readFileSync(join(root, f), 'utf8').replace(/^﻿/, '').replace(/\r\n/g, '\n');
@@ -45,6 +46,13 @@ export default async function (h) {
   const optInLeft = [...walk('Spixi'), ...walk('scripts/csh')].filter((f) => /\beffectiveOptIn\b/.test(rd(f)));
   const PERF_LINE = 'Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));';
   const FIX_LINE = 'Logging.info(FixB1Rules.flagsLine(ConfirmSafeDefault, DividerHoverLine));';
+  /* ★ photo1a re-base (2026-11-17): fixb1 NEW FLAGS — the fixb1 line is no longer the LAST statement of init: the lead's photo1a block
+   * follows it (two computes + the photo1a [FLAGS] line; pins-photo1a/a-open holds that block). The re-based claim: the fixb1 line is
+   * still ONE and still comes right after the perfb1 line, and what may follow it is nothing (the pre-batch shape) or EXACTLY the
+   * photo1a block — any other trailing statement is red. */
+  const PHOTO_TAIL = ['PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);', 'PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);',
+    'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks));'];
+  const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const RU = rd('Spixi/Utils/PerfB1Rules.cs');
   const FX = rd('Spixi/Utils/FixB1Rules.cs');
 
@@ -74,7 +82,7 @@ export default async function (h) {
       && count(SF, 'ConfirmSafeDefault = ') === 1 && count(SF, 'DividerHoverLine = ') === 1,
     oneLineAfterPerfb1: count(SF, 'FixB1Rules.flagsLine(') === 1
       && new RegExp(PERF_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*ConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fc\\);\\s*DividerHoverLine = S16PassRules\\.effectiveFlag\\(dev, fd\\);\\s*'
-        + FIX_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\}$').test(init),
+        + FIX_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:\\s*' + PHOTO_TAIL.map(reEsc).join('\\s*') + ')?\\s*\\}$').test(init),   // ★ photo1a re-base: the optional exact photo1a tail
     lineWords: /public static string flagsLine\(bool confirmDefault, bool dividerLine\)\s*\{\s*return "\[FLAGS\] confirmdefault=" \+ b\(confirmDefault\) \+ " dividerline=" \+ b\(dividerLine\);\s*\}/.test(FX)
       && /private static string b\(bool v\) => v \? "1" : "0";/.test(FX),
     noDevControl: !/ConfirmSafeDefault|DividerHoverLine|confirmdefault|dividerline/.test(rd('Spixi/Pages/Dev/DevPage.xaml.cs')),
@@ -93,7 +101,7 @@ export default async function (h) {
     '★ fixb1 item 7 HARNESS: FixB1Tests holds the flag-line, new-flag, sparekeep-matrix and fresh-start tests and csh.csproj compiles FixB1Rules.cs — failing: ' + JSON.stringify(F(hz)));
 
   /* ── FLAGSFILE (★ #46 r4, R4-3): SpixiFlags.cs WHOLE — the design answer is to freeze, not to add patterns ── */
-  const FLAGS_FROZEN = 'c05a8f00d369f40febbe7b24834960b7b54366d24b6bf5ad47702be60754d24f';
+  const FLAGS_FROZEN = 'b89f31b4b3f37d7f2c61c1b6bd3f73f4c187d11f747725ec2c3bfe26521f3e2f';   // ★ photo1a re-base (2026-11-17): was c05a8f00d369… (the base blob, git HEAD); now the base + the lead's photo1a block (30 inserted lines, 0 deleted — see the comment line above `export default`)
   const flagsGot = createHash('sha256').update(readBytes(join(root, 'Spixi/Utils/SpixiFlags.cs'))).digest('hex');
   ok(flagsGot === FLAGS_FROZEN,
     '★ fixb1 item 7 FLAGSFILE (#46 r4 R4-3): Spixi/Utils/SpixiFlags.cs is held WHOLE by SHA-256 of its EXACT bytes — init() reads every switch there, and a statement the keys above do not name (`#if WINDOWS / dev = true; fc = 0; xc = 0; / #endif` before `SecureWalletPass = …`, `if (System.OperatingSystem.IsWindows()) { fc = 0; }`, a comment line-ended by a lone CR / U+0085 / U+2028 / U+2029) would switch the safety flags per platform where the csh harness never looks. A line-end or BOM change also turns this red. Re-base ONLY after a look at the diff (#1596; pins-perfb1toggle/a-extra counts mentions in this file and does not conflict). want ' + FLAGS_FROZEN.slice(0, 12) + '… got ' + flagsGot);

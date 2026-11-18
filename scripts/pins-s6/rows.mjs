@@ -17,6 +17,7 @@
  *   typed-bubbles createFileGoneBubble: class 'c-fbubble c-fbubble--gone' → 'c-fbubble--gone'  → #1190 shell a11y + menu (goneIsFbubble, menuOnBubble)
  *   chat.html buildFileRow (unavailable): status → null                                         → #1190 shell a11y + menu (tickKept, ariaSuffix)
  *   contact_details landSharedDeleteFocus: `if (!f) return;` → `return;`                        → #1190 shell chat-info delete focus */
+// ★ photo1a re-base (2026-11-17): #1190 C# `last` (arg 16 in the two-branch localArgOf statement, the old call as the else) · #1190 (#46 r4 M1) C# `gate` (refreshFileRow's first statement is now the delete-generation bump) — same claims, new shape.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, join, JSDOM, VirtualConsole, sleep } = h;
   const rd = (p) => readFileSync(join(root, p), 'utf8');
@@ -235,7 +236,11 @@ export default async function (h) {
   /* ———— #1190 C#: addFile carries fLocal LAST (arg 16) from SharedItems.localArgOf; the dev line logs the case word only ———— */
   await guard('#1190 C# addFile', async () => {
     const sc = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.xaml.cs'));
-    const last = /string fLocal\s*=\s*SharedItems\.localArgOf\(message,\s*out string fCase\);/.test(sc)
+    /* ★ photo1a re-base (2026-11-17): arg 16 is still `SharedItems.localArgOf` — now in a two-branch statement: a batch load with PO-5 ON
+       (`rowOnce != null`) takes the overload that also hands back the path it resolved (`out fPath`, one file-check pass per row); every
+       other row (a live insert, a re-push, the switch OFF) runs the OLD call `fLocal = SharedItems.localArgOf(message, out fCase);` (the
+       declarations moved up: `string fLocal; string fCase;`). Same pushed argument. */
+    const last = /string fLocal;\s*string fCase;\s*string\? fPath = null;\s*if \(rowOnce != null\)\s*\{\s*fLocal = SharedItems\.localArgOf\(message,\s*out fCase,\s*out fPath\);\s*\}\s*else\s*\{\s*fLocal = SharedItems\.localArgOf\(message,\s*out fCase\);\s*\}/.test(sc)
       && /push\(batch,\s*"addFile",[^;]*fSent\.ToString\(\),\s*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed,\s*fSize\);/.test(sc);   // ★ #1208 re-base: + arg 17 fVoice after fLocal · ★ S9 A1 re-base: + arg 18 fGroup · ★ S11 G re-base (#1263): + arg 20 fSize (pins-s11/g-cs.mjs)
     const devLine = /if\s*\(message\.localSender\s*&&\s*SharedItems\.isImageName\(name\)\)\s*\{\s*P1Perf\.line\("filelocal sent-image "\s*\+\s*fCase\);\s*\}/.test(sc);
     const si = stripCode(rd('Spixi/Utils/SharedItems.cs'));
@@ -298,7 +303,8 @@ export default async function (h) {
     r.resetOnFullLoad = /if \(!prepend\)\s*\{\s*lock \(fileRowsShown\)\s*\{\s*fileRowsShown\.Clear\(\);\s*\}\s*\}\s*$/.test(ld.trimEnd() + '\n')
       && (ld.match(/fileRowsShown\.Clear\(\)/g) || []).length === 2;   // + the empty-history path
     r.dropOnDelete = /lock \(fileRowsShown\)\s*\{\s*fileRowsShown\.Remove\(Crypto\.hashToString\(msg_id\)\);\s*\}\s*Utils\.sendUiCommand\(this, "deleteMessage"/.test(sc);
-    r.gate = /public bool refreshFileRow\(FriendMessage\? message, int channel\)\s*\{\s*if \(message == null \|\| message\.type != FriendMessageType\.fileHeader \|\| !hasLoadedFileRow\(message\.id, channel\)\)\s*\{\s*return false;\s*\}\s*fileRowOnlyPass = true;\s*try\s*\{\s*insertMessage\(message, channel, null\);\s*\}\s*finally\s*\{\s*fileRowOnlyPass = false;\s*\}\s*return true;\s*\}/.test(sc)
+    /* ★ photo1a re-base (2026-11-17): PO-5's delete generation is bumped by ONE statement at the top of refreshFileRow (an in-app delete notification, held or not); the gate below it is unchanged */
+    r.gate = /public bool refreshFileRow\(FriendMessage\? message, int channel\)\s*\{\s*Interlocked\.Increment\(ref fileDeleteGen\);\s*if \(message == null \|\| message\.type != FriendMessageType\.fileHeader \|\| !hasLoadedFileRow\(message\.id, channel\)\)\s*\{\s*return false;\s*\}\s*fileRowOnlyPass = true;\s*try\s*\{\s*insertMessage\(message, channel, null\);\s*\}\s*finally\s*\{\s*fileRowOnlyPass = false;\s*\}\s*return true;\s*\}/.test(sc)
       && /\[ThreadStatic\] private static bool fileRowOnlyPass;/.test(sc);
     r.held = /public bool hasLoadedFileRow\(byte\[\]\? id, int channel\)\s*\{\s*if \(id == null \|\| channel != selectedChannel\)\s*\{\s*return false;\s*\}\s*lock \(fileRowsShown\)\s*\{\s*return fileRowsShown\.Contains\(Crypto\.hashToString\(id\)\);/.test(sc);
     r.fileOnly = /private void insertMessage\(FriendMessage message, int channel, UiBatch\? batch\)\s*\{\s*if\(channel != selectedChannel\)\s*\{\s*return;\s*\}\s*bool fileRowOnly = fileRowOnlyPass;\s*if \(fileRowOnly && message\.type != FriendMessageType\.fileHeader\)\s*\{\s*return;\s*\}/.test(sc);

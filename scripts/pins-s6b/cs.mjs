@@ -18,6 +18,7 @@
  *   (#46 r1) replyNameOf: the room branch → friend.nickname · replyCandidateOf: drop the memo sequence test · matchReply: `self` → "" ·
  *   loadMessages: the prefetch moved inside the lock · HomePage rowTime → lastmsg.timestamp · SharedItems: strip dropped · onQuoteJump: the busy flag
  *   SingleChatPage recheckBurstFileRows: `!= "1"` → `== "1"`                            → #1202 delete-during-load */
+// ★ photo1a re-base (2026-11-17): #1202 C# `after` + `rec` — the re-check is behind PhotoOpenRules.recheckFileRows (OFF = always; ON = only when the delete generation moved, sampled before the read loop) and the three enqueue loops are the PO-1 hold's; the record of fLocal follows the two-branch localArgOf statement. Same claim: a file deleted during a load is re-pushed after the load's batch.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, readdirSync, join } = h;
   const rd = (p) => readFileSync(join(root, p), 'utf8');
@@ -340,9 +341,18 @@ export default async function (h) {
     const lm = bodyOf(SCP, 'public void loadMessages()');
     const iDone = lm.lastIndexOf('Utils.sendUiCommand(this, "messagesDone");');
     const iDoneP = lm.lastIndexOf('Utils.sendUiCommand(this, "messagesDone", show_more);');
-    const iRe = lm.search(/enqueueThumb\(t\.Key,\s*t\.Value\);\s*\}\s*recheckBurstFileRows\(batch,\s*readChannel\);\s*foreach\s*\(KeyValuePair<string, FriendMessage> v in batch\.voices\)\s*\{\s*enqueueVoiceInfo\(v\.Key,\s*v\.Value\);\s*\}\s*foreach\s*\(KeyValuePair<string, FriendMessage> o in batch\.offers\)\s*\{\s*enqueueOfferPreview\(o\.Key\);\s*\}\s*\}\s*if\s*\(\s*zeroedUnread\s*\)/);   /* ★ #1208 re-base: the voice waveforms queue right after the re-check · ★ S11 G re-base (#1263 c): then the offer previews (pins-s11/g-cs.mjs) */
-    const after = iRe > iDone && iRe > iDoneP && iDone > 0 && iDoneP > 0 && (lm.match(/recheckBurstFileRows\(/g) || []).length === 1;
-    const rec = /string fLocal\s*=\s*SharedItems\.localArgOf\(message,\s*out string fCase\);[\s\S]{0,400}?batch\?\.fileRows\.Add\(new KeyValuePair<FriendMessage, string>\(message,\s*fLocal\)\);[\s\S]{0,1400}?push\(batch,\s*"addFile",[^;]*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed,\s*fSize\);/.test(SCP);   /* ★ #1208 re-base: + arg 17 fVoice (and its comment) · ★ S9 A1 re-base: + arg 18 fGroup · ★ S11 G re-base (#1263): + arg 20 fSize and its size read (window 900 → 1400; pins-s11/g-cs.mjs) */
+    /* ★ photo1a re-base (2026-11-17): the re-check still runs ONCE, AFTER the batch's pushes (clearMessages · addMessages · messagesDone, or the prepend) and
+       between the thumbnail and the voice loops — now (a) behind PhotoOpenRules.recheckFileRows(SpixiFlags.PhotoFewerFileChecks, deleteGen0, <the generation now>):
+       the switch OFF = always (the old unconditional statement), ON = only when an in-app delete notification moved the page's delete generation while the load
+       ran; (b) the generation is sampled BEFORE the read loop (`deleteGen0`, before friend.getMessages), so a delete that lands during the read is seen; (c) the three
+       enqueue loops are the PO-1 hold's (`if (!(holdOpen && holdMedia(…))) { <old statement> }`, pins-photo1a/a-open). A file deleted during the load is
+       still re-pushed after the stale batch. */
+    const iRe = lm.search(/enqueueThumb\(t\.Key,\s*t\.Value\);\s*\}\s*\}\s*if \(PhotoOpenRules\.recheckFileRows\(SpixiFlags\.PhotoFewerFileChecks, deleteGen0, Volatile\.Read\(ref fileDeleteGen\)\)\)\s*\{\s*recheckBurstFileRows\(batch,\s*readChannel\);\s*\}\s*foreach\s*\(KeyValuePair<string, FriendMessage> v in batch\.voices\)\s*\{\s*if \(!\(holdOpen && holdMedia\(prepend, holdDoc, \(\) => enqueueVoiceInfo\(v\.Key, v\.Value\)\)\)\)\s*\{\s*enqueueVoiceInfo\(v\.Key,\s*v\.Value\);\s*\}\s*\}\s*foreach\s*\(KeyValuePair<string, FriendMessage> o in batch\.offers\)\s*\{\s*if \(!\(holdOpen && holdMedia\(prepend, holdDoc, \(\) => enqueueOfferPreview\(o\.Key\)\)\)\)\s*\{\s*enqueueOfferPreview\(o\.Key\);\s*\}\s*\}\s*\}\s*if\s*\(\s*zeroedUnread\s*\)/);   /* ★ #1208 re-base: the voice waveforms queue right after the re-check · ★ S11 G re-base (#1263 c): then the offer previews (pins-s11/g-cs.mjs) */
+    const gen0 = lm.indexOf('int deleteGen0 = Volatile.Read(ref fileDeleteGen);');
+    const after = iRe > iDone && iRe > iDoneP && iDone > 0 && iDoneP > 0 && (lm.match(/recheckBurstFileRows\(/g) || []).length === 1
+      && gen0 > 0 && gen0 < lm.indexOf('friend.getMessages(') && (lm.match(/int deleteGen0 =/g) || []).length === 1;
+    /* ★ photo1a re-base (2026-11-17): the record of the row's fLocal now follows the two-branch localArgOf statement (the OLD call is its else branch) */
+    const rec = /fLocal = SharedItems\.localArgOf\(message,\s*out fCase\);\s*\}[\s\S]{0,600}?batch\?\.fileRows\.Add\(new KeyValuePair<FriendMessage, string>\(message,\s*fLocal\)\);[\s\S]{0,2200}?push\(batch,\s*"addFile",[^;]*fTransfer,\s*fLocal,\s*fVoice,\s*fGroup,\s*fPlayed,\s*fSize\);/.test(SCP);   /* ★ #1208 re-base: + arg 17 fVoice (and its comment) · ★ S9 A1 re-base: + arg 18 fGroup · ★ S11 G re-base (#1263): + arg 20 fSize and its size read (window 900 → 1400; pins-s11/g-cs.mjs) · ★ photo1a re-base: window 1400 → 2200 (the two-branch fSize) */
     const re = bodyOf(SCP, 'private void recheckBurstFileRows(UiBatch batch, int channel)');
     const rule = /foreach\s*\(KeyValuePair<FriendMessage, string> row in batch\.fileRows\)\s*\{\s*try\s*\{\s*if\s*\(\s*row\.Value\s*==\s*"1"\s*&&\s*SharedItems\.localArgOf\(row\.Key,\s*out _\)\s*!=\s*"1"\s*\)\s*\{\s*refreshFileRow\(row\.Key,\s*channel\);\s*\}/.test(re);
     const field = /public readonly List<KeyValuePair<FriendMessage, string>> fileRows = new\(\);/.test(bodyOf(SCP, 'private sealed class UiBatch'));

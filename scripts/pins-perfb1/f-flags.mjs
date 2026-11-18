@@ -23,6 +23,7 @@
  * leaveDevMode's `= false` → `= true` → CSH red (PerfB1FlagsTests.leaving_dev_mode_… / after_leaving_dev_mode_…); #46 r2 R2-1:
  * the wipe's call removed → red `bothCallersNoThird` + `wipeRightAfterTheClear`; moved before the Clear → red
  * `wipeRightAfterTheClear`; a third caller (enableDevMode) → red `bothCallersNoThird`. Restored. */
+// ★ photo1a re-base (2026-11-17): perfb1 F — init's tail may end with the lead's photo1a block (2 computes + the photo1a [FLAGS] line, exact statements) after the fixb1 group: the perfb1 claim (four keys, two computes, ONE perfb1 line) is unchanged.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, existsSync, join } = h;
   const raw = (f) => readFileSync(join(root, f), 'utf8');
@@ -57,8 +58,12 @@ export default async function (h) {
    * an OPTIONAL trailing group here (as pins-v1am/c-csharp does), so a fixb1-only change no longer turns this key red (#1596 smallest re-base) */
   const fixTail = ['ConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fc);', 'DividerHoverLine = S16PassRules.effectiveFlag(dev, fd);',
     'Logging.info(FixB1Rules.flagsLine(ConfirmSafeDefault, DividerHoverLine));'];
+  /* ★ photo1a re-base (2026-11-17): the lead's photo1a block (two computes + its ONE [FLAGS] line) follows the fixb1 line — a second
+   * OPTIONAL trailing group, EXACT statements (pins-photo1a/a-open holds the block in full), so a photo1a-only change does not turn this key red */
+  const photoTail = ['PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);', 'PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);',
+    'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks));'];
   const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '(?:\\s*' + fixTail.map(esc).join('\\s*') + ')?\\s*\\}$');
+  const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '(?:\\s*' + fixTail.map(esc).join('\\s*') + '(?:\\s*' + photoTail.map(esc).join('\\s*') + ')?)?\\s*\\}$');
   const fl = {
     found: init.length > 0 && iTry > 0 && iCatch > iTry,
     keys: /public const string WarmOnIdleKey = "flagWarmOnIdle";/.test(SF) && /public const string SpareRearmKey = "flagSpareRearm";/.test(SF)

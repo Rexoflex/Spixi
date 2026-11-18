@@ -82,6 +82,8 @@ readers over PO-0 / PO-1 / PO-5 / W). The security-only pass (Fable 5.2) read PO
 finding; after round 2 the `[FLAGS]` line only lost two fixed tokens; no Fable reader read the branch after round 2 (the
 limit).
 
+**After round 5, the full smoke** (the last gate): **The full smoke of the final tree (2026-11-18 03:00–03:50, cloud twin, jsdom 29.1.1, TZ=America/Los_Angeles): 6588 pass + 2 red + the 2 KNOWN — NOT `BASELINE OK`** (expected 6590 = 6564 + 26). The two red rows are inline / module pins that the affected-pin runs did not select (L236): (1) the inline N51 pin `smoke-test.mjs:13167` requires `private void onLoad() { shellOverlayOpen = false;` — PO-0's `long onloadT0 = P1Perf.now();` now stands before it (direction: move the clock after that statement, or re-base N51 naming the clock); (2) `pins-s15/c-transport` (S15 O-11, a SECURITY pin): `Utils.sendUiCommand` must be the only composer of `executeUiCommand(` in `Spixi/` — PO-1's `PhotoOpenRules.uiCommandText` is a second composer (byte-identical, base64 of every argument, csh-proven), so the pin's rule "a value C# did not encode can no longer reach a JS literal" needs a security view (direction: route `sendUiCommand` itself through one shared builder, or a Fable 5.2-read re-base that admits exactly that builder). Both are code / pin changes after the last round: not made (rule 8). 
+
 Code files as the round-5 reader read them (SHA-256): `SingleChatPage.xaml.cs` 2fd34e1c… · `PhotoOpenRules.cs`
 cc61527d… · `SharedItems.cs` 5edff441… · `SpixiFlags.cs` b89f31b4… · `DownloadsPage.xaml.cs` d8bfebe6… ·
 `SettingsPage.xaml.cs` b7dd346e… · `adb-walk.ps1` 2fc646d6… · `adb-walk-parse.ps1` 319d7f18….

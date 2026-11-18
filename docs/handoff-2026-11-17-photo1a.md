@@ -1,7 +1,7 @@
 # Handoff 2026-11-17 (Photo open 1a) — PO-0, PO-1, PO-5 and the walk step are built; PO-3 / PO-6 are parked (the Fable 5.2 limit); the #46 loop ended "CLEAN NOT CLAIMED" at round 5 on a pin gap — NOT delivered
 
 File name: `docs/handoff-2026-11-17-photo1a.md`. Read this FIRST, then DECISIONS #1715–#1725. Number block of this
-session: #1715–#1734 (used: #1715–#1725; #1726–#1734 stay empty) · lessons L231–L236 (used: L231–L235) · packets
+session: #1715–#1734 (used: #1715–#1725; #1726–#1734 stay empty) · lessons L231–L236 (used: all six) · packets
 P65–P70 (used: P65, P66, P69; P67 / P68 parked in `docs/parked/`; P70 stays empty). The main chat gives the next block.
 
 ## 0 · State
@@ -9,8 +9,9 @@ P65–P70 (used: P65, P66, P69; P67 / P68 parked in `docs/parked/`; P70 stays em
   CLEAN) · base: `redesign/frontend` @ `c0a76176` "Merge pull request #14 from Rexoflex/work/docs-2026-11-17" · the whole
   branch as one patch: `photo1a-branch.patch` (sent to Damir in the session chat; also the project doc pointer in the
   status doc) · merge = Damir.
-- Smoke: the final tree — see the status doc `claude/session-photo1a-status.md` (expected `BASELINE OK 6590` = 6564 +
-  26: `pins-photo1a/a-open` 11 + `c-walk` 15; the re-based keys add no row) · baseline: `redesign-ci` on `3066e658` and
+- Smoke: the final tree: **6588 pass + 2 red + the 2 KNOWN — NOT `BASELINE OK`** (expected 6590 = 6564 + 26: `pins-photo1a/a-open`
+  11 + `c-walk` 15): the inline N51 pin (onLoad must start with `shellOverlayOpen = false;`) and `pins-s15/c-transport`
+  (S15 O-11: `sendUiCommand` the only composer of `executeUiCommand(`; `PhotoOpenRules.uiCommandText` is a second one) — #1724 · baseline: `redesign-ci` on `3066e658` and
   `c0a76176` `BASELINE OK — 6564 / the 2 KNOWN`, CSH 633; this session's own run of the untouched tree: 6553 ✓ + 11 red
   rows explained (2 inline rows need `../Ixian-Core` beside the copy — the copy lacked it; 9 rows of `pins-s20/r-apps-run`
   and `pins-s14/a1-backup-back` green alone) · tools: jsdom 29.1.1 · eslint 10.14.0 · globals 17.14.0 · tree-sitter

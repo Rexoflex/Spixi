@@ -1475,11 +1475,11 @@ namespace SPIXI
 
         private void onLoad()
         {
-            long onloadT0 = P1Perf.now();   // ★ photo1a PO-0: the `[P1] chat onload-main` clock (0 in a store build)
             // N51 (N50 loop A-3/B-4 lesson): a shell reload (reloadAllPages on a theme
             // or language flip) builds a fresh document with no overlay open, and the
             // mirror only reports CHANGES — reset here or a stale true swallows back.
             shellOverlayOpen = false;
+            long onloadT0 = P1Perf.now();   // ★ photo1a PO-0: the `[P1] chat onload-main` clock (0 in a store build); after the N51 reset, which stays the first statement (review round 5, the smoke)
 
             Utils.sendUiCommand(this, "onChatScreenReady", friend.walletAddress.ToString());
 

@@ -57,7 +57,10 @@ public class FixB2PayTests
         Assert.AreEqual(want, mine[0], why + ": the line matches the state");
         int fix = L.FindIndex(l => l.StartsWith("[FLAGS] confirmdefault=", StringComparison.Ordinal));
         Assert.IsTrue(fix >= 0 && L.IndexOf(mine[0]) == fix + 1, why + ": right after the fixb1 line — " + string.Join("|", L));
-        Assert.AreEqual(L.Count - 1, L.IndexOf(mine[0]), why + ": the last line of init");
+        // ★ photo1b re-base: SpixiFlags.readPhoto1b (the last call of init) logs its one [FLAGS] photo1b line AFTER this one, so this
+        // line is the one before the last, and the photo1b line is the very last (it was "the last line of init" before photo1b).
+        Assert.AreEqual(L.Count - 2, L.IndexOf(mine[0]), why + ": the last line of init but the photo1b one");
+        Assert.IsTrue(L[L.Count - 1].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": the photo1b line is the very last line — " + string.Join("|", L));
     }
 
     [TestMethod]

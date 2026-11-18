@@ -82,6 +82,8 @@ export default async function (h) {
         + FIX_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         /* ★ re-based by fixb2 item 4: after the fixb1 line ONLY the item-4 group may follow (pins-fixb2/d-pay-confirm FLAGS holds it in full) */
         + '(?:\\s*PayConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fp\\);\\s*MiniAppConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fm\\);\\s*Logging\\.info\\(FixB2Rules\\.flagsLine\\(PayConfirmSafeDefault, MiniAppConfirmSafeDefault\\)\\);)?'
+        /* ★ re-based by photo1b (flags): after the fixb2 group ONLY the one statement `readPhoto1b();` (SpixiFlags' own block: its five reads, [FLAGS] photo1b line) may follow — exact text, exact place, at the very end of init */
+        + '(?:\\s*readPhoto1b\\(\\);)?'
         + '\\s*\\}$').test(init),
     lineWords: /public static string flagsLine\(bool confirmDefault, bool dividerLine\)\s*\{\s*return "\[FLAGS\] confirmdefault=" \+ b\(confirmDefault\) \+ " dividerline=" \+ b\(dividerLine\);\s*\}/.test(FX)
       && /private static string b\(bool v\) => v \? "1" : "0";/.test(FX),
@@ -101,7 +103,7 @@ export default async function (h) {
     '★ fixb1 item 7 HARNESS: FixB1Tests holds the flag-line, new-flag, sparekeep-matrix and fresh-start tests and csh.csproj compiles FixB1Rules.cs — failing: ' + JSON.stringify(F(hz)));
 
   /* ── FLAGSFILE (★ #46 r4, R4-3): SpixiFlags.cs WHOLE — the design answer is to freeze, not to add patterns ── */
-  const FLAGS_FROZEN = '8550c50fbc27edd8c5cb1c4bc173d7a9afa301a3ba4fa996c1dfb6d6a7c9c2b1';   // ★ re-based by fixb2 #46 r1 (comment text; was eb62ae76f0b8…) · before it: re-based by fixb2 item 4 (was c05a8f00d369…)
+  const FLAGS_FROZEN = 'b43a646b50be06bd43d8ff334c52578fd6eb32e78ff1cd271f9947048ac9c908';   // ★ re-based by photo1b fix round 1 (O3-3 / O3-4: comment words of readPhoto1b + `Photo1bCapWords` public → private; diff read: no code change besides that modifier; the file is now 80 pure insertions over HEAD, 0 deletions; was 961afa6d5c66…) · ★ re-based by photo1b (flags; #1596 / #1634: the diff was READ — 79 pure insertions, 0 deletions: the five-key photo1b block with its own read / [FLAGS] line before leaveDevMode, and ONE `readPhoto1b();` call as the last statement of init; no #if / platform arm / change to an existing read; was 8550c50fbc27…) · before it: re-based by fixb2 #46 r1 (comment text; was eb62ae76f0b8…) · before it: re-based by fixb2 item 4 (was c05a8f00d369…)
   const flagsGot = createHash('sha256').update(readBytes(join(root, 'Spixi/Utils/SpixiFlags.cs'))).digest('hex');
   ok(flagsGot === FLAGS_FROZEN,
     '★ fixb1 item 7 FLAGSFILE (#46 r4 R4-3): Spixi/Utils/SpixiFlags.cs is held WHOLE by SHA-256 of its EXACT bytes — init() reads every switch there, and a statement the keys above do not name (`#if WINDOWS / dev = true; fc = 0; xc = 0; / #endif` before `SecureWalletPass = …`, `if (System.OperatingSystem.IsWindows()) { fc = 0; }`, a comment line-ended by a lone CR / U+0085 / U+2028 / U+2029) would switch the safety flags per platform where the csh harness never looks. A line-end or BOM change also turns this red. Re-base ONLY after a look at the diff (#1596; pins-perfb1toggle/a-extra counts mentions in this file and does not conflict). want ' + FLAGS_FROZEN.slice(0, 12) + '… got ' + flagsGot);

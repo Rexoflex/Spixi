@@ -129,6 +129,85 @@ namespace SPIXI
          *  displaySpixiAlert). */
         public static bool MiniAppConfirmSafeDefault { get; private set; } = true;
 
+        /* ★ photo1b (Chat shell batch, #1641 / #1742, contract-photo1b § 4): five switches for the CHAT SHELL's new paths. Each
+         * one adds ITS cap word to the chat page's setCaps text (SingleChatPage, one line); the shell reads bridge.cap('<word>')
+         * at the moment it decides, and a cap absent = exactly the OLD path. Same rule as every switch above: absent = ON, a
+         * stored 0 acts ONLY while dev mode is on (S16PassRules.effectiveFlag), read ONCE (readPhoto1b, the last call of init).
+         * The start value of each property is `false` (the SpareKeepShortSleep pattern): before init has run, the chat page
+         * gets no cap = the old path; init then sets the real value. NO dev-page toggle (none of Fix batch 2's switches has
+         * one either): a stored 0 is set the way the others are, e.g. by a dev build writing the preference. The five keys are
+         * the ONLY new storage; nothing else is logged but the one [FLAGS] photo1b line (fixed words + 0|1). */
+        public const string PhotoTileLiteKey = "flagPhotoTileLite";                 // int pref; absent = default (1) — ★ photo1b PO-4 (cap photoTileLite)
+        public const string VoiceWaveLiteKey = "flagVoiceWaveLite";                 // int pref; absent = default (1) — ★ photo1b PO-6 shell (cap voiceWaveLite)
+        public const string HistoryInsertOnlyKey = "flagHistoryInsertOnly";         // int pref; absent = default (1) — ★ photo1b HV-1 (cap olderInsert)
+        public const string HistoryAnchorOneTaskKey = "flagHistoryAnchorOneTask";   // int pref; absent = default (1) — ★ photo1b HV-3 (cap olderAnchor1)
+        public const string FadeFromBandKey = "flagFadeFromBand";                   // int pref; absent = default (1) — ★ photo1b HV-4 (cap fadeBand)
+
+        /** PO-4: the lighter photo tile (cap `photoTileLite`). OFF = exactly the old tile. Start value false = the old path until init. */
+        public static bool PhotoTileLite { get; private set; } = false;
+        /** PO-6 (shell half): the lighter voice row (cap `voiceWaveLite`). OFF = exactly the old row. Start value false until init. */
+        public static bool VoiceWaveLite { get; private set; } = false;
+        /** HV-1: an older page is inserted, not the whole log rebuilt (cap `olderInsert`). OFF = the full render. Start value false until init. */
+        public static bool HistoryInsertOnly { get; private set; } = false;
+        /** HV-3: the scroll anchor is taken and restored in one task (cap `olderAnchor1`). OFF = the old two-push anchor. Start value false until init. */
+        public static bool HistoryAnchorOneTask { get; private set; } = false;
+        /** HV-4: the composer fade pass walks the visible band only (cap `fadeBand`). OFF = the old full walk. Start value false until init. */
+        public static bool FadeFromBand { get; private set; } = false;
+
+        /** The cap words of the five switches, in the ORDER of the chat page's text (the same order as photo1bFlagsLine). Private: the tests reach the words through photo1bChatCaps. */
+        private static readonly string[] Photo1bCapWords = { "photoTileLite", "voiceWaveLite", "olderInsert", "olderAnchor1", "fadeBand" };
+
+        /** The one start line: `[FLAGS] photo1b tilelite=<0|1> voicelite=<0|1> olderinsert=<0|1> olderanchor=<0|1> fadeband=<0|1>`
+         *  (fixed words and 0|1 only; written on EVERY build — it is the BUILD row of the walk). */
+        public static string photo1bFlagsLine(bool tileLite, bool voiceLite, bool olderInsert, bool olderAnchor, bool fadeBand)
+        {
+            return "[FLAGS] photo1b tilelite=" + (tileLite ? "1" : "0") + " voicelite=" + (voiceLite ? "1" : "0")
+                + " olderinsert=" + (olderInsert ? "1" : "0") + " olderanchor=" + (olderAnchor ? "1" : "0")
+                + " fadeband=" + (fadeBand ? "1" : "0");
+        }
+
+        /** The comma-led cap text of the ON switches, in the fixed order `,photoTileLite,voiceWaveLite,olderInsert,olderAnchor1,fadeBand`;
+         *  a switch that is OFF drops only its own word; all OFF = "" (the chat page then adds nothing = the old paths). */
+        public static string photo1bChatCaps(bool tileLite, bool voiceLite, bool olderInsert, bool olderAnchor, bool fadeBand)
+        {
+            return (tileLite ? "," + Photo1bCapWords[0] : "") + (voiceLite ? "," + Photo1bCapWords[1] : "")
+                + (olderInsert ? "," + Photo1bCapWords[2] : "") + (olderAnchor ? "," + Photo1bCapWords[3] : "")
+                + (fadeBand ? "," + Photo1bCapWords[4] : "");
+        }
+
+        /** The caps text SingleChatPage appends (`caps += SpixiFlags.Photo1bChatCaps;`): the five switches as they stand now. */
+        public static string Photo1bChatCaps => photo1bChatCaps(PhotoTileLite, VoiceWaveLite, HistoryInsertOnly, HistoryAnchorOneTask, FadeFromBand);
+
+        /** Read ONCE, the last call of init(): the five int preferences, absent = ON, a stored 0 acts only in dev mode. A read that
+         *  throws keeps the defaults (all ON — the flags only ever turn OFF on purpose); it logs NOTHING of its own: no warn,
+         *  no error. When the preference store fails, init's own read usually threw first and its one warn is the only warn; if
+         *  only THIS read threw, nothing says so but the [FLAGS] photo1b line (all ON). This block writes that one line and no other. */
+        private static void readPhoto1b()
+        {
+            bool dev = false;
+            int tl = 1, vl = 1, oi = 1, oa = 1, fb = 1;
+            try
+            {
+                dev = Preferences.Default.Get("devMode", false);
+                tl = Preferences.Default.Get(PhotoTileLiteKey, 1);
+                vl = Preferences.Default.Get(VoiceWaveLiteKey, 1);
+                oi = Preferences.Default.Get(HistoryInsertOnlyKey, 1);
+                oa = Preferences.Default.Get(HistoryAnchorOneTaskKey, 1);
+                fb = Preferences.Default.Get(FadeFromBandKey, 1);
+            }
+            catch (Exception)
+            {
+                dev = false;
+                tl = vl = oi = oa = fb = 1;
+            }
+            PhotoTileLite = S16PassRules.effectiveFlag(dev, tl);
+            VoiceWaveLite = S16PassRules.effectiveFlag(dev, vl);
+            HistoryInsertOnly = S16PassRules.effectiveFlag(dev, oi);
+            HistoryAnchorOneTask = S16PassRules.effectiveFlag(dev, oa);
+            FadeFromBand = S16PassRules.effectiveFlag(dev, fb);
+            Logging.info(photo1bFlagsLine(PhotoTileLite, VoiceWaveLite, HistoryInsertOnly, HistoryAnchorOneTask, FadeFromBand));
+        }
+
         /** ★ perfb1 #46 r1 B-1 / S-5: leaving dev mode (HomePage `ixian:disableDevMode`, which also removes the four
          *  PerfB1DevKeys) turns SpareKeepShortSleep off in THIS process — it falls to the old path (the drop at sleep) until
          *  the next start. ★ fixb1 item 7: the switch is ON by default now; leaving dev mode removes the keys, so the NEXT
@@ -222,6 +301,7 @@ namespace SPIXI
             PayConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fp);
             MiniAppConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fm);
             Logging.info(FixB2Rules.flagsLine(PayConfirmSafeDefault, MiniAppConfirmSafeDefault));
+            readPhoto1b();   // ★ photo1b (contract-photo1b § 4): the five chat-shell switches, their own read + [FLAGS] line
         }
 
 #if SPIXI_DEV_COEXIST

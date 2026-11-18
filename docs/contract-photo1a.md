@@ -68,7 +68,7 @@ report `claude/photo-open-research-2026-11-17.md` (read at `20ada92`; every `fil
 | `[P1] chat read rows=<r> passes=<p> ms=<n>` | `loadMessages` (R1): from the statement after `takePrepend()` and the window arithmetic (the two head statements stay first — pins-s5/history `staging` / `takenFirst`, smoke `beforeLoad`; review round 1 NIT-3) to the statement before `UiBatch batch = …` (`:5445`): the disk read loop (`friend.getMessages` × passes), the arrival guard, the trim; `rows` = `messages.Count` after the loop (0 when null), `passes` = the number of `getMessages` calls. Also on the early-return (empty) path. One line per `loadMessages` call | integers |
 | `[P1] chat media thumbs=<a> hit=<b> pre=<c> voice=<d> vpre=<e> held=<f> q=<g>` | ONCE per document, 2000 ms after `onPreloadPresented` (a `Task.Delay`, then the main thread): `thumbs` = `setFileThumb` pushes sent for this document so far · `hit` = of them, from the memory cache (as delivered without PO-3: `chatThumbOfCounted` — the old cache held the file version; a developer build only; with PO-3 it would be the LRU or the disk store) · `pre` = of them, sent BEFORE this document's paint signal (`onPainted`) · `voice` = `voiceInfo` pushes sent · `vpre` = of them before the paint signal · `held` = 1 when PO-1 held this document's media, else 0 · `q` = thumbnail + voice jobs still queued at the write. A page torn down before = no line. | integers |
 | `[FLAGS] photo1a …` | `SpixiFlags.init` | § 3 |
-Old lines keep their text (`[CDPERF] chat attach / load / batch / drain / painted / backstop / present`, `chat-shell …`). Two more all-build lines of the batch, both a fixed word + an exception TYPE only: `chat media release failed (<Type>)` (`runReleasedMedia`) and `Exception occured in sendUiCommand (<Type>)` (`sendBuiltCommand`; the inherited `Utils.cs:321` keeps its old form).
+Old lines keep their text (`[CDPERF] chat attach / load / batch / drain / painted / backstop / present`, `chat-shell …`). Two more all-build lines of the batch, both a fixed word + an exception TYPE only: `chat media release failed (<Type>)` (`runReleasedMedia`) and `Exception occured in sendUiCommand (<Type>)` (`sendBuiltCommand`; the inherited `Utils.cs:303` keeps its old form).
 
 ### 3.2 · The walk step (W; `scripts/device/adb-walk.ps1`, `adb-walk-parse.ps1`)
 - `open-seed`: opt-in (only when named in `-Steps`; it joins `$script:OptInSteps`, runs after the file steps). New plain
@@ -149,6 +149,32 @@ Old lines keep their text (`[CDPERF] chat attach / load / batch / drain / painte
    points are never followed; a byte bound of 64 MB per account beside the 4096 files; the harness seams compile only
    with `SPIXI_CSH` (the harness's csproj; the app never defines it). The deletes act on `platformOn`, not on the
    switches: a switch turned OFF still deletes what an earlier ON run kept.
+
+10. **As built after store fix rounds 2 and 3 (2026-11-18, #1728; Fable 5.2 builder; store round 7 CLEAN).**
+    - `entriesOf(DirectoryInfo, out bool whole)` (`ChatMediaStoreRules.cs:1277`) — the ONLY place a folder is listed:
+      ONE folder whole and on its own; a folder that left = no entries (never the end of a walk); a fresh link look
+      before each open. Users: `listFiles`, `scanSource`, `wipeKind`, `prune`, `countAndSweep`, `wipe`, `sweepOrphans`,
+      `deleteTree` (round 3, M-1).
+    - `chatMark` = the friend count + an order-free sum over the addresses; any change re-arms the sweep. `chatsSeenOf` /
+      `provenEmpty`: an EMPTY list sweeps only when this process read the list with at least one contact for this
+      account (round 3, m-2; round 2, G3).
+    - Links at every level: no IO through a link at the root, the account folder, the chat folder or a file (get, put,
+      discard, deleteMessage, deleteChat, sweep, prune, count); a link is removed as a link (round 2, G1; round 3, m-3:
+      three tests — a real image behind a folder link is never served; a root link: the source scan deletes nothing
+      through it; a file link under an entry's name).
+    - Lock-free generation read (`ConcurrentDictionary` + a `Volatile` account floor; round 2, G2); `storeGen0` read
+      once at the top of `loadMessages`, before `friend.getMessages`, and passed to the batch's jobs (F-2).
+    - Dead names: `ifCurrentThumb` / `ifCurrentPeaks` refuse a dead message name (G6); the sweep removes a leftover
+      `del-…` (G7); tree deletes of renamed folders run after the try (n-3); OFF + `!P1Perf.enabled` = exactly the base
+      call (NIT-2).
+    - **Recorded limits** (MINOR, cache only, never a wrong picture): m-1 no crash recovery of `deleteSourceSoon` /
+      `wipeKind` (direction: a C#-named marker in the root replayed by the next sweep, about 100 engine lines — not
+      built) · m-A an N → 0 sweep needs a store call in the same process (the next process cannot prove an empty list) ·
+      m-B a chat that left by an un-hooked path with no folder yet gets no generation bump · m-C the app arms of
+      `chatMark` / `chatsNow` are not compiled by the harness and held by no pin · m-D pin b4 `seamRe` does not name
+      `harnessListed` / `harnessHoldLock` · m-E no test for the task-level proof of `provenEmpty` · m-F `whole = false`
+      is ignored by the deleters (no retry) · the pendingDeletion heals (`SpixiContentPage.cs:7699`,
+      `ContactNewPage.xaml.cs:226`).
 
 ## 5 · Pure rules that the harness must execute (CSH, `scripts/csh/*Tests.cs`, registered in `csh.csproj`)
 - B1 `PhotoOpenRules`: the flags line · the media hold (a small generic class: `open(doc)`, `tryHold(doc, item)` →

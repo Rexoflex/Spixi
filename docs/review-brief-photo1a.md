@@ -59,6 +59,8 @@ Not built: anything under `src/` or the built html (the shell half is "Photo ope
   thumbnail stays a base64 data URI on the bridge (images by URL = #1642).
 
 ## 5 · Verdict
+**FINAL (2026-11-18, after rounds 6–9): CLEAN** — see "Rounds 6–9" at the end of this section. The text below is the state after round 5, kept as history.
+
 **CLEAN NOT CLAIMED at round 5** (2026-11-18 ~03:00): round 5 found 1 MAJOR — a PIN gap, not a code defect. By the
 prompt ("not CLEAN at round 5 → stop") and rule 9 of the lead skill (three rounds in a row found a new class of hole in
 the hand-written source pins), the batch is NOT delivered: no push. The question to Damir is DECISIONS #1724.
@@ -87,3 +89,38 @@ limit).
 Code files as the round-5 reader read them (SHA-256): `SingleChatPage.xaml.cs` 2fd34e1c… · `PhotoOpenRules.cs`
 cc61527d… · `SharedItems.cs` 5edff441… · `SpixiFlags.cs` b89f31b4… · `DownloadsPage.xaml.cs` d8bfebe6… ·
 `SettingsPage.xaml.cs` b7dd346e… · `adb-walk.ps1` 2fc646d6… · `adb-walk-parse.ps1` 319d7f18….
+
+### Rounds 6–9 (2026-11-18, after Damir's #1726: the store back, the one builder, the merge) — FINAL VERDICT: CLEAN
+Rulings: #1726 (a) one more round + PO-3 / PO-6 back · #1736 the O-11 rule fixed IN THE CODE (one shared builder) ·
+#1737 the store: a Fable 5.2 builder and fresh Fable 5.2 readers, no Opus fallback · #1746 (a) F1 / F2 recorded, then push.
+
+| Round | Reader (model) | Scope | Verdict |
+|---|---|---|---|
+| r6 | Opus | correctness (integration, PO-0 / 1 / 5, compile reading) | CLEAN; MINOR-1 disk work under the store's `writeLock` is reachable from the main thread (a prune of about 1024 files can block a main-thread delete); MINOR-2 every message delete moves the chat generation and clears all memory LRUs (churn); NITs |
+| r6 | Fable 5.2 | security (the delete-paths table, log lines, the O-11 re-base, the bridge) | CLEAN; m-1…m-6 MINOR (m-3 / m-4 re-arm gaps fixed in store round 3; m-5 the pendingDeletion heals `SpixiContentPage.cs:7699`, `ContactNewPage.xaml.cs:226` recorded; nothing sets pendingDeletion today); every new log line = fixed words + integers or an exception type |
+| r6 | Fable 5.2 | the store (riskiest file) | **NOT CLEAN:** 1 MAJOR M-1 (a folder that left during a scan ended the walk) → fixed in store round 3 (`entriesOf`, `chatMark`, `provenEmpty`, links at every level) |
+| r7 | Fable 5.2 | the one-builder change (security) | no code defect; 1 MAJOR pin gap (the voice path's built text not held whole) + 2 MINOR + 2 NIT pin gaps → fixed |
+| r7 | Opus | pin re-bases | no code defect; 1 MAJOR pin gap (A5 decode not held on the store's decode path) + 1 MINOR + NITs → fixed |
+| store r7 | Fable 5.2 | store fix round 3 | **CLEAN (0 MAJOR)**; 900 real-thread stress runs, 0 previews of a deleted file at rest; 6 MINOR recorded (m-A…m-F) + 7 NIT |
+| r8 | Fable 5.2 | `pins-s15/c-transport` | no code defect; 2 MAJOR pin gaps for ordinary code, BOTH existing at base `c0a76176`: F1 (a raw push through `_webView.EvaluateJavaScriptAsync(` / `evaluateJavascript(` / `messageQueue.Enqueue(`; the LIMITS line had a wrong cover claim), F2 (a new `sendUiCommand` overload or a raw command word); the second round in a row with a new class on this hand-written scanner → rule 9 stop → DECISIONS #1727 → #1746 (a): recorded limits, LIMITS text corrected, no key change |
+| r8 | Opus | the other pins | no code defect; 2 MAJOR pin gaps in a6 (a write of `builtCmd` / `hit` / `plainUri` after the post; `??=`) + 2 MINOR (smoke rows) → fix prepared |
+| r9 | Opus | the prepared a6 / smoke fixes (#1746) | **CLEAN (0 MAJOR, 0 MINOR, 3 NIT)** |
+
+**Final verdict: CLEAN.** Every reader of the final code found 0 MAJOR in the code. The open pin gaps are the recorded limits
+F1 / F2 (INHERITED, #1746) and the store's recorded MINOR limits (#1728). No code changed after the last code readers (r6–r8
+code; store round 7 for the store files; checked byte-equal). The two red smoke rows of round 5 are fixed: N51 (the PO-0
+clock now stands behind `shellOverlayOpen = false;`; the N51 pin unchanged) and O-11 (`UiCommandText`, one builder, #1729).
+Numbers: CSH `pass=766 fail=0` (= base 643 + 123) · pins 700 / 0 on the merged tree (every module that reads an edited file +
+the photo1a, fixb1, fixb2 sets) · `cs-syntax-check` 284 ✓ · the full smoke of the merged tree: `BASELINE OK 6660 / the 2 KNOWN` (= 6617 + 43: a-open 11, b-store 16, c-walk 15, c-transport +1; 2026-11-18, cloud twin, jsdom 29.1.1, TZ=America/Los_Angeles).
+
+**Code files as committed (SHA-256; byte-equal to the trees the last code readers read — r6–r8 for the page and the delete paths, store r7 for the store files; SpixiFlags.cs = the merge result):**
+```
+2ad5de099df720e0406b60170088fbc8d646bffc2e356e55243e87f09d06baff  Spixi/Pages/Chat/SingleChatPage.xaml.cs
+f484feaf87413d98b44b82c54677293ca806f36106ae0a48fbc2a2189564a600  Spixi/Utils/ChatMediaStoreRules.cs
+69cd6d4bd3ef3ec62ea0d1d25225ba5d74b440f41c551a5cf3d82388ad1788a4  Spixi/Utils/ChatMediaStore.cs
+f6f032b4825dc1014190e75e06e985025ab2eedf8e897deac7dc7d8789a8ae68  Spixi/Utils/UiCommandText.cs
+4200bc74fcd1aea32e3874e24c2d80406e5a31a632cc74599403e5f99b19a029  Spixi/Utils/Utils.cs
+8340f5883dfe3d8cf91fc3043fd4f98c50fd184d966a4204f9bb4046d4406919  Spixi/Utils/PhotoOpenRules.cs
+5edff44103992c7945db5dcd799ed182b0ad2a80119b8967a105a876ffeb979c  Spixi/Utils/SharedItems.cs
+f9e1abe4b93a418f2339142c38ba36914de70fce94f8ee99eaf776adf42e2722  Spixi/Utils/SpixiFlags.cs
+```

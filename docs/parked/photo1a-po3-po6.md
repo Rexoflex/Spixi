@@ -1,3 +1,7 @@
+APPLIED 2026-11-18 (#1728): the store is back in work/photo1a;
+the patch file is removed; the packets moved to docs/be-review-pack/.
+The text below is history (the state at the time it was parked).
+
 # Parked: PO-3 + PO-6 of batch photo1a — the thumbnail and waveform store (2026-11-18)
 
 **Why parked.** Ruling #1641 put PO-3 (the 320 px thumbnail made once and kept in the app cache, a true LRU of 128) and

@@ -706,6 +706,7 @@ namespace SPIXI
             // ★ P0 #1155 (#46 r3 m2): Core blanked the row in memory only — write it before the next replacing read.
             CoreMessageWriter.arrivals.markDirty(friend.walletAddress.ToString(), channel);
             Utils.getChatPage(friend)?.deleteMessage(msgId, channel);
+            ChatMediaStore.deleteMessage(friend.walletAddress, msgId);   // ★ photo1a PO-3 / PO-6: the kept thumbnail and peaks leave with the message — also when no chat page is open (never throws)
             CoreMessageWriter.clearDeletedLast(friend, msgId);   // ★ S10 F3 (#1254): Core's recompute may have kept the deleted photo as the excerpt
             refreshChatRow(friend);
         }

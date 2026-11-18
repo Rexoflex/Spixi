@@ -57,10 +57,12 @@ public class FixB2PayTests
         Assert.AreEqual(want, mine[0], why + ": the line matches the state");
         int fix = L.FindIndex(l => l.StartsWith("[FLAGS] confirmdefault=", StringComparison.Ordinal));
         Assert.IsTrue(fix >= 0 && L.IndexOf(mine[0]) == fix + 1, why + ": right after the fixb1 line — " + string.Join("|", L));
-        // ★ photo1b re-base: SpixiFlags.readPhoto1b (the last call of init) logs its one [FLAGS] photo1b line AFTER this one, so this
-        // line is the one before the last, and the photo1b line is the very last (it was "the last line of init" before photo1b).
-        Assert.AreEqual(L.Count - 2, L.IndexOf(mine[0]), why + ": the last line of init but the photo1b one");
-        Assert.IsTrue(L[L.Count - 1].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": the photo1b line is the very last line — " + string.Join("|", L));
+        // ★ merge photo1a + photo1b (re-based after a look): after this line init writes the photo1a line, and the photo1b line (the
+        // last call of init, SpixiFlags.readPhoto1b) is the very last — so this line is third from the end.
+        int at = L.IndexOf(mine[0]);
+        Assert.AreEqual(L.Count - 3, at, why + ": the last line of init but the photo1a and the photo1b ones — " + string.Join("|", L));
+        Assert.IsTrue(L[L.Count - 2].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal), why + ": the photo1a line right before the last");
+        Assert.IsTrue(L[L.Count - 1].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": the photo1b line is the very last line");
     }
 
     [TestMethod]

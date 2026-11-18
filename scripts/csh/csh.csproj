@@ -8,7 +8,9 @@
        NU1100 Microsoft.NETCore.App.Ref 8.0). run-csh.mjs picks the newest SDK. -->
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net$(BundledNETCoreAppTargetFrameworkVersion)</TargetFramework><ImplicitUsings>disable</ImplicitUsings><Nullable>enable</Nullable><NoWarn>CS8618;CS8600;CS8602;CS8604;CS0168;CS0649;CS8625</NoWarn>
     <!-- ★ P-1 (#1127) — TEMPORARY: P1Perf.cs is compiled with its dev bodies (the [P1] grammar is executed here). -->
-    <DefineConstants>$(DefineConstants);SPIXI_DEV_COEXIST</DefineConstants></PropertyGroup>
+    <DefineConstants>$(DefineConstants);SPIXI_DEV_COEXIST</DefineConstants>
+    <!-- ★ photo1a review round 1 (F9): the harness-only doors of ChatMediaStore.cs / ChatMediaStoreRules.cs (harnessOn, harnessChats, harnessSweepArm, deleteSourceNow, the small-bound open, the short put, harnessLater) are compiled ONLY here. Spixi.csproj never defines SPIXI_CSH: the app has no such member. -->
+    <DefineConstants>$(DefineConstants);SPIXI_CSH</DefineConstants></PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Spixi/Utils/PresenceDisplay.cs" />
     <Compile Include="../../Spixi/Meta/SSightingStore.cs" />
@@ -97,6 +99,9 @@
     <Compile Include="../../Spixi/Utils/FixB1Rules.cs" />   <!-- ★ fixb1 (P50 / P51): the [FLAGS] line, the Windows confirm's answer rule, the divider line state (tests: FixB1Tests.cs; SpixiFlags.init, SConfirm and HomePage call it) -->
     <Compile Include="../../Spixi/Utils/FixB2Rules.cs" />   <!-- ★ fixb2 (item 3; item 4 adds its members): the Windows confirm's focus step — which part may take the focus, the accent state (tests: FixB2ConfirmTests.cs; SConfirm calls it) -->
     <Compile Include="../../Spixi/Utils/ColdStartRules.cs" />   <!-- ★ coldstart1 (#1680): the cold-start marks' pure rule — 33 tokens, the one-shot slots, the flush + the logger anchor (tests: ColdStartTests.cs; P1Perf.cold / coldFlush call it on Android only) -->
+    <Compile Include="../../Spixi/Utils/PhotoOpenRules.cs" />   <!-- ★ photo1a (PO-0 / PO-1 / PO-5): the [FLAGS] line, the media hold after the paint signal, the re-check rule, the counts line, the one-pass row arguments (tests: PhotoOpenTests.cs) -->
+    <Compile Include="../../Spixi/Utils/UiCommandText.cs" />   <!-- ★ photo1a (ruling 1736): the ONE builder of the executeUiCommand( text, shared by Utils.sendUiCommand and the off-thread push (tests: PhotoOpenTests.cs) -->
+    <Compile Include="../../Spixi/Utils/ChatMediaStoreRules.cs" /><Compile Include="../../Spixi/Utils/ChatMediaStore.cs" />   <!-- ★ photo1a (PO-3 / PO-6): the thumbnail + peaks store (engine + glue), the LRU, the delete paths' calls (tests: ChatMediaStoreTests.cs, with its own harness stubs of FileSystem / WalletStorage / IxianHandler) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

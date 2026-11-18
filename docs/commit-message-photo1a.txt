@@ -1,0 +1,74 @@
+Commit messages of batch photo1a (Session "Photo open 1a", 2026-11-17 / 18, final state). Commits on work/photo1a, author and
+committer = Damir's identity (DECISIONS 1501), unsigned, no attribution line, no number sign before a number (1512).
+Base: redesign/frontend at c0a76176; the branch is merged with redesign/frontend at 55feadd (Fix batch 2).
+
+1) Photo open 1a: media after the first paint and fewer file checks (PO-1, PO-5) with the open lines (PO-0)
+
+A chat open holds its thumbnail, waveform and offer-preview jobs until the shell's paint signal (or the 400 ms
+backstop); the push text is built off the main thread, byte-identical (switch PhotoMediaAfterPaint, packet P65).
+One file-check pass per file row, the 1:1 avatar and two preferences read once per load, the re-check after the
+pushes only when a process-wide delete generation moved (switch PhotoFewerFileChecks, packet P66). Three developer-only
+[P1] chat lines (onload-main, read, media) and one [FLAGS] photo1a line (packet P69). The PO-0 clock starts after the
+reset in onLoad, so the N51 pin holds unchanged. Old path = the fallback, byte for byte, with each switch OFF.
+DECISIONS 1715-1717, 1729.
+Files: Spixi/Pages/Chat/SingleChatPage.xaml.cs, Spixi/Utils/PhotoOpenRules.cs, Spixi/Utils/SharedItems.cs,
+Spixi/Utils/SpixiFlags.cs, Spixi/Pages/Downloads/DownloadsPage.xaml.cs, Spixi/Pages/Settings/SettingsPage.xaml.cs,
+scripts/csh/PhotoOpenTests.cs, scripts/csh/csh.csproj.
+
+2) Photo open 1a: the walk steps open-seed and mem-photos
+
+Opt-in: -SeedIndex, a proven restart and a cold rep per index, an unrecorded warm-up whenever the app process or the
+index changed, the warm reps, one count poll for the media line; mem-photos after the photo steps. The parser rows of
+the new lines are not required (a build without them reads n/a). Old steps and old run folders byte-identical.
+DECISIONS 1718.
+Files: scripts/device/adb-walk.ps1, scripts/device/adb-walk-parse.ps1.
+
+3) Photo open 1a: the kept thumbnail and waveform store (PO-3, PO-6) with its review fixes
+
+The 320 px chat thumbnail and a voice row's duration and 40 peaks are made once and kept in the app cache (Android only;
+file names are hashes of values C# owns; header check on every read; a bound of 4096 files and 64 MB per account; no
+IO through a link at any level; every folder listed whole on its own; a delete generation read when a job is made so a
+late decode keeps nothing; deleted with the message, the file, the history, the contact, the wipes, the restore, a new
+account and the previews switch OFF, plus an orphan sweep). Switches PhotoThumbStore and VoicePeaksStore, packets P67
+and P68; the store logs nothing. Recorded limits: no crash recovery of a deferred delete, an N to 0 sweep needs a
+store call in the same process, the pending-deletion heals. DECISIONS 1719, 1728.
+Files: Spixi/Utils/ChatMediaStore.cs, Spixi/Utils/ChatMediaStoreRules.cs, Spixi/Utils/SpixiFlags.cs,
+Spixi/Pages/Chat/SingleChatPage.xaml.cs, Spixi/Utils/SContacts.cs, Spixi/Utils/UIHelpers.cs,
+Spixi/Pages/Contacts/ContactDetails.xaml.cs, Spixi/Pages/Launch/LaunchPage.xaml.cs,
+Spixi/Pages/Settings/SettingsPage.xaml.cs, Spixi/Pages/Downloads/DownloadsPage.xaml.cs.
+
+4) Photo open 1a: one shared builder for the C# to JS push text (S15 O-11 kept)
+
+A new pure class UiCommandText holds the one escaping (base64 of UTF-8) and the one composer of executeUiCommand(.
+Utils.sendUiCommand and the off-thread push of PO-1 call it; PhotoOpenRules no longer has a second composer. The text
+is byte-identical to the old text (350232 cases, 0 differences). No switch: a refactor with no old path to keep
+(packet P70). DECISIONS 1729.
+Files: Spixi/Utils/UiCommandText.cs, Spixi/Utils/Utils.cs, Spixi/Utils/PhotoOpenRules.cs,
+Spixi/Pages/Chat/SingleChatPage.xaml.cs.
+
+5) Photo open 1a: pins, C# tests, re-bases and the smoke registration
+
+New pins pins-photo1a/a-open, b-store (b1-b16) and c-walk; the S15 transport pin now holds one builder (keys sites,
+uctTokens, uctUsings, noShadow) and states its limits; the C# harness tests for the store, the links, the generations
+and the builder; the keys re-based on purpose after a look at each diff (DECISIONS 1568, 1596, 1731): the whole-file
+hash of SpixiFlags.cs, the flag-line counts, and the pay-confirm line order of Fix batch 2; the smoke registers
+b-store. DECISIONS 1723, 1730, 1731.
+Files: scripts/pins-photo1a/a-open.mjs, scripts/pins-photo1a/b-store.mjs, scripts/pins-photo1a/c-walk.mjs,
+scripts/pins-s15/c-transport.mjs, scripts/pins-s4/chat.mjs, scripts/pins-fixb1/g-sparekeep.mjs,
+scripts/pins-fixb2/d-pay-confirm.mjs, scripts/pins-perfb1/f-flags.mjs, scripts/pins-s16/b-l8.mjs,
+scripts/pins-v1am/c-csharp.mjs, scripts/pins-s20/s-filesize.mjs, scripts/pins-s11/g-cs.mjs, scripts/pins-s6/rows.mjs,
+scripts/pins-s6b/cs.mjs, scripts/pins-s7/cs.mjs, scripts/pins-s8/cs-wiring.mjs, scripts/pins-filewalk/b-walk-steps.mjs,
+scripts/pins-perfb1toggle/b-walk.mjs, scripts/csh/ChatMediaStoreTests.cs, scripts/csh/PhotoOpenTests.cs,
+scripts/csh/FixB2PayTests.cs, scripts/csh/csh.csproj, scripts/smoke-test.mjs.
+
+6) Photo open 1a: DECISIONS 1715-1732, packets P65-P70, gate section, handoff, status log, lessons
+
+The store packets move back from docs/parked to docs/be-review-pack; the parked patch is removed.
+Files: DECISIONS.md, docs/decisions-index.md, docs/be-review-pack/P65-media-after-paint.md,
+docs/be-review-pack/P66-fewer-file-checks.md, docs/be-review-pack/P67-thumbnail-store.md,
+docs/be-review-pack/P68-voice-peaks-store.md, docs/be-review-pack/P69-open-lines-and-walk-step.md,
+docs/be-review-pack/P70-one-command-builder.md, docs/be-review-pack/README.md, docs/be-review-pack/core-asks.md,
+docs/security-handover-gate.md, docs/contract-photo1a.md, docs/photo1a-mechanisms.md, docs/review-brief-photo1a.md,
+docs/handoff-2026-11-17-photo1a.md, docs/status-log.md, docs/lessons.md, docs/parked/photo1a-po3-po6.md, CLAUDE.md,
+docs/commit-message-photo1a.txt. Removed: docs/parked/photo1a-po3-po6.patch, docs/parked/P67-thumbnail-store.md,
+docs/parked/P68-voice-peaks-store.md.

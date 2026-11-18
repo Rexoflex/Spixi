@@ -63,6 +63,7 @@
  *   voiceRowDeleted: the Task.Run → an inline Action                                    → r2 nits
  *   onVoicePlay: drop the no-row `pushVoiceState(idHex, "error", …)`                    → r1 play gates (+ V7/V8 verbs)
  *   isVoiceFileRow: drop the fileSize fallback                                          → V3 voice file */
+// ★ photo1a re-base (2026-11-17): r1 waveform gates C# `thrown` (★ photo1a #46 r7 (2026-11-18): the store is BACK — the call is `voiceInfoFor(job.fm, job.id, job.gen, out notYet, out _)`, switch OFF = voiceInfoOf; a throw still answers `error` once) · `unsent` (the PO-1 builtCmd branch sits between the unchanged re-check and the OLD statements) — same claims, new shape.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, readdirSync, join } = h;
   const rd = (p) => readFileSync(join(root, p), 'utf8');
@@ -481,8 +482,13 @@ export default async function (h) {
     const pv = bodyOf(SCP, 'private void processVoiceInfo(VoiceInfoJob job)');
     const doc = /^\{\s*if\s*\(\s*isDisposed \|\| job\.doc != thumbDoc \|\| friend == null\s*\)\s*\{\s*return;\s*\}/.test(pv.trim());
     const dedupe = /lock\s*\(\s*voiceInfoSent\s*\)\s*\{\s*if\s*\(\s*!voiceInfoSent\.Add\(sentKey\)\s*\)\s*\{\s*return;\s*\}\s*\}/.test(pv);
-    const thrown = /try\s*\{\s*info\s*=\s*voiceInfoOf\(job\.fm,\s*job\.id,\s*out notYet\);\s*\}\s*catch\s*\(Exception e\)\s*\{\s*Logging\.warn\([^;]*\);\s*info\s*=\s*null;\s*notYet\s*=\s*false;\s*\}/.test(pv);
-    const unsent = /if\s*\(\s*isDisposed \|\| doc != thumbDoc\s*\)\s*\{\s*lock\s*\(\s*voiceInfoSent\s*\)\s*\{\s*voiceInfoSent\.Remove\(sentKey\);\s*\}\s*return;\s*\}\s*if\s*\(\s*info == null\s*\)\s*\{\s*Utils\.sendUiCommand\(this,\s*"voiceState",\s*id,\s*"error",\s*"0",\s*"0"\);\s*return;\s*\}/.test(pv);
+    /* ★ photo1a re-base (2026-11-17): the job asks voiceInfoFor(job.fm, job.id, job.gen, out notYet, out _) (★ photo1a #46 r7 (2026-11-18): the store is back; OFF = voiceInfoOf(job.fm, job.id, out notYet) exactly as the base) — the same try / catch:
+       a throw answers `error` ONCE (info = null, notYet = false) */
+    const thrown = /try\s*\{\s*info\s*=\s*voiceInfoFor\(job\.fm,\s*job\.id,\s*job\.gen,\s*out notYet,\s*out _\);\s*\}\s*catch\s*\(Exception e\)\s*\{\s*Logging\.warn\([^;]*\);\s*info\s*=\s*null;\s*notYet\s*=\s*false;\s*\}/.test(pv);   /* ★ photo1a re-base (2026-11-18): the store is back — the call is voiceInfoFor with the job's generation (switch OFF = voiceInfoOf, pins-photo1a/b-store b6); a throw still answers `error` once */
+    /* ★ photo1a re-base (2026-11-17): the main-thread re-check is unchanged (a push that did not happen frees its slot); between it and the OLD statements sits the PO-1
+       branch: `builtCmd` (the text the drainer built — `voiceState error` for a null info, `voiceInfo` for a value) handed to sendBuiltCommand and counted;
+       `builtCmd == null` (switch OFF, or a value the old statements would have refused) falls through to the OLD statements, which keep their text */
+    const unsent = /if\s*\(\s*isDisposed \|\| doc != thumbDoc\s*\)\s*\{\s*lock\s*\(\s*voiceInfoSent\s*\)\s*\{\s*voiceInfoSent\.Remove\(sentKey\);\s*\}\s*return;\s*\}\s*if\s*\(\s*builtCmd != null\s*\)\s*\{\s*sendBuiltCommand\(builtCmd\);\s*if\s*\(\s*info != null\s*\)\s*\{\s*mediaCounts\.voice\(doc\);\s*\}\s*return;\s*\}\s*if\s*\(\s*info == null\s*\)\s*\{\s*Utils\.sendUiCommand\(this,\s*"voiceState",\s*id,\s*"error",\s*"0",\s*"0"\);\s*return;\s*\}/.test(pv);
     const afterSend = /stored\s*=\s*true;\s*if\s*\(\s*friend_message\.id != null\s*\)\s*\{\s*enqueueVoiceInfo\(Crypto\.hashToString\(friend_message\.id\),\s*friend_message\);\s*\}/.test(bodyOf(SCP, 'private bool sendVoiceFile(List<byte[]> packets, ref bool stored)'));
     const fileRow = /if\s*\(\s*fVoice == "1" && \(message\.completed \|\| message\.localSender\)\s*\)\s*\{\s*noteVoiceInfo\(message,\s*batch\);\s*\}/.test(bodyOf(SCP, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)'));
     ok(doc && dedupe && thrown && unsent && afterSend && fileRow,

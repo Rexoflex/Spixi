@@ -332,7 +332,15 @@ export default async function (h) {
     computeRule: afterCatch('PayConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fp);') && afterCatch('MiniAppConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fm);')
       && count(SF, 'PayConfirmSafeDefault = ') === 1 && count(SF, 'MiniAppConfirmSafeDefault = ') === 1,
     oneLineLast: count(SF, 'FixB2Rules.flagsLine(') === 1
-      && new RegExp(esc(FIX1_LINE) + '\\s*PayConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fp\\);\\s*MiniAppConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fm\\);\\s*' + esc(FIX2_LINE) + '(?:\\s*readPhoto1b\\(\\);)?\\s*\\}$').test(init),   // ★ re-based by photo1b (flags): after the fixb2 line ONLY `readPhoto1b();` (SpixiFlags' photo1b block call, the very last statement of init) may follow — exact text, exact place
+      /* ★ merge with photo1a (2026-11-18, re-based after a look at the merged init): after the fixb2 line ONLY the exact
+         photo1a group may follow (4 computes + its ONE [FLAGS] line; pins-photo1a/a-open a3 / a9 hold it in full) */
+      && new RegExp(esc(FIX1_LINE) + '\\s*PayConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fp\\);\\s*MiniAppConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fm\\);\\s*' + esc(FIX2_LINE)
+        + '(?:\\s*' + ['PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);', 'PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);',
+          'PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;', 'VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;',
+          'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));'].map(esc).join('\\s*') + ')?'
+        /* ★ re-based by photo1b (flags): after the photo1a group ONLY `readPhoto1b();` (SpixiFlags' photo1b block call, the very last statement of init) may follow — exact text, exact place */
+        + '(?:\\s*readPhoto1b\\(\\);)?'
+        + '\\s*\\}$').test(init),
     olderLinesKept: count(SF, FIX1_LINE) === 1 && count(SF, 'Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));') === 1,
     lineWords: /public static string flagsLine\(bool payConfirmDefault, bool appConfirmDefault\)\s*\{\s*return "\[FLAGS\] payconfirmdefault=" \+ \(payConfirmDefault \? "1" : "0"\) \+ " appconfirmdefault=" \+ \(appConfirmDefault \? "1" : "0"\);\s*\}/.test(FR),
     noDevControl: DP.length > 0 && !/PayConfirmSafeDefault|MiniAppConfirmSafeDefault|payconfirmdefault|appconfirmdefault/.test(DP),

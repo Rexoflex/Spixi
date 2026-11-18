@@ -187,6 +187,8 @@ namespace SPIXI
                     try
                     {
                         File.Delete(path);
+                        SingleChatPage.noteFileDeleted();   // ★ photo1a PO-5: a running chat load re-checks its file rows
+                        ChatMediaStore.deleteSource(path);   // ★ photo1a PO-3 / PO-6: the file left this device — what was kept from it goes too, whatever message it was (C#'s resolved path; never throws)
                     }
                     catch (Exception ex)
                     {

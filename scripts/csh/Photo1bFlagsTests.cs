@@ -64,8 +64,10 @@ public class Photo1bFlagsTests
         Assert.AreEqual(want, mine[0], why + ": the line matches the state");
         int lastFlags = L.FindLastIndex(l => l.StartsWith("[FLAGS] ", StringComparison.Ordinal));
         Assert.IsTrue(lastFlags == L.IndexOf(mine[0]), why + ": it is the last [FLAGS] line of init — " + string.Join("|", L));
+        // ★ merge with photo1a: the order of init is …fixb2 line, photo1a line, photo1b line (readPhoto1b is the last call)
         int fixb2 = L.FindIndex(l => l.StartsWith("[FLAGS] payconfirmdefault=", StringComparison.Ordinal));
-        Assert.IsTrue(fixb2 >= 0 && L.IndexOf(mine[0]) == fixb2 + 1, why + ": right after the fixb2 line — " + string.Join("|", L));
+        int p1a = L.FindIndex(l => l.StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal));
+        Assert.IsTrue(fixb2 >= 0 && p1a == fixb2 + 1 && L.IndexOf(mine[0]) == p1a + 1, why + ": right after the photo1a line, which follows the fixb2 line — " + string.Join("|", L));
         Assert.IsTrue(Regex.IsMatch(mine[0], "^\\[FLAGS\\] photo1b tilelite=[01] voicelite=[01] olderinsert=[01] olderanchor=[01] fadeband=[01]$"),
             why + ": fixed words and 0|1 only");
     }

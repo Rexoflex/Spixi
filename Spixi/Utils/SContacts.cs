@@ -118,6 +118,7 @@ namespace SPIXI
                 SAppDeclines.clear(group.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                 SPeerLocalStores.forget(group.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 scheduleSentSweep();   // ★ S9 #46 r1 m-3: my Sent copies the left room named go too
+                ChatMediaStore.deleteChat(group.walletAddress);   // ★ photo1a PO-3 / PO-6: the kept thumbnails and peaks of the left room go too (never throws)
                 SNotificationPrefs.forgetContact(group.walletAddress?.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
             }
             UIHelpers.shouldRefreshContacts = true;
@@ -174,6 +175,7 @@ namespace SPIXI
                 SAppDeclines.clear(friend.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                 SPeerLocalStores.forget(friend.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 scheduleSentSweep();   // ★ S9 #46 r1 m-3: my Sent copies this history named go too
+                ChatMediaStore.deleteChat(friend.walletAddress);   // ★ photo1a PO-3 / PO-6: the kept thumbnails and peaks of the removed contact go too (never throws)
                 SNotificationPrefs.forgetContact(friend.walletAddress?.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
                 return "ok";
             }
@@ -608,6 +610,7 @@ namespace SPIXI
                     Logging.warn("purgeFiles: one file could not be deleted (" + e.GetType().Name + ")");
                 }
             }
+            ChatMediaStore.deleteChat(owner);   // ★ photo1a PO-3 / PO-6 · review round 1 (F1): the owner's received files are gone — so is everything kept from them. AFTER the file deletes: a decode that still found a file read the store's generation before this call moves it (a per-contact purge; null owner / never throws)
             return deleted;
         }
 
@@ -626,6 +629,7 @@ namespace SPIXI
             SAppDeclines.clear(friend.walletAddress?.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
             SPeerLocalStores.forget(friend.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
             scheduleSentSweep();   // ★ S9 #46 r1 m-3: my Sent copies this history named go too
+            ChatMediaStore.deleteChat(friend.walletAddress);   // ★ photo1a PO-3 / PO-6: the kept thumbnails and peaks of the deleted history go too (never throws)
             if (friend.walletAddress != null)
             {
                 CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back

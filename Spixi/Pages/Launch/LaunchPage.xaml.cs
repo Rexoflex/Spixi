@@ -587,6 +587,7 @@ namespace SPIXI
                          * file exists, so the retry view → welcome → Create over a stale wallet file kept the old spixi.*
                          * keys; clear them here, before the navigation is posted (the same queue, so it runs first). */
                         Utils.sendUiCommand(this, "wipeLocalState");
+                        ChatMediaStore.wipe();   // ★ photo1a review round 1 (F2): a NEW account starts with no kept thumbnail or peaks of whatever was on this device before (a create over a stale wallet; never throws)
                         IxianHandler.localStorage.nickname = nick;
                         IxianHandler.localStorage.writeAccountFile();
 
@@ -1155,6 +1156,7 @@ namespace SPIXI
                 {
                     keepPreviousContacts(stashDir);   // ★ S20G P0 (1): after Done; a failure never fails the restore
                 }
+                ChatMediaStore.wipe();   // ★ photo1a PO-3 / PO-6: the restored account starts with no kept thumbnail or peaks of whatever was on this device before (never throws; needs no wallet)
 
                 applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
                 Node.loadWallet(pass);   // ★ S16 L8: the password verifyWallet accepted — the open never depends on the store's round trip
@@ -1233,6 +1235,7 @@ namespace SPIXI
             else
             {
                 File.Move(source_path, target_filepath);
+                ChatMediaStore.wipe();   // ★ photo1a PO-3 / PO-6: as the account restore above — the restored wallet starts with nothing kept (never throws; needs no wallet)
                 applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
                 Node.loadWallet(pass);   // ★ S16 L8: the verified password (as the account restore above)
             }

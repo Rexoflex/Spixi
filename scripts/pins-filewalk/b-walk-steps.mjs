@@ -60,6 +60,9 @@
  *   b24 scriptBytes    — SHA-256 of the RAW BYTES of adb-walk.ps1 and of adb-walk-parse.ps1 (no stripping, no white-space change): any byte
  *                        change turns it red; re-base only after a look at the diff (DECISIONS 1596) and re-run b1-b23. Diagnostics
  *                        only: raw per-function hashes and the script-level remainder name where the bytes moved
+ * photo1a (2026-11-17), re-based after a look at the diff (DECISIONS 1596 / 1634): b1 + b10 (the two new opt-in steps open-seed, mem-photos at the END of AllSteps / OptInSteps; the legend rows), b2 (one new PipedCmds entry: the chatmedia count poll; ShellAllow unchanged), b15 (the step-name regex takes open-seed), b21 (Save-FileRepPid sites 5 → 7), b24 (the two raw hashes + the diagnostics of the five changed driver functions and Invoke-Main of the parser).
+ * 2026-11-17 (photo1a, review round 1, scope C-walk; re-based after a look at the diff, DECISIONS 1596): b15 (call sites 5 -> 6: Clear-FileStepPngs at the end of Invoke-OpenSeedStep), b24 (the two raw hashes and the two script-level remainders; the per-function diagnostics of the old functions did not move).
+ * 2026-11-17 (photo1a, review round 2, scope C-walk; after a look at the diff): b21 pidVarUses ($script:FileRepPid 5 -> 7, Save-FileRepPid 7 -> 8: the warm key and its decision in open-seed), b24 re-based again (the two raw hashes and the driver remainder; the parser is unchanged; no old function moved).
  * Deliberate breaks (#802, the filewalk pins report): one-token mutations in a full copy of the tree, each red for the named key(s). */
 import { createHash } from 'node:crypto';
 export default async function (h) {
@@ -101,6 +104,7 @@ export default async function (h) {
   const listItems = (t, start) => { const a = t.indexOf(start); if (a < 0) return []; const s = a + start.length; const e = t.indexOf('\n    )', s); return t.slice(s, e).split('\n').map((l) => l.trim()).filter(Boolean).map((l) => l.replace(/,$/, '')); };
   const idx = (st, pred) => st.findIndex(pred);
   const NEW5 = ['scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads'];
+  const PHOTO1A = ['open-seed', 'mem-photos'];   // photo1a (2026-11-17): two more opt-in steps at the END of AllSteps / OptInSteps (b1, b10 re-based)
   const BASE17 = ['coldstart', 'mem-home', 'chat-intent', 'chat-tap', 'scroll', 'resume', 'resume-long', 'network', 'mem-end', 'mem-trim', 'resume-now', 'resume-3s', 'chatinfo', 'tab-apps', 'tab-wallet', 'tab-account', 'history'];
   // an input call = anything that sends a tap / swipe / key / start to the phone
   const INPUT = /Invoke-ShellReq|Invoke-Shell\b|Invoke-BackReq|Invoke-Back\b|Get-TapText|Get-SwipeText|Invoke-Adb|Invoke-CalInput|\binput |am start/;
@@ -112,9 +116,9 @@ export default async function (h) {
   const defLine = D.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('$script:DefaultSteps ='));
   const b1 = {
     found: all.length > 0 && opt.length > 0,
-    allOrder: all.join() === [...BASE17, 'scroll-image', ...NEW5].join(),
+    allOrder: all.join() === [...BASE17, 'scroll-image', ...NEW5, ...PHOTO1A].join(),
     afterScrollImage: all.indexOf('scroll-image') === 17 && NEW5.every((s, i) => all[18 + i] === s),
-    optIn: opt.join() === ['scroll-image', ...NEW5].join(),
+    optIn: opt.join() === ['scroll-image', ...NEW5, ...PHOTO1A].join(),
     defaultRule: defLine.length === 1 && defLine[0] === '$script:DefaultSteps = @($script:AllSteps | Where-Object { $script:OptInSteps -cnotcontains $_ })',
     defaultList: defJs.join() === BASE17.join() && NEW5.every((s) => !defJs.includes(s)),
     oneAssign: count(D, '$script:DefaultSteps =') === 1 && count(D, '$script:OptInSteps =') === 1 && count(D, '$script:AllSteps =') === 1,
@@ -191,8 +195,8 @@ export default async function (h) {
   ];
   const allowFn = fnD('Initialize-Allowlist');
   const pipedNow = listItems(allowFn, '$script:PipedCmds = @('), allowNow = listItems(allowFn, '$script:ShellAllow = @(');
-  const NEW_PIPED = ['viewimage', 'overlayopen', 'loaddownloads', 'subscreenopen', 'subscreenclose', 'scrolllines', 'overlayclose'].map((k) => "$script:FramePoll['" + k + "']");
-  const NEW_CMDS = ['P1..shell.send.viewimage', 'P1..shell.frames-overlay-open', 'P1..shell.send.loaddownloads', 'P1..shell.frames-subscreen-open', 'P1..shell.frames-subscreen-close', 'P1..shell.scroll', 'P1..shell.frames-overlay-close']
+  const NEW_PIPED = ['viewimage', 'overlayopen', 'loaddownloads', 'subscreenopen', 'subscreenclose', 'scrolllines', 'overlayclose', 'chatmedia'].map((k) => "$script:FramePoll['" + k + "']");
+  const NEW_CMDS = ['P1..shell.send.viewimage', 'P1..shell.frames-overlay-open', 'P1..shell.send.loaddownloads', 'P1..shell.frames-subscreen-open', 'P1..shell.frames-subscreen-close', 'P1..shell.scroll', 'P1..shell.frames-overlay-close', 'P1..chat.media']
     .map((t) => 'logcat -d -v threadtime -s DOTNET:I | grep -c -e ' + t);
   const fpBlock = (() => { const i = D.indexOf('$script:FramePoll = @{'); const e = D.indexOf('\n}', i); return i < 0 ? '' : D.slice(i, e); })();
   const fpNow = fpBlock.split('\n').map((l) => l.trim()).filter((l) => /^\w+ = \(/.test(l));
@@ -210,11 +214,11 @@ export default async function (h) {
   const b2 = {
     found: allowFn.length > 0 && pipedNow.length > 0 && allowNow.length > 0 && fpBlock.length > 0,
     pipedBase: pipedNow.filter((x) => !NEW_PIPED.includes(x)).join('\n') === BASE_PIPED.join('\n'),
-    pipedFive: NEW_PIPED.every((x) => pipedNow.filter((y) => y === x).length === 1) && pipedNow.length === BASE_PIPED.length + 7,
+    pipedFive: NEW_PIPED.every((x) => pipedNow.filter((y) => y === x).length === 1) && pipedNow.length === BASE_PIPED.length + 8,
     shellAllowSame: allowNow.join('\n') === BASE_ALLOW.join('\n') && allowNow.length === 31,
-    framePollBase: BASE_FP.every((l) => fpNow.includes(l)) && fpNow.length === BASE_FP.length + 7,
+    framePollBase: BASE_FP.every((l) => fpNow.includes(l)) && fpNow.length === BASE_FP.length + 8,
     fiveExact: fpCmds.join('\n') === NEW_CMDS.join('\n'),
-    countOnly: fpNew.length === 7 && fpNew.every((l) => !l.includes('grep -E') && !l.includes('>') && !l.includes(';')) && D.includes("$script:LogCmd = 'logcat -d -v threadtime -s DOTNET:I'"),
+    countOnly: fpNew.length === 8 && fpNew.every((l) => !l.includes('grep -E') && !l.includes('>') && !l.includes(';')) && D.includes("$script:LogCmd = 'logcat -d -v threadtime -s DOTNET:I'"),
     logReSame: logRe.length === 529 && sha(logRe) === BASE_LOGRE_SHA,
     linesPass: LINES.every((m) => full.test(stamp + m)),
     newFnNoPipe: !/\|/.test(fnD('Invoke-FileChatRep') + fnD('Invoke-ViewerRep') + fnD('Invoke-ViewerStep') + fnD('Invoke-DownloadsRep') + fnD('Wait-FileGate')),
@@ -464,10 +468,10 @@ export default async function (h) {
     downloadsRefs: refs(defsOf(dlBlock)).join() === WREFS.join() && defsOf(dlBlock).filter((r) => r[3] === 'inline').length === 4,
     extractors: EXTRACT.every((l) => pl.includes(l)),
     lineDefs: LDEF.every((l) => pl.includes(l)),
-    tableTail: tableKeys.slice(-6).join() === 'scroll-image,scroll-files,scroll-voice,scroll-photos,viewer,downloads',
+    tableTail: tableKeys.slice(-7).join() === 'scroll-image,scroll-files,scroll-voice,scroll-photos,viewer,downloads,open-seed',
     oldRowsKept: count(P, 'X-Scroll $c') === 6 && count(P, 'X-Long $c') === 4 && count(P, 'X-Am $c') === 2,   // the counts of the base: the old rows still use the NON-windowed extractors
     absentNoRow: count(P, '$stepList.Add(') === 2 && P.includes('foreach ($s in $steps) { $stepList.Add($s) }') && count(P, '$steps.Add(') === 1 && count(P, 'foreach ($step in $stepList) {') === 1,
-    legendOnlyIfInRun: P.includes('if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }') && [...legendBlock.matchAll(/^\s*'([a-z-]+)'\s*= '/gm)].map((m) => m[1]).join() === NEW5.join(),
+    legendOnlyIfInRun: P.includes('if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }') && [...legendBlock.matchAll(/^\s*'([a-z-]+)'\s*= '/gm)].map((m) => m[1]).join() === [...NEW5, ...PHOTO1A].join(),
     windowedFrom: hf.includes('foreach ($h in (Get-Hits $C $LineDef).Items) {') && hf.includes('if ($h.Stamp -ge $C.T2) { $hits.Add($h) }'),
     readyT2: tr.includes('$r = Test-Ready $C') && tr.includes("if ($null -eq $C.T2) { return (New-Res 'missing' $null $C.T2Why) }"),
     windowedUse: [xt, xs, xl].every((f) => f.includes('Test-ReadyT2 $C') && !f.includes('Test-Ready $C') && f.includes('Get-HitsFrom $C')) && xs.includes('Get-HitsFrom $C $script:L.Scroll') && xl.includes('Get-HitsFrom $C $script:L.Long') && xt.includes('Get-HitsFrom $C $LineDef'),
@@ -495,7 +499,7 @@ export default async function (h) {
     oldScrollUntouched: sha(stm(fnPS(P, 'X-Scroll')).join('\n')) === '600a65a23411ac6bac513285bb1b7179e424f63cd49de33a42479c0229ced586' && stm(fnPS(P, 'X-Scroll')).includes('if ($hits.Count -eq 0) { return (Get-MissingLine $C $script:L.Scroll) }') && count(P, "X-Scroll $c '") === 6,
   };
   ok(F(b10).length === 0,
-    '★ filewalk walk steps (b10 parserRows): the rows of contract § 3.4 exist with exactly these names, units and required flags (scroll-files|voice|photos: 9 rows, viewer: 6, downloads: 9) and these extractors — the scroll / long-task / close rows are WINDOWED (Get-HitsFrom: line stamp >= stamp2; Test-ReadyT2 refuses a rep without a readable stamp2), the open rows are not; a step that is not in run.json adds no row and no legend line; the windowed rows reference the …WDef variables by name (not the old Scroll/Long defs, which have the same row names) and stamp2 is read by the exact guard (a stamp2 equal to or before t0 is refused: `-le`); X-ScrollW needs at least TWO `shell scroll` lines from stamp2 on (`if ($hits.Count -lt 2)`: the two swipes; X-LongW the same, longTwoLine; fewer = no value for that rep, the row is `no data`), the old X-Scroll is byte-identical (SHA-256 of its statements); the driver writes stamp2 (Complete-Rep key list) and stamps t0 before the first input and stamp2 at the first swipe / the BACK — failing: ' + JSON.stringify(F(b10)) + ' tail=' + tableKeys.slice(-6).join());
+    '★ filewalk walk steps (b10 parserRows): the rows of contract § 3.4 exist with exactly these names, units and required flags (scroll-files|voice|photos: 9 rows, viewer: 6, downloads: 9) and these extractors — the scroll / long-task / close rows are WINDOWED (Get-HitsFrom: line stamp >= stamp2; Test-ReadyT2 refuses a rep without a readable stamp2), the open rows are not; a step that is not in run.json adds no row and no legend line; the windowed rows reference the …WDef variables by name (not the old Scroll/Long defs, which have the same row names) and stamp2 is read by the exact guard (a stamp2 equal to or before t0 is refused: `-le`); X-ScrollW needs at least TWO `shell scroll` lines from stamp2 on (`if ($hits.Count -lt 2)`: the two swipes; X-LongW the same, longTwoLine; fewer = no value for that rep, the row is `no data`), the old X-Scroll is byte-identical (SHA-256 of its statements); the driver writes stamp2 (Complete-Rep key list) and stamps t0 before the first input and stamp2 at the first swipe / the BACK — failing: ' + JSON.stringify(F(b10)) + ' tail=' + tableKeys.slice(-7).join());
 
   /* ── b11 · ASCII only, no PowerShell 7-only syntax (Windows PowerShell 5.1) ── */
   const strip = (t) => code(t).replace(/'(?:[^'\n]|'')*'/g, "''").replace(/"[^"\n]*"/g, '""');
@@ -569,18 +573,18 @@ export default async function (h) {
   const walkLoop = fnD('Invoke-Walk');
   const b15 = {
     found: sweep.length > 0 && SWEEP_RE.length > 0,
-    regexExact: SWEEP_RE === '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads)-[A-Za-z0-9-]{1,40}\\.png\\z' && SWEEP_RE2 === '^cal-reset-[0-9]{2,4}\\.png\\z' && count(sweep, '-cmatch') === 2 && sweep.includes("if ($f.Name -cmatch '" + SWEEP_RE + "' -or $f.Name -cmatch '" + SWEEP_RE2 + "') {"),
+    regexExact: SWEEP_RE === '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads|open-seed)-[A-Za-z0-9-]{1,40}\\.png\\z' && SWEEP_RE2 === '^cal-reset-[0-9]{2,4}\\.png\\z' && count(sweep, '-cmatch') === 2 && sweep.includes("if ($f.Name -cmatch '" + SWEEP_RE + "' -or $f.Name -cmatch '" + SWEEP_RE2 + "') {"),
     calReset: ['cal-reset-01.png', 'cal-reset-12.png', 'cal-reset-0123.png'].every((n) => sj2.test(n)) && ['cal-reset-1.png', 'cal-reset-12345.png', 'cal-reset-01.png.bak', 'cal-reset-01.PNG', 'cal-17-downloads.png', 'cal-16-home-after-viewer.png', 'cal-17a-home-before.png', 'shot-home-reset-01.png'].every((n) => !sj2.test(n)),
     behaviour: ['shot-viewer-01.png', 'shot-downloads-02-pre.png', 'shot-scroll-files-03.png', 'shot-scroll-voice-reset-01.png', 'shot-scroll-photos-01-pre.png'].every((n) => sj.test(n)) && ['shot-scroll-image-01.png', 'shot-scroll-01.png', 'shot-home-01.png', 'cal-17-downloads.png', 'shot-viewer-01.png.bak', 'shot-viewer-01.PNG', 'shot-viewer-../x.png'].every((n) => !sj.test(n)),
     deletes: sweep.includes('if (Remove-LocalFile $f.FullName) { Write-WalkLog (\'sweep: \' + $f.Name + \' deleted\') }') && sweep.includes('Get-ChildItem -LiteralPath $script:RunDir -File'),
-    callSites: count(D, 'Clear-FileStepPngs') === 5,
+    callSites: count(D, 'Clear-FileStepPngs') === 6,
     calSweep: (() => { const c = stm(fnD('Invoke-Calibrate')), i = c.indexOf('Invoke-CalFileTaps $cal'); return i > 0 && c[i + 1] === 'Clear-FileStepPngs' && count(c.join('\n'), 'Clear-FileStepPngs') === 1; })(),
     viewerEnd: (() => { const v = stm(fnD('Invoke-ViewerStep')); return v[v.length - 1] === '}' && v[v.length - 2] === 'Clear-FileStepPngs' && v[v.length - 3] === '$script:ViewerReopen = $false'; })(),
     fileStepsEnd: /elseif \(\$script:FileChatKeys\.ContainsKey\(\$s\) -or \$s -eq 'downloads'\) \{\s*Invoke-Step \$s \$script:RepeatsN \$true\s*if \(\$script:NeedRecover[^\n]*\n\s*Clear-FileStepPngs\s*\}/.test(walkLoop),
     mainFinally: mainFin.includes('Restore-Phone') && /Restore-Phone\s*try \{ Clear-FileStepPngs \} catch \{ \}\s*if \(\$script:WalkStarted\)/.test(mainFin),
   };
   ok(F(b15).length === 0,
-    '★ filewalk walk steps (b15 pngSweep): Clear-FileStepPngs deletes every shot-<step>-*.png of the five steps (anchored name regex, the extracted pattern accepts the rep / pre / reset names and refuses the others) and runs at the end of each new step (viewer: last statement of Invoke-ViewerStep; the chat and downloads steps: after Invoke-Step) and in the main finally before Save-RunJson, and in -Calibrate right after Invoke-CalFileTaps (5 call sites); a second pattern sweeps the restart checks cal-reset-NN.png (2-4 digits, nothing else of the calibration) — failing: ' + JSON.stringify(F(b15)));
+    '★ filewalk walk steps (b15 pngSweep): Clear-FileStepPngs deletes every shot-<step>-*.png of the five steps (anchored name regex, the extracted pattern accepts the rep / pre / reset names and refuses the others) and runs at the end of each new step (viewer: last statement of Invoke-ViewerStep; the chat and downloads steps: after Invoke-Step) and in the main finally before Save-RunJson, and in -Calibrate right after Invoke-CalFileTaps and at the end of Invoke-OpenSeedStep (photo1a fix round 1, F6) (6 call sites); a second pattern sweeps the restart checks cal-reset-NN.png (2-4 digits, nothing else of the calibration) — failing: ' + JSON.stringify(F(b15)));
 
   /* ── b16 · the seed addresses: the keys must EQUAL the derived dev-seed addresses ── */
   const ALPHA = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -697,7 +701,7 @@ export default async function (h) {
   const b21 = {
     found: spSt.length > 0 && rsSt.length > 0 && vPid > 0 && dPid > 0,
     saveText: spSt.join('\n') === ['{', "$script:FileRepPid = ''", "$ids = @(Get-Pids (Invoke-Shell ('pidof ' + $script:Pkg)).StdOut)", "if ($ids.Count -eq 1) { $script:FileRepPid = [string]$ids[0]; return $true }", 'return $false', '}'].join('\n'),
-    pidVarUses: count(D, '$script:FileRepPid') === 5 && count(D, 'Save-FileRepPid') === 5,
+    pidVarUses: count(D, '$script:FileRepPid') === 7 && count(D, 'Save-FileRepPid') === 8,
     viewerBeforeTap: count(vw.join('\n'), PIDTHROW) === 1 && vw[vPid - 1] === "Invoke-FilePreCheck $Rec 'chat'" && vw[vPid + 1] === 'Assert-AppFront' && vPid < vTry && vTry < vTap && vw.slice(vPid, vTap).filter((l) => INPUT.test(l)).length === 0,
     downloadsBeforeTap: count(dl.join('\n'), PIDTHROW) === 1 && dl[dPid - 1] === "Invoke-FilePreCheck $Rec 'home'" && dl[dPid + 1] === 'Assert-AppFront' && dl[dPid + 2] === 'try {' && dl[dPid + 3] === TAB && dPid < dTab,
     calBeforeTap: consec(cft, CAL15) >= 0 && consec(cft, CAL17) >= 0 && count(fnD('Invoke-CalFileTaps'), 'Save-FileRepPid') === 2,
@@ -773,12 +777,12 @@ export default async function (h) {
   const CHGP = ['New-Ctx', 'New-RepCtx', 'Invoke-Main'];
   const OLDP = ['Get-Hits', 'Test-Ready', 'Get-Tok', 'Get-MissingTok', 'Get-MissingLine', 'X-Scroll', 'X-Long', 'X-Send', 'X-SendLine', 'Convert-T0'];
   const dgD = diag(bufD, [...NEWD, ...CHGD, ...OLDD]), dgP = diag(bufP, [...NEWP, ...CHGP, ...OLDP]);
-  const B24_DRIVER_SHA = '3b23056e52362fe8ffe9151bcb2029a5100378ef2937285e7f7125a67f75c8a3', B24_PARSER_SHA = '41640c74098db71a9d36ababba7159774aef44a58399bde0aa0f19057e00622c', B24_DRIVER_REST = '0f0713b54af228a8310ab2d56f597de8690bd8a5125e3ac73864e425fc133098', B24_PARSER_REST = '0a395980cbb83ba120a51e95048bb61d1ec24edcc73edc103b3592331e5ab61f';   // the guard (…_SHA) and the diagnostics
+  const B24_DRIVER_SHA = '2fc646d642fdce315c4e79f11a9cbaf773a1cefca80191c411d324c41a96eca7', B24_PARSER_SHA = '319d7f184bbaf36b9b50cb019b87bb6775207d8a9b9807797228336dc7e688d8', B24_DRIVER_REST = 'a5ec24447c868998440b1d85140ffa050e43aef32f5dbffd43ee7a36fb22cf43', B24_PARSER_REST = 'aceb009fca43c28b9b0b001b1e6a31dbf17e08f88ef2d2df9883798c26c8fc4a';   // the guard (…_SHA) and the diagnostics
   const B24_DRIVER_FN = {
     "Set-RepStamp2": "b810fbc48072ef35d08d2ad824f4e6b32b4ec4ee9d169ea01ce27580003a56c7",
     "ConvertTo-Base58": "607782670e7e397d660daaca5f441110ec9e8366c0a8d87ecd05073e3977faa9",
     "Get-DevSeedAddress": "63a55df1d170cb1ae768c7357397e92ada7a2750ae1ed9b49ca34fcde562b238",
-    "Clear-FileStepPngs": "60618f8bfaee7c7624ed3a14b306d26ee2a0791f5d2be3e433092a5675162ac0",
+    "Clear-FileStepPngs": "b27cd9dc238ebda5969969923548a57f927fb0c91c4454e4352626d4bb90be2f",
     "Invoke-FileShot": "4c7b63d9c74bde808e00c4575175317d0e5803676bd9fac2e6c4c491df350b94",
     "Invoke-FileShotCheck": "a3c8d12dbfcea83a5b7fa56fac20afee557eb1b911e6af0b11ca54c288f4181d",
     "Invoke-FilePreCheck": "f0dae6671306203ae309e7cf1288e90c227bc1f37485b30c31521d8ea711237e",
@@ -794,12 +798,12 @@ export default async function (h) {
     "Test-CalGateShot": "9c83fa0e99af74c7022972b7777bff0d7857a86ed3660378a0433db945ed55ed",
     "Invoke-CalReset": "2ab8f9c3169234021d24ced742f94944cb6290a6a34fc4b842cf0ce2d1bd2d90",
     "Invoke-CalFileTaps": "08d93d90b66a787a936cd20ff655357462ff76c1f592b6d7e5bde1a763f9df2a",
-    "Initialize-Allowlist": "9cdb7bc20d673b62e84b09a2bb67693ae329025e22aba9f0ead577f8c7209860",
-    "Get-StepGap": "598d7129db24c092d14a8f929ffb531b317ce8f6c9b70743dc1411282e991fcc",
+    "Initialize-Allowlist": "5fb3deea4e1d758e42eca42fcb735814515bfe6ab60de6a6bd40c1880f28b8c4",
+    "Get-StepGap": "fb8283f5a12922b99627218d17ec506c6f4a8410f54bf58700cf09cddb26d70c",
     "Complete-Rep": "f3e37a776f63bb5f6765f972c5bcfa98367260493886775eb0b98f9f8f19d199",
     "Invoke-RepBody": "c2b329635136ba066ec40da34fec5dcca1fb75be26364e35371dafd866b76537",
-    "Get-EstimateSec": "8f204666622d103eac5ec1417af8c085c06c3358c31dd8440207b68413bc548f",
-    "Invoke-Walk": "394bdc12325450da2d39c110a43569b77dfb88e224d8902a42cb8f11b61137bf",
+    "Get-EstimateSec": "9283b66632d59007d88bc6df7da72f4703369cbebf9af90316ff3ab61f1a1ff3",
+    "Invoke-Walk": "7385741a3f302e880605c47c4af8078f295e8d4715c641fa068f76c6a1d6cb28",
     "Invoke-CalNewTaps": "82a90e9586891a4405e24aa9578a48f17c33bd0a7edadae48d5960ca6580f335",
     "Invoke-Calibrate": "d8d0d4d9407a93f8cd7071eb4929780d9bc1cb9b0350086971f5113b00216710",
     "Assert-AppFront": "2ab25b07f54f84768f166a7285067b238b633ff02a73fc890e6dd4896c6c63f8",
@@ -836,7 +840,7 @@ export default async function (h) {
     "X-LongW": "ed3d79f0bad44ed63f2b7fba766feb2f9bb6b3d6a378db4c7f0934cc028d0328",
     "New-Ctx": "08b97ebdc7cace4ff177a027e1eca1d9a8882ce484d424dee72c8879b941f388",
     "New-RepCtx": "d745d8c884b7ed892fbff31095c4cdfdfae424b3923858572cc5f0a9fdd827cd",
-    "Invoke-Main": "b68374f37b4f158d40a047c1f8a765bcd03803674100470a45e91f4afa6ae564",
+    "Invoke-Main": "ae04c31ef9460e39ee36d2c20aa34afe0543035300155665fe6c426c8ee205d8",
     "Get-Hits": "59e531bfb6a713b9643b8cf057ffd6e8c387a03407bb36e4f27fc5dbfa27436e",
     "Test-Ready": "6113f1d735b818943964016e113a5f8657e9aeb9bc283c37963f7a46eb71cd61",
     "Get-Tok": "095e09a4141a5101c6df2cf550d3983012464626f3e29d9710ca250c34539361",

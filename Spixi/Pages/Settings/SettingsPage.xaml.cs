@@ -853,6 +853,8 @@ namespace SPIXI
                     try
                     {
                         File.Delete(path);
+                        SingleChatPage.noteFileDeleted();   // ★ photo1a PO-5 (review round 2 NIT-1): a running chat load re-checks its file rows
+                        ChatMediaStore.deleteSource(path);   // ★ photo1a PO-3 / PO-6: the file left this device — what was kept from it goes too, whatever message it was (C#'s resolved path; never throws)
                     }
                     catch (Exception ex)
                     {
@@ -1116,6 +1118,7 @@ namespace SPIXI
                 SChatPrefs.photoPreviews = status.Equals("on", StringComparison.Ordinal);
                 Utils.sendUiCommand(this, "setPhotoPreviews", SChatPrefs.photoPreviews.ToString());
                 foreach (var chat_page in Utils.getChatPages()) chat_page.onPhotoPreviewsChanged();   // ★ #46 r1 A-M1: a chat alive under Account gets no OnAppearing — tell it now (each page catches its own failure)
+                if (!SChatPrefs.photoPreviews) ChatMediaStore.wipeThumbs();   // ★ photo1a review round 1 (F3): the switch went OFF — no kept thumbnail stays at rest or in memory (the peaks stay; never throws)
             }
             /* ★ S11 C (#1262, 🟡 new verb): `ixian:photoAutoDl:<off|wifi|always>:<0|1>` — the auto-download setting + the
              * current "Load pictures and GIFs" value (the shell's own switch; C# keeps a mirror so it never downloads while
@@ -1852,6 +1855,7 @@ namespace SPIXI
             try { SAppDeclines.clearAll(); } catch (Exception ex) { Logging.error("wipe: app declines threw: " + ex.GetType().Name); }   // ★ S8 (#1233): the in-process copy too
             try { SAppJoins.clearAll(); SVoicePlayed.clearAll(); SPhotoGroups.clearAll(); SLocalOnlyStore.clearAll(); } catch (Exception ex) { Logging.error("wipe: app joins / voice played threw: " + ex.GetType().Name); }   // ★ S9 A3
             try { SContacts.deleteAllSentCopies(); } catch (Exception ex) { Logging.error("wipe: sent copies threw: " + ex.GetType().Name); }   // ★ S9 #46 r1 m-3
+            ChatMediaStore.wipe();   // ★ photo1a PO-3 / PO-6: every kept thumbnail and peaks file, of every account (never throws). AFTER step 4: with the wallet list empty a decode still running finds no account and writes nothing
             try { CoreMessageWriter.arrivals.clear(); } catch (Exception ex) { Logging.error("wipe: arrivals threw: " + ex.GetType().Name); }   // ★ P0 #1155
 
             // (6. the WebView spixi.* wipe ran as step 0 — see above)
@@ -1896,6 +1900,7 @@ namespace SPIXI
             SAppDeclines.clearAll();   // ★ S8 (#1233): and a declined invite
             SAppJoins.clearAll(); SVoicePlayed.clearAll(); SPhotoGroups.clearAll();   // ★ S9 A3 (8-APP / 8-FACE) · A1 photo groups
             SContacts.deleteAllSentCopies();   // ★ S9 #46 r1 m-3: my durable Sent copies (no history names them any more)
+            ChatMediaStore.wipe();   // ★ photo1a PO-3 / PO-6: and every kept thumbnail and peaks file (never throws)
             CoreMessageWriter.arrivals.clear();   // ★ P0 #1155: and every kept arrival
         }
 
@@ -1976,6 +1981,7 @@ namespace SPIXI
             SAppDeclines.clearAll();   // ★ S8 (#1233): every invite row is gone too
             SAppJoins.clearAll(); SVoicePlayed.clearAll(); SPhotoGroups.clearAll();   // ★ S9 A3 (8-APP / 8-FACE) · A1 photo groups
             SContacts.deleteAllSentCopies();   // ★ S9 #46 r1 m-3: my durable Sent copies (no history names them any more)
+            ChatMediaStore.wipe();   // ★ photo1a PO-3 / PO-6: every history is gone — so is every kept thumbnail and peaks file (never throws)
             CoreMessageWriter.arrivals.clear();   // ★ P0 #1155: and every kept arrival
             /* ★ #46 loop B, MAJOR-1 (the SIXTH removal path) — EVERY conversation on the
              * device is gone, so every conversation's local keys must go, and the user's own
@@ -2160,6 +2166,7 @@ namespace SPIXI
                 foreach (var file in Directory.EnumerateFiles(Path.Combine(Config.spixiUserFolder, "Downloads")))
                 {
                     File.Delete(file);
+                    SingleChatPage.noteFileDeleted();   // ★ photo1a PO-5 (review round 3 MINOR-2): per file — a load that checks during the loop re-checks its rows
                     file_count++;
                 }
                 displaySpixiAlert(SpixiLocalization._SL("settings-deletedd-title"), string.Format(SpixiLocalization._SL("settings-deletedd-text"), file_count), SpixiLocalization._SL("global-dialog-ok"));
@@ -2169,6 +2176,8 @@ namespace SPIXI
                 Logging.error("Exception while deleting downloads: " + e);
                 displaySpixiAlert(SpixiLocalization._SL("settings-deleted-error-title"), SpixiLocalization._SL("settings-deleted-error-text"), SpixiLocalization._SL("global-dialog-ok"));
             }
+            ChatMediaStore.wipe();   // ★ photo1a PO-3 / PO-6: the received files left this device (all, or some before a failure) — what was kept from them goes; the rest is made again (never throws)
+            SingleChatPage.noteFileDeleted();   // ★ photo1a PO-5: a running chat load re-checks its file rows (also after a partial failure)
         }
 
         public async Task onChangeAvatarAsync(object sender, EventArgs e)

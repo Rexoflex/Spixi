@@ -7,7 +7,9 @@
  * the bottom — a scroll event runs the pass; then every child's mask string (mask-image | -webkit-mask-image) must be equal in A
  * and B, the band must hold ≥ 1 masked row (not vacuous), and the rect reads of the pass are counted: A reads O(log n + k)
  * (≤ 2·log2 n + k + 8, k = the rows it masks + 2), B (the old walk) reads every child from the end down to the band.
- * LIMITS: the layout is a model (monotonic tops by construction, like a browser's flow column); a transform in flight (rise, slide,
+ * LIMITS: the layout is a model (monotonic tops by construction, like a browser's flow column); an OUT-OF-FLOW child of #messages
+ *   (the reactions "+N" sheet and its scrim) is not modelled: the old walk masks it when its rect crosses the band, the band
+ *   start can skip it — the new path differs there and is better (a sheet is not a message row; fix r3 R3-3); a transform in flight (rise, slide,
  *   pulse) takes the old walk by design and is not exercised here; the count includes any other scroll listener's reads of the
  *   log's children in that frame (both documents alike).
  * Deliberate breaks (#802), each in a full temp copy + build-shells, the pin run with --root (all observed red, 2026-11-18):

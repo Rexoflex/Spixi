@@ -19,6 +19,7 @@
  *               `compute`: `ConfirmSafeDefault = ` counted as a whole word (the new names end with it).
  * re-based by fixb2 #46 r1 (comment text): the doc comments of PayConfirmSafeDefault / MiniAppConfirmSafeDefault in SpixiFlags.cs now say that the safe path also needs NativeConfirm
  *               (FixB2Rules.useSafeDialog) and that the [FLAGS] line is written on every platform while the switches act only on Windows; no code token changed — FLAGSFILE hash only.
+ * re-based by the photo1b merge with photo1a (2026-11-18): SpixiFlags.cs hash f9e1abe4… (photo1a's) → a580a17e… (photo1a + photo1b: 80 pure insertions, `readPhoto1b();` the last statement of init after photo1a's group); break M1: `readPhoto1b();` moved before the photo1a group → this pin's NEW FLAGS row + FLAGSFILE, pins-fixb2/d-pay-confirm FLAGS and pins-perfb1/f-flags `compute` and pins-v1am/c-csharp `lines` red (measured: 5 pin rows red), csh 6 red (769 pass)
  * Deliberate breaks (#802): fixb1 builder-a report — the read's absent value 1 → 0 → red `readAbsentOn` (+ CSH); the compute
  * back to an opt-in shape (`dev && pk == 1`) → red `computeRule`; the start value `= true` → red `startValueOld`; the fixb1
  * line moved before the perfb1 line → red `oneLineAfterPerfb1`; `dividerline=` → `divider=` → red `lineWords`. Restored. */
@@ -93,7 +94,7 @@ export default async function (h) {
         /* ★ re-based by fixb2 item 4: after the fixb1 line ONLY the item-4 group may follow (pins-fixb2/d-pay-confirm FLAGS holds it in full) · ★ merge with photo1a (2026-11-18): then the optional exact photo1a tail */
         + '(?:\\s*PayConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fp\\);\\s*MiniAppConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fm\\);\\s*Logging\\.info\\(FixB2Rules\\.flagsLine\\(PayConfirmSafeDefault, MiniAppConfirmSafeDefault\\)\\);)?'
         + '(?:\\s*' + PHOTO_TAIL.map(reEsc).join('\\s*') + ')?'
-        /* ★ re-based by photo1b (flags): after the fixb2 group ONLY the one statement `readPhoto1b();` (SpixiFlags' own block: its five reads, [FLAGS] photo1b line) may follow — exact text, exact place, at the very end of init */
+        /* ★ re-based by photo1b (flags): after the photo1a group (which follows the fixb2 group) ONLY the one statement `readPhoto1b();` (SpixiFlags' own block: its five reads, [FLAGS] photo1b line) may follow — exact text, exact place, at the very end of init */
         + '(?:\\s*readPhoto1b\\(\\);)?'
         + '\\s*\\}$').test(init),
     lineWords: /public static string flagsLine\(bool confirmDefault, bool dividerLine\)\s*\{\s*return "\[FLAGS\] confirmdefault=" \+ b\(confirmDefault\) \+ " dividerline=" \+ b\(dividerLine\);\s*\}/.test(FX)

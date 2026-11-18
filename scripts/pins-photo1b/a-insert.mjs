@@ -26,8 +26,13 @@
  *   keeps the patched node. Byte-equal in the pinned cases; outside them DOM-equal up to inert marks on KEPT rows: an animation
  *   mark (c-reactions--in, data-enter, a tile's own fade class, data-live-complete), the attribute ORDER after an in-place select /
  *   reaction / hover change, an empty `style=""` after the fade pass cleared a mask, and a remote GIF tile already 'loaded' where
- *   a fresh tile starts 'loading' (the KEY chain dispatches the loads in both documents) — accepted by the lead (fix r1 R4, fix r2
- *   R2-3). A spent one-shot button ([data-acted]) and a lifted row ([data-menu-lift]) are NOT inert: the insert refuses while one is
+ *   a fresh tile starts 'loading' (the KEY chain dispatches the loads in both documents), a tick's crossfade (its exit ghost
+ *   [data-exit], data-enter, the inline animation-delay — the full render REPLAYS a live tick inside 300 ms on the rebuilt row; the
+ *   KEY step tickIn300ms therefore pushes its page in the tick's own task, asserts the MODES, and compares the logs 950 ms later;
+ *   the KEY chain compares every step with those three marks dropped: fix r3 R3-1), and the desktop hover button's inline --reply-btn-x / --reply-btn-y —
+ *   accepted by the lead (fix r1 R4, fix r2 R2-3, fix r3 R3-2). An open reactions "+N" sheet and its scrim live INSIDE
+ *   #messages (out of flow): the full render's replaceChildren drops them (the sheet vanishes under the user), the insert keeps
+ *   them — the new path differs there and is better (fix r3 R3-3); no case here opens one. A spent one-shot button ([data-acted]) and a lifted row ([data-menu-lift]) are NOT inert: the insert refuses while one is
  *   in the log.
  *   A photo tile's markup depends on TIME (typed-bubbles.js PHOTO_QUIET_MS: inside 600 ms of its first build it stands quiet,
  *   then its own timer shows the face in place) — so case P compares 750 ms after each push, when both documents are past
@@ -61,7 +66,12 @@
  *       deleted → red KEY at addContact, renderLogInBurst, dirtyAtAdd (the three steps the other guards do not also catch);
  *   (kgif) R2-1 reverted (`auto === 'true' ? 0 : loadedMedia.size` → `loadedMedia.size`) → red KEY at gifLoadAutoloadOn only;
  *   (kauto) the `auto` term alone deleted → GREEN, an EQUIVALENT mutation here: GIFs have loaded by then, so the loadedMedia term
- *       (0 while autoload is ON, the set's size while OFF) changes with it and still refuses the autoloadOff page. */
+ *       (0 while autoload is ON, the set's size while OFF) changes with it and still refuses the autoloadOff page. The `auto` term
+ *       IS load-bearing when no GIF has loaded yet (the set is empty, the loadedMedia term stays 0) — this chain has no such case
+ *       (fix r3 R3-5: stated, not added).
+ *   ★ fix r3 (R3-1): (ktick) the tick refusal `if (r.tickFx && tnow - r.tickFx.at < TICK_REPLAY_MS) return false;` deleted → red
+ *       KEY at tickIn300ms (the mode reads insert where full is required). With the step moved to position 2 (the log still short,
+ *       the run fast) the chain is green. */
 import { photo1bKit } from './a-kit.mjs';
 export default async function (h) {
   const { ok } = h;
@@ -241,6 +251,19 @@ export default async function (h) {
       const all = [...s.box.querySelectorAll(':scope > .c-bubble-row[data-msgid]')].reverse();
       return all.filter((r) => { const k = parseInt(r.dataset.msgid.slice(1), 16); return /^q[0-9a-f]{4}$/.test(r.dataset.msgid) && k % 3 === 0 && k % 11 !== 4; })[nth];
     };
+    /* fix r3 (R3-1): the chain compares the logs without the tick's own crossfade marks — the full render REPLAYS a live tick on
+       the rebuilt row (an exit ghost [data-exit], data-enter, an inline animation-delay); the insert keeps the row (and, after
+       the tick step's full page, keeps those marks on it while the next full render drops them). Nothing else is dropped. */
+    const tickNorm = (s) => {
+      const c = s.box.cloneNode(true);
+      for (const g of c.querySelectorAll('[data-exit]')) g.remove();
+      for (const e of c.querySelectorAll('[data-enter]')) e.removeAttribute('data-enter');
+      for (const e of c.querySelectorAll('[style]')) {
+        e.style.removeProperty('animation-delay');
+        if (!e.getAttribute('style').trim()) e.removeAttribute('style');
+      }
+      return c.innerHTML;
+    };
     const loadGifs = (s) => { for (const img of s.box.querySelectorAll('.c-mbubble__img')) img.dispatchEvent(new s.W.Event('load')); };
     const steps = [
       { label: 'plain', expect: ['insert', 'insert'] },
@@ -260,7 +283,7 @@ export default async function (h) {
       { label: 'dirtyAtAdd', pre: (s) => { const r = oldOwn(s, 2); s.push('updateMessage', r.dataset.msgid, 'edited before the page', 'True', 'True', 'True', 'False', 'False'); }, expect: ['full', 'insert'] },
       { label: 'spentOneShot', fn: (s) => { oldOwn(s).querySelector('.c-bubble').dataset.acted = ''; }, expect: ['full', 'insert'] },
       { label: 'liftedRow', fn: (s) => { oldOwn(s).setAttribute('data-menu-lift', ''); }, expect: ['full', 'insert'] },
-      { label: 'tickIn300ms', fn: (s) => { const r = oldOwn(s); const k = parseInt(r.dataset.msgid.slice(1), 16); s.push('updateMessage', r.dataset.msgid, 'm' + k, 'True', 'True', 'False', 'False', 'False'); }, gap: 350, expect: ['full', 'insert'] },   // read → delivered: an in-place tick, no renderLog
+      { label: 'tickIn300ms', fn: (s) => { const r = oldOwn(s); const k = parseInt(r.dataset.msgid.slice(1), 16); s.push('updateMessage', r.dataset.msgid, 'm' + k, 'True', 'True', 'False', 'False', 'False'); }, tick: true, gap: 950, expect: ['full', 'insert'] },   // read → delivered: an in-place tick, no renderLog · fix r3 (R3-1): the page in the SAME task, the logs compared 950 ms later, tick-normalised
       { label: 'autoloadOff', fn: (s) => s.W.localStorage.setItem('spixi.media.autoload', 'off'), expect: ['full', 'insert'] },
       { label: 'gifLoadAutoloadOff', fn: loadGifs, expect: ['full', 'insert'] },
       { label: 'quoteOfLaterRow', later: true, expect: ['insert', 'full'] },
@@ -283,7 +306,7 @@ export default async function (h) {
       for (let i = 0; i < steps.length; i++) {
         const st = steps[i];
         if (st.fn) { st.fn(A); st.fn(B); }
-        if (!st.pre && !st.mid) await sleep(40);   // any rAF the change queued has run (then the page sees a painted log)
+        if (!st.pre && !st.mid && !st.tick) await sleep(40);   // any rAF the change queued has run (then the page sees a painted log); a tick step pushes its page at once (inside the 300 ms window on any runner)
         const got = [];
         for (let p = 0; p < 2; p++) {
           const items = pages[i][p];
@@ -296,7 +319,7 @@ export default async function (h) {
           await sleep(p === 0 && st.gap ? st.gap : 30);
           if (st.after) { st.after(A); st.after(B); await sleep(20); }
           got.push(modes(A).pop());
-          got.push(A.box.innerHTML === B.box.innerHTML && A.rowsSig() === B.rowsSig() ? 'eq' : 'DIFF');
+          got.push(tickNorm(A) === tickNorm(B) && A.rowsSig() === B.rowsSig() ? 'eq' : 'DIFF');   // fix r3 (R3-1): every step, so the tick's inert marks on a KEPT row never fail a later insert step
         }
         out.push({ label: st.label, got: got.join(','), ok: got[0] === st.expect[0] && got[2] === st.expect[1] && got[1] === 'eq' && got[3] === 'eq' });
       }

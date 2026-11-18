@@ -2,8 +2,8 @@
 // confirms a payment or a mini-app action": FixB2Rules.flagsLine (the one new [FLAGS] line), FixB2Rules.useSafeDialog (a call site
 // shows the safe-default dialog only with its OWN switch on AND the alert drop on), the answer rule the dialog uses
 // (FixB1Rules.confirmIsOk: only ContentDialogResult.Primary is yes), the REAL SpixiFlags.init over the stubbed Preferences for the
-// two new switches (absent = ON, a stored 0 acts only in dev mode, each key its own switch, the line right after the fixb1 line and
-// LAST), and the REAL ConfirmGate through the steps SConfirm.askPlainSafeWinAsync takes (tryEnter … exit: while it holds the gate
+// two new switches (absent = ON, a stored 0 acts only in dev mode, each key its own switch, the line right after the fixb1 line, followed
+// by the photo1a line and then the photo1b line (the photo1b line is the LAST of init)), and the REAL ConfirmGate through the steps SConfirm.askPlainSafeWinAsync takes (tryEnter … exit: while it holds the gate
 // every other Spixi alert is dropped; it is refused while a confirm or another alert is up). The MAUI-bound sites (the entry, the
 // four call sites) are `#if WINDOWS` code the harness cannot compile: scripts/pins-fixb2/d-pay-confirm.mjs holds them (source).
 // DELIBERATE BREAKS (fixb2 builder-d report): ① useSafeDialog → `ownSwitch || alertDropOn` → use_safe_dialog_needs_both_switches
@@ -48,7 +48,7 @@ public class FixB2PayTests
         }
     }
 
-    /** The item-4 [FLAGS] line of the last init: exactly one, it says `want`, right after the fixb1 line, and the LAST line. */
+    /** The item-4 [FLAGS] line of the last init: exactly one, it says `want`, right after the fixb1 line, followed by the photo1a line and then the photo1b line (the very last). */
     private static void oneLine(string want, string why)
     {
         var L = IXICore.Meta.Logging.lines;

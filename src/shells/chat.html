@@ -5892,6 +5892,7 @@
     const spT0 = devP1 ? performance.now() : 0;   // ★ photo1b PO-0 / HV-0: the split of this render (dev builds only, data-p1)
     let spPhoto = 0, spVoice = 0;
     olderInsertArmed = false;   // ★ photo1b HV-1: a full render spends the prepend's insert chance (the old path)
+    if (olderPageBase >= 0) olderPageTimerRows = Math.max(0, order.length - olderPageBase);   // fix r3 (R3-4): the rows this paint drew, for the page's dev line
     olderPageBase = -1;   // ★ photo1b HV-3 fix r1 (R2) / r2 (R2-6): a page in flight is on glass now (the burst safety timer) — messagesDone re-takes no anchor for it
     invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     /* ★ S15 #46 r1 m-1: a running rise translates the rows DOWN, and a transform grows scrollHeight — so nearBottom() and the
@@ -6014,8 +6015,8 @@
     // contextual bar closes itself once the last one lands.
     if (chatSelect) chatSelect.refresh();
     /* ★ photo1b HV-1: what this render drew — the next prepend's insert proves its seam against it (cap absent: not kept at all) */
-    if (bridge.cap('olderInsert')) noteRendered(shownIds, pos, lastMsgRow);
-    else shownWas = null;
+    /* fix r3 (S3-3): a throw in the bookkeeping never skips the pass below or the caller's tail — the next page then renders in full */
+    try { if (bridge.cap('olderInsert')) noteRendered(shownIds, pos, lastMsgRow); else shownWas = null; } catch (e) { shownWas = null; }
     /* ★ photo1b PO-0 / HV-0 (dev builds): the split; `fade` is closed by the caller (closeSplit) — the pass stays LAST */
     if (devP1) renderSplit = { build: spT1 - spT0, swap: spT2 - spT1, fix: spT3 - spT2, fade: -1, fadeAt: performance.now(), photo: spPhoto, voice: spVoice };
     composerFadeNow();                      // ★ Session AE: every row node is new — the composer-band masks are re-derived NOW, after the swap (when this render runs inside renderLog's rAF a scheduled pass would leave the new rows unmasked for a frame; elsewhere it is simply the earliest correct moment)
@@ -6044,6 +6045,8 @@
    * a newly loaded target, a voice length C# sent later, a preview — so it is never kept); a quote of a target LATER in
    * the log, or of an old photo whose live picture is not the preview cache, refuses.
    * No HTML-string sink: every node comes from the row builders; message text never becomes markup.
+   * Fix r3 (R3-3): an open reactions "+N" sheet and its scrim (overlay.js, hosted INSIDE #messages) stay open across an insert;
+   * the full render's replaceChildren drops them — the new path differs there and is better.
    * ── ★ photo1b fix r1 (S-1 / R1 / R3) — THE BUILD-TIME STATE AUDIT. What any row builder reads that is NOT its own record
    * or positionsFor (buildRow and everything it calls: text, media, file / photo tile, voice, payment, app, call, event chip,
    * grid; senderHeadOpts / tileHead; the quote and its tap; labelRow; applyRowReactions; wireMenu / menuOptsFor /
@@ -6069,7 +6072,8 @@
    *     menuOptsFor's getters (read at menu OPEN time), the event chip and the payment / app / call fields (own record).
    *   Not exact by design (inert — DOM-equal, not byte-equal): on a KEPT old row an in-place mark stays where a fresh build
    *     has none or puts it elsewhere — an animation mark (c-reactions--in, data-enter, a tile's own fade class,
-   *     data-live-complete), the attribute ORDER after an in-place select / reaction / hover change, and an empty `style=""`
+   *     data-live-complete, a tick's inline animation-delay and its exit ghost), the attribute ORDER after an in-place select /
+   *     reaction / hover change, the desktop hover button's inline --reply-btn-x / --reply-btn-y, and an empty `style=""`
    *     after the fade pass cleared a mask. They style or describe a finished change; nothing reads them back. */
   function renderCtxKey() {
     let rec = false;
@@ -6149,7 +6153,7 @@
     for (const [lead, g] of gplan.groups) {
       const isNew = newIdSet.has(lead);
       for (const mid of g.ids) if (newIdSet.has(mid) !== isNew) return false;
-      if (!isNew) { const was = gridGroups.get(lead); if (!was || was.ids.join('\u0001') !== g.ids.join('\u0001')) return false; }
+      if (!isNew) { const was = gridGroups.get(lead); if (!was || was.ids.length !== g.ids.length || was.ids.some((x, i) => x !== g.ids[i])) return false; }   // fix r3 (S3-2): element by element
     }
     for (const lead of gridGroups.keys()) if (!gplan.groups.has(lead) || newIdSet.has(lead)) return false;
     /* the unread divider's row is not in the new part */
@@ -6593,6 +6597,7 @@
   let olderRowsAtRequest = 0;    // order.length when the loadmore went out
   let prependAnchor = null;      // { id, off } — the first visible row and its offset from the log's top, before a prepend paints
   let olderPageBase = -1;        // ★ photo1b HV-0: order.length when this page's first prepend landed (-1 = no page in flight)
+  let olderPageTimerRows = 0;    // ★ photo1b fix r3 (R3-4): the rows of a page the burst safety timer painted before its messagesDone
   const LAZY_HISTORY_MIN_PX = 160;   // the trigger band: one screen from the top, never less than this
   function olderPillMode() {
     return olderFailed || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -7380,8 +7385,9 @@
          above it. Fix r1 (R2): when the burst safety timer already painted them, the addMessages anchor did its work there;
          the line above (#1166 r1 M2) anchors the top-affordance change as before. */
       if (prependAnswer && bridge.cap('olderAnchor1') && olderPageBase >= 0) prependAnchor = firstVisibleAnchor();
-      const pageRows = olderPageBase >= 0 ? Math.max(0, order.length - olderPageBase) : 0;
+      const pageRows = olderPageBase >= 0 ? Math.max(0, order.length - olderPageBase) : olderPageTimerRows;   // fix r3 (R3-4): a page the safety timer painted says its rows too
       olderPageBase = -1;
+      olderPageTimerRows = 0;
       if (!prependAnswer) cdLateStart();   // ★ photo1b PO-0 (dev builds): the open's late media pushes are counted from here
       if (wasBursting || logDirty) {
         const t0 = performance.now();
@@ -7847,10 +7853,10 @@
            present send below. Fixed words + integers. Their own try: a failing stamp never touches the present. */
         if (devP1) {
           try {
-            const sp = openSplit || {};
+            const sp = openSplit;
             openSplit = null;   // fix r1 (R7): one open, one line
             const r = (v) => Math.max(0, Math.round(Number(v) || 0));
-            console.warn('[CDPERF] chat-shell build=' + r(sp.build) + ' layout=' + r((sp.swap || 0) + (sp.fix || 0)) + ' fade=' + r(sp.fade)
+            if (sp) console.warn('[CDPERF] chat-shell build=' + r(sp.build) + ' layout=' + r((sp.swap || 0) + (sp.fix || 0)) + ' fade=' + r(sp.fade)
               + ' nodes=' + box.getElementsByTagName('*').length + ' photo=' + r(sp.photo) + ' voice=' + r(sp.voice));
             const late = cdLateEnd();   // fix r2 (R2-5): no count running (not the first open, or the backstop ended it) → no line, never fixed zeros
             if (late) console.warn('[CDPERF] chat-shell late thumbs=' + r(late.thumbs) + ' voice=' + r(late.voice) + ' js=' + r(late.ms));
@@ -9288,7 +9294,10 @@
      box.children — the log is one flow column, so the tops do not decrease from child to child. A zero-size child
      (display: none — its rect is all 0) says nothing about the flow: the probe steps to the nearest sized neighbour on its
      left inside the range (none there → the range's right part). Every child after the answer is below the band or
-     zero-size — exactly the children the old walk `continue`s over — so the walk from the answer writes the old walk's masks. */
+     zero-size — exactly the children the old walk `continue`s over — so the walk from the answer writes the old walk's masks.
+     Fix r3 (R3-3): one exception — an OUT-OF-FLOW child of #messages (the reactions "+N" sheet and its scrim, fixed /
+     absolute) breaks the monotonic tops. The old walk masks such a child when its rect crosses the band; the band start can
+     skip it. That differs from the old walk and is better: a sheet or a scrim is not a message row and must not fade. */
   /* the walk's first index: cap absent, or a transform in flight (a rise, a log slide, a jump pulse — rects may then not be
      monotonic in flow) → the newest child (the old walk); else the band's index */
   function fadeStartIndex(kids, bandBottom) {

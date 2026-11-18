@@ -17,6 +17,7 @@
 //   ⑥ HistoryAnchorOneTask read from FadeFromBandKey                         → init_each_key_is_its_own_switch (expected 11101, got 11111) + init_logs_nothing_else red
 //   ⑦ catch (Exception) → catch (InvalidOperationException) (a throw escapes) → init_throwing_read_keeps_defaults red (here and in PerfB1FlagsTests)
 //   ⑧ a Logging.warn added to the catch                                       → init_throwing_read_keeps_defaults red ("adds no warn of its own"; PerfB1FlagsTests red too)
+//   M1 merge with photo1a (2026-11-18): `readPhoto1b();` moved before the photo1a group in init → FixB2PayTests.pay_flags_defaults_and_dev_mode + the Photo1bFlagsTests position checks red (csh 6 red, measured); the four re-based source pins + the SpixiFlags.cs hash (pins-fixb1/g-sparekeep, hash f9e1abe4… → a580a17e…) go red too
 //   ⑨ fix round 1 (O3-2): the devMode read's default false → true in readPhoto1b → init_dev_mode_absent_is_off red (the other tests set devMode explicitly)
 using System;
 using System.Linq;

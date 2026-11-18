@@ -1,8 +1,8 @@
 /* ==== photo1a · A — the chat OPEN: PO-0 (the developer-only [P1] chat lines), PO-1 (the media wait for the first paint), PO-5 (fewer
  * file checks per load) — the MAUI call sites that the C# harness cannot reach (contract docs/contract-photo1a.md § 3, § 3.1, § 5).
  *
- * The pure rules RUN in the harness (scripts/csh/PhotoOpenTests.cs, 19 tests: the flags line, MediaHold / MediaGate, MediaCounts, the
- * re-check rule, uiCommandText vs Utils.sendUiCommand read from Utils.cs, fileSizeArgOnce / localArgOnce equality, LoadOnce). The pages
+ * The pure rules RUN in the harness (scripts/csh/PhotoOpenTests.cs, 23 tests (★ photo1a #46 r7: counted): the flags line, MediaHold / MediaGate, MediaCounts, the
+ * re-check rule, UiCommandText.build (the ONE builder, ruling 1736) read from Utils.cs, fileSizeArgOnce / localArgOnce equality, LoadOnce). The pages
  * that call them (SingleChatPage, SharedItems, SpixiFlags.init) are MAUI-bound and UNCOMPILED here, so these are SOURCE pins — with the
  * limits that come with that: they read text, they do not run the page; a hidden `#define`, a shadow class or an alias is not caught
  * (the coldstart1 #1627 limits). Comments are masked first (comments -> spaces, newlines kept, strings kept: the a-extra / coldstart1
@@ -17,11 +17,11 @@
  *                     after the read loop and before the empty-history return and before `UiBatch batch`; scheduleMediaLine 2000 ms after the
  *                     present, once per document), inside `P1Perf.enabled`, and every argument is an integer variable of the allow-list
  *                     (no friend, address, id, path, name); no Logging./Console. in PhotoOpenRules.cs; the three body words live only there
- *   a3 flagsLine    — `[FLAGS] photo1a mediaafterpaint=<0|1> fewerchecks=<0|1>` is built by
- *                     PhotoOpenRules.flagsLine (evaluated) and logged ONCE, by Logging.info (every build), in SpixiFlags.init after the two
- *                     computes, outside any #if, with the two properties in the parameter order
+ *   a3 flagsLine    — `[FLAGS] photo1a mediaafterpaint=<0|1> fewerchecks=<0|1> thumbstore=<0|1> voicestore=<0|1>` (★ r7: four tokens) is built by
+ *                     PhotoOpenRules.flagsLine (evaluated) and logged ONCE, by Logging.info (every build), in SpixiFlags.init after the four
+ *                     computes, outside any #if, with the four properties in the parameter order
  *   a4 gateOff      — the three enqueue loops of loadMessages (thumbs, voices, offers) keep their order after messagesDone and each runs the OLD
- *                     statement (`enqueueThumb(t.Key, t.Value);` …) as the else of `if (!(holdOpen && holdMedia(…)))` — with the switch OFF
+ *                     statement (`enqueueThumb(t.Key, t.Value, storeGen0);` …: the base loop + the load's ONE store generation, ★ r7 NIT-1) as the else of `if (!(holdOpen && holdMedia(…)))` — with the switch OFF
  *                     `holdOpen` is false and the old loop runs as at the base; a load-more prepend never holds (holdOpen and the gate's own
  *                     `!prepend`); the hold is the PhotoOpenRules.MediaGate whose OFF answers are the pass-through ones
  *   a5 gateOn       — ON, the held jobs are released by the paint signal (onPainted, after the present), the backstop and the paintedSeen
@@ -36,17 +36,15 @@
  *                     call, fileSizeArgOf statement, the avatar statements + the unconditional imageToDataUri / avatarForRow, the three pref
  *                     reads, the re-check rule `!fewerChecks || …`); SharedItems' old localArgOf overload is untouched
  *   a8 deleteGen    — the delete generation (round 1: PROCESS-WIDE, `private static int fileDeleteGen`): ONE `Interlocked.Increment(ref fileDeleteGen)` in each of
- *                     refreshFileRow, refreshHeldFileRows, deleteMessage (its only statement beyond the base) and `public static void noteFileDeleted()` (the whole body = that one
+ *                     refreshFileRow, refreshHeldFileRows, deleteMessage (★ r7: its body = the base body c0a7617 + exactly the increment and the store call) and `public static void noteFileDeleted()` (the whole body = that one
  *                     statement) and nowhere else; noteFileDeleted() is called from exactly four places (review round 3 MINOR-2: delete-all also bumps per file): DownloadsPage right after the
  *                     successful File.Delete, SettingsPage's single download delete right after its File.Delete, and SettingsPage.onDeleteDownloads — after each File.Delete(file) in its loop and once at its end; loadMessages samples the generation ONCE before
  *                     the read loop and reads it ONCE at the re-check; the rule `!fewerChecks || start != now`
- *   a9 switches     — SpixiFlags: the two keys and their strings, the start value false, `int qa = 1, …` (absent = 1) read inside init's try,
+ *   a9 switches     — SpixiFlags: the four keys and their strings (★ r7 NIT-1: was `the two keys`), the start value false, `int qa = 1, …` (absent = 1) read inside init's try,
  *                     S16PassRules.effectiveFlag after the catch and each property is read only
  *                     where the contract puts it (counted over Spixi/**)
- *   a11 noStore     — PO-3 / PO-6 (the kept thumbnail / waveform store) are parked: no file under Spixi/ names ChatMediaStore*, PhotoThumbStore, VoicePeaksStore,
- *                     chatThumbFor, voiceInfoFor; the store files / tests / b-store pin are absent; chatThumbOf, voiceInfoOf, enqueueThumb, enqueueVoiceInfo, ThumbJob
- *                     and VoiceInfoJob equal the base c0a76176 by SHA-256 (frozen constants, no git read) (the page may only add chatThumbOfCounted)
- *   a10 harness     — csh.csproj compiles PhotoOpenRules.cs and PhotoOpenTests holds at least 22 tests (the contract's 19 + the round-1 ones)
+ *   a11 oldBodies   — (★ photo1a re-base 2026-11-18: was noStore, while PO-3 / PO-6 were parked) chatThumbOf / voiceInfoOf equal the base c0a76176 by SHA-256; ThumbJob, VoiceInfoJob and the 3-argument enqueueThumb / enqueueVoiceInfo equal the base ones once the job generation `gen` is taken out
+ *   a10 harness     — csh.csproj compiles PhotoOpenRules.cs and PhotoOpenTests holds at least 23 tests (the contract's 19 + the later ones)
  * Deliberate breaks (#802): the builder-pins report of batch photo1a (B4), one per key. */
 import { createHash } from 'node:crypto';
 
@@ -111,10 +109,12 @@ export const SCP_F = 'Spixi/Pages/Chat/SingleChatPage.xaml.cs', RULES_F = 'Spixi
   SI_F = 'Spixi/Utils/SharedItems.cs';
 
 /* the old statements of the base (c0a76176), as the masked + whitespace-normalised text; each was read from `git show c0a76176:<file>` when
-   this pin was written (the builder's report names the check) */
+   this pin was written (the builder's report names the check). ★ photo1a #46 r7: the three enqueue statements carry the batch's one addition,
+   the load's store generation `storeGen0` (the base's own text is the same without it); `thumbPush` is the OLD push over `plainUri!` */
 const OLD = {
-  enqueueThumb: 'enqueueThumb(t.Key, t.Value);',
-  enqueueVoice: 'enqueueVoiceInfo(v.Key, v.Value);',
+  /* ★ photo1a re-base (2026-11-18): the batch loops pass the load's ONE store generation (storeGen0, F-2) to the 3-argument forms; the 2-argument forms stay for the live paths and delegate (b-store holds that) */
+  enqueueThumb: 'enqueueThumb(t.Key, t.Value, storeGen0);',
+  enqueueVoice: 'enqueueVoiceInfo(v.Key, v.Value, storeGen0);',
   enqueueOffer: 'enqueueOfferPreview(o.Key);',
   localArgOf: 'fLocal = SharedItems.localArgOf(message, out fCase);',
   fSize: 'fSize = SpixiFlags.S20FileSize ? fileSizeArgOf(message, fBytes, fLocal) : S11MediaRules.offerSizeArg(message.localSender, message.completed, fBytes);',
@@ -219,7 +219,9 @@ export default async function (h) {
   const a2 = {
     found: onLoad.length > 1000 && loadM.length > 1000 && sched.length > 50,
     /* review round 4 m-2: the clocks and the pass counter start where they must */
-    starts: onLoad.includes('long onloadT0 = P1Perf.now();') && count(onLoad, 'onloadT0') === 2 && loadM.includes('long readT0 = P1Perf.now();') && loadM.includes('int readPasses = 0;') && count(loadM, 'long readT0') === 1 && count(loadM, 'int readPasses') === 1,
+    starts: norm(onLoad).startsWith('{ shellOverlayOpen = false; long onloadT0 = P1Perf.now();') && onLoad.includes('long onloadT0 = P1Perf.now();') && count(onLoad, 'onloadT0') === 2 && loadM.includes('long readT0 = P1Perf.now();') && loadM.includes('int readPasses = 0;') && count(loadM, 'long readT0') === 1 && count(loadM, 'int readPasses') === 1
+      /* ★ photo1a r5 m-2: `readRows` is read right after the read loop's closing brace, BEFORE the trim block (`if (messages != null)`) — the line counts the rows the loop ended with, not the trimmed list */
+      && count(loadM, 'int readRows') === 1 && norm(loadM).includes('window * 2, window + (want + 1 - visibleNow)); } int readRows = messages != null ? messages.Count : 0; if (messages != null) {'),
     mainOnce: count(onLoad, mainCall) === 1 && count(SCP.m, 'onloadMainBody(') === 1,
     readOnce: count(loadM, readCall) === 1 && count(SCP.m, 'readBody(') === 1 && loadLead.includes('P1Perf.line(PhotoOpenRules.readBody(') && loadM.indexOf('P1Perf.line(PhotoOpenRules.readBody(') < loadM.indexOf('UiBatch batch'),
     mediaWhole: sched === '{ if (!P1Perf.enabled) { return; } int doc = thumbDoc; Task.Delay(MEDIA_LINE_MS).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() => { try { if (isDisposed) { return; } string? body = mediaCounts.takeLine(doc, thumbQueue.Count + Volatile.Read(ref voiceInfoQueued)); if (body != null) { P1Perf.line(body); } } catch (Exception) { } })); }'
@@ -239,32 +241,37 @@ export default async function (h) {
     '★ photo1a a2 lineSites (PO-0): the three `[P1] chat …` lines are written ONLY through P1Perf.line — `chat onload-main` once in onLoad (the statement before Task.Run, inside P1Perf.enabled), `chat read` once in loadMessages (right after the read loop, before the empty-history return and before UiBatch batch, inside P1Perf.enabled), `chat media` once per document 2000 ms after the present on the main thread (a page torn down = no line) — every argument an integer variable of the allow-list (the Stopwatch ms, rows, passes, the document number, the queue counts): no friend, address, id, path or name; the three body words exist only in PhotoOpenRules.cs, which has no Logging. / Console. / Preferences / File — failing: ' + JSON.stringify(F(a2)));
 
   /* ── a3 · the [FLAGS] photo1a line: built by PhotoOpenRules.flagsLine, logged once by SpixiFlags.init ── */
-  const flagsExpr = ret('public static string flagsLine(bool mediaAfterPaint, bool fewerChecks)');
-  const fl = (a, b) => evalPlus(flagsExpr || '', { mediaAfterPaint: a, fewerChecks: b });
+  const flagsExpr = ret('public static string flagsLine(bool mediaAfterPaint, bool fewerChecks, bool thumbStore, bool voiceStore)');
+  /* ★ photo1a re-base (2026-11-18): PO-3 / PO-6 are back — the line has four tokens, `thumbstore=` and `voicestore=` after the two old ones */
+  const fl = (a, b, c = false, d = false) => evalPlus(flagsExpr || '', { mediaAfterPaint: a, fewerChecks: b, thumbStore: c, voiceStore: d });
   const init = body(SF, 'public static void init()');
   const ni = norm(init);
-  const CALL = 'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks));';
+  const CALL = 'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));';
   const callAt = SF.m.indexOf(CALL);
   const a3 = {
     found: init.length > 500,
-    built: fl(true, false) === '[FLAGS] photo1a mediaafterpaint=1 fewerchecks=0'
-      && fl(false, true) === '[FLAGS] photo1a mediaafterpaint=0 fewerchecks=1'
-      && /^\[FLAGS\] photo1a mediaafterpaint=[01] fewerchecks=[01]$/.test(fl(true, true) || ''),
+    built: fl(true, false, false, false) === '[FLAGS] photo1a mediaafterpaint=1 fewerchecks=0 thumbstore=0 voicestore=0'
+      && fl(false, true, true, false) === '[FLAGS] photo1a mediaafterpaint=0 fewerchecks=1 thumbstore=1 voicestore=0'
+      && fl(false, false, false, true) === '[FLAGS] photo1a mediaafterpaint=0 fewerchecks=0 thumbstore=0 voicestore=1'
+      && /^\[FLAGS\] photo1a mediaafterpaint=[01] fewerchecks=[01] thumbstore=[01] voicestore=[01]$/.test(fl(true, true, true, true) || ''),
     onlyHere: treeCount('"[FLAGS] photo1a').length === 1 && treeCount('"[FLAGS] photo1a')[0][0] === RULES_F,
     onceInInit: count(SF.m, 'PhotoOpenRules.flagsLine(') === 1 && count(init, CALL) === 1 && treeCount('PhotoOpenRules.flagsLine(').map(([f]) => f).join() === FLAGS_F,
-    /* logged by Logging.info (every build, like the other [FLAGS] lines), not through P1Perf; outside every #if; after the two computes and the fixb1 line */
+    /* logged by Logging.info (every build, like the other [FLAGS] lines), not through P1Perf; outside every #if; after the four computes and the fixb1 line */
     everyBuild: callAt > 0 && regionsAt(SF.m, callAt).length === 0 && !/P1Perf/.test(SF.m),
     order: ni.indexOf('PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);') > ni.indexOf('Logging.info(FixB1Rules.flagsLine(ConfirmSafeDefault, DividerHoverLine));')
-      && ni.indexOf('PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);') < ni.indexOf(CALL),
-    argOrder: /public static string flagsLine\(bool mediaAfterPaint, bool fewerChecks\)/.test(norm(RU.m)),
+      && ni.indexOf('PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);') < ni.indexOf(CALL)
+      && ni.indexOf('PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;') > ni.indexOf('PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);')
+      && ni.indexOf('VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;') > ni.indexOf('PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt)')
+      && ni.indexOf('VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;') < ni.indexOf(CALL),
+    argOrder: /public static string flagsLine\(bool mediaAfterPaint, bool fewerChecks, bool thumbStore, bool voiceStore\)/.test(norm(RU.m)),
   };
   ok(F(a3).length === 0,
-    '★ photo1a a3 flagsLine (P65, P66): `[FLAGS] photo1a mediaafterpaint=<0|1> fewerchecks=<0|1>` — the expression of PhotoOpenRules.flagsLine EVALUATES to that text; its words exist only there; SpixiFlags.init calls it exactly once, as `Logging.info(…)` outside any #if (every build, like the other [FLAGS] lines; not P1Perf), after the two computes and the fixb1 line, with the two properties in the parameter order — failing: ' + JSON.stringify(F(a3)));
+    '★ photo1a a3 flagsLine (P65–P68; ★ photo1a re-base 2026-11-18, four tokens): `[FLAGS] photo1a mediaafterpaint=<0|1> fewerchecks=<0|1> thumbstore=<0|1> voicestore=<0|1>` — the expression of PhotoOpenRules.flagsLine EVALUATES to that text; its words exist only there; SpixiFlags.init calls it exactly once, as `Logging.info(…)` outside any #if (every build, like the other [FLAGS] lines; not P1Perf), after the four computes and the fixb1 line, with the four properties in the parameter order — failing: ' + JSON.stringify(F(a3)));
 
   /* ── a4 · PO-1 OFF: the three enqueue loops are the old ones; the hold only wraps them ── */
   const loopOf = (coll, old, call) => new RegExp('foreach \\(KeyValuePair<string, FriendMessage> ' + coll + ' in batch\\.' + { t: 'thumbs', v: 'voices', o: 'offers' }[coll] + '\\)\\s*\\{\\s*if \\(!\\(holdOpen && holdMedia\\(prepend, holdDoc, \\(\\) => ' + call.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\)\\)\\)\\s*\\{\\s*' + old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\}\\s*\\}');
-  const loopT = loadM.search(loopOf('t', OLD.enqueueThumb, 'enqueueThumb(t.Key, t.Value)'));
-  const loopV = loadM.search(loopOf('v', OLD.enqueueVoice, 'enqueueVoiceInfo(v.Key, v.Value)'));
+  const loopT = loadM.search(loopOf('t', OLD.enqueueThumb, 'enqueueThumb(t.Key, t.Value, storeGen0)'));
+  const loopV = loadM.search(loopOf('v', OLD.enqueueVoice, 'enqueueVoiceInfo(v.Key, v.Value, storeGen0)'));
   const loopO = loadM.search(loopOf('o', OLD.enqueueOffer, 'enqueueOfferPreview(o.Key)'));
   const lastDone = loadM.lastIndexOf('Utils.sendUiCommand(this, "messagesDone", show_more);');
   const gateRules = norm(body(RU, 'public sealed class MediaGate<T>'));
@@ -275,7 +282,7 @@ export default async function (h) {
     order: lastDone > 0 && lastDone < loopT && loopT < loopV && loopV < loopO && loadM.indexOf('recheckBurstFileRows(batch, readChannel)') > loopT && loadM.indexOf('recheckBurstFileRows(batch, readChannel)') < loopV,
     holdOpen: /int holdDoc = thumbDoc;\s*bool holdOpen = !prepend && SpixiFlags\.PhotoMediaAfterPaint;/.test(loadM) && count(loadM, 'holdOpen') === 4,
     /* each old statement exists exactly where the wrapper keeps it: the lambda + the else (2), never a third copy */
-    twoEach: count(loadM, 'enqueueThumb(t.Key, t.Value)') === 2 && count(loadM, 'enqueueVoiceInfo(v.Key, v.Value)') === 2 && count(loadM, 'enqueueOfferPreview(o.Key)') === 2,
+    twoEach: count(loadM, 'enqueueThumb(t.Key, t.Value, storeGen0)') === 2 && count(loadM, 'enqueueVoiceInfo(v.Key, v.Value, storeGen0)') === 2 && count(loadM, 'enqueueOfferPreview(o.Key)') === 2,
     oneHoldSite: count(SCP.m, 'holdMedia(') === 4 && /bool prepend = takePrepend\(\);/.test(loadM),
     holdWhole: holdM === '{ if (!mediaGate.tryHold(SpixiFlags.PhotoMediaAfterPaint, prepend, doc, enqueue)) { return false; } mediaCounts.held(doc); return true; }',
     /* the gate's OFF / prepend answers are the pass-through ones (executed in csh PhotoOpenTests; the text is held here) */
@@ -286,7 +293,7 @@ export default async function (h) {
       && gateRules.includes('public void load(bool on, bool paintedSeen, int doc) { if (!on) { return; } if (paintedSeen) { hold.drop(); } else { hold.open(doc); } }'),
   };
   ok(F(a4).length === 0,
-    '★ photo1a a4 gateOff (PO-1): the three enqueue loops of loadMessages — thumbnails, then (after the re-check) waveforms, then offer previews, all after the last messagesDone — each runs the OLD statement (`enqueueThumb(t.Key, t.Value);` / `enqueueVoiceInfo(v.Key, v.Value);` / `enqueueOfferPreview(o.Key);`) as the else of `if (!(holdOpen && holdMedia(…)))`, with holdOpen = !prepend && SpixiFlags.PhotoMediaAfterPaint: the switch OFF or a load-more prepend never holds, so the loops run as at the base in the same order; the hold is PhotoOpenRules.MediaGate, whose OFF answers are the pass-through ones — failing: ' + JSON.stringify(F(a4)));
+    '★ photo1a a4 gateOff (PO-1): the three enqueue loops of loadMessages — thumbnails, then (after the re-check) waveforms, then offer previews, all after the last messagesDone — each runs the old loop statement (`enqueueThumb(t.Key, t.Value, storeGen0);` / `enqueueVoiceInfo(v.Key, v.Value, storeGen0);` / `enqueueOfferPreview(o.Key);` — the base statements + the one store generation of the load) as the else of `if (!(holdOpen && holdMedia(…)))`, with holdOpen = !prepend && SpixiFlags.PhotoMediaAfterPaint: the switch OFF or a load-more prepend never holds, so the loops run as at the base (plus the generation argument) in the same order; the hold is PhotoOpenRules.MediaGate, whose OFF answers are the pass-through ones — failing: ' + JSON.stringify(F(a4)));
 
   /* ── a5 · PO-1 ON: held, then released by the paint signal, the backstop and the paintedSeen branch ── */
   const arm = norm(body(SCP, 'private void armPresentOnPainted()'));
@@ -322,29 +329,38 @@ export default async function (h) {
   const sbc = norm(body(SCP, 'private void sendBuiltCommand(string text)'));
   const a6 = {
     found: ptLam.length > 100 && pvLam.length > 100,
-    thumbBuiltOffMain: /string\? builtCmd = SpixiFlags\.PhotoMediaAfterPaint \? PhotoOpenRules\.uiCommandText\("setFileThumb", id, uri\) : null;/.test(ptHead)
-      && count(SCP.m, 'PhotoOpenRules.uiCommandText(') === 3,
+    thumbBuiltOffMain: /string\? builtCmd = SpixiFlags\.PhotoMediaAfterPaint \? UiCommandText\.build\("setFileThumb", id, uri\) : null;/.test(ptHead)
+      && count(SCP.m, 'UiCommandText.build(') === 3 && count(SCP.m, 'uiCommandText') === 0 /* ★ photo1a (ruling 1736): the shared builder */,
     plainOnly: norm(ptHead).includes('string? plainUri = builtCmd == null ? uri : null;') && !/\buri\b/.test(ptLam),
     thumbMain: norm(ptLam) === '{ if (isDisposed || doc != thumbDoc || friend == null || !SChatPrefs.photoPreviews) { lock (thumbsSent) { thumbsSent.Remove(sentKey); } return; } if (builtCmd != null) { sendBuiltCommand(builtCmd); } else { ' + OLD.thumbPush + ' } mediaCounts.thumb(doc, hit); }',
-    voiceBuiltOffMain: /if \(SpixiFlags\.PhotoMediaAfterPaint\)\s*\{\s*if \(info == null\)\s*\{\s*builtCmd = PhotoOpenRules\.uiCommandText\("voiceState", id, "error", "0", "0"\);\s*\}\s*else\s*\{\s*int builtBar = info\.IndexOf\('\|'\);\s*if \(builtBar >= 0\)\s*\{\s*builtCmd = PhotoOpenRules\.uiCommandText\("voiceInfo", id, info\.Substring\(0, builtBar\), info\.Substring\(builtBar \+ 1\)\);\s*\}\s*\}\s*\}/.test(pvHead)
+    voiceBuiltOffMain: /if \(SpixiFlags\.PhotoMediaAfterPaint\)\s*\{\s*if \(info == null\)\s*\{\s*builtCmd = UiCommandText\.build\("voiceState", id, "error", "0", "0"\);\s*\}\s*else\s*\{\s*int builtBar = info\.IndexOf\('\|'\);\s*if \(builtBar >= 0\)\s*\{\s*builtCmd = UiCommandText\.build\("voiceInfo", id, info\.Substring\(0, builtBar\), info\.Substring\(builtBar \+ 1\)\);\s*\}\s*\}\s*\}/.test(pvHead)
       && /string\? builtCmd = null;/.test(pvHead),
     voiceMain: norm(pvLam) === '{ if (isDisposed || doc != thumbDoc) { lock (voiceInfoSent) { voiceInfoSent.Remove(sentKey); } return; } if (builtCmd != null) { sendBuiltCommand(builtCmd); if (info != null) { mediaCounts.voice(doc); } return; } if (info == null) { ' + OLD.voiceErr + ' return; } int bar = info.IndexOf(\'|\'); ' + OLD.voiceInfo + ' mediaCounts.voice(doc); }',
-    /* review round 3 m-2: chatThumbOfCounted whole (chatThumbOf + the `hit` probe; `hit = true` or a changed return is red) and the one processThumb line that picks it (a store build = the base call) */
-    countedWhole: NS.includes("private static string? chatThumbOfCounted(FileInfo fi, out bool hit) " + "{ hit = false; try { string key = fi.FullName + \"|\" + fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + \"|\" + fi.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture); lock (chatThumbLock) { hit = chatThumbCache.ContainsKey(key); } } catch (Exception) { hit = false; } return chatThumbOf(fi); }"),
-    /* review round 4 m-2: processThumb from `bool hit = false;` to the main-thread post, whole (a write of `hit`, a changed call or a dropped return is red) */
-    thumbHead: (() => { const h = norm(pt); const i = h.indexOf('bool hit = false;'); const j = h.indexOf('MainThread.BeginInvokeOnMainThread('); return i > 0 && j > i && h.slice(i, j).trim() === "bool hit = false; string? uri = P1Perf.enabled ? chatThumbOfCounted(fi, out hit) : chatThumbOf(fi); if (uri == null) { return; } int doc = job.doc; string id = job.id; string? builtCmd = SpixiFlags.PhotoMediaAfterPaint ? PhotoOpenRules.uiCommandText(\"setFileThumb\", id, uri) : null; string? plainUri = builtCmd == null ? uri : null;"; })(),
-    countedCall: NS.includes("bool hit = false; string? uri = P1Perf.enabled ? chatThumbOfCounted(fi, out hit) : chatThumbOf(fi);") && count(SCP.m, 'chatThumbOfCounted(') === 2,
-    nothingBuiltOnMain: !/uiCommandText|Convert\.|Encoding\.|escapeHtmlParameter|ToBase64String|StringBuilder/.test(ptLam + pvLam),
+    /* review round 3 m-2 · ★ photo1a re-base (2026-11-18, PO-3 is back): `chatThumbOld` is the old chatThumbOfCounted — chatThumbOf + the `hit` probe, whole (a `hit = true`, a changed return or a lost NIT-2 head `if (!P1Perf.enabled) { return chatThumbOf(fi); }` is red) */
+    countedWhole: NS.includes("private static string? chatThumbOld(FileInfo fi, out bool hit) " + "{ hit = false; if (!P1Perf.enabled) { return chatThumbOf(fi); } try { string key = fi.FullName + \"|\" + fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + \"|\" + fi.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture); lock (chatThumbLock) { hit = chatThumbCache.ContainsKey(key); } } catch (Exception) { hit = false; } return chatThumbOf(fi); }"),
+    /* review round 4 m-2 · ★ photo1a re-base (2026-11-18): processThumb from the ONE store call (`chatThumbFor(fi, job.id, job.gen, out bool hit)`; the store / LRU, OFF = chatThumbOld = the base call) to the main-thread post, whole (a changed call, a dropped return or a write of `hit` is red) */
+    thumbHead: (() => { const h = norm(pt); const i = h.indexOf('string? uri = chatThumbFor('); const j = h.indexOf('MainThread.BeginInvokeOnMainThread('); return i > 0 && j > i && h.slice(i, j).trim() === "string? uri = chatThumbFor(fi, job.id, job.gen, out bool hit); if (uri == null) { return; } int doc = job.doc; string id = job.id; string? builtCmd = SpixiFlags.PhotoMediaAfterPaint ? UiCommandText.build(\"setFileThumb\", id, uri) : null; string? plainUri = builtCmd == null ? uri : null;"; })(),
+    /* ★ photo1a #46 r7 (2026-11-18) F1: `voiceHead`, the twin of `thumbHead` — processVoiceInfo from `int doc = job.doc;` to the main-thread post, whole (a statement added before the post, e.g. `builtCmd = "voiceInfo('" + id + "','" + info + "');";` or `builtCmd += id;`, is red); `builtCmd` is assigned exactly three times in the method: its declaration (= null) and the two UiCommandText.build lines */
+    voiceHead: (() => { const h = norm(pv); const i = h.indexOf('int doc = job.doc;'); const j = h.indexOf('MainThread.BeginInvokeOnMainThread('); return i > 0 && j > i && count(h, 'int doc = job.doc;') === 1 && h.slice(i, j).trim() === `int doc = job.doc; string id = job.id; string? builtCmd = null; if (SpixiFlags.PhotoMediaAfterPaint) { if (info == null) { builtCmd = UiCommandText.build("voiceState", id, "error", "0", "0"); } else { int builtBar = info.IndexOf('|'); if (builtBar >= 0) { builtCmd = UiCommandText.build("voiceInfo", id, info.Substring(0, builtBar), info.Substring(builtBar + 1)); } } }`; })()
+      && count(pv, /\bbuiltCmd\s*[-+*\/|&^%?]?=(?!=)/g) === 3 && count(pv, 'builtCmd = UiCommandText.build(') === 2,
+    countedCall: count(NS, 'string? uri = chatThumbFor(fi, job.id, job.gen, out bool hit);') === 1 && count(SCP.m, 'chatThumbFor(') === 4 && count(SCP.m, 'chatThumbOld(') === 3 && !/\bchatThumbOfCounted\b/.test(SCP.m),
+    nothingBuiltOnMain: !/uiCommandText|UiCommandText|Convert\.|Encoding\.|escapeHtmlParameter|ToBase64String|StringBuilder/.test(ptLam + pvLam),
     sendOnly: sbc === '{ try { sendMessage(text); } catch (Exception e) { Logging.error("Exception occured in sendUiCommand (" + e.GetType().Name + ")"); } }' && count(SCP.m, 'sendBuiltCommand(') === 3,
+    /* ★ photo1a #46 r8 (2026-11-18, Opus MAJOR-1 / MAJOR-2): BOTH push methods are held WHOLE (comment-masked, whitespace-
+       normalised, SHA-256 — the #1653 pattern): a write of builtCmd / plainUri / hit / info anywhere in the method (before
+       or after the post, by any assignment form: =, +=, ??=, Interlocked.Exchange, ref) changes the hash. An edit of either
+       method re-bases these two values after a look at its diff (#1596). */
+    bodiesWhole: sha(norm(pt)) === '780905290220bbe209bd0fb2ea6f70c7638966c8dc6f3e8b3cfb9472ea676fae' && sha(norm(pv)) === '265442cfe4b14d146ec1c6ca9c37223e366e344eb0bcd0534fe835f392c66fdc',
     oneSendUiPush: count(SCP.m, '"setFileThumb"') === 2 && count(SCP.m, '"voiceInfo"') === 2 && count(SCP.m, '"voiceState", id, "error", "0", "0"') === 2,
   };
   ok(F(a6).length === 0,
-    '★ photo1a a6 pushOffMain (PO-1): processThumb / processVoiceInfo build the UI command text on the DRAINER thread — before BeginInvokeOnMainThread, and only with SpixiFlags.PhotoMediaAfterPaint ON — and the main-thread lambda only hands it to sendBuiltCommand (-> sendMessage, with sendUiCommand\'s own error line) after the SAME re-check as before (isDisposed / doc / friend / the pref; the slot given back when it fails): the lambda builds nothing (no uiCommandText, base64, Encoding, StringBuilder); the switch OFF = builtCmd null = the OLD `Utils.sendUiCommand(this, "setFileThumb", id, uri)` / `voiceState error` / `voiceInfo` statements, byte for byte; the command words and argument lists are the old ones (no new verb, no new argument) — failing: ' + JSON.stringify(F(a6)));
+    '★ photo1a a6 pushOffMain (PO-1): processThumb / processVoiceInfo build the UI command text on the DRAINER thread — before BeginInvokeOnMainThread, and only with SpixiFlags.PhotoMediaAfterPaint ON — and the main-thread lambda only hands it to sendBuiltCommand (-> sendMessage, with sendUiCommand\'s own error line) after the SAME re-check as before (isDisposed / doc / friend / the pref; the slot given back when it fails): the lambda builds nothing (no uiCommandText, base64, Encoding, StringBuilder); the switch OFF = builtCmd null = the OLD `Utils.sendUiCommand(this, "setFileThumb", id, plainUri!)` (plainUri = uri when no text was built) / `voiceState error` / `voiceInfo` statements, byte for byte; the head of processVoiceInfo from `int doc = job.doc;` to the post is held whole (voiceHead), like thumbHead; the command words and argument lists are the old ones (no new verb, no new argument) — failing: ' + JSON.stringify(F(a6)));
 
   /* ── a7 · PO-5 OFF: no once-values, so every branch is the old statement ── */
   const begin = norm(body(SCP, 'private static IDisposable? beginRowCache(UiBatch batch)'));
   const forRow = norm(body(SCP, 'private static RowCache? rowCacheFor(UiBatch? batch)'));
   const noteCand = norm(body(SCP, 'private void noteThumbCandidate(FriendMessage message, string name, UiBatch? batch)'));
+  const IM = norm(body(SCP, 'private void insertMessage(FriendMessage message, int channel, UiBatch? batch)'));
   const oldLocalArg = norm(body(SI, 'public static string localArgOf(FriendMessage fm, out string pathCase)'));
   const upd = body(SCP, 'private void updateMessageReadStatus(');
   const a7 = {
@@ -367,8 +383,15 @@ export default async function (h) {
     sizeWrapper: NS.includes("private static string fileSizeArgOnce(FriendMessage message, ulong headerBytes, string fLocal, string? resolvedPath) " + "{ return PhotoOpenRules.fileSizeArgOnce(message.localSender, message.completed, headerBytes, fLocal, resolvedPath, message.transferId, id => { FileTransfer? t = TransferManager.getOutgoingTransfer(id); return t != null && t.uid == id ? t.fileSize : 0UL; }, () => SharedItems.localPathOf(message), p => new FileInfo(p).Length); }"),
     /* review round 3 m-1: the ON block of the 1:1 once-avatar, whole (the data-URI function it passes, the key, the once-per-load cache) */
     /* review round 4 M-1: `avatarFinal` starts false and is written ONCE more, inside the ON block (a start of `true` skips the OFF path's imageToDataUri / avatarForRow block); m-1: `fPath` has no write but its declaration and the overload's `out fPath` */
-    avatarFinalWrites: NS.includes('bool avatarFinal = false;') && count(NS, /\bavatarFinal\s*=[^=]/g) === 2 && count(NS, /\bavatarFinal\b/g) === 3 && count(NS, 'avatarFinal = true; }') === 1,
-    fPathWrites: NS.includes('string? fPath = null;') && count(NS, /\bfPath\s*=[^=]/g) === 1 && count(NS, 'out fPath)') === 1 && count(NS, /\bfPath\b/g) === 3,
+    /* ★ photo1a r5 m-3: counted INSIDE insertMessage's 3-argument body only — a `string fPath = a;` in another helper is none of this key's business */
+    imFound: IM.length > 2000,
+    avatarFinalWrites: IM.includes('bool avatarFinal = false;') && count(IM, /\bavatarFinal\s*=[^=]/g) === 2 && count(IM, /\bavatarFinal\b/g) === 3 && count(IM, 'avatarFinal = true; }') === 1,
+    fPathWrites: IM.includes('string? fPath = null;') && count(IM, /\bfPath\s*=[^=]/g) === 1 && count(IM, 'out fPath)') === 1 && count(IM, /\bfPath\b/g) === 3,
+    /* ★ photo1a r5 M-1: the once-value holder, whole — ONE per UiBatch (`new LoadOnce()` is built here and nowhere else in Spixi/), the owner is the batch it was made for */
+    rowCacheWhole: NS.includes('private sealed class RowCache { public readonly UiBatch owner; public readonly PhotoOpenRules.LoadOnce once = new PhotoOpenRules.LoadOnce(); public RowCache(UiBatch b) { owner = b; } }')
+      && JSON.stringify(treeCount('new PhotoOpenRules.LoadOnce(')) === JSON.stringify([[SCP_F, 1]]),
+    /* ★ photo1a r5 n-1: the SharedItems overload with `out path`, whole */
+    overloadWhole: norm(body(SI, 'public static string localArgOf(FriendMessage fm, out string pathCase, out string? path)')) === '{ path = null; if (fm == null || fm.type != FriendMessageType.fileHeader) { pathCase = FileRowRules.CaseNone; return ""; } return PhotoOpenRules.localArgOnce(fm.localSender, fm.completed, fm.filePath, () => localPathOf(fm), () => cacheDirOnce.Value, out pathCase, out path); }',
     avatarOnBlock: NS.includes("if (PhotoOpenRules.oneToOneAvatarOnce(rowOnce != null, friend.bot, friend.type == FriendType.Group)) { string avatarKey = resolvedSender != null ? resolvedSender.ToString() : friend.walletAddress.ToString(); avatar = rowOnce!.once.once(\"avatar|\" + avatarKey, () => PhotoOpenRules.oneToOneRowAvatar(IxianHandler.localStorage.getAvatarPath(avatarKey), Utils.imageToDataUri)); avatarFinal = true; }"),
     recheckRule: norm(body(RU, 'public static bool recheckFileRows(bool fewerChecks, int deleteGenAtStart, int deleteGenNow)')) === '{ return !fewerChecks || deleteGenAtStart != deleteGenNow; }',
   };
@@ -385,11 +408,14 @@ export default async function (h) {
   const onDelDl = body(SET, 'public void onDeleteDownloads()');
   const noteCallSites = TREE.map((x) => x.f + ':' + count(x.m, 'noteFileDeleted(')).filter((t) => !/:0$/.test(t) || /SingleChatPage/.test(t))
     .map((t) => t.replace(/SingleChatPage\.xaml\.cs:\d+/, 'SingleChatPage.xaml.cs:0')).sort().join();
+  /* the base body of deleteMessage (c0a7617) without its closing brace — `git show c0a7617:Spixi/Pages/Chat/SingleChatPage.xaml.cs`, masked + normalised */
+  const BASE_DELETE_OPEN = '{ voiceRowDeleted(msg_id); if (channel == selectedChannel) { lock (fileRowsShown) { fileRowsShown.Remove(Crypto.hashToString(msg_id)); } Utils.sendUiCommand(this, "deleteMessage", Crypto.hashToString(msg_id)); }';
   const a8 = {
     found: refresh.length > 50 && heldRows.length > 50 && delMsg.length > 50,
     refreshFirst: norm(refresh).startsWith('{ Interlocked.Increment(ref fileDeleteGen); if (message == null'),
     heldFirst: norm(heldRows).startsWith('{ Interlocked.Increment(ref fileDeleteGen); List<string> held;'),
-    deleteOnce: incs(delMsg) === 1 && norm(delMsg).endsWith('Interlocked.Increment(ref fileDeleteGen); }'),
+    /* ★ photo1a #46 r7 (2026-11-18) NIT-1: deleteMessage's body = the BASE body (c0a7617, masked + whitespace-normalised, frozen here: no git read) + EXACTLY the batch's two statements — the generation increment, then the store call (b-store b1 holds the store call) — so a third statement (`ChatMediaStore.wipe();` before the increment, any other) is red */
+    deleteOnce: incs(delMsg) === 1 && norm(delMsg) === BASE_DELETE_OPEN + ' Interlocked.Increment(ref fileDeleteGen); ChatMediaStore.deleteMessage(friend?.walletAddress, msg_id); }',
     onlyFour: incs(SCP.m) === 4 && incs(refresh) === 1 && incs(heldRows) === 1 && incs(noteBody) === 1 && !/fileDeleteGen\s*(\+\+|--|=[^=]|\+=|-=)/.test(SCP.m.replace(/private static int fileDeleteGen = 0;/, '')),
     noteStatic: norm(noteBody) === '{ Interlocked.Increment(ref fileDeleteGen); }' && /public static void noteFileDeleted\(\)/.test(SCP.m),
     noteCalls: noteCallSites === 'Spixi/Pages/Chat/SingleChatPage.xaml.cs:0,Spixi/Pages/Downloads/DownloadsPage.xaml.cs:1,Spixi/Pages/Settings/SettingsPage.xaml.cs:3'
@@ -407,7 +433,9 @@ export default async function (h) {
 
   /* ── a9 · the two switches: keys, defaults, the S16 rule, the consumers ── */
   const initN = ni;
-  const keys = [['PhotoMediaAfterPaintKey', 'flagPhotoMediaAfterPaint', 'PhotoMediaAfterPaint', 'qa'], ['PhotoFewerFileChecksKey', 'flagPhotoFewerFileChecks', 'PhotoFewerFileChecks', 'qf']];
+  const keys = [['PhotoMediaAfterPaintKey', 'flagPhotoMediaAfterPaint', 'PhotoMediaAfterPaint', 'qa'], ['PhotoFewerFileChecksKey', 'flagPhotoFewerFileChecks', 'PhotoFewerFileChecks', 'qf'],
+    /* ★ photo1a re-base (2026-11-18): PO-3 / PO-6 are back — two more keys, the same shape */
+    ['PhotoThumbStoreKey', 'flagPhotoThumbStore', 'PhotoThumbStore', 'qt'], ['VoicePeaksStoreKey', 'flagVoicePeaksStore', 'VoicePeaksStore', 'qv']];
   const iTry = init.search(/\btry\s*\{/), iCatch = init.indexOf('catch (Exception ex)');
   const iCatchEnd = iCatch < 0 ? -1 : iCatch + body({ m: init, b: mask(init, true) }, 'catch (Exception ex)').length;
   const flagsOf = (p) => treeCount('SpixiFlags.' + p);
@@ -415,18 +443,26 @@ export default async function (h) {
     found: init.length > 500 && iTry > 0 && iCatch > iTry,
     keys: keys.every(([k, s]) => new RegExp('public const string ' + k + ' = "' + s + '";').test(SF.m) && count(SF.m, '"' + s + '"') === 1 && treeCount('"' + s + '"').length === 1),
     startFalse: keys.every(([, , p]) => new RegExp('public static bool ' + p + ' \\{ get; private set; \\} = false;').test(SF.m)),
-    absentOn: /int qa = 1, qf = 1;/.test(init) && init.indexOf('int qa = 1, qf = 1;') < iTry
+    absentOn: /int qa = 1, qf = 1, qt = 1, qv = 1;/.test(init) && init.indexOf('int qa = 1, qf = 1, qt = 1, qv = 1;') < iTry
       && keys.every(([k, , , q]) => { const s = q + ' = Preferences.Default.Get(' + k + ', 1);'; return count(init, s) === 1 && init.indexOf(s) > iTry && init.indexOf(s) < iCatch; }),
     rule: /PhotoMediaAfterPaint = S16PassRules\.effectiveFlag\(dev, qa\);/.test(init) && /PhotoFewerFileChecks = S16PassRules\.effectiveFlag\(dev, qf\);/.test(init)
+      && /PhotoThumbStore = S16PassRules\.effectiveFlag\(dev, qt\) && ChatMediaStore\.platformOn;/.test(init) && /VoicePeaksStore = S16PassRules\.effectiveFlag\(dev, qv\) && ChatMediaStore\.platformOn;/.test(init)
       && keys.every(([, , p]) => count(init, p + ' = ') === 1 && init.indexOf(p + ' = ') > iCatchEnd) && /return !\(devMode && stored == 0\);/.test(raw('Spixi/Utils/S16PassRules.cs').replace(/\/\/.*$/gm, '')),
     consumersAfterPaint: flagsOf('PhotoMediaAfterPaint').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).join() === SCP_F + ':8',
     consumersFewer: flagsOf('PhotoFewerFileChecks').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).join() === SCP_F + ':2',
-    notDevControl: !/PhotoMediaAfterPaint|PhotoFewerFileChecks|flagPhoto/.test(mask(raw('Spixi/Pages/Dev/DevPage.xaml.cs'))),
+    /* the store switches are read in the page only: the load's one generation read, the two live-path enqueues, the two For() gates (3 sites each) */
+    consumersThumb: flagsOf('PhotoThumbStore').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).join() === SCP_F + ':3',
+    consumersVoice: flagsOf('PhotoVoicePeaksStore').length === 0 && flagsOf('VoicePeaksStore').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).join() === SCP_F + ':3',
+    notDevControl: !/PhotoMediaAfterPaint|PhotoFewerFileChecks|PhotoThumbStore|VoicePeaksStore|flagPhoto|flagVoicePeaks/.test(mask(raw('Spixi/Pages/Dev/DevPage.xaml.cs'))),
   };
   ok(F(a9).length === 0,
-    '★ photo1a a9 switches (#1478: one switch per change): SpixiFlags holds the keys flagPhotoMediaAfterPaint / flagPhotoFewerFileChecks (each string once in Spixi/**), the start value `= false` (before init = the old path), the locals `qa = qf = 1` (ABSENT = 1 = ON) read inside init\'s try, the S16 rule `S16PassRules.effectiveFlag(dev, q…)` after the catch (a stored 0 acts only in dev mode);  each property is read only where the contract puts it (PhotoMediaAfterPaint: the 8 sites of the gate and the push in SingleChatPage; PhotoFewerFileChecks: beginRowCache + the re-check) and no Developer-screen control exists in this batch — failing: ' + JSON.stringify(F(a9)));
+    '★ photo1a a9 switches (#1478: one switch per change): SpixiFlags holds the keys flagPhotoMediaAfterPaint / flagPhotoFewerFileChecks (each string once in Spixi/**), the start value `= false` (before init = the old path), the locals `qa = qf = qt = qv = 1` (ABSENT = 1 = ON; ★ photo1a re-base 2026-11-18: + flagPhotoThumbStore / flagVoicePeaksStore, the rule AND-ed with ChatMediaStore.platformOn, each store property read at 3 sites of the page) read inside init\'s try, the S16 rule `S16PassRules.effectiveFlag(dev, q…)` after the catch (a stored 0 acts only in dev mode);  each property is read only where the contract puts it (PhotoMediaAfterPaint: the 8 sites of the gate and the push in SingleChatPage; PhotoFewerFileChecks: beginRowCache + the re-check) and no Developer-screen control exists in this batch — failing: ' + JSON.stringify(F(a9)));
 
-  /* ── a11 · noStore: PO-3 / PO-6 (the kept thumbnail / waveform store) are PARKED — nothing of them is in the tree, and the old bodies are the base's ── */
+  /* ── a11 · oldBodies (★ photo1a re-base 2026-11-18: PO-3 / PO-6 are BACK, so the old "noStore" key is turned into what still matters:
+        the six base bodies are the base's, except for the ONE added thing, the job generation) ──
+     chatThumbOf and voiceInfoOf are untouched (= the base c0a76176 by SHA-256); ThumbJob / VoiceInfoJob / the 3-argument enqueueThumb / enqueueVoiceInfo
+     equal the base ones once the generation (the `gen` field, the `long g` constructor argument, `gen = g;`, the `, gen` argument) is taken out; the
+     2-argument forms are held by b-store (they only read the generation and delegate). */
   /* the SHA-256 of the masked, whitespace-normalised bodies of the BASE c0a76176 ("Merge pull request #14"), computed from `git show c0a76176:Spixi/Pages/Chat/SingleChatPage.xaml.cs`
      and FROZEN here (review round 3 M-2: reading `git show HEAD:` compared the tree with itself once the batch was committed) */
   const BASE_SHA = {
@@ -437,27 +473,32 @@ export default async function (h) {
     'private sealed class ThumbJob': '0bdc7028484c9e035018c85bbb0266ed0bccd4bf4e95ced17b596c1c28f424d8',
     'private sealed class VoiceInfoJob': '0fdd3cb88728e8b91dd9cc24738f782bedaf2702f9f1fda2ad30c2bac9b06306',
   };
-  const sameBody = (sig) => { const b1 = body(SCP, sig); return b1.length > 40 && sha(norm(b1)) === BASE_SHA[sig]; };
-  const SAME = Object.keys(BASE_SHA);
-  const NAMES = /\b(ChatMediaStore\w*|PhotoThumbStore|VoicePeaksStore|chatThumbFor|voiceInfoFor)\b/;
+  /* the generation taken out: exactly four textual forms, nothing else */
+  const noGen = (t) => norm(t.replace(/public readonly long gen;/, '').replace(/, long g\)/, ')').replace(/ gen = g;/, '').replace(/, gen\)/g, ')'));
+  const SAME_AS = [['private static string? chatThumbOf(FileInfo fi)', 'private static string? chatThumbOf(FileInfo fi)', false],
+    ['private string? voiceInfoOf(FriendMessage fm, string id, out bool notYet)', 'private string? voiceInfoOf(FriendMessage fm, string id, out bool notYet)', false],
+    ['private void enqueueThumb(string id, FriendMessage fm, long gen)', 'private void enqueueThumb(string id, FriendMessage fm)', true],
+    ['private void enqueueVoiceInfo(string id, FriendMessage fm, long gen)', 'private void enqueueVoiceInfo(string id, FriendMessage fm)', true],
+    ['private sealed class ThumbJob', 'private sealed class ThumbJob', true], ['private sealed class VoiceInfoJob', 'private sealed class VoiceInfoJob', true]];
+  const sameBody = ([sig, base, strip]) => { const b1 = body(SCP, sig); return b1.length > 40 && sha(strip ? noGen(b1) : norm(b1)) === BASE_SHA[base]; };
   const a11 = {
     found: SCP.m.length > 100000,
-    noNames: TREE.every((x) => !NAMES.test(x.m)),
-    noFiles: !existsSync(join(root, 'Spixi/Utils/ChatMediaStore.cs')) && !existsSync(join(root, 'Spixi/Utils/ChatMediaStoreRules.cs')) && !existsSync(join(root, 'scripts/csh/ChatMediaStoreTests.cs')) && !existsSync(join(root, 'scripts/pins-photo1a/b-store.mjs')),
-    noInProject: !/ChatMediaStore/.test(raw('scripts/csh/csh.csproj')) && !/SPIXI_CSH/.test(raw('scripts/csh/csh.csproj')),
-    oldBodies: SAME.every(sameBody),
+    oldBodies: SAME_AS.every(sameBody),
+    /* the generation is the ONLY difference: the stripped text of the jobs must not hide a second change — the removed forms occur exactly where they should */
+    genOnly: count(body(SCP, 'private sealed class ThumbJob'), /\bgen\b/g) === 2 && count(body(SCP, 'private sealed class VoiceInfoJob'), /\bgen\b/g) === 2
+      && count(body(SCP, 'private void enqueueThumb(string id, FriendMessage fm, long gen)'), /\bgen\b/g) === 1 && count(body(SCP, 'private void enqueueVoiceInfo(string id, FriendMessage fm, long gen)'), /\bgen\b/g) === 1,
   };
   ok(F(a11).length === 0,
-    '★ photo1a a11 noStore (PO-3 / PO-6 parked): no file under Spixi/ names ChatMediaStore*, PhotoThumbStore, VoicePeaksStore, chatThumbFor or voiceInfoFor; the store files, its harness tests and its b-store pin are absent and csh.csproj names none of them (no SPIXI_CSH); the bodies of chatThumbOf, voiceInfoOf, enqueueThumb, enqueueVoiceInfo, ThumbJob and VoiceInfoJob equal the base c0a76176 by SHA-256 (frozen constants, no git read) of the masked, whitespace-normalised text — failing: ' + JSON.stringify(F(a11)));
+    '★ photo1a a11 oldBodies (PO-3 / PO-6; ★ photo1a re-base 2026-11-18: was `noStore` while the store was parked): the bodies of chatThumbOf and voiceInfoOf equal the base c0a76176 by SHA-256 (frozen constants, no git read) of the masked, whitespace-normalised text; ThumbJob, VoiceInfoJob and the 3-argument enqueueThumb / enqueueVoiceInfo equal the base ones once the job generation (`gen`) is taken out, and `gen` appears nowhere else in them — failing: ' + JSON.stringify(F(a11)));
 
   /* ── a10 · the harness runs the rules ── */
   const csproj = raw('scripts/csh/csh.csproj');
   const tests = existsSync(join(root, 'scripts/csh/PhotoOpenTests.cs')) ? raw('scripts/csh/PhotoOpenTests.cs') : '';
   const a10 = {
     compiled: count(csproj, '<Compile Include="../../Spixi/Utils/PhotoOpenRules.cs" />') === 1,
-    tests: count(tests, /\[TestMethod\]/g) >= 22 && /\[TestClass\]\s*public class PhotoOpenTests/.test(tests),
+    tests: count(tests, /\[TestMethod\]/g) >= 23 && /\[TestClass\]\s*public class PhotoOpenTests/.test(tests),
     readsUtils: /Utils\.cs/.test(tests) && /public static void sendUiCommand\(SpixiContentPage contentPage, string command, params string\[\] arguments\)/.test(tests),
   };
   ok(F(a10).length === 0,
-    '★ photo1a a10 harness (PO-0 / PO-1 / PO-5): csh.csproj compiles the REAL PhotoOpenRules.cs, PhotoOpenTests holds at least the 22 [TestMethod]s (the contract 19 + the round-1 ones) (the flags line, the gate, the counts, the re-check rule, the one-pass row arguments, the command text read against Utils.sendUiCommand\'s own source) — failing: ' + JSON.stringify(F(a10)));
+    '★ photo1a a10 harness (PO-0 / PO-1 / PO-5): csh.csproj compiles the REAL PhotoOpenRules.cs, PhotoOpenTests holds at least the 23 [TestMethod]s (the contract 19 + the later ones, counted ★ r7) (the flags line, the gate, the counts, the re-check rule, the one-pass row arguments, the command text read against Utils.sendUiCommand\'s own source) — failing: ' + JSON.stringify(F(a10)));
 }

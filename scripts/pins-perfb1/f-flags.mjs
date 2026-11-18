@@ -61,7 +61,8 @@ export default async function (h) {
   /* ★ photo1a re-base (2026-11-17): the lead's photo1a block (two computes + its ONE [FLAGS] line) follows the fixb1 line — a second
    * OPTIONAL trailing group, EXACT statements (pins-photo1a/a-open holds the block in full), so a photo1a-only change does not turn this key red */
   const photoTail = ['PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);', 'PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);',
-    'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks));'];
+    'PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;', 'VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;',   // ★ photo1a re-base (2026-11-18): PO-3 / PO-6 are back — 4 computes, the line takes 4 properties
+    'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));'];
   const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '(?:\\s*' + fixTail.map(esc).join('\\s*') + '(?:\\s*' + photoTail.map(esc).join('\\s*') + ')?)?\\s*\\}$');
   const fl = {

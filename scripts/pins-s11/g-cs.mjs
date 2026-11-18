@@ -129,7 +129,7 @@ export default async function (h) {
      gate: each loop body is `if (!(holdOpen && holdMedia(prepend, holdDoc, () => enqueue…))) { <the old statement> }` — held until the
      shell's paint signal only when `holdOpen` (= !prepend && SpixiFlags.PhotoMediaAfterPaint), else (switch OFF, a load-more prepend,
      no hold open, already released) the OLD statement `enqueueOfferPreview(o.Key);` runs where it always did. */
-  r.burst = /enqueueVoiceInfo\(v\.Key, v\.Value\);\s*\}\s*\}\s*foreach \(KeyValuePair<string, FriendMessage> o in batch\.offers\)\s*\{\s*if \(!\(holdOpen && holdMedia\(prepend, holdDoc, \(\) => enqueueOfferPreview\(o\.Key\)\)\)\)\s*\{\s*enqueueOfferPreview\(o\.Key\);\s*\}\s*\}/.test(cs)
+  /* ★ photo1a re-base (2026-11-18): the waveform loop passes the load's one store generation (`, storeGen0`, F-2) */ r.burst = /enqueueVoiceInfo\(v\.Key, v\.Value, storeGen0\);\s*\}\s*\}\s*foreach \(KeyValuePair<string, FriendMessage> o in batch\.offers\)\s*\{\s*if \(!\(holdOpen && holdMedia\(prepend, holdDoc, \(\) => enqueueOfferPreview\(o\.Key\)\)\)\)\s*\{\s*enqueueOfferPreview\(o\.Key\);\s*\}\s*\}/.test(cs)
     && /bool holdOpen = !prepend && SpixiFlags\.PhotoMediaAfterPaint;/.test(cs)
     && cs.indexOf('foreach (KeyValuePair<string, FriendMessage> o in batch.offers)') > cs.indexOf('Utils.sendUiCommand(this, "messagesDone");');
   /* ALBUM: arg 20 */

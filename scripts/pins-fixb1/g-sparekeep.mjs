@@ -19,6 +19,7 @@
  * line moved before the perfb1 line → red `oneLineAfterPerfb1`; `dividerline=` → `divider=` → red `lineWords`. Restored. */
 import { createHash } from 'node:crypto';
 import { readFileSync as readBytes } from 'node:fs';
+// ★ photo1a #46 r8 (2026-11-18, NIT-1): the tail is now FOUR computes + flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore); the text below is the 2026-11-17 state.
 // ★ photo1a re-base (2026-11-17): fixb1 NEW FLAGS (the fixb1 line is no longer init's last statement: an optional EXACT photo1a tail may follow: 2 computes + the one `Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks));`) · fixb1 item 7 FLAGSFILE (new SHA-256 b89f31b4… after a look at `git diff -- Spixi/Utils/SpixiFlags.cs`: pure insertion, 0 deleted lines, no #if — 2 key consts, 2 `{ get; private set; } = false` props, `int qa = 1, qf = 1;`, 2 `Preferences.Default.Get(…, 1)` reads inside the try, 2 `effectiveFlag` computes, ONE flagsLine log line) — same claims, new shape.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, readdirSync, existsSync, join } = h;
@@ -51,7 +52,8 @@ export default async function (h) {
    * still ONE and still comes right after the perfb1 line, and what may follow it is nothing (the pre-batch shape) or EXACTLY the
    * photo1a block — any other trailing statement is red. */
   const PHOTO_TAIL = ['PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);', 'PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);',
-    'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks));'];
+    'PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;', 'VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;',   // ★ photo1a re-base (2026-11-18): PO-3 / PO-6 are back — 4 computes, the line takes 4 properties
+    'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));'];
   const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const RU = rd('Spixi/Utils/PerfB1Rules.cs');
   const FX = rd('Spixi/Utils/FixB1Rules.cs');
@@ -101,7 +103,7 @@ export default async function (h) {
     '★ fixb1 item 7 HARNESS: FixB1Tests holds the flag-line, new-flag, sparekeep-matrix and fresh-start tests and csh.csproj compiles FixB1Rules.cs — failing: ' + JSON.stringify(F(hz)));
 
   /* ── FLAGSFILE (★ #46 r4, R4-3): SpixiFlags.cs WHOLE — the design answer is to freeze, not to add patterns ── */
-  const FLAGS_FROZEN = 'b89f31b4b3f37d7f2c61c1b6bd3f73f4c187d11f747725ec2c3bfe26521f3e2f';   // ★ photo1a re-base (2026-11-17): was c05a8f00d369… (the base blob, git HEAD); now the base + the lead's photo1a block (30 inserted lines, 0 deleted — see the comment line above `export default`)
+  const FLAGS_FROZEN = '71d575ab8e577553e39116a48f887dfb6e628a3c1cd450bf7325afd46e3ae9fb';   // ★ photo1a #46 r8 (NIT-1): against c0a7617 the diff is 30 added, 0 deleted = 4 keys, 4 properties, `int qa = 1, qf = 1, qt = 1, qv = 1;`, 4 Get calls, 4 computes and the 4-property line; the older text that follows names only the re-added store half. ★ photo1a re-base (2026-11-18): the PO-3 / PO-6 switches are back — a look at `git diff c0a7617 -- Spixi/Utils/SpixiFlags.cs` (c0a7617 = the base the claim compares against; ★ photo1a #46 r7 (2026-11-18): 30 added, 0 deleted): pure insertion of the photo1a lines (2 keys, 2 properties, qt / qv, 2 computes, the 4-property line; 0 other lines changed). Before: b89f31b4… (2026-11-17): was c05a8f00d369… (the base blob, git HEAD); now the base + the lead's photo1a block (30 inserted lines, 0 deleted — see the comment line above `export default`)
   const flagsGot = createHash('sha256').update(readBytes(join(root, 'Spixi/Utils/SpixiFlags.cs'))).digest('hex');
   ok(flagsGot === FLAGS_FROZEN,
     '★ fixb1 item 7 FLAGSFILE (#46 r4 R4-3): Spixi/Utils/SpixiFlags.cs is held WHOLE by SHA-256 of its EXACT bytes — init() reads every switch there, and a statement the keys above do not name (`#if WINDOWS / dev = true; fc = 0; xc = 0; / #endif` before `SecureWalletPass = …`, `if (System.OperatingSystem.IsWindows()) { fc = 0; }`, a comment line-ended by a lone CR / U+0085 / U+2028 / U+2029) would switch the safety flags per platform where the csh harness never looks. A line-end or BOM change also turns this red. Re-base ONLY after a look at the diff (#1596; pins-perfb1toggle/a-extra counts mentions in this file and does not conflict). want ' + FLAGS_FROZEN.slice(0, 12) + '… got ' + flagsGot);

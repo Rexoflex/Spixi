@@ -4,7 +4,7 @@
  * elements (el.matches), not as source text. The C# guards of the new push are SOURCE pins — SingleChatPage is
  * MAUI-only (Preferences, MainThread, SThumbnail per platform) and cannot run here; each names the rule it guards.
  * Every pin was broken on purpose before it was believed (the breaks are listed in the agent report). */
-// ★ photo1a re-base (2026-11-17): A5 C# `afterDone` (the thumb loop through the PO-1 hold, the old `enqueueThumb(t.Key, t.Value);` as its fallback) · `candidate` (noteThumbCandidate held WHOLE: the PO-5 ON branch and the old else-if, round 3 M-4) · `threads` (the main-thread push takes a drainer-built text under PhotoMediaAfterPaint; OFF = the old Utils.sendUiCommand statement, now over `plainUri` — the closure captures the data URI only when no text was built, round 1) — same claims, new shape.
+// ★ photo1a re-base (2026-11-17): A5 C# `afterDone` (the thumb loop through the PO-1 hold, the old loop statement `enqueueThumb(t.Key, t.Value, storeGen0);` as its fallback; ★ photo1a #46 r7 (2026-11-18): was the 2-argument form, the loop now holds the load's ONE store generation) · `candidate` (noteThumbCandidate held WHOLE: the PO-5 ON branch and the old else-if, round 3 M-4) · `threads` (the main-thread push takes a drainer-built text under PhotoMediaAfterPaint; OFF = the old Utils.sendUiCommand statement, now over `plainUri` — the closure captures the data URI only when no text was built, round 1) — same claims, new shape.
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, join, JSDOM, VirtualConsole, sleep } = h;
   const rd = (p) => readFileSync(join(root, p), 'utf8');
@@ -759,7 +759,7 @@ export default async function (h) {
     const thumbOf = body('private static string? chatThumbOf(FileInfo fi)');
     const cand = body('private void noteThumbCandidate(FriendMessage message, string name, UiBatch? batch)');
     const after = body('private void thumbAfterTransfer(string uid, int channel)');   /* ★ #1166 A-N4 re-base: + the transfer's channel */
-    const enq = body('private void enqueueThumb(string id, FriendMessage fm)');
+    const enq = body('private void enqueueThumb(string id, FriendMessage fm, long gen)');   /* ★ photo1a re-base (2026-11-18): the job builder is the 3-argument form (F-2: the batch loops pass the load's store generation; the 2-argument form delegates — pins-photo1a/b-store b10) */
     const upd = body('public void updateFile(string uid, string progress, bool complete, int channel)');   /* ★ #1166 A-N4 re-base */
     const changed = body('public void onPhotoPreviewsChanged()');
     const onLoad = body('private void onLoad()');
@@ -787,16 +787,16 @@ export default async function (h) {
       afterPush: /push\(batch, "addFile", [^;]*\);\s*noteThumbCandidate\(message, name, batch\);/.test(sc),
       /* ★ #1166 B2 re-base: the full triple and the prepend branch both end before the thumb queue (a prepended photo gets its preview too) */
       /* ★ photo1a re-base (2026-11-17): the burst's thumbs are still queued right after the messagesDone of the full triple and of the prepend branch,
-         now through the PO-1 hold: `if (!(holdOpen && holdMedia(prepend, holdDoc, () => enqueueThumb(t.Key, t.Value)))) { enqueueThumb(t.Key, t.Value); }` —
+         now through the PO-1 hold: `if (!(holdOpen && holdMedia(prepend, holdDoc, () => enqueueThumb(t.Key, t.Value, storeGen0)))) { enqueueThumb(t.Key, t.Value, storeGen0); }` (★ photo1a #46 r7 (2026-11-18): the loop passes the load's ONE store generation `storeGen0`; the 2-argument form stays for the live paths) —
          held until the shell's paint signal only when `holdOpen` (= !prepend && SpixiFlags.PhotoMediaAfterPaint); switch OFF / a prepend / no hold = the OLD
-         statement `enqueueThumb(t.Key, t.Value);` in the same place (pins-photo1a/a-open holds the gate's four release points) */
-      afterDone: /Utils\.sendUiCommand\(this, "messagesDone"\);\s*pushPendingJump\(\);\s*\}\s*else\s*\{[^{}]*\{[^{}]*\}\s*Utils\.sendUiCommand\(this, "messagesDone", show_more\);\s*pushPendingJump\(\);\s*\}\s*int holdDoc = thumbDoc;\s*bool holdOpen = !prepend && SpixiFlags\.PhotoMediaAfterPaint;\s*foreach \(KeyValuePair<string, FriendMessage> t in batch\.thumbs\)\s*\{\s*if \(!\(holdOpen && holdMedia\(prepend, holdDoc, \(\) => enqueueThumb\(t\.Key, t\.Value\)\)\)\)\s*\{\s*enqueueThumb\(t\.Key, t\.Value\);/.test(loadM),
+         statement `enqueueThumb(t.Key, t.Value, storeGen0);` in the same place (pins-photo1a/a-open holds the gate's four release points) */
+      afterDone: /Utils\.sendUiCommand\(this, "messagesDone"\);\s*pushPendingJump\(\);\s*\}\s*else\s*\{[^{}]*\{[^{}]*\}\s*Utils\.sendUiCommand\(this, "messagesDone", show_more\);\s*pushPendingJump\(\);\s*\}\s*int holdDoc = thumbDoc;\s*bool holdOpen = !prepend && SpixiFlags\.PhotoMediaAfterPaint;\s*foreach \(KeyValuePair<string, FriendMessage> t in batch\.thumbs\)\s*\{\s*if \(!\(holdOpen && holdMedia\(prepend, holdDoc, \(\) => enqueueThumb\(t\.Key, t\.Value, storeGen0\)\)\)\)\s*\{\s*enqueueThumb\(t\.Key, t\.Value, storeGen0\);/.test(loadM),
       /* C-c3: updateFile's COMPLETE tick is what asks for the preview of a finished transfer */
       updateFile: /^public void updateFile\(string uid, string progress, bool complete, int channel\)\s*\{\s*Utils\.sendUiCommand\(this, "updateFile", uid, progress, complete\.ToString\(\)\);\s*if \(complete\)\s*\{\s*thumbAfterTransfer\(uid, channel\);\s*voiceAfterTransfer\(uid, channel\);\s*\}\s*\}$/.test(upd),   /* ★ #1166 A-N4 re-base · ★ #1208 re-base: + the voice waveform / play-after-download */
       transfer: /if \(fm == null \|\| fm\.id == null \|\| fm\.type != FriendMessageType\.fileHeader \|\| !\(fm\.completed \|\| fm\.localSender\)\)/.test(after) && /!SharedItems\.isImageName\(name\)/.test(after)
         && /enqueueThumb\(Crypto\.hashToString\(fm\.id\), fm\);/.test(after),
       /* C-c4: the ENQUEUE starts the drainer (the copy in drainThumbs' finally only re-arms a running one) */
-      enqueue: /^private void enqueueThumb\(string id, FriendMessage fm\)\s*\{\s*thumbQueue\.Enqueue\(new ThumbJob\(thumbDoc, id, fm\)\);\s*if \(Interlocked\.CompareExchange\(ref thumbWorker, 1, 0\) == 0\)\s*\{\s*Task\.Run\(drainThumbs\);\s*\}\s*\}$/.test(enq),
+      enqueue: /^private void enqueueThumb\(string id, FriendMessage fm, long gen\)\s*\{\s*thumbQueue\.Enqueue\(new ThumbJob\(thumbDoc, id, fm, gen\)\);\s*if \(Interlocked\.CompareExchange\(ref thumbWorker, 1, 0\) == 0\)\s*\{\s*Task\.Run\(drainThumbs\);\s*\}\s*\}$/.test(enq),
       /* local-only, C#'s own path rule; size cap; once per (DOCUMENT, message, version) — A-N1; a torn-down page decodes nothing — A-M3 */
       local: /string\? path = SharedItems\.localPathOf\(job\.fm\);\s*if \(path == null\)\s*\{\s*return;\s*\}/.test(proc)
         && /fi\.Length > ChatThumbSourceMax/.test(proc)
@@ -807,6 +807,21 @@ export default async function (h) {
         && /byte\[\]\? jpeg = Spixi\.SThumbnail\.makeJpeg\(fi\.FullName, ChatThumbPx\);/.test(thumbOf)
         && /jpeg != null && jpeg\.Length > 0 && jpeg\.Length <= ChatThumbMaxBytes\s*\? "data:image\/jpeg;base64," \+ Convert\.ToBase64String\(jpeg\)/.test(thumbOf)
         && thumbOf.indexOf('ImageSniff.looksLikeImage') < thumbOf.indexOf('SThumbnail.makeJpeg'),
+      /* ★ photo1a #46 r7 (2026-11-18) MAJOR-1: with PhotoThumbStore ON the decode runs in chatThumbFor (the 3-argument form), not in chatThumbOf — the SAME gate is held there.
+         EVERY `SThumbnail.makeJpeg(` call of the page is counted (exactly 2: chatThumbOf's and chatThumbFor's); in chatThumbFor the source cap + the first-bytes sniff REFUSE
+         (`return null`) before the key, the caches, the store and the decode, and the result `made` is refused when null / empty / above ChatThumbMaxBytes in the statement right after
+         the call — before `jpeg = made` and before any other use of it (a `made` token count: declaration + 3 in the refusal + the one copy). SOURCE pin (MAUI-bound): a decode
+         hidden behind an alias or a changed call shape is not caught beyond the two counted names. */
+      decodeStore: (() => {
+        const forB = body('private string? chatThumbFor(FileInfo fi, string idHex, long gen, out bool hit)').replace(/\s+/g, ' ').trim();
+        const iSniff = forB.indexOf('if (length <= 0 || length > ChatThumbSourceMax || !ImageSniff.looksLikeImage(readHead16(fi.FullName))) { return null; }');
+        const iMake = forB.indexOf('Spixi.SThumbnail.makeJpeg(fi.FullName, ChatThumbPx);');
+        return forB.length > 500 && (sc.match(/\bSThumbnail\.makeJpeg\(/g) || []).length === 2 && (forB.match(/\bmakeJpeg\(/g) || []).length === 1
+          && iSniff > 0 && iMake > iSniff
+          && ['ChatMediaStore.thumbKeyOf(', 'chatThumbLru.tryGet(', 'chatThumbMisses.has(', 'ChatMediaStore.getThumb('].every((x) => forB.indexOf(x) > iSniff)
+          && forB.includes('byte[]? made = Spixi.SThumbnail.makeJpeg(fi.FullName, ChatThumbPx); if (made == null || made.Length <= 0 || made.Length > ChatThumbMaxBytes) { chatThumbMisses.note(key, Environment.TickCount64); return null; } byte[] jpeg = made;')
+          && (forB.match(/\bmade\b/g) || []).length === 5 && (forB.match(/\bjpeg\s*=[^=]/g) || []).length === 1;
+      })(),
       /* A-M3: the process cache evicts its OLDEST entry (FIFO), never a full reset */
       cache: /if \(!chatThumbCache\.ContainsKey\(key\)\)\s*\{\s*while \(chatThumbCache\.Count >= ChatThumbCacheMax && chatThumbOrder\.Count > 0\)\s*\{\s*chatThumbCache\.Remove\(chatThumbOrder\.Dequeue\(\)\);\s*\}\s*chatThumbOrder\.Enqueue\(key\);\s*\}\s*chatThumbCache\[key\] = uri;/.test(thumbOf)
         && !/chatThumbCache\.Clear\(\)/.test(sc),
@@ -814,10 +829,10 @@ export default async function (h) {
          #46 r2 R2-N1: a preview the re-check DROPS gives its once-slot back (the OFF → ON re-flush must find it free) */
       /* ★ photo1a re-base (2026-11-17): the push is still ON the main thread behind the SAME re-check (a closed page / an older document / the pref
          off → the once-slot back, nothing sent), and sends the message id + the JPEG only — now as a command text the DRAINER built
-         (`builtCmd`, PhotoOpenRules.uiCommandText, switch PhotoMediaAfterPaint) handed to sendBuiltCommand; switch OFF = `builtCmd` null = the OLD statement
-         `Utils.sendUiCommand(this, "setFileThumb", id, uri);` (still the only sendUiCommand of the name). Two "setFileThumb" words in the file, no more. */
+         (`builtCmd`, UiCommandText.build — the one builder, ruling 1736, switch PhotoMediaAfterPaint) handed to sendBuiltCommand; switch OFF = `builtCmd` null = the OLD statement
+         `Utils.sendUiCommand(this, "setFileThumb", id, plainUri!);` (★ photo1a #46 r7 (2026-11-18): `plainUri` = the data URI only when no text was built; still the only sendUiCommand of the name). Two "setFileThumb" words in the file, no more. */
       threads: /MainThread\.BeginInvokeOnMainThread\(\(\) =>\s*\{\s*if \(isDisposed \|\| doc != thumbDoc \|\| friend == null \|\| !SChatPrefs\.photoPreviews\)\s*\{\s*lock \(thumbsSent\)\s*\{\s*thumbsSent\.Remove\(sentKey\);\s*\}\s*return;\s*\}\s*if \(builtCmd != null\)\s*\{\s*sendBuiltCommand\(builtCmd\);\s*\}\s*else\s*\{\s*Utils\.sendUiCommand\(this, "setFileThumb", id, plainUri!\);\s*\}/.test(proc) && /string\? plainUri = builtCmd == null \? uri : null;/.test(proc)
-        && /string\? builtCmd = SpixiFlags\.PhotoMediaAfterPaint \? PhotoOpenRules\.uiCommandText\("setFileThumb", id, uri\) : null;/.test(proc)
+        && /string\? builtCmd = SpixiFlags\.PhotoMediaAfterPaint \? UiCommandText\.build\("setFileThumb", id, uri\) : null;/.test(proc)
         && (sc.match(/thumbsSent\.Remove\(/g) || []).length === 1
         && (sc.match(/Utils\.sendUiCommand\(this, "setFileThumb"/g) || []).length === 1
         && (sc.match(/"setFileThumb"/g) || []).length === 2,
@@ -833,7 +848,7 @@ export default async function (h) {
         && /if \(friend == null \|\| photoPreviewsPushed == null \|\| photoPreviewsPushed == SChatPrefs\.photoPreviews\)\s*\{\s*return;\s*\}\s*pushPhotoPreviews\(\);\s*if \(photoPreviewsPushed == true\)\s*\{\s*loadMessages\(\);\s*\}/.test(changed)
         && /catch \(Exception e\)\s*\{\s*Logging\.warn\("onPhotoPreviewsChanged failed: " \+ e\.GetType\(\)\.Name\);/.test(changed),
       /* no log line of the block names an id, a path or a name (the gate's log rule) */
-      logs: (() => { const blk = sc.slice(sc.indexOf('public const long ChatThumbSourceMax'), sc.indexOf('private static string? chatThumbOf(FileInfo fi)') + thumbOf.length); const lines = blk.match(/Logging\.\w+\([^;]*;/g) || []; return lines.length === 3 && lines.every((l) => /e\.GetType\(\)\.Name\);$/.test(l)); })(),
+      logs: (() => { const forBody = body('private string? chatThumbFor(FileInfo fi, string idHex, long gen, out bool hit)'); /* ★ photo1a #46 r7: the slice reaches the END of chatThumbFor (the store path) as well */ const blk = sc.slice(sc.indexOf('public const long ChatThumbSourceMax'), sc.indexOf('private string? chatThumbFor(FileInfo fi, string idHex, long gen, out bool hit)') + forBody.length); if (forBody.length < 500 || /Logging\./.test(forBody)) { return false; } const lines = blk.match(/Logging\.\w+\([^;]*;/g) || []; return lines.length === 3 && lines.every((l) => /e\.GetType\(\)\.Name\);$/.test(l)); })(),
     };
     ok(Object.values(r).every(Boolean),
       '★★ A5 C# (#1124, 🟡 new push setFileThumb; #46 r1 A-M1 · A-M2 · A-M3 · A-N1 · C-c3 · c4 · c7 · c9): a preview is made only for an image file ON THIS DEVICE (a completed download, or my own) whose path is C#\'s own (SharedItems.localPathOf), ≤ the G-6b 20 MB, first bytes sniffed before the platform decode (SThumbnail 320 px), ≤ 64 KB JPEG, off the UI thread (the enqueue starts the drainer), pushed on the main thread with the message id + the JPEG only, once per document + message + file version (a dropped push frees its slot — #46 r2 R2-N1), after the row\'s own push, a live row at once and a burst at messagesDone, a finished transfer from updateFile\'s complete tick; a torn-down page decodes and pushes nothing; the process cache drops its oldest; setPhotoPreviews (fixed key chatPhotoPreviews read AND written, default true) is told before the first history push, again on a re-appear with a changed value, and to every LIVE chat when the Privacy switch changes; the block logs exception TYPES only (SOURCE pins: MAUI-only C#) — ' + JSON.stringify(r));

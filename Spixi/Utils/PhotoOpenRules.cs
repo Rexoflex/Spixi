@@ -8,7 +8,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 
 namespace SPIXI
 {
@@ -50,31 +49,6 @@ namespace SPIXI
         {
             return "chat media thumbs=" + n(thumbs) + " hit=" + n(hit) + " pre=" + n(pre) + " voice=" + n(voice)
                 + " vpre=" + n(vpre) + " held=" + b(held) + " q=" + n(queued);
-        }
-
-        /* ---- PO-1: the UI command text, built OFF the main thread ---- */
-
-        /** The exact text Utils.sendUiCommand(page, command, arguments) hands to page.sendMessage: every argument base64 of its
-         *  UTF-8 (Utils.escapeHtmlParameter) inside single quotes, a null argument as `null`. The drainer thread builds it; the
-         *  main thread only calls sendMessage. Keep in step with Utils.sendUiCommand (PhotoOpenTests holds both). */
-        public static string uiCommandText(string command, params string?[] arguments)
-        {
-            string cmd_str = "executeUiCommand(" + command;
-            StringBuilder sb = new StringBuilder(cmd_str);
-            foreach (string? arg in arguments)
-            {
-                if (arg != null)
-                {
-                    sb.Append(",");
-                    sb.Append("'" + Convert.ToBase64String(Encoding.UTF8.GetBytes(arg)) + "'");
-                }
-                else
-                {
-                    sb.Append(",null");
-                }
-            }
-            sb.Append(");");
-            return sb.ToString();
         }
 
         /* ---- PO-1: the media hold ----

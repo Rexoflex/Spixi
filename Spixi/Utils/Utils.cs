@@ -117,7 +117,7 @@ namespace SPIXI
 
         public static string escapeHtmlParameter(string str)
         {
-            return Convert.ToBase64String(Encoding.UTF8.GetBytes(str));
+            return UiCommandText.escape(str);
         }
 
         public static string escapeHtmlParameter(byte[] str)
@@ -290,31 +290,13 @@ namespace SPIXI
         // #340), so it goes: a value C# did not encode can no longer reach a JS literal from here. The cost is stated:
         // a data: URI argument (avatar, app icon, file thumb) travels 4/3 larger again and the shell pays one atob.
         // src/bridge/native.js still passes a leading "data:" through, but nothing in C# can reach that branch now —
-        // this is the only composer of executeUiCommand, and the base64 alphabet has no ':'.
+        // the base64 alphabet has no ':'. ★ photo1a (ruling 1736, 2026-11-18): the one composer of executeUiCommand is
+        // now UiCommandText.build (UiCommandText.cs), shared with the off-thread push path; this method only sends its text.
         public static void sendUiCommand(SpixiContentPage contentPage, string command, params string[] arguments)
         {
             try
             {
-                string cmd_str = "executeUiCommand(" + command;
-                StringBuilder sb = new StringBuilder(cmd_str);
-
-                foreach (string arg in arguments)
-                {
-                    if (arg != null)
-                    {
-                        sb.Append(",");
-                        sb.Append("'" + escapeHtmlParameter(arg) + "'");
-                    }
-                    else
-                    {
-                        sb.Append(",null");
-                    }
-                }
-
-                sb.Append(");");
-                cmd_str = sb.ToString();
-                contentPage.sendMessage(cmd_str);
-
+                contentPage.sendMessage(UiCommandText.build(command, arguments));
             }
             catch (Exception e)
             {

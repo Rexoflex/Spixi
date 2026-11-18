@@ -198,10 +198,10 @@ namespace SPIXI
             return true;
         }
 
-        /** ★ PO-1: a push whose text the drainer built (PhotoOpenRules.uiCommandText — Utils.sendUiCommand's exact text); the
+        /** ★ PO-1: a push whose text the drainer built (UiCommandText.build — the shared builder Utils.sendUiCommand also calls); the
          *  main thread only hands it over. ★ #46 r1 (S-delete n-2): its error line names the exception TYPE only (a fixed
          *  word + a type, all builds — the handover-gate log rule for a NEW line); Utils.sendUiCommand's own catch
-         *  (Utils.cs:321, the whole exception) is inherited and keeps its form. */
+         *  (Utils.cs:303, the whole exception) is inherited and keeps its form. */
         private void sendBuiltCommand(string text)
         {
             try
@@ -7675,7 +7675,7 @@ namespace SPIXI
             int doc = job.doc;
             string id = job.id;
             // ★ photo1a PO-1: the command text is built HERE, on the drainer thread (Utils.sendUiCommand's exact text); OFF = null
-            string? builtCmd = SpixiFlags.PhotoMediaAfterPaint ? PhotoOpenRules.uiCommandText("setFileThumb", id, uri) : null;
+            string? builtCmd = SpixiFlags.PhotoMediaAfterPaint ? UiCommandText.build("setFileThumb", id, uri) : null;
             /* ★ #46 r1 (C-open MINOR-2, memory): the closure below holds ONE copy of the picture — the built text, or (OFF) the
                data URI. It never names `uri`, so `uri` is not captured: ~48 jobs released at once hold what they held before. */
             string? plainUri = builtCmd == null ? uri : null;
@@ -9688,14 +9688,14 @@ namespace SPIXI
             {
                 if (info == null)
                 {
-                    builtCmd = PhotoOpenRules.uiCommandText("voiceState", id, "error", "0", "0");
+                    builtCmd = UiCommandText.build("voiceState", id, "error", "0", "0");
                 }
                 else
                 {
                     int builtBar = info.IndexOf('|');
                     if (builtBar >= 0)
                     {
-                        builtCmd = PhotoOpenRules.uiCommandText("voiceInfo", id, info.Substring(0, builtBar), info.Substring(builtBar + 1));
+                        builtCmd = UiCommandText.build("voiceInfo", id, info.Substring(0, builtBar), info.Substring(builtBar + 1));
                     }
                 }
             }

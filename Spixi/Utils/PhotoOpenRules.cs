@@ -25,9 +25,10 @@ namespace SPIXI
         }
 
         /** The one start line of this batch (SpixiFlags.init, all builds): fixed words and 0|1 only. */
-        public static string flagsLine(bool mediaAfterPaint, bool fewerChecks)
+        public static string flagsLine(bool mediaAfterPaint, bool fewerChecks, bool thumbStore, bool voiceStore)
         {
-            return "[FLAGS] photo1a mediaafterpaint=" + b(mediaAfterPaint) + " fewerchecks=" + b(fewerChecks);
+            return "[FLAGS] photo1a mediaafterpaint=" + b(mediaAfterPaint) + " fewerchecks=" + b(fewerChecks)
+                + " thumbstore=" + b(thumbStore) + " voicestore=" + b(voiceStore);
         }
 
         /* ---- PO-0: the bodies of the three [P1] chat lines (P1Perf.line adds "[P1] "; a negative number is written as 0) ---- */

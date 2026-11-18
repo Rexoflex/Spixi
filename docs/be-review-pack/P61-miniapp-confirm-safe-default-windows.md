@@ -32,9 +32,14 @@ No confirm: `ds` (network data send), `getStorage` / `setStorage`.
 - The text sits in a scroll viewer (P59 Q-1): a long `nick` or JSON answer stays reachable.
 - #46 r2 S2 m-3: a mini app times its own confirm, and the 600 ms rule is not on this path (nor at the base). With the
   focus step the keys now reach the dialog for certain: a user who is pressing keys in the mini app could move the focus
-  from Cancel to OK (Tab, or arrow keys if the command row has XY navigation) and press it — the same class as "Tab to
+  from Cancel to OK (Tab, or the Left arrow: the WinUI template's command row has `XYFocusKeyboardNavigation="Enabled"` — confirmed by the final reader S4 from `ContentDialog_themeresources.xaml:248`) and press it — the same class as "Tab to
   OK + Enter", and not worse than the base (there Enter alone said yes). Walk row W-4 tries the arrow keys; the 600 ms
-  rule for these sites is a candidate for a later batch.
+  rule for these sites is a candidate for a later batch, and so is `XYFocusKeyboardNavigation = Disabled` on the
+  template part `CommandSpace` inside `winFocusCancel` (then only Tab / Shift+Tab reach OK).
+- **Pin limits (accepted by Damir, #1735):** the WINDOWS-ONLY key of `d-pay-confirm` reads every `Spixi/**/*.cs` as
+  UTF-8 text; a UTF-16 or lone-CR `.cs` file, a Unicode format character outside its listed set, the `://` trick of
+  `stripCode`, a reflection name built from pieces and the Ixian-Core files are NOT held. Each needs an unusual edit
+  that the diff review and the Windows compile see; a new gap of this class is a NIT.
 - **Legacy risks seen on these paths (NOT ours, NOT changed; for `docs/be-review-pack/legacy-not-ours.md`):** (1) mini-app
   actions SIGN before the confirm; the dialog only gates what leaves; (2) sites 1 / 3 show raw JSON; name actions carry
   a mini-app-supplied fee recipient and amount that the dialog does not show; (3) `sendPayment` shows only the FIRST

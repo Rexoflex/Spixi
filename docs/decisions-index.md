@@ -169,5 +169,5 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1702 | Centred desktop sheets: `max-height: max(76%, min(100% − 48px, 608px))`; the chat app picker shares it. |
 | #1703 🟡 | Desktop wallet tx rows take the chat row's inset (8 / 1 / radius 12) + padding 8 (dial). |
 | #1704 | Light Aurora ring: the dedicated token `--outline-select-ring` (#2B47A9, 3.05 : 1); the global action token unchanged. |
-| #1705 🟡 | #46 STOPPED at round 3 by rule 9 (three pin scanners); Damir's choice (a) accept limits / (b) redesign / (c) drop the keys. |
-| #1706 | Session record (STOPPED; not pushed). |
+| #1705 | #46 stopped at round 3 by rule 9 (three pin scanners); answered by #1735 (a): the pin limits are accepted and recorded; the final readers: 0 MAJOR in the code. |
+| #1706 | Session record (walk-ready by #1546 after #1735; merged tree 6617 / CSH 643). |

@@ -1,19 +1,19 @@
-# Handoff 2026-11-17 fixb2 — Fix batch 2: the walk findings of Fix batch 1 and the desktop polish that waited (STOPPED at review round 3 by rule 9; Damir's choice owed, #1705)
+# Handoff 2026-11-17 fixb2 — Fix batch 2: the walk findings of Fix batch 1 and the desktop polish that waited (walk owed on Windows + Android; stopped at review round 3 by rule 9, continued by ruling #1735)
 
 Read this FIRST, then DECISIONS #1695–#1706. Number block of this session: DECISIONS #1695–#1714 (used: #1695–#1706;
 #1707–#1714 stay empty) · lessons L225–L230 (all used) · packets P59–P64 (used: P59–P62; P63, P64 stay empty). Lead:
 Claude Opus (Damir's ruling #1640); item 4 built by a Claude Fable 5.2 sub-agent. The main chat writes the next prompt.
 
 ## 0 · State
-- Branch: `work/fixb2`, LOCAL in the session's cloud clone only (NOT pushed: the security-only pass is not CLEAN — rule 9,
-  #1705) · base: `redesign/frontend` @ `06a4845d`. Still to do after Damir's choice: merge the newest `redesign/frontend`
-  (@ `3066e658`, pull request 12, filewalk; no rebase; keep both sides of the appended docs and `scripts/smoke-test.mjs`),
-  run the merged tree's numbers (expected: the base's 6564 + 53 = 6617, CSH 633 + 10 = 643), CLAUDE.md "Where we are
-  now", the status-log entry, `docs/commit-message-fixb2.txt`, ONE push (#1546).
-- Smoke on the round-3 tree: `BASELINE OK — 6575 pass / the 2 KNOWN` (= 6522 + 53) · CSH 632.
-- Review: STOPPED at round 3 by rule 9 (MAJOR 3 → 2 → 3, every MAJOR a pin or layout gap; no finding in the code) —
-  #1705 and `docs/review-brief-fixb2.md` § 5. The choice for Damir: (a) accept the pin limits (as #1627) + one fresh
-  reader per scope, then deliver · (b) redesign the three scanner keys + rounds 4–5 · (c) drop the three keys.
+- Branch: `work/fixb2` · base: `redesign/frontend` @ `06a4845d`, merged with the newest `redesign/frontend` @ `c0a76176`
+  ("Merge pull request #14": pull requests 12, 13, 14) on 2026-11-18 before the push (no rebase; no conflict) · delivery
+  by #1546: the session pushed the branch; Damir opens the pull request from the compare link in the status doc · merge
+  = Damir (a merge commit, #1505).
+- CI (`redesign-ci`): runs when Damir opens the pull request.
+- Smoke / CSH on the merged tree: `BASELINE OK — 6617 pass / the 2 KNOWN` (= 6564 + 53) · CSH 643 (= 633 + 10).
+- Review: stopped at round 3 by rule 9 (#1705; MAJOR 3 → 2 → 3, every one a pin or layout gap); Damir's ruling #1735
+  (2026-11-18, option (a)): the pin limits are accepted and recorded; the final readers S4 (Fable 5.2, security-only) and
+  O5 (Opus, the rest) found **0 MAJOR in the code** — `docs/review-brief-fixb2.md` § 5.
 - ⚠ C# UNCOMPILED: `Spixi/Utils/SConfirm.cs`, `SPayments.cs`, `SpixiFlags.cs` (compiles in csh), `FixB2Rules.cs` (compiles in
   csh), `Spixi/Pages/MiniApps/MiniAppPage.xaml.cs`, `Spixi/Pages/Home/HomePage.xaml(.cs)`. CI compiles Windows; the Mac and
   Android arms compile in Damir's builds.
@@ -42,20 +42,19 @@ appconfirmdefault=1`, which only this build writes. The payment row is walked up
 sends no IXI; the mini-app row approves nothing. Dials at the walk: the reset width 440 (W-6), the tx row padding (W-8).
 
 ## 3 · Proposed next steps (the main chat decides)
-1. Damir chooses (a), (b) or (c) of #1705 in the main chat; the main chat relays it to this session (or a continuation).
-2. Then: the final reader(s), the merge of the newest base, the push; Damir opens the pull request; `redesign-ci` (the
-   first Windows compile of the C#).
-3. The walk on Windows + Android (one build per platform from `work/fixb2`). Then the open points of § 4.
+1. Damir opens the pull request from the compare link; the main chat reads `redesign-ci` (the first Windows compile of
+   the C#).
+2. The walk on Windows + Android (one build per platform from `work/fixb2`).
+3. The open points of § 4.
 
 ## 4 · Open points (no question blocks this batch)
 | For | Point | Blocks |
 |---|---|---|
-| Damir | #1705: (a) accept the pin limits + one fresh reader per scope · (b) redesign the three keys · (c) drop the three keys | the push of this batch |
 | Damir (dial) | #1700: reset / default list width 440 (was 400); chat info then opens beside the chat from ~1040 DIP | nothing |
 | Damir (dial) | #1703: the desktop tx row keeps its content x (padding 8) — or drop that line | nothing |
 | main chat | #1696 🟡 item 3 has no own switch; #1697 🟡 D-1 (the entry holds the gate) | nothing |
 | main chat (docs batch) | #1699: copy P61's legacy list into `docs/be-review-pack/legacy-not-ours.md` | nothing |
-| a later batch | #1700: WinUI half-to-even rounding would leave one device column at some drag widths at 125 % / 150 % (the walk checks); the 600 ms rule for the mini-app confirms (P61, r2 S2 m-3); an RTL `FlowDirection` for our dialog (r2 NIT); the `bin` / `obj` walker idiom in older pins (`pins-fixb1/a-confirm`, `g-sparekeep`, `pins-perfb1/f-flags`) | nothing |
+| a later batch | #1700: WinUI half-to-even rounding would leave one device column at some drag widths at 125 % / 150 % (the walk checks); the 600 ms rule for the mini-app confirms (P61, r2 S2 m-3); an RTL `FlowDirection` for our dialog (r2 NIT); `XYFocusKeyboardNavigation = Disabled` on the dialog's `CommandSpace` (S4 MINOR-1: the Left arrow reaches OK); the focus return after the dialog closes (S4 NIT-1); the `bin` / `obj` walker idiom in older pins (`pins-fixb1/a-confirm`, `g-sparekeep`, `pins-perfb1/f-flags`) | nothing |
 
 ## 5 · Recorded, not changed
 - The costs of D-1 and the payment / mini-app limits (#1698, #1699; P60, P61).

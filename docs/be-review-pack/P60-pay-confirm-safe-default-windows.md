@@ -43,7 +43,13 @@ Fable 5.2 readers) · this batch: #1697, #1698.
   payment's alert → `cancel`.
 - R NIT-3 / P50: a direct MAUI alert outside `displaySpixiAlert` (`BackupPage.xaml.cs:231`) while the confirm is up
   would stop the app (nothing sent); the same class as P50.
-- Inherited (not ours): no 600 ms rule and no app-lock check on the payment confirm; Tab to Send + Enter confirms.
+- Inherited (not ours): no 600 ms rule and no app-lock check on the payment confirm; Tab to Send + Enter confirms —
+  and so does the Left arrow + Enter (the template's command row has XY keyboard navigation; S4, the final reader). No
+  single key says yes. A later batch may set `XYFocusKeyboardNavigation = Disabled` on `CommandSpace`.
+- S4 NIT-1: when `Opened` runs before the template's `LayoutRoot.Loaded`, WinUI saves OUR Cancel as the element to
+  restore, so after the dialog closes the keyboard focus may not return to the WebView field (usability only; walk).
+- **Pin limits (accepted by Damir, #1735):** as P61 — the WINDOWS-ONLY key of `d-pay-confirm` does not see a UTF-16 or
+  lone-CR `.cs` file, a format character outside its list, the `://` trick of `stripCode`, a reflection name, Ixian-Core.
 
 ## Threat → rule → proof
 | What could go wrong | What stops it | Proof |

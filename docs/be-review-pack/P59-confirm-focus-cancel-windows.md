@@ -39,6 +39,7 @@ the item-3 span of `Spixi/Utils/FixB2Rules.cs`.
 | The focus or the accent lands on OK | only the part `CloseButton` with the Cancel text and not the OK text; the accent only for a Close default holding the keyboard focus | csh `FixB2ConfirmTests` (4) · pin `a-confirm-focus` (TARGET, RULES, DEFAULT) |
 | The step breaks the dialog | one try / empty catch; no completion of the task, no timer, no log line | pin `a-confirm-focus` (FAILSAFE) |
 | A long text hides a line | the text scrolls; the viewer cannot take focus | pin `a-confirm-focus` (SCROLL) · walk |
+| Tab or the Left arrow moves the focus to OK (the command row has XY keyboard navigation), then Enter | the 600 ms rule of `askAsync` (destructive verbs); no single key says yes; the same class as P50's "Tab to OK + Enter" | walk W-1 (the arrow keys) · S4 MINOR-1; a later batch may disable XY navigation on `CommandSpace` |
 | The keys still go to the WebView2 | not provable in the cloud; then Enter does nothing (safe) | walk row W-1 (what each key does; a `busy` line = the keys went to the page) |
 
 ## Files

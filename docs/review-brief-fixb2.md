@@ -15,7 +15,7 @@ fallback model: a declined round is a stop.
 | 4 · pay + mini-app confirm | Windows: the payment send confirm (`SPayments.confirmAndAuth`) and the three mini-app confirms (`MiniAppPage.handleAction`) use `SConfirm.askPlainSafeWinAsync` (holds the ConfirmGate, then the safe-default dialog) when their switch AND `NativeConfirm` are on; OFF / non-Windows = today's call byte for byte | `SPayments.cs`, `MiniAppPage.xaml.cs`, `SConfirm.cs` (entry), `SpixiFlags.cs`, `FixB2Rules.cs` (item 4 span) | NEW `PayConfirmSafeDefault` (P60), NEW `MiniAppConfirmSafeDefault` (P61); line `[FLAGS] payconfirmdefault= appconfirmdefault=` |
 | 5 · sheet height | every centred desktop `.c-sheet` (not anchored): `max-height: max(76%, min(100% − 48px, 608px))` — hosts ≥ 800 px unchanged | `src/styles/components/overlay.css` | none (shell) |
 | 6 · tx row inset | desktop wallet tx rows: margin-inline 8 px, margin-block 1 px, radius-12 (= the chat row), padding-inline 8 px (content keeps its x) | `src/styles/components/txlist-item.css` | none (shell) |
-| 7 · Aurora ring | light Aurora only: `--outline-action-default` #3050BD → #2B47A9 (2.61 → 3.05 : 1 on the gap) | `src/styles/tokens.css` | none (token) |
+| 7 · Aurora ring | a dedicated token `--outline-select-ring` (= `--outline-action-default` in the light root and the dark block; light Aurora `#2B47A9`): 2.61 → 3.05 : 1 on the gap; the global action token is unchanged (r1 fix) | `src/styles/tokens.css`, `src/shells/chat.html` (the A2 ring) | none (token) |
 
 Not built: nothing of the seven is stopped. Lead decisions to check: D-1 (item 4's entry HOLDS the ConfirmGate instead of
 counting a plain alert — other Spixi alerts are DROPPED while a payment / mini-app confirm is up, because a MAUI alert
@@ -43,7 +43,7 @@ switch AND `NativeConfirm`) · Q-1 fixed (the scroll viewer) · item 3 has no sw
 ## 4 · Non-negotiables and accepted dials
 - Must hold: the PARAMOUNT isolation invariant (#220 / #221) · ★ C# touches no risky parts (for item 4: ONLY how the
   native confirm is shown on Windows changes; nothing signed, broadcast, shown as text or bridged; the auth step and its
-  platform rule `SPayments.cs:610`; the order confirm → auth → send) · fail closed (Esc, a closed dialog, an error, a
+  platform rule `SPayments.cs:610` @ `06a4845d` (`:623` at the head); the order confirm → auth → send) · fail closed (Esc, a closed dialog, an error, a
   second dialog = Cancel) · switch OFF = today's call byte for byte · no new bridge verb, `spixi.*` key, network fetch,
   log line with user data · bundle BEFORE shells · tokens are the source of truth · no new string.
 - Accepted (do not re-open): #1629 / #1639 (the pill, every platform) · #1633 (the safe default, own switches, native
@@ -52,7 +52,7 @@ switch AND `NativeConfirm`) · Q-1 fixed (the scroll viewer) · item 3 has no sw
   Damir judges at the walk) · #1627 / P50 (source pins do not catch deliberately hidden code).
 
 ## 5 · Verdict
-(written when the loop closes)
+**0 MAJOR IN THE CODE — DELIVERED by ruling #1735 (Damir, 2026-11-18 11:20: "Accept the test limits" = option (a) of #1705).** After the stop of round 3 (rule 9) the three pin keys stay as built with their limits recorded (#1705, P60, P61, the gate section). The final readers over the unchanged tree `review/r4` @ `1636b59e`: **S4 (Claude Fable 5.2, the security-only scope: items 3, 4, `SPayments.cs`) — 0 MAJOR in the code**, MINOR 1 (the template's command row HAS XY keyboard navigation: the Left arrow moves the focus from Cancel to OK; no single key says yes; recorded in P59 / P60 / P61 + walk W-1 / W-4; `XYFocusKeyboardNavigation = Disabled` on `CommandSpace` is a later-batch candidate), NIT 2 (the focus may not return to the WebView field after the dialog closes — walk W-1; the `SConfirm.cs` header names only the `askAsync` log lines); **O5 (Claude Opus, items 1, 2, 5, 6, 7 + the docs) — 0 MAJOR in the code**, MINOR 1 + NIT 2 in the docs (fixed: § 1 row 7, the `SPayments.cs` line, the mechanisms headroom). No code file changed after round 3: the code files of the push are byte-identical to what rounds 3 and 4 read (SHA-256, first 12: `SConfirm.cs` 6b76e4a7e7ec · `SPayments.cs` a43f7fa14336 · `SpixiFlags.cs` 8550c50fbc27 · `FixB2Rules.cs` 0c2ffd9c09ed · `MiniAppPage.xaml.cs` fa430016e65d · `HomePage.xaml` 992a99e2c56c · `HomePage.xaml.cs` 561fc76d03d9). The merged tree (+ `redesign/frontend` @ `c0a76176`): `BASELINE OK — 6617 pass / the 2 KNOWN` (= 6564 + 53) · CSH 643 (= 633 + 10).
 
 ### Round log
 - **Round 1** (tree `review/r1`; S + R Fable 5.2, O1 + O2 Opus): **MAJOR 3** (all pin gaps or a layout gap; no wrong yes,

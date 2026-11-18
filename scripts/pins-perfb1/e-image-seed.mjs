@@ -10,7 +10,8 @@
  *   2 — no network in either file: no `http:` / `https:`, HttpClient, WebRequest, WebClient, Socket, TcpClient,
  *       UdpClient, `System.Net`, Dns, Launcher, Browser;
  *   3 — C# names its files: SDevSeed.cs's file calls are exactly the listed ones, and every variable they take is
- *       assigned only from C#'s own roots (Config.spixiUserFolder + PhotoRules.SentFolderName, TransferManager.downloadsPath)
+ *       assigned only from C#'s own roots (Config.spixiUserFolder + PhotoRules.SentFolderName, TransferManager.downloadsPath; the file chats
+ *       also Config.spixiUserFolder + SDevSeedPlan.VoiceFolderName — their variables are pinned by pins-filewalk/a-file-seed a4)
  *       and SDevSeedPlan's leaf builders; the public verbs take no string but `profile`; SDevSeedPlan.cs touches no disk
  *       (no System.IO) and builds every name from the seed index, fixed words and SHA-256 hex;
  *   4 — the Seed 01–50 rules are the SAME statements in SDevSeed.cs and in SDevSeedPlan.cs (each exactly once in each
@@ -35,6 +36,15 @@
  * the constant, and say why in the DECISIONS row — the Seed 01–50 numbers are the adb walk's contract.
  * Known limits: the normalisation collapses white space INSIDE string literals too, so a change of spaces inside a `Names` / `Lines` text is not seen (cosmetic; no id or count depends on it); text, not a compile (⚠ the app is UNCOMPILED here — Damir's build is the gate); a raw string literal is
  * read as ordinary text by the mask.
+ * ★ filewalk RE-BASE (2026-11-16, item S of docs/contract-filewalk.md — the file chats Seed 54–56, seed index 53–55): SDevSeed.cs GAINED
+ * seedFileChats / unseedFileChats / fileChatsPresent and the helpers fileChatStateOf / ensureFileChatFile / deleteFileChatTmp, plus ONE statement in
+ * each of seed(string profile), unseed() and status() (the diff of the three bodies is exactly that one line each), and unseed()'s loop bound (below).
+ * Fix round: unseed()'s ONE removal loop now ends at the file chats (bound `i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats`; the file chats
+ * follow the image chats without a gap) — so unseed() = base + its earlier named lines + this bound + the hook line; removeFriend stays ONE site.
+ * Re-based keys ONLY: row 3 WANT_OPS (+ the glue's 10 file calls), row 5 `unseed` (the loop bound regex; still 1 removeFriend site), row 7 `behind`
+ * (File.Delete 2 → 4, the guard regex also names mayDeleteFileTmp) and `stateFromContent` (fileAction calls 1 → 2), row 11 seedBody / unseed /
+ * status hashes and `endsAtStatus`. Rows 1, 2, 4, 6, 8, 9, 10 and the Names / Lines / seed() hashes are UNCHANGED and green. The new code's own
+ * rules (variables, guards, logs, hooks) are pinned by scripts/pins-filewalk/a-file-seed.mjs.
  * Deliberate breaks (the perfb1 report): a statement moved below the final `#endif` → row 1 red; the salt mutated in
  * SDevSeed.cs only → row 4 red; `e.Message` back into the remove log line → row 5 red; `filePath` before `completed` → row 5 red;
  * a File.Delete without its guard → row 7 red; `now` back into imagePlan → row 8 red. */
@@ -134,6 +144,11 @@ export default async function (h) {
       'Directory.CreateDirectory(sentDir)': 1, 'Directory.CreateDirectory(recvDir)': 1, 'new FileInfo(path)': 1, 'File.ReadAllBytes(path)': 1,
       'File.Exists(tmp)': 1, 'File.Delete(tmp)': 1, 'File.WriteAllBytes(tmp, SDevSeedPlan.png(i, m.j, m.width, m.height))': 1,
       'File.Move(tmp, path)': 1, 'File.Delete(path)': 1,
+      /* ★ filewalk re-base (the file chats of Seed 54–56): the same file calls of the file-chat glue — their variables (fSent,
+         fRecv, fVoice, fPath, fTmp, fTmpName) and where they come from are pinned by scripts/pins-filewalk/a-file-seed.mjs (a3, a4) */
+      'Directory.CreateDirectory(fSent)': 1, 'Directory.CreateDirectory(fRecv)': 1, 'Directory.CreateDirectory(fVoice)': 1,
+      'new FileInfo(fPath)': 1, 'File.ReadAllBytes(fPath)': 1, 'File.WriteAllBytes(fTmp, fBytes)': 1,   /* #46 r2 B2-7: the array just written is the proof's expected bytes */
+      'File.Move(fTmp, fPath)': 1, 'File.Exists(fTmp)': 1, 'File.Delete(fTmp)': 1, 'File.Delete(fPath)': 1,
     };
     const got = {};
     for (const o of ops) got[o] = (got[o] || 0) + 1;
@@ -176,7 +191,7 @@ export default async function (h) {
     };
     const good = opsExact && assigns === 14 && bad.length === 0 && r.ensureOnce && r.verbs && planIo.length === 0 && Object.values(names).every(Boolean);
     if (!good) { r.ops = got; r.verbList = verbs; }
-    ok(good, '★ perfb1 seed (3): C# names its files — SDevSeed.cs makes exactly its listed file calls (create the Sent / Downloads folders, write a temp leaf in Sent/, move it, delete), every path they take is built from Config.spixiUserFolder + "Sent" or TransferManager.downloadsPath and SDevSeedPlan.localLeaf / tmpLeaf, the public verbs take no string but `profile`; SDevSeedPlan.cs touches no disk and builds every name from the seed index, fixed words and SHA-256 hex — ' + JSON.stringify(r));
+    ok(good, '★ perfb1 seed (3): C# names its files — SDevSeed.cs makes exactly its listed file calls (create the Sent / Downloads folders, write a temp leaf in Sent/, move it, delete), every path they take is built from Config.spixiUserFolder + "Sent" (or + SDevSeedPlan.VoiceFolderName for the file chats) or TransferManager.downloadsPath and SDevSeedPlan.localLeaf / tmpLeaf (the file chats: fileLeaf / fileTmpLeaf, pin a4), the public verbs take no string but `profile`; SDevSeedPlan.cs touches no disk and builds every name from the seed index, fixed words and SHA-256 hex — ' + JSON.stringify(r));
   }
 
   /* ── 4: the Seed 01–50 rules — the same statements in both files ── */
@@ -250,9 +265,10 @@ export default async function (h) {
       completed: /fm\.transferId = SDevSeedPlan\.transferUid\(i, m\.j\);[\s\S]{0,300}?fm\.completed = true;\s*fm\.filePath = path;/.test(sIn) && (sIn.match(/fm\.completed = true;/g) || []).length === 1 && (sIn.match(/fm\.filePath = path;/g) || []).length === 1,
       album: /SPhotoGroups\.setMany\(peer, albumRows, peer\);/.test(sIn) && /PhotoRules\.groupArg\(album, m\.albumIndex, m\.albumCount, ""\)/.test(sIn),
       seedCalls: /status \+= " " \+ seedImageChats\(\);/.test(t),
-      /* the ONE removal loop of unseed walks 0 … 52 (a second FriendList.removeFriend site would break the S15 O-06 walk,
+      /* the ONE removal loop of unseed walks 0 … 55 — the fifty, the image chats and the file chats (filewalk) — (a second FriendList.removeFriend site would break the S15 O-06 walk,
          scripts/pins-s15/b-native.mjs: 7 sites); unseedImageChats then clears the groups and the files of a REMOVED chat only */
-      unseed: /public static string unseed\(\)\s*\{\s*int removed = 0, missing = 0, refused = 0;\s*for \(int i = 0; i < SDevSeedPlan\.ImageChatFirst \+ SDevSeedPlan\.ImageChats; i\+\+\)/.test(t)
+      /* ★ filewalk re-base: the bound now ends at the file chats (FileChatFirst = ImageChatFirst + ImageChats, no gap; pin a14) — still ONE site */
+      unseed: /public static string unseed\(\)\s*\{\s*int removed = 0, missing = 0, refused = 0;\s*for \(int i = 0; i < SDevSeedPlan\.FileChatFirst \+ SDevSeedPlan\.FileChats; i\+\+\)/.test(t)
         && (t.match(/FriendList\.removeFriend\(/g) || []).length === 1
         && uIn.includes(LOOP) && /if \(FriendList\.getFriend\(address\) != null\)\s*\{\s*refused\+\+;[^}]*continue;\s*\}\s*SPhotoGroups\.clear\(address\.ToString\(\)\);/.test(uIn)
         && /status \+= " " \+ unseedImageChats\(\);/.test(t),
@@ -280,11 +296,12 @@ export default async function (h) {
     const t = files[SEED], p = files[PLAN];
     const deletes = [...t.matchAll(/File\.Delete\(/g)].map((m) => ({ at: SEED + ':' + lineOf(t, m.index), before: norm(t.slice(Math.max(0, m.index - 260), m.index)) }));
     const guard = { photo: /if \(SDevSeedPlan\.mayDelete\(state\)\)\s*\{\s*File\.Delete\(path\);/.test(t), tmp: /if \(SDevSeedPlan\.mayDeleteTmp\(tmpName, i, j\) && File\.Exists\(tmp\)\)\s*\{\s*File\.Delete\(tmp\);/.test(t) };
-    const behind = deletes.length === 2 && deletes.every((d) => /if \(SDevSeedPlan\.mayDelete(?:Tmp)?\([^)]*\)[^{]*\)\s*\{\s*$/.test(d.before));
+    /* ★ filewalk re-base: 2 → 4 — the file chats' two deletes sit behind mayDelete(fState) and mayDeleteFileTmp (pin a7) */
+    const behind = deletes.length === 4 && deletes.every((d) => /if \(SDevSeedPlan\.mayDelete(?:Tmp|FileTmp)?\([^)]*\)[^{]*\)\s*\{\s*$/.test(d.before));
     const r = {
       deletes: deletes.map((d) => d.at), behind, guard,
       /* the state comes from the content proof ONLY, and the action from the state */
-      stateFromContent: (t.match(/string state = stateOf\(path, i, m\);/g) || []).length === 1 && /SDevSeedPlan\.fileAction\(stateOf\(path, i, m\)\)/.test(t) && (t.match(/SDevSeedPlan\.fileAction\(/g) || []).length === 1
+      stateFromContent: (t.match(/string state = stateOf\(path, i, m\);/g) || []).length === 1 && /SDevSeedPlan\.fileAction\(stateOf\(path, i, m\)\)/.test(t) && (t.match(/SDevSeedPlan\.fileAction\(/g) || []).length === 2 && /SDevSeedPlan\.fileAction\(fileChatStateOf\(fPath, i, m\)\)/.test(t)   /* ★ filewalk re-base: 1 → 2 (ensureFileChatFile, pin a8) */
         && /return SDevSeedPlan\.fileState\(fi\.Exists, fi\.Exists \? fi\.Length : 0, SDevSeedPlan\.pngLength\(m\.width, m\.height\),\s*\(\) => File\.ReadAllBytes\(path\), \(\) => SDevSeedPlan\.png\(i, m\.j, m\.width, m\.height\)\);/.test(t),
       /* no length-only rule is left in the plan; the proof hashes both sides; foreign is refused, only ours is deleted */
       planProof: !/fileAction\(bool|mayDelete\(bool|FileKeep : FileRefuse;\s*\}\s*\/\*\* unseed/.test(p) && /public static string fileState\(bool exists, long length, long expectedLength, Func<byte\[\]> read, Func<byte\[\]> expected\)/.test(p)
@@ -298,7 +315,7 @@ export default async function (h) {
       tmpNeverInDownloads: !/tmp[^;]*recvDir|recvDir[^;]*tmp|tmpLeaf\([^)]*\)[^;]*recvDir|Downloads[^;]*tmpLeaf/.test(t),
     };
     ok(r.behind && r.guard.photo && r.guard.tmp && r.stateFromContent && r.planProof && r.failPath && r.tmpNeverInDownloads,
-      '★ perfb1 seed (7) (#46 r1 B-2): the seed and the unseed touch only what they can PROVE is theirs — each of the 2 File.Delete calls sits behind SDevSeedPlan.mayDelete (the file\'s SHA-256 = the deterministic PNG\'s) or mayDeleteTmp (the exact temp leaf, in Sent/), the state comes from the content proof only (a name or a length is never one), a foreign file is refused (never overwritten, never adopted), the temp lives in the app\'s own Sent/ folder for both directions and never in Downloads/ — ' + JSON.stringify(r));
+      '★ perfb1 seed (7) (#46 r1 B-2): the seed and the unseed touch only what they can PROVE is theirs — each of the 4 File.Delete calls (2 of the image chats, 2 of the file chats) sits behind SDevSeedPlan.mayDelete (the file\'s SHA-256 = the deterministic PNG\'s) or mayDeleteTmp / mayDeleteFileTmp (the exact temp leaf, in Sent/), the state comes from the content proof only (a name or a length is never one), a foreign file is refused (never overwritten, never adopted), the temp lives in the app\'s own Sent/ folder for both directions and never in Downloads/ — ' + JSON.stringify(r));
   }
 
   /* ── 8: ★ #46 r1 B-3 — the image chats sit at a FIXED time ── */
@@ -379,7 +396,10 @@ export default async function (h) {
         unseed() and status(), each as the SHA-256 of its normalised text (comments stripped, white space normalised). Relative to the BASE (a54808c): Names, Lines and the
         no-argument seed() are byte-identical; seed(string profile) = base + the S-1 log line (`skipped: " + e.GetType().Name`, base `e.Message`) + `status += " " + seedImageChats();`;
         unseed() = base + the loop bound (`i < Count` → `i < SDevSeedPlan.ImageChatFirst + SDevSeedPlan.ImageChats`) + the S-1 remove log line (`e.GetType().Name`) +
-        `status += " " + unseedImageChats();`; status() = base + the image half (`images`, its loop over the three image chats, the combined return). ── */
+        `status += " " + unseedImageChats();`; status() = base + the image half (`images`, its loop over the three image chats, the combined return).
+        ★ filewalk re-base: seed(profile) + `status += " " + seedFileChats();`, unseed() + `status += " " + unseedFileChats();` and its loop bound
+        `i < SDevSeedPlan.ImageChatFirst + SDevSeedPlan.ImageChats` → `i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats`, status() + the ONE
+        `if (present > 0 || images > 0 || fileChatsPresent() > 0) return … file chats (Seed 54-56).";` line before the "Nothing seeded." test. ── */
   {
     const S = files[SEED];
     const sha = (x) => createHash('sha256').update(x, 'utf8').digest('hex');
@@ -388,15 +408,15 @@ export default async function (h) {
     const seed1 = bodyOf(/public static string seed\(string profile\)/);
     const WANT = {
       names: 'd126dcf2e31f16f0c1820517d3f6889b27b44c95acd54bdd3f89cc6708441d76', lines: 'a29100b33df4512dd26da5a9d0abb6d8fd6c8809bdb3c91cec67774ca2460489',
-      seed0: '932b132d96d1e310fd69c5274e27935b129a1fda3c1f352f7d92dc0f4d67a325', seedBody: '5a3a1df8650d4b134f766b858fdef35cf47a2ab4fde7d700d82785611c00aed0',
-      unseed: 'becc65e0afdbc6fcc9e011dd95303cd840d6388c108819f1373432517dfea699', status: '74d5d59348db853e2c2e05612849167ac6fefa668dd742be17a3d0860af65c49',
+      seed0: '932b132d96d1e310fd69c5274e27935b129a1fda3c1f352f7d92dc0f4d67a325', seedBody: '4e8a6e74a0c6367d426ba5a1521fbbdbcee34880c312da50410b38205ffca367',   // ★ filewalk re-base: + `status += " " + seedFileChats();`
+      unseed: '9bdb6bcdaffdcc81d0ad402c41e1b0bfeae60a6ddbb3f3200ac2e03cf34f6998', status: 'db15f480ecf0dc2c6be0927620b26050ce6d9bedb08e54233df213157923fe47',   // ★ filewalk re-base: + one hook statement each (unseed: `status += " " + unseedFileChats();` + the loop bound FileChatFirst + FileChats; status: the `if (… fileChatsPresent() > 0) return …;` line)
     };
     const got = {
       names: sha(arr('Names')), lines: sha(arr('Lines')), seed0: sha(bodyOf(/public static string seed\(\)/)), seedBody: sha(seed1),
       unseed: sha(bodyOf(/public static string unseed\(\)/)), status: sha(bodyOf(/public static string status\(\)/)),
     };
     const r = Object.fromEntries(Object.keys(WANT).map((k) => [k, got[k] === WANT[k]]));
-    r.endsAtStatus = seed1.startsWith('if (profile != "heavy") profile = "light";') && seed1.endsWith('status += " " + seedImageChats(); Logging.info("[DEVSEED] " + status); return status;');
-    ok(Object.values(r).every(Boolean), '★ perfb1 seed (11) (#46 r2 R2-2 + r3 R3-1): the rest of Seed 01–50 is frozen — the Names and Lines arrays and the WHOLE bodies of seed(), seed(string profile), unseed() and status() equal their SHA-256; relative to the base a54808c: Names, Lines and seed() are identical; seed(profile) = base + the S-1 log line + `status += … seedImageChats()`; unseed() = base + the loop bound over 53 indexes + the S-1 log line + `status += … unseedImageChats()`; status() = base + the image half. A changed loop start, unread count, saveMetaData, text, name, an added statement after the status line, an unseed address or a status loop bound is red. Re-base: copy got=<hash> — ' + JSON.stringify({ ...r, got: Object.entries(got).filter(([k]) => !r[k]).map(([k, v]) => k + ' got=' + v) }));
+    r.endsAtStatus = seed1.startsWith('if (profile != "heavy") profile = "light";') && seed1.endsWith('status += " " + seedImageChats(); status += " " + seedFileChats(); Logging.info("[DEVSEED] " + status); return status;');   // ★ filewalk re-base
+    ok(Object.values(r).every(Boolean), '★ perfb1 seed (11) (#46 r2 R2-2 + r3 R3-1): the rest of Seed 01–50 is frozen — the Names and Lines arrays and the WHOLE bodies of seed(), seed(string profile), unseed() and status() equal their SHA-256; relative to the base a54808c: Names, Lines and seed() are identical; seed(profile) = base + the S-1 log line + `status += … seedImageChats()`; unseed() = base + the loop bound (now over 56 indexes: the fifty, the image chats and the file chats) + the S-1 log line + `status += … unseedImageChats()` + `status += … unseedFileChats()`; status() = base + the image half. A changed loop start, unread count, saveMetaData, text, name, an added statement after the status line, an unseed address or a status loop bound is red. Re-base: copy got=<hash> — ' + JSON.stringify({ ...r, got: Object.entries(got).filter(([k]) => !r[k]).map(([k, v]) => k + ' got=' + v) }));
   }
 }

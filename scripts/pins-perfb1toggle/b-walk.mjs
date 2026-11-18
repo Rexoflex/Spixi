@@ -37,6 +37,10 @@
  *              A red key is not always a bug: a deliberate change of a frozen body = re-base after the #46 look at the diff.
  *   SAFE     — no `input text` / uninstall / `pm clear` in the code of either script; a pulled flags log passes the pull-target
  *              rule; both scripts are ASCII only (L173)
+ * filewalk (2026-11-16): the two whole-file hashes and logPullSites 9 → 13 re-based after a look at the diff (five opt-in steps, DECISIONS #1666–#1667)
+ * filewalk #46 round 1 (2026-11-16): the two whole-file hashes re-based again after a look at the diff (driver: Invoke-FileReset / Invoke-FileShot / Get-DevSeedAddress / Wait-FilePull, two mirror polls; parser: stamp2 guard `-le`); logPullSites stays 13, every frozen body key stayed green
+ * filewalk #46 round 2 (2026-11-16): the two whole-file hashes re-based again after a look at the diff (driver: Save-FileRepPid / Get-ScrollBase, Invoke-FileReset with the stored pid, cal-reset sweep; the step-end Halted guards were only pinned (b-walk-steps b19), not changed; parser: X-ScrollW needs two scroll lines from stamp2 on); logPullSites stays 13, every frozen body key stayed green
+ * filewalk #46 round 3 (2026-11-16): the parser hash re-based again after a look at the diff (X-LongW: the same two-scroll-line rule as X-ScrollW); the driver hash is unchanged; logPullSites stays 13, every frozen body key stayed green
  * Deliberate breaks (#802): see the builder's report of batch perfb1toggle item 2. */
 import { createHash } from 'node:crypto';
 export default async function (h) {
@@ -276,7 +280,7 @@ export default async function (h) {
   const asrt = fn(D, 'Assert-FlagsPid'), reset = fn(D, 'Reset-AppToChats'), lpull = fn(D, 'Invoke-LogPull'), mem = fn(D, 'Invoke-MemPhase'), sl = fn(D, 'Save-Log');
   const noLineBranch = /if \(\$states\.Count -eq 0\) \{[\s\S]*?if \(\$script:FlagsAsked\) \{[\s\S]*?\$Rec\.status = 'error'[\s\S]*?Complete-Rep[\s\S]*?Stop-Flags 'no-state-line'[\s\S]*?\}\s*return\s*\}/.test(upd2);
   const pr2 = {
-    logPullSites: count(D, 'Invoke-LogPull $Rec') === 9,
+    logPullSites: count(D, 'Invoke-LogPull $Rec') === 13,
     pidGuard: asrt.includes('if ($script:LastPullPid -and $script:FlagsPid -and (Test-Ordinal $script:LastPullPid $script:FlagsPid)) { return }') && asrt.includes("Stop-Flags 'unproven-process'") && asrt.includes("$Rec.status = 'error'"),
     pullGuard: lpull.includes("if ($script:FlagsAsked -and $Rec.step -cne 'coldstart') { Assert-FlagsPid $Rec }"),
     pidSaved: sl.includes("$script:LastPullPid = [string]$ids[0]") && count(D, '$script:FlagsPid = $script:LastPullPid') === 2,
@@ -344,8 +348,8 @@ export default async function (h) {
   for (const [, key, body, want] of frozen) fz[key] = body !== null && sha(body) === want;
   // R4-A: the two scripts WHOLE. R4-B: no function / filter / workflow name is defined twice in a script (comment-stripped text,
   // case-insensitive, optional scope prefix).
-  fz['file:adb-walk.ps1'] = sha(DN) === '4d116517c97cbfbe5e486447551e721b46feee2493aabf1e14f2ab0594c4c002';
-  fz['file:adb-walk-parse.ps1'] = sha(PN) === '7219e58b47b7e2a48bab61db532186532d07b92537ed316d481dd1bcbe7f4302';
+  fz['file:adb-walk.ps1'] = sha(DN) === '3b23056e52362fe8ffe9151bcb2029a5100378ef2937285e7f7125a67f75c8a3';
+  fz['file:adb-walk-parse.ps1'] = sha(PN) === '41640c74098db71a9d36ababba7159774aef44a58399bde0aa0f19057e00622c';
   for (const [sn, txt] of [['adb-walk.ps1', D], ['adb-walk-parse.ps1', P]]) {
     const seen = new Map();
     for (const m of txt.matchAll(/(?:^|[^\w-])(?:function|filter|workflow)\s+(?:(?:global|script|local|private):)?([\w-]+)/gi)) { const k = m[1].toLowerCase(); seen.set(k, (seen.get(k) || 0) + 1); }

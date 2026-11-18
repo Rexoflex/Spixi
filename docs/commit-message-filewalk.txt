@@ -1,0 +1,31 @@
+Commit messages of batch filewalk (Session "File chats and walk steps 3", 2026-11-16). Three commits on work/filewalk,
+author and committer = Damir's identity (DECISIONS 1501), unsigned, no attribution line, no number sign before a number (1512).
+
+1) File chats and walk steps 3: the dev file seed (Seed 54-56)
+
+Developer builds only (SPIXI_DEV_COEXIST). Seed 54 holds documents (20 file rows of ten kinds, received and sent),
+Seed 55 voice messages (16 inline rows, 4 voice files), Seed 56 one chat of 100 messages with 96 photos. Fixed times;
+C# names every file from the seed index; keep and delete only by the SHA-256 of our own bytes, again after each move;
+a present chat with rows is never topped up. Seed 01-53 are unchanged apart from three hook lines and the unseed loop
+bound. DECISIONS 1665, packet P55.
+Files: Spixi/Utils/SDevSeed.cs, Spixi/Utils/SDevSeedPlan.cs, scripts/csh/FileWalkSeedTests.cs,
+scripts/pins-filewalk/a-file-seed.mjs, scripts/pins-perfb1/e-image-seed.mjs (re-based keys).
+
+2) File chats and walk steps 3: five opt-in adb walk steps and their parser rows
+
+scroll-files, scroll-voice, scroll-photos, viewer, downloads: only with -Steps; local keys that must equal the derived
+dev-seed addresses; gates; a proven restart or a halt; no PNG kept; seven count polls; the four new map keys stay absent
+until a calibrate run. The parser rows are windowed by a second stamp; the old rows are byte-identical. DECISIONS
+1666, 1667.
+Files: scripts/device/adb-walk.ps1, scripts/device/adb-walk-parse.ps1, scripts/pins-filewalk/b-walk-steps.mjs,
+scripts/pins-perfb1toggle/b-walk.mjs (the two script hashes and logPullSites re-based, DECISIONS 1596),
+scripts/smoke-test.mjs (one registration line).
+
+3) File chats and walk steps 3: DECISIONS 1665-1673, handoff, status log, lessons
+
+The record, the questions send (1669) and live (1670), the findings (1668), packet P55, the gate section, the contract
+and the review brief.
+Files: DECISIONS.md, docs/decisions-index.md, docs/lessons.md, docs/status-log.md, CLAUDE.md,
+docs/security-handover-gate.md, docs/be-review-pack/P55-dev-file-seed.md, docs/be-review-pack/README.md,
+docs/contract-filewalk.md, docs/review-brief-filewalk.md, docs/handoff-2026-11-16-filewalk.md,
+docs/commit-message-filewalk.txt.

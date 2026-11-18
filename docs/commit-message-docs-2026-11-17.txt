@@ -1,0 +1,26 @@
+Docs: the main chat's rows 1612-1614 and 1625-1640 (rulings and walks of 2026-11-16 and 2026-11-17)
+
+DECISIONS.md only (plus this file). No code, no built html, no script.
+
+Rows added after row 1611:
+- 1612 Opus leads the build sessions fixb1 and filewalk; Fable 5.2 stays as the reader of the security pass.
+- 1613 The feature items under the freeze leave the launch phases (15 items to v1.1).
+- 1614 Eight small answers (the Aurora ring, the chess clock, the chat info budget of 160 ms, auto-update in v1.1).
+- 1625 The proposals of session Speed lean are all taken.
+- 1626 The cold start after the research: two budget numbers; the batch Cold start 1.
+- 1627 The source pin of the cold-start marks is accepted with its limits recorded.
+- 1628 The slow install of 2026-11-13: closed, cause not found; the guard is the same-day rule and two readings.
+- 1629 "Unread messages" is a centred pill, not a bar across the pane.
+- 1630 Pull request 11 is merged when CI is green; its walk findings go into Fix batch 2.
+- 1631 WALK 1631: 9 P, 1 F, 0 N/A - Fix batch 1 on Windows and Android.
+- 1632 The walk steps send and live are not built before the launch; two rows by hand.
+- 1633 Windows: Enter alone never confirms a payment or a mini-app action (Fix batch 2).
+- 1634 The whole-file and whole-body SHA-256 pins stay.
+- 1635 Three small answers of the main chat to session questions (proposed).
+- 1636 WALK 1636: 9 P, 1 F, 2 N/A - Speed lean (the lean CSS build) on the Galaxy A52s.
+- 1637 SpixiLeanCss stays OFF by default and stays as a tool; the JS strip stays parked.
+- 1638 The cold-start work stops before the launch; v1 accepts about 2.0 s and 2.6 s.
+- 1639 The unread marker is the same centred pill on every platform.
+- 1640 Fix batch 2: Opus leads; Fable 5.2 builds only the one item with payment code.
+
+Status cells extended (the old text kept): 1651, 1652, 1653, 1668, 1669, 1670, 1671.

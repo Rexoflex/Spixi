@@ -19,6 +19,8 @@
  * the perfb1 one; pinned in full by pins-fixb1/g-sparekeep): the switch is ON by default — absent 1, S16PassRules.effectiveFlag,
  * PerfB1Rules.effectiveOptIn gone; `optInDefaultOff` (the start value `= false`) and leaveDevMode are unchanged. The keys
  * keep their names; each still fails on its first failure (the read's absent value, the rule, the tail after the safety line).
+ * re-based by fixb2 item 4 (SpixiFlags.init: the two item-4 switches and their ONE [FLAGS] line follow the fixb1 line) — `compute`: a second OPTIONAL trailing group after the
+ * fixb1 one (pins-fixb2/d-pay-confirm FLAGS holds it in full); nothing else may follow.
  * Deliberate breaks: builder-d report (perfb1); #46 r1: leaveDevMode moved after the drop → red `order`;
  * leaveDevMode's `= false` → `= true` → CSH red (PerfB1FlagsTests.leaving_dev_mode_… / after_leaving_dev_mode_…); #46 r2 R2-1:
  * the wipe's call removed → red `bothCallersNoThird` + `wipeRightAfterTheClear`; moved before the Clear → red
@@ -64,7 +66,11 @@ export default async function (h) {
     'PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;', 'VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;',   // ★ photo1a re-base (2026-11-18): PO-3 / PO-6 are back — 4 computes, the line takes 4 properties
     'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));'];
   const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '(?:\\s*' + fixTail.map(esc).join('\\s*') + '(?:\\s*' + photoTail.map(esc).join('\\s*') + ')?)?\\s*\\}$');
+  /* ★ re-based by fixb2 item 4: its group follows the fixb1 one (optional here, as that one is) · ★ merge with photo1a (2026-11-18):
+     the photo1a group follows the fixb2 group (both optional, in this order) */
+  const fix2Tail = ['PayConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fp);', 'MiniAppConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fm);',
+    'Logging.info(FixB2Rules.flagsLine(PayConfirmSafeDefault, MiniAppConfirmSafeDefault));'];
+  const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '(?:\\s*' + fixTail.map(esc).join('\\s*') + '(?:\\s*' + fix2Tail.map(esc).join('\\s*') + ')?' + '(?:\\s*' + photoTail.map(esc).join('\\s*') + ')?)?\\s*\\}$');
   const fl = {
     found: init.length > 0 && iTry > 0 && iCatch > iTry,
     keys: /public const string WarmOnIdleKey = "flagWarmOnIdle";/.test(SF) && /public const string SpareRearmKey = "flagSpareRearm";/.test(SF)

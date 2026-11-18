@@ -1,0 +1,14 @@
+Pull request title:
+Fix batch 2: the unread pill, the divider line, the Windows confirm focus, the Windows payment and mini-app confirms, four desktop polish fixes
+
+Pull request description:
+What: the walk findings of Fix batch 1 and the desktop polish that waited (session fixb2, DECISIONS 1695-1706, packets P59-P62).
+- Unread messages is a centred pill like the date pill on every platform (rulings 1629, 1639).
+- The divider line covers the measured hairline; the reset and default list width is 440 (dial); the reset re-fits chat info (P62).
+- Windows: the safe-default confirm puts the keyboard focus on Cancel at open; its text scrolls (P59).
+- Windows: the payment send confirm and the three mini-app confirms use the same safe dialog; each has its own switch, the old path is the fallback; nothing signed, sent, shown or bridged changes (ruling 1633; P60, P61; built by a Claude Fable 5.2 sub-agent, ruling 1640).
+- Centred desktop sheets use the free height of a short window; desktop wallet rows take the chat row's inset; the light Aurora ring reaches 3 : 1 by its own token.
+Checks (cloud twin, merged with redesign/frontend c0a76176): BASELINE OK 6617 / the 2 KNOWN (6564 + 53) · CSH 643 (633 + 10) · both --check gates · the Chromium sweeps by hand.
+Review: the 46 loop stopped at round 3 by rule 9 (three pin scanners; no finding in the code); Damir's ruling 1735 accepted the recorded pin limits; the final readers (Claude Fable 5.2 security-only, Claude Opus for the rest) found 0 MAJOR in the code (docs/review-brief-fixb2.md section 5).
+C# UNCOMPILED: SConfirm.cs, SPayments.cs, MiniAppPage.xaml.cs, SpixiFlags.cs, FixB2Rules.cs, HomePage.xaml(.cs) - the Windows job of redesign-ci is the first compile.
+Walk owed on Windows and Android: docs/walk-fixb2.md (the payment row ends at Cancel; the walk sends no IXI).

@@ -127,7 +127,17 @@ namespace SPIXI
                     var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
                     {
                         Title = title,
-                        Content = new Microsoft.UI.Xaml.Controls.TextBlock { Text = text, TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap },
+                        // ★ fixb2 item 3 (Q-1): the template's ContentScrollViewer has its vertical bar Disabled, so a long text
+                        // (a long peer nickname in the pay text) was CLIPPED with no way to scroll; this viewer scrolls it. It can
+                        // never take the focus (not a tab stop, no focus on a click): the initial focus and Enter stay with Close.
+                        Content = new Microsoft.UI.Xaml.Controls.ScrollViewer
+                        {
+                            VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+                            HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled,
+                            IsTabStop = false,
+                            AllowFocusOnInteraction = false,
+                            Content = new Microsoft.UI.Xaml.Controls.TextBlock { Text = text, TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap }
+                        },
                         PrimaryButtonText = ok,
                         CloseButtonText = cancel,
                         DefaultButton = Microsoft.UI.Xaml.Controls.ContentDialogButton.Close,
@@ -138,6 +148,7 @@ namespace SPIXI
                     {
                         dialog.Style = style;
                     }
+                    dialog.Opened += (s, e) => winFocusCancel(dialog, true);
                     Microsoft.UI.Xaml.Controls.ContentDialogResult result = await dialog.ShowAsync();
                     tcs.TrySetResult(FixB1Rules.confirmIsOk((int)result));
                 }
@@ -181,6 +192,105 @@ namespace SPIXI
             {
             }
             return null;
+        }
+
+        /* ★ fixb2 item 3 (n-20261117-win-confirm-no-default-focus, docs/fixb2-mechanisms.md § Item 3) — W-1 on Windows: the dialog opened
+         * with no focus ring, no accent, and Enter did nothing. WinUI gives the default button only PROGRAMMATIC focus at open,
+         * which after a mouse click is drawn as Pointer focus = no ring (focusmgr.cpp CoerceFocusState); and the key input may
+         * still go to the WebView2. This step, on Opened and once more at Low dispatcher priority (the initial focus runs on
+         * LayoutRoot.Loaded, in no fixed order with Opened), moves the KEYBOARD focus to the Close (Cancel) button — an app
+         * Focus call is the documented way XAML takes the Win32 focus back to its island — and, when Close holds it, the Close
+         * accent state. ONLY the template part FixB2Rules.focusPart names, ONLY when it shows the Cancel text and not the OK text
+         * (FixB2Rules.mayTakeFocus); never the Primary (OK) button. It never completes the dialog task, starts no timer and
+         * writes no log line; a missing button or a throw does nothing more (the dialog stays as WinUI opened it: Enter cancels
+         * or does nothing, never OK). */
+        private static void winFocusCancel(Microsoft.UI.Xaml.Controls.ContentDialog dialog, bool again)
+        {
+            try
+            {
+                string? part = FixB2Rules.focusPart((int)dialog.DefaultButton);
+                Microsoft.UI.Xaml.Controls.Button? cancelButton = part == null ? null : winFindButton(dialog, part);
+                if (cancelButton != null && FixB2Rules.mayTakeFocus(cancelButton.Name, cancelButton.Content as string, dialog.CloseButtonText, dialog.PrimaryButtonText))
+                {
+                    cancelButton.Focus(Microsoft.UI.Xaml.FocusState.Keyboard);
+                    string? state = FixB2Rules.accentState((int)dialog.DefaultButton, cancelButton.FocusState == Microsoft.UI.Xaml.FocusState.Keyboard);
+                    if (state != null)
+                    {
+                        Microsoft.UI.Xaml.VisualStateManager.GoToState(dialog, state, false);
+                    }
+                }
+                if (again)
+                {
+                    dialog.DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => winFocusCancel(dialog, false));
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        /** The first Button named `name` in the visual tree under `root` (the dialog's own template: the dialog is the popup
+         *  child), at most 512 elements; null = not found. */
+        private static Microsoft.UI.Xaml.Controls.Button? winFindButton(Microsoft.UI.Xaml.DependencyObject root, string name)
+        {
+            var todo = new System.Collections.Generic.Stack<Microsoft.UI.Xaml.DependencyObject>();
+            todo.Push(root);
+            int seen = 0;
+            while (todo.Count > 0 && seen < 512)
+            {
+                Microsoft.UI.Xaml.DependencyObject d = todo.Pop();
+                seen++;
+                if (d is Microsoft.UI.Xaml.Controls.Button b && b.Name == name)
+                {
+                    return b;
+                }
+                int n = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(d);
+                for (int i = 0; i < n; i++)
+                {
+                    todo.Push(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(d, i));
+                }
+            }
+            return null;
+        }
+
+        /* ★ fixb2 item 4 (n-20261117-win-confirm-enter-payment-miniapp, #1633) — Windows: the payment send confirm
+         * (SPayments.confirmAndAuth; no auth step follows it on WinUI) and the three mini-app confirms (MiniAppPage.handleAction)
+         * through the SAME dialog as the destructive confirm above: Cancel = the default (Close) button, ONLY
+         * ContentDialogResult.Primary is yes (FixB1Rules.confirmIsOk), the item-3 focus step. Each call site has its own switch
+         * (SpixiFlags.PayConfirmSafeDefault / MiniAppConfirmSafeDefault, with NativeConfirm: FixB2Rules.useSafeDialog); its
+         * `#else` / OFF arm is the old displaySpixiAlert call.
+         * THE GATE — WHY this entry HOLDS it (tryEnter / exit, as askAsync does) instead of counting as a plain alert: the
+         * dialog is outside MAUI's alert queue and WinUI allows ONE ContentDialog at a time. A MAUI alert that opens while it is
+         * up throws inside MAUI's `async void` alert handler (AlertManager.Windows.cs: ShowAlert → ContentDialog.ShowAsync, no
+         * try) and the app STOPS — and a mini app can time an alert (an unknown action) while its own confirm is open. While
+         * this entry holds the gate, displaySpixiAlert DROPS every other Spixi alert (P35), so that path is closed. Refused at
+         * once (false, one fixed line) while a confirm or any other Spixi alert is up — ShowAsync would throw there anyway.
+         * NOT here, because the old path of these call sites has neither: the 600 ms rule and the app-lock checks of askAsync.
+         * FAIL CLOSED: a refused gate, no XamlRoot, an empty button text, Esc, the Close button, a dialog closed any other
+         * way, a null task and every throw (a second ContentDialog too) answer false. Never throws; no timer (L157); the two
+         * log lines are fixed words and an exception TYPE name — no title, text, name, address or amount. */
+        internal static async Task<bool> askPlainSafeWinAsync(string title, string text, string ok, string cancel)
+        {
+            long token = gate.tryEnter();
+            if (token == 0)
+            {
+                Logging.info("[CONFIRM] plain busy");
+                return false;
+            }
+            try
+            {
+                Task<bool>? dialog = showSafeDefaultConfirm(title, text, ok, cancel);
+                return dialog != null && await dialog;
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[CONFIRM] the dialog failed (" + ex.GetType().Name + ")");
+                return false;
+            }
+            finally
+            {
+                gate.exit(token);
+            }
         }
 #endif
         /** The dialog texts per verb: SafetyRules.confirmTexts (pure, executed in csh over a hostile-name corpus) with the

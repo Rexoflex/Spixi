@@ -32,6 +32,8 @@ namespace SPIXI
         public const string PhoneNoEmptyDetailKey = "flagPhoneNoEmptyDetail";     // int pref; absent = default (1) — ★ perfb1 P-13 (P41)
         public const string ConfirmSafeDefaultKey = "flagConfirmSafeDefault";     // int pref; absent = default (1) — ★ fixb1 item 1 (P50)
         public const string DividerHoverLineKey = "flagDividerHoverLine";         // int pref; absent = default (1) — ★ fixb1 item 4 (P51)
+        public const string PayConfirmSafeDefaultKey = "flagPayConfirmSafeDefault";           // int pref; absent = default (1) — ★ fixb2 item 4
+        public const string MiniAppConfirmSafeDefaultKey = "flagMiniAppConfirmSafeDefault";   // int pref; absent = default (1) — ★ fixb2 item 4
         /* ★ photo1a (Photo open 1a, #1478: one switch per change; DECISIONS #1715–#1734; packets P65–P68) */
         public const string PhotoMediaAfterPaintKey = "flagPhotoMediaAfterPaint";   // int pref; absent = default (1) — ★ photo1a PO-1 (P65)
         public const string PhotoFewerFileChecksKey = "flagPhotoFewerFileChecks";   // int pref; absent = default (1) — ★ photo1a PO-5 (P66)
@@ -117,6 +119,20 @@ namespace SPIXI
          *  OFF = no line, exactly the old behaviour. */
         public static bool DividerHoverLine { get; private set; } = true;
 
+        /* ★ fixb2 (Fix batch 2, #1312 rule 1 / #1478, FixB2Rules.cs): one flag per call-site family. Both ACT only on Windows
+         * (only `#if WINDOWS` code reads them); init reads them and writes their [FLAGS] line on EVERY platform — on iPhone,
+         * Mac and Android the values change nothing. The safe dialog needs TWO things on: the call site's own switch AND
+         * NativeConfirm (FixB2Rules.useSafeDialog: with the alert drop of Session Safety off, nothing keeps a MAUI alert
+         * away from the dialog). Either one OFF = the old path. */
+        /** Item 4, acts on Windows only: the payment send confirm (SPayments.confirmAndAuth) is SConfirm's safe-default
+         *  dialog — Cancel is the default (Close) button, so Enter cancels; only the Primary (send) result is yes. ON takes
+         *  effect only while NativeConfirm is on too. OFF — this switch or NativeConfirm — = exactly the old behaviour (MAUI
+         *  DisplayAlert through displaySpixiAlert). */
+        public static bool PayConfirmSafeDefault { get; private set; } = true;
+        /** Item 4, acts on Windows only: the three mini-app confirms (MiniAppPage.handleAction) the same way, under the same
+         *  two conditions. OFF — this switch or NativeConfirm — = exactly the old behaviour (MAUI DisplayAlert through
+         *  displaySpixiAlert). */
+        public static bool MiniAppConfirmSafeDefault { get; private set; } = true;
         /* ★ photo1a (Photo open 1a, PhotoOpenRules.cs / ChatMediaStore.cs): one flag per change; OFF = the old path, byte
          * for byte. The start value is `false` (before init runs: the old path); init sets the effective value. */
         /** PO-1 (P65): the thumbnail, waveform and offer-preview jobs of a chat open start at the shell's paint signal (or the
@@ -156,6 +172,7 @@ namespace SPIXI
             int xi = 1, xs = 1, xp = 1, xc = 1, xh = 1, xw = 1;   // ★ Session Safety
             int pw = 1, pr = 1, pk = 1, pn = 1;   // ★ perfb1 (pk: absent = 1 since ★ fixb1 item 7)
             int fc = 1, fd = 1;                   // ★ fixb1 items 1 / 4
+            int fp = 1, fm = 1;                   // ★ fixb2 item 4
             int qa = 1, qf = 1, qt = 1, qv = 1;   // ★ photo1a PO-1 / PO-5 / PO-3 / PO-6
             try
             {
@@ -181,6 +198,8 @@ namespace SPIXI
                 pn = Preferences.Default.Get(PhoneNoEmptyDetailKey, 1);
                 fc = Preferences.Default.Get(ConfirmSafeDefaultKey, 1);
                 fd = Preferences.Default.Get(DividerHoverLineKey, 1);
+                fp = Preferences.Default.Get(PayConfirmSafeDefaultKey, 1);
+                fm = Preferences.Default.Get(MiniAppConfirmSafeDefaultKey, 1);
                 qa = Preferences.Default.Get(PhotoMediaAfterPaintKey, 1);
                 qf = Preferences.Default.Get(PhotoFewerFileChecksKey, 1);
                 qt = Preferences.Default.Get(PhotoThumbStoreKey, 1);
@@ -224,6 +243,9 @@ namespace SPIXI
             ConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fc);
             DividerHoverLine = S16PassRules.effectiveFlag(dev, fd);
             Logging.info(FixB1Rules.flagsLine(ConfirmSafeDefault, DividerHoverLine));
+            PayConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fp);
+            MiniAppConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fm);
+            Logging.info(FixB2Rules.flagsLine(PayConfirmSafeDefault, MiniAppConfirmSafeDefault));
             PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);
             PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);
             PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;

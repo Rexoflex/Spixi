@@ -1022,6 +1022,10 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   opacity: 1;
   transition-timing-function: var(--easing-decelerate);
 }
+/* ★ fixb2 item 5: the 76 % cap left 12 % free each side in a short window; centred sheets may grow to a 24 px margin, never past 608 px (sanctioned; = 76 % of 800: hosts >= 800 unchanged) */
+:root[data-desktop] .c-sheet:not([data-dt-anchor]) {
+  max-height: max(76%, min(calc(100% - 2 * var(--spacing-24)), 608px));
+}
 :root[data-desktop] .c-sheet .c-sheet__handle { display: none; }
 /* anchored variants: dropdowns FADE IN PLACE — no transform at any point, so
    nothing can visually "arrive from" anywhere (06d). Inline left/top/bottom/
@@ -3752,31 +3756,37 @@ button.c-settings-howto__head > svg:last-child { transition: transform var(--dur
 .c-fbubble__stamp .c-status-icon[data-tone="read"],
 .c-fbubble__stamp .c-status-icon[data-tone="failed"] { opacity: 1; }
 
-/* —— unread divider (full width) —— */
+/* —— unread marker: a centred pill (★ fixb2 item 1, Damir #1629 + #1639: the same pill on EVERY platform) ——
+   The day pill's shape (.c-datesep__pill): radius-full, its padding, label-xs, a full 1px border; no bar across the pane.
+   Keeps the class (the JS and the tests find it) and its OWN glass roles (#1080 F16). SUPERSEDES pick B (full-bleed). */
 .c-unread-divider {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--spacing-8);
-  margin: var(--spacing-12) 0;
-  padding: var(--spacing-4) var(--spacing-16);
-  /* ★ GLASS (Damir picked B, 2026-09-08). ⚠ FULL-BLEED IS DELIBERATE — he asked for the
-     strip to stay the full width ("i like the full length unread"); option D turned it
-     into a centred pill and was NOT taken. Only the fill and the hairlines change. */
+  box-sizing: border-box;
+  width: fit-content;                  /* a pill, not a bar: it hugs its label … */
+  max-width: calc(100% - 2 * var(--spacing-16));   /* … and keeps the day pill's 16 px inset on both sides on a phone (the log has no side padding) */
+  text-align: center;
+  margin: var(--spacing-12) auto;      /* auto inline margins centre it in the message column, with or without a scroll bar */
+  padding: var(--spacing-2) var(--spacing-12);
+  border-radius: var(--radius-full);
   background: var(--surface-unread-strip);   /* ★ #1080 F16: its own role (light = the glass; dark lifts) */
   -webkit-backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
   backdrop-filter: blur(var(--blur-chat-glass)) saturate(160%);
-  border-block: var(--outline-width-1) solid var(--outline-unread-strip);
+  border: var(--outline-width-1) solid var(--outline-unread-strip);
   color: var(--text-unread-strip);
   font-size: var(--font-size-label-xs);
   line-height: var(--line-height-label-xs);
   letter-spacing: var(--tracking-label-xs);
   font-weight: var(--font-weight-semibold);
-}/* same fallback as the day pill — see message-bubble.css. */
+}
+.c-unread-divider > span { min-width: 0; overflow-wrap: anywhere; }   /* one long word of a long translation wraps INSIDE the pill */
+/* same fallback as the day pill — see message-bubble.css. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .c-unread-divider {
     background: var(--surface-chat-chip);
-    border-block-color: var(--outline-neutral-02);
+    border-color: var(--outline-neutral-02);
   }
 }
 

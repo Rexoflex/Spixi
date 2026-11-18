@@ -587,9 +587,24 @@ namespace SPIXI
             bool ok = false;
             try
             {
+#if WINDOWS
+                /* ★ fixb2 item 4 (#1633): on Windows Enter alone must not send. Switch ON (and the alert drop of Session
+                 * Safety on — FixB2Rules.useSafeDialog): SConfirm's safe-default dialog — the same title, body and button
+                 * texts; Cancel is the default (Close) button; ONLY the send (Primary) button is yes; Esc, a closed dialog,
+                 * a second dialog and every error are Cancel. Switch OFF = the old call. ONLY this dialog changes: nothing
+                 * signed or sent, no text, not the auth step below, not the order confirm → auth → send. */
+                var alertTask = FixB2Rules.useSafeDialog(SpixiFlags.PayConfirmSafeDefault, SpixiFlags.NativeConfirm)
+                    ? SConfirm.askPlainSafeWinAsync(title, body,
+                    SpixiLocalization._SL("wallet-send2-confirm"),
+                    SpixiLocalization._SL("global-dialog-cancel"))
+                    : page.displaySpixiAlert(title, body,
+                    SpixiLocalization._SL("wallet-send2-confirm"),
+                    SpixiLocalization._SL("global-dialog-cancel"));
+#else
                 var alertTask = page.displaySpixiAlert(title, body,
                     SpixiLocalization._SL("wallet-send2-confirm"),
                     SpixiLocalization._SL("global-dialog-cancel"));
+#endif
                 ok = alertTask != null && await alertTask;
             }
             catch (Exception ex)

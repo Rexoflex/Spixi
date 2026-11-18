@@ -169,16 +169,17 @@ export default async function (h) {
       rootEl.setAttribute('data-chat-ground', ground);
       const key = theme + ':' + ground;
       const grad = tok('--gradient-chat');
-      const [blue, gap, band] = ['--outline-action-default', '--surface-select-row-gap', '--surface-select-row'].map((n) => rgb(tok(n)));
+      const [blue, gap, band] = ['--outline-select-ring', '--surface-select-row-gap', '--surface-select-row'].map((n) => rgb(tok(n)));
       const mid = midOf(grad);
       if (!(blue && gap && band && mid)) { r[key] = false; res[key] = 'unresolved ' + grad.slice(0, 80); continue; }
       const bandOnMid = over(band, mid.c);
       if (ground === 'flat') flatGap[theme] = gap.c.join();
       res[key] = { gap: gap.c, bandOnMid, ringOnGap: Math.round(cr(blue.c, gap.c) * 100) / 100, gradient: ground !== 'flat' && /linear-gradient/.test(grad) };
       /* the gap IS the band made opaque over THIS ground (±2 per channel), and the ring clears 3:1 on it */
-      /* ★ S17 C v3: light Aurora's vivid ground puts the blue ring at 2.61 : 1 on Damir's gap #57A4E6 (his exact value) — recorded
-         as a 🟡 for him (DECISIONS #1345), held at ≥ 2.5 here so a worse value still fails */
-      const ringMin = key === 'light:aurora' ? 2.5 : 3;
+      /* ★ S17 C v3: light Aurora's vivid ground put the blue ring at 2.61 : 1 on Damir's gap #57A4E6 (his exact value) — recorded
+         as a 🟡 (DECISIONS #1345), held at ≥ 2.5 here. re-based by fixb2 item 7 (#1614 "darken the ring"; the ring is read by its own token now): light Aurora sets its own ring token --outline-select-ring (= --outline-action-default elsewhere) to #2B47A9 (3.05 : 1),
+         so the floor is 3 on EVERY ground now (was 2.5 for light:aurora) */
+      const ringMin = 3;
       r[key] = gap.a === 1 && gap.c.every((v, i) => Math.abs(v - bandOnMid[i]) <= 2) && cr(blue.c, gap.c) >= ringMin
         && (ground === 'flat' || res[key].gradient);
     }

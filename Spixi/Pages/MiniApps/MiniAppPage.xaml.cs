@@ -290,10 +290,22 @@ namespace SPIXI
                     || jsonResult.c == MiniAppCommands.NAME_UPDATE
                     || jsonResult.c == MiniAppCommands.NAME_ALLOW_SUBNAMES)
                 {
+#if WINDOWS
+                    // ★ fixb2 item 4 (#1633): Windows — Enter alone must not approve a name action: the answer goes to the service.
+                    // Switch ON: SConfirm's safe-default dialog with the same texts — only its OK (Primary) button is yes. Switch OFF =
+                    // the old call. The block under it is the old block (each preprocessor arm is a whole statement).
+                    if (!await (FixB2Rules.useSafeDialog(SpixiFlags.MiniAppConfirmSafeDefault, SpixiFlags.NativeConfirm)
+                        ? SConfirm.askPlainSafeWinAsync(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-confirmation"), actionResponse), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel"))
+                        : displaySpixiAlert(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-confirmation"), actionResponse), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel"))))
+                    {
+                        return;
+                    }
+#else
                     if (!await displaySpixiAlert(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-confirmation"), actionResponse), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel")))
                     {
                         return;
                     }
+#endif
                 }
                 else if (jsonResult.c == MiniAppCommands.SEND_PAYMENT)
                 {
@@ -307,11 +319,24 @@ namespace SPIXI
                         nick = friend.nickname + " (" + nick + ")";
                     }
 
+#if WINDOWS
+                    // ★ fixb2 item 4 (#1633): Windows — Enter alone must not approve a payment a mini app asks for.
+                    // Switch ON: SConfirm's safe-default dialog with the same texts — only its OK (Primary) button is yes. Switch OFF =
+                    // the old call. The block under it is the old block (each preprocessor arm is a whole statement).
+                    if (!await (FixB2Rules.useSafeDialog(SpixiFlags.MiniAppConfirmSafeDefault, SpixiFlags.NativeConfirm)
+                        ? SConfirm.askPlainSafeWinAsync(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-payment-user-confirmation"), nick, tx.toList.Values.First().amount.ToString() + " IXI"), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel"))
+                        : displaySpixiAlert(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-payment-user-confirmation"), nick, tx.toList.Values.First().amount.ToString() + " IXI"), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel"))))
+                    {
+                        sendActionRejected(jsonResult.c, jsonResult.id, "rejected");
+                        return;
+                    }
+#else
                     if (!await displaySpixiAlert(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-payment-user-confirmation"), nick, tx.toList.Values.First().amount.ToString() + " IXI"), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel")))
                     {
                         sendActionRejected(jsonResult.c, jsonResult.id, "rejected");
                         return;
                     }
+#endif
 
                     if (string.IsNullOrEmpty(jsonResult.responseUrl))
                     {
@@ -331,10 +356,22 @@ namespace SPIXI
                 }
                 else
                 {
+#if WINDOWS
+                    // ★ fixb2 item 4 (#1633): Windows — Enter alone must not approve any other action, e.g. auth: the answer goes to the service.
+                    // Switch ON: SConfirm's safe-default dialog with the same texts — only its OK (Primary) button is yes. Switch OFF =
+                    // the old call. The block under it is the old block (each preprocessor arm is a whole statement).
+                    if (!await (FixB2Rules.useSafeDialog(SpixiFlags.MiniAppConfirmSafeDefault, SpixiFlags.NativeConfirm)
+                        ? SConfirm.askPlainSafeWinAsync(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-confirmation"), actionResponse), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel"))
+                        : displaySpixiAlert(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-confirmation"), actionResponse), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel"))))
+                    {
+                        return;
+                    }
+#else
                     if (!await displaySpixiAlert(SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-confirmation"), actionResponse), SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel")))
                     {
                         return;
                     }
+#endif
                 }
 
                 HttpResponseMessage? response = null;

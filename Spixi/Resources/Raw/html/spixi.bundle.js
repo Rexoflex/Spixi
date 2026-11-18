@@ -10142,7 +10142,7 @@ function setFileProgress(rowEl, progress, opts = {}) {
   }
 }
 
-/** Full-width "Unread messages" divider (Damir 2026-07-03; frontend-only). */
+/** "Unread messages" marker: a centred pill like the date pill, on every platform (★ fixb2 item 1, #1629 / #1639; was a full-width strip, Damir 2026-07-03; frontend-only). */
 function createUnreadDivider(strings = getStrings()) {
   const el = document.createElement('div');
   el.className = 'c-unread-divider';

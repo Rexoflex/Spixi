@@ -47,7 +47,10 @@ export default async function (h) {
     const ph = await readChat(false);
     const dk = await readChat(true);
     r.flags = !ph.flag && dk.flag && ph.opacity === 'var(--chat-pattern-alpha-1)' && dk.opacity === 'var(--chat-pattern-alpha-1)';
-    r.phoneToday = ph.v['light:flat'].a === 0.1024 && ph.v['dark:flat'].a === 0.101 && ph.v['light:aurora'].a === 0.192 && ph.v['dark:aurora'].a === 0.101;   // re-based by S20 R (#1377 D: 0.0932 → 0.101, desktop 0.0808; ΔL* on #040607 5.69)   // ★ S19 option B RE-BASE: dark 0.0832 → 0.0932
+    r.phoneToday = ph.v['light:flat'].a === 0.1024 && ph.v['dark:flat'].a === 0.0808 && ph.v['light:aurora'].a === 0.1536 && ph.v['dark:aurora'].a === 0.0808
+      && ph.v['light:gradient'].a === 0.09216 && ph.v['light:blue'].a === 0.09216 && ph.v['light:green'].a === 0.08192 && ph.v['light:dusk'].a === 0.08192 && ph.v['light:ocean'].a === 0.08192
+      && ph.v['dark:gradient'].a === 0.0909 && ['blue', 'green', 'dusk', 'ocean'].every((g) => ph.v['dark:' + g].a === 0.0808);
+    /* ★ photo1b (#1644 RE-BASE, Damir's picks): the phone values follow the picked step per canvas — light Mist 0.1024 (Today) · Iris / Spixi 0.09216 · Meadow / Dusk / Ocean 0.08192 · Aurora 0.1536 (was 0.192); dark Mist / Spixi / Meadow / Aurora / Dusk / Ocean 0.0808 · Iris 0.0909 (was 0.101 everywhere); the desktop clause below (0.8 × phone, root AND tiles) is unchanged and now covers the per-canvas rules; earlier re-bases: S20 R (#1377 D: 0.0932 → 0.101, desktop 0.0808; ΔL* on #040607 5.69), S19 option B (dark 0.0832 → 0.0932) */
     const keys = Object.keys(ph.v);
     const bad = { root: [], tile: [] };
     for (const k of keys) {
@@ -73,14 +76,15 @@ export default async function (h) {
     const res = (th, n, k = 0) => { const v = TV[th][n]; if (!v || k > 10) return null; const mm = /^var\((--[\w-]+)\)$/.exec(v); return mm ? res(th, mm[1], k + 1) : v; };
     const mist = res('light', '--chat-canvas-base'), inkMist = res('light', '--chat-pattern-ink-mist');
     const gradInk = (/\[data-chat-ground='gradient'\] \{[^}]*--chat-pattern-ink: (#[0-9A-Fa-f]{6});/.exec(tokCss) || [])[1];
-    const gradMid = (/linear-gradient\(180deg, #[0-9A-Fa-f]{6} 0%, (#[0-9A-Fa-f]{6}) 50%/.exec(tokCss) || [])[1];
+    const gradMid = (/linear-gradient\(180deg, #[0-9A-Fa-f]{6} 0%, (#[0-9A-Fa-f]{6}) 50%/.exec(tokCss) || [])[1];   // ★ photo1b (#1644): the Calmer 1 Iris middle stop #D0CAE7
     const darkBase = (/:root\[data-theme='dark'\]\[data-chat-ground='flat'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='flat'\] \{[^}]*--gradient-chat: (#[0-9A-Fa-f]{6});/.exec(tokCss) || [])[1];   // ★ S19 option B RE-BASE: the dark Mist ground #07090B (was res('dark', '--chat-canvas-base'))
     const a1 = dk.v['light:flat'].a, d1 = dk.v['dark:flat'].a;
     const dMist = Lstar(mist) - Lstar(mix(mist, inkMist, a1));
-    const dGrad = gradInk && gradMid ? Lstar(gradMid) - Lstar(mix(gradMid, gradInk, a1)) : 0;
-    const dDark = darkBase ? Lstar(mix(darkBase, res('dark', '--chat-pattern-ink'), d1)) - Lstar(darkBase) : 0;
+    const dGrad = gradInk && gradMid ? Lstar(gradMid) - Lstar(mix(gradMid, gradInk, dk.v['light:gradient'].a)) : 0;   // ★ photo1b (#1644): at Iris's OWN desktop alpha 0.073728 (was the Mist a1)
+    const darkInk = (/:root\[data-theme='dark'\]\[data-chat-ground='flat'\],\s*:root\[data-theme='dark'\] \[data-chat-ground='flat'\] \{[^}]*--chat-pattern-ink: (#[0-9A-Fa-f]{6});/.exec(tokCss) || [])[1];   // ★ photo1b (#1644): the dark Mist rule's own ink #C9D0F0 (was the shared dark default)
+    const dDark = darkBase && darkInk ? Lstar(mix(darkBase, darkInk, d1)) - Lstar(darkBase) : 0;
     detail.dL = [dMist, dGrad, dDark].map((x) => x.toFixed(2)).join(' / ');
-    r.deltaL = dMist >= 5 && dGrad >= 4 && dDark >= 5;
+    r.deltaL = dMist >= 5 && dGrad >= 3.5 && dDark >= 5;   // ★ photo1b (#1644 RE-BASE): the brand-gradient floor 4 → 3.5 (Iris's own picked desktop alpha 0.073728 reads 3.94; was 4.55 at the Mist alpha 0.08192); Mist 5.32 and dark Mist 5.69 (0.06464 on #0C0E10) keep 5
     /* the bare-:root definitions stay (orphan-token gate) */
     const bare = [...tokCss.matchAll(/^:root \{([\s\S]*?)^\}/gm)].map((m) => m[1]).join('\n');
     r.bareRoot = /--chat-pattern-alpha-1: 0\.1024;/.test(bare) && /--chat-pattern-tile-max: 1;/.test(bare)

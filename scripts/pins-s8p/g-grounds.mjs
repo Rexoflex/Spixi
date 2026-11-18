@@ -121,12 +121,12 @@ export default async function (h) {
     const lb = rule(tk, L('blue')), dg = rule(tk, D('green')), db = rule(tk, D('blue'));
     const has = (body, decl) => body.replace(/\s+/g, ' ').includes(decl);
     const c = {
-      lightBlue: has(lb, '--gradient-chat: linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%), var(--chat-canvas-base);') && has(lb, '--chat-pattern-ink: #1E3A66;') && has(lb, '--surface-select-row-gap: #ADC1E9;'),
+      lightBlue: has(lb, '--gradient-chat: linear-gradient(180deg, #CCDDEE 0%, #C7D6ED 50%, #C4CFE9 100%), var(--chat-canvas-base);') && has(lb, '--chat-pattern-ink: #233B60;') && has(lb, '--surface-select-row-gap: #AFC1E5;'),   // ★ photo1b (#1644 Calmer 1): was #C9DDF2 → #C5D6F1 → #C2CFEE · ink #1E3A66 · gap #ADC1E9
       /* ★ S17 C v3 RE-BASE (Damir 21:50): the dark Meadow / Spixi are FULL COVERAGE (no fade to the canvas), new gaps.
          ★ S19 option B RE-BASE (Damir pick, "Dark Bubble Options"): every dark stop L × 0.85, the gaps re-derived over the new middle —
          Meadow #05221A → #05130F gap #1E3748 (was #0F2C23 → #0B1A16, #243E4E) · Spixi #06193E → #050D28 gap #1E3160 (was #0F2349 → #0A1430, #233867) */
-      darkGreen: has(dg, '--gradient-chat: linear-gradient(160deg, #001A12 0%, #020D0A 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #BFE8CB;') && has(dg, '--surface-select-row-gap: #1B3243;'),   // re-based by S20 R (#1377 D: L × 0.85 again; was #05221A → #05130F gap #1E3748)
-      darkBlue: has(db, '--gradient-chat: linear-gradient(160deg, #021135 0%, #020721 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C2DDFB;') && has(db, '--surface-select-row-gap: #1C2C5A;'),   // re-based by S20 R (#1377 D; was #06193E → #050D28 gap #1E3160)
+      darkGreen: has(dg, '--gradient-chat: linear-gradient(160deg, #071913 0%, #040C0A 100%), var(--chat-canvas-base);') && has(dg, '--chat-pattern-ink: #C8E4D0;') && has(dg, '--surface-select-row-gap: #1E3143;'),   // ★ photo1b (#1644 Calmer 2): was #001A12 → #020D0A · ink #BFE8CB · gap #1B3243   // re-based by S20 R (#1377 D: L × 0.85 again; was #05221A → #05130F gap #1E3748)
+      darkBlue: has(db, '--gradient-chat: linear-gradient(160deg, #07132B 0%, #04091A 100%), var(--chat-canvas-base);') && has(db, '--chat-pattern-ink: #C9DCF1;') && has(db, '--surface-select-row-gap: #1E2D53;'),   // ★ photo1b (#1644 Calmer 2): was #021135 → #020721 · ink #C2DDFB · gap #1C2C5A   // re-based by S20 R (#1377 D; was #06193E → #050D28 gap #1E3160)
       noticeEdge: !rule(chatH, D('blue').map((x) => x + ' .c-sysnotice__card')),   /* ★ #1354 RE-BASE: the hairline RETIRED — the neutral card shares no canvas's hue */
       /* ★ S17 C RE-BASE (#1334): the dark "top stop" dot faces are RETIRED — a 92 × 124 mini chat paints the whole ramp
          through --gradient-chat (the same token rules the chat uses), so no dark tile reads as a black disc */
@@ -135,6 +135,6 @@ export default async function (h) {
       noScratch: !/data-chat-ground[=^]+'x-/.test(tk + chatH + setH) && !/__s8x/.test(chatH),
     };
     ok(Object.values(c).every(Boolean),
-      '★ S8 picks (#1237) the BUILT sheets paint Damir\'s picks — light blue = B1 Sky (#C9DDF2 → #C5D6F1 → #C2CFEE, ink #1E3A66), dark green = DG1 Forest (#11231A → #0E1A14 → the canvas, ink #BFE8CB), dark blue = DB1 Azure (#0D2238 → #0C1828 → the canvas, ink #C2DDFB), each with its own select-row gap; the dark-blue notice card carries the #1066 hairline; the two new dark dots paint their ground\'s top; no s8x scratch ground (x-*) ships — ' + JSON.stringify(c));
+      '★ S8 picks (#1237) the BUILT sheets paint Damir\'s picks — light blue = B1 Sky, now the photo1b Calmer 1 pick (#CCDDEE → #C7D6ED → #C4CFE9, ink #233B60; was #C9DDF2 → #C5D6F1 → #C2CFEE, ink #1E3A66), dark green = DG1 Forest, now Calmer 2 (#071913 → #040C0A, ink #C8E4D0; was #001A12 → #020D0A, ink #BFE8CB), dark blue = DB1 Azure, now Calmer 2 (#07132B → #04091A, ink #C9DCF1; was #021135 → #020721, ink #C2DDFB), each with its own select-row gap; the dark-blue notice card carries the #1066 hairline; the two new dark dots paint their ground\'s top; no s8x scratch ground (x-*) ships — ' + JSON.stringify(c));
   }
 }

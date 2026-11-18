@@ -2299,6 +2299,7 @@
    div. One selector would leave the preview lying about what the chat will look like.
    ★ The notice card follows this — see system-notice.css. On the wash it separates by
    being LIGHTER; on the flat ground it has to be slightly DARKER. */
+/* ★ photo1b (#1644, Damir's pick "Calmer 1" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #CCD0EC/#D0C9EB/#D5C3EB · ink #3A2F66 · Auto sent #6145D6 · card #EFECFB · gap #B6B6E4 · alpha 0.1024 (the :root default). */
 :root:not([data-theme='dark'])[data-chat-ground='gradient'],
 :root:not([data-theme='dark']) [data-chat-ground='gradient'] {
   /* ★★ Damir 2026-08-30 gave the base as
@@ -2329,14 +2330,15 @@
   /* ★★ #1002 (D-09, Damir 2026-09-28): the BRAND GRADIENT replaces the #94D2E3 → #ADAEE8 wash —
      light only, never the default, with its own pattern ink. Reversal = the 289deg wash
      (#94D2E3 0%, #94CAE9 23.16%, #99C2ED 46.31%, #A2B8EC 69.47%, #ADAEE8 92.62%). */
-  --gradient-chat: linear-gradient(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%), var(--chat-canvas-base);
-  --chat-pattern-ink: #3A2F66;
-  --surface-select-row-gap: #B6B6E4;   /* #46 r1 B-m1: the band over the gradient's middle stop (ring 3.59:1) */
-  --surface-bubble-sent: #6145D6;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #6145D6;
-  --surface-card-sent: #EFECFB;
-  --outline-card-sent: rgba(97, 69, 214, 0.18);
-  --outline-card-sent-selected: rgba(97, 69, 214, 0.45);
+  --gradient-chat: linear-gradient(180deg, #CDD0E8 0%, #D0CAE7 50%, #D4C4E6 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 1): was linear-gradient(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%). */
+  --chat-pattern-ink: #3A3160;
+  --chat-pattern-alpha-1: 0.09216;   /* ★ photo1b (#1644 Calmer 1): the pattern follows the step (was the light default 0.1024) */
+  --surface-select-row-gap: #B6B6E0;   /* #46 r1 B-m1: the band over the gradient's middle stop (ring 3.59:1 on the S20 gap; 3.58:1 on the Calmer 1 gap #B6B6E0) */
+  --surface-bubble-sent: #604DC5;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #604DC5;
+  --surface-card-sent: #EFEDF9;
+  --outline-card-sent: rgba(96, 77, 197, 0.18);
+  --outline-card-sent-selected: rgba(96, 77, 197, 0.45);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
@@ -2345,16 +2347,18 @@
    root + the settings preview/dot). The ink is a deep green at the same level as the brand ink.
    ★ S8 (#1237): green has a DARK rule now (Forest DG1, below the dark brand rule) — it is no longer light-only.
    Reversal = delete this rule and the CHAT_GROUNDS member. */
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #D6EBC6/#D2EDA8/#CFE9BD · ink #2F5A1E · Auto sent #0E7A55 · card #E7F2EE · gap #B8D4AB · alpha 0.1024 (the :root default). */
 :root:not([data-theme='dark'])[data-chat-ground='green'],
 :root:not([data-theme='dark']) [data-chat-ground='green'] {
-  --gradient-chat: linear-gradient(160deg, #D6EBC6 0%, #D2EDA8 45%, #CFE9BD 100%), var(--chat-canvas-base);
-  --chat-pattern-ink: #2F5A1E;
-  --surface-select-row-gap: #B8D4AB;   /* #46 r1 B-m1: the band over the green's middle stop (ring 4.34:1) */
-  --surface-bubble-sent: #0E7A55;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #0E7A55;
-  --surface-card-sent: #E7F2EE;
-  --outline-card-sent: rgba(14, 122, 85, 0.18);
-  --outline-card-sent-selected: rgba(14, 122, 85, 0.45);
+  --gradient-chat: linear-gradient(160deg, #DAE9CF 0%, #D6EABA 45%, #D4E6C8 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(160deg, #D6EBC6 0%, #D2EDA8 45%, #CFE9BD 100%). */
+  --chat-pattern-ink: #3A572F;
+  --chat-pattern-alpha-1: 0.08192;   /* ★ photo1b (#1644 Calmer 2): the pattern follows the step (was the light default 0.1024) */
+  --surface-select-row-gap: #BBD1BA;   /* #46 r1 B-m1: the band over the green's middle stop (ring 4.34:1) */
+  --surface-bubble-sent: #3A755B;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #3A755B;
+  --surface-card-sent: #EBF1EF;
+  --outline-card-sent: rgba(58, 117, 91, 0.18);
+  --outline-card-sent-selected: rgba(58, 117, 91, 0.45);
   --text-bubble-sent-meta: var(--neutral-10);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
@@ -2363,16 +2367,18 @@
    plain stops (S8, with the old blue bubble): sent #2160c2 4.30 → 3.83:1 · white received 1.39 → 1.56:1 · the A2 ring 3.85:1
    on its gap. ★ S17 C v3: its own bubble is #3050BD (the Spixi brand blue).
    Reversal = delete this rule, the dark 'blue' rule and the CHAT_GROUNDS member. */
+/* ★ photo1b (#1644, Damir's pick "Calmer 1" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #C9DDF2/#C5D6F1/#C2CFEE · ink #1E3A66 · Auto sent #3050BD · card #EAEEF8 · gap #ADC1E9 · alpha 0.1024 (the :root default). */
 :root:not([data-theme='dark'])[data-chat-ground='blue'],
 :root:not([data-theme='dark']) [data-chat-ground='blue'] {
-  --gradient-chat: linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%), var(--chat-canvas-base);
-  --chat-pattern-ink: #1E3A66;
-  --surface-select-row-gap: #ADC1E9;   /* the select-row band (16 %) made opaque over the middle stop #C5D6F1 — ring 3.85:1 */
-  --surface-bubble-sent: #3050BD;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #3050BD;
-  --surface-card-sent: #EAEEF8;
-  --outline-card-sent: rgba(48, 80, 189, 0.18);
-  --outline-card-sent-selected: rgba(48, 80, 189, 0.45);
+  --gradient-chat: linear-gradient(180deg, #CCDDEE 0%, #C7D6ED 50%, #C4CFE9 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 1): was linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%). */
+  --chat-pattern-ink: #233B60;
+  --chat-pattern-alpha-1: 0.09216;   /* ★ photo1b (#1644 Calmer 1): the pattern follows the step (was the light default 0.1024) */
+  --surface-select-row-gap: #AFC1E5;   /* the select-row band (16 %) made opaque over the middle stop #C7D6ED (Calmer 1; was #C5D6F1) — ring 3.85:1 */
+  --surface-bubble-sent: #3653AE;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #3653AE;
+  --surface-card-sent: #EBEEF7;
+  --outline-card-sent: rgba(54, 83, 174, 0.18);
+  --outline-card-sent-selected: rgba(54, 83, 174, 0.45);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
@@ -2397,64 +2403,71 @@
    mobile + desktop width — A brand violet · B blue-violet · C violet corner): the DARK brand gradient,
    blue-violet at the top settling into the #0C0E10 midnight ground by the bottom half (★ S17 C v3: now FULL COVERAGE,
    see the rule). Same pref, same selectors as light (the root for the chat, a descendant for the settings preview and the
-   dot), (0,3,0) against the dark block's (0,1,0). The pattern ink stays #C6CFFD. Reversal = delete these two rules. */
+   dot), (0,3,0) against the dark block's (0,1,0). The pattern ink was #C6CFFD here (S20); photo1b (#1644) moved it to the picked #C8D0F7 in the Iris rule below. Reversal = delete these two rules. */
+/* ★ photo1b (#1644, Damir's pick "Calmer 1" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #0E0433/#050422 · ink #C6CFFD · Auto sent #4B31B7 · card #261F44 · gap #212659 · bubble #1D194F · quote #06041B · alpha 0.101 (the dark default). */
 :root[data-theme='dark'][data-chat-ground='gradient'],
 :root[data-theme='dark'] [data-chat-ground='gradient'] {
   /* ★ S17 C v3 (Damir 21:50): FULL COVERAGE — the canvas keeps its colour over the whole chat (the fade to the plain ground made
      every dark canvas look the same). Was linear-gradient(180deg, #151B36 0%, #11142A 45%, var(--chat-canvas-base) 100%). */
-  --gradient-chat: linear-gradient(160deg, #0E0433 0%, #050422 100%), var(--chat-canvas-base);   /* ★ S20 D (#1377 option 1): one more step, every stop OKLab L × 0.85 (was #140C3B / #080928). ★ S19 option B (Damir pick, "Dark Bubble Options"): every stop OKLab L × 0.85, C kept. Was #1C1645 / #0D1030 (S17 C v3) */
-  --chat-pattern-ink: #C6CFFD;
-  --surface-select-row-gap: #212659;   /* ★ S20 D: the 22 % band opaque over the S20 middle (was #252B5F). ★ S19 B: today's band (22 %) made opaque over the middle of the new ground (was #2A3165) */
-  --surface-bubble-sent: #4B31B7;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #4B31B7;
-  --surface-card-sent: #261F44;
-  --outline-card-sent: rgba(156, 142, 215, 0.22);
-  --outline-card-sent-selected: rgba(156, 142, 215, 0.55);
+  --gradient-chat: linear-gradient(160deg, #0E072E 0%, #05051E 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 1): was linear-gradient(160deg, #0E0433 0%, #050422 100%).  ★ S20 D (#1377 option 1): one more step, every stop OKLab L × 0.85 (was #140C3B / #080928). ★ S19 option B (Damir pick, "Dark Bubble Options"): every stop OKLab L × 0.85, C kept. Was #1C1645 / #0D1030 (S17 C v3) */
+  --chat-pattern-ink: #C8D0F7;
+  --chat-pattern-alpha-1: 0.0909;   /* ★ photo1b (#1644 Calmer 1): the pattern follows the step (was the dark default 0.101) */
+  --surface-select-row-gap: #212756;   /* ★ S20 D: the 22 % band opaque over the S20 middle (was #252B5F). ★ S19 B: today's band (22 %) made opaque over the middle of the new ground (was #2A3165) */
+  --surface-bubble-sent: #4A3AA8;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #4A3AA8;
+  --surface-card-sent: #252140;
+  --outline-card-sent: rgba(155, 147, 207, 0.22);
+  --outline-card-sent-selected: rgba(155, 147, 207, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #1D194F;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #2A2960). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #262263). ★ S19 option B: Iris's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue (measured: the S19 note at the Mist rule). Was #312F52 (F10 A) */
-  --surface-bubble-received-quote: #06041B;   /* ★ S20G N-1: the S19 rule on it (was #1A1941). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #15123F). ★ S19 B: the reply quote INSIDE that bubble — the bubble scaled in OKLab to 1.25 : 1 darker (was #23223B) */
+  --surface-bubble-received: #1D1C49;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #2A2960). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #262263). ★ S19 option B: Iris's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue (measured: the S19 note at the Mist rule). Was #312F52 (F10 A) */
+  --surface-bubble-received-quote: #07061B;   /* ★ S20G N-1: the S19 rule on it (was #1A1941). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #15123F). ★ S19 B: the reply quote INSIDE that bubble — the bubble scaled in OKLab to 1.25 : 1 darker (was #23223B) */
 }
 /* ★★ S8 (#1237, Damir 2026-10-07, picked from the rendered s8x 3-ways): the DARK green (DG1 "Forest") and the DARK blue
    (DB1 "Azure") — each carries its own pattern ink (the dark #C6CFFD periwinkle read violet on these hues). ★ S17 C v3
    (Damir 21:50): FULL COVERAGE now (the S8 fade into the midnight canvas made the dark canvases look alike) and each its
    own flat bubble (values in the rules; contrast in the S17 C header).
    Reversal = delete these two rules (green falls back to light-only: put `lightOnly: true` back on its member). */
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #001A12/#020D0A · ink #BFE8CB · Auto sent #11603F · card #172B26 · gap #1B3243 · bubble #0B2920 · quote #02100B · alpha 0.101 (the dark default). */
 :root[data-theme='dark'][data-chat-ground='green'],
 :root[data-theme='dark'] [data-chat-ground='green'] {
-  --gradient-chat: linear-gradient(160deg, #001A12 0%, #020D0A 100%), var(--chat-canvas-base);   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #05221A / #05130F). ★ S19 option B: L × 0.85 (was #0F2C23 / #0B1A16). ★ S17 C v3: full coverage (was 180deg #11231A → #0E1A14 → the canvas) */
-  --chat-pattern-ink: #BFE8CB;
-  --surface-select-row-gap: #1B3243;   /* ★ S20 D: the band over the S20 middle (was #1E3748). ★ S19 B: the band (22 %) made opaque over the middle of the new ground (was #243E4E) */
-  --surface-bubble-sent: #11603F;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #11603F;
-  --surface-card-sent: #172B26;
-  --outline-card-sent: rgba(124, 168, 149, 0.22);
-  --outline-card-sent-selected: rgba(124, 168, 149, 0.55);
+  --gradient-chat: linear-gradient(160deg, #071913 0%, #040C0A 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(160deg, #001A12 0%, #020D0A 100%).  ★ S20 D (#1377 option 1): L × 0.85 again (was #05221A / #05130F). ★ S19 option B: L × 0.85 (was #0F2C23 / #0B1A16). ★ S17 C v3: full coverage (was 180deg #11231A → #0E1A14 → the canvas) */
+  --chat-pattern-ink: #C8E4D0;
+  --chat-pattern-alpha-1: 0.0808;   /* ★ photo1b (#1644 Calmer 2): the pattern follows the step (was the dark default 0.101) */
+  --surface-select-row-gap: #1E3143;   /* ★ S20 D: the band over the S20 middle (was #1E3748). ★ S19 B: the band (22 %) made opaque over the middle of the new ground (was #243E4E) */
+  --surface-bubble-sent: #2E5C45;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #2E5C45;
+  --surface-card-sent: #1E2A27;
+  --outline-card-sent: rgba(140, 165, 153, 0.22);
+  --outline-card-sent-selected: rgba(140, 165, 153, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #0B2920;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1B382F). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #11352B). ★ S19 option B: Meadow's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #2A3D38 (F10 A) */
-  --surface-bubble-received-quote: #02100B;   /* ★ S20G N-1: the S19 rule on it (was #112620). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #08221A). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1E2C28) */
+  --surface-bubble-received: #142721;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1B382F). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #11352B). ★ S19 option B: Meadow's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #2A3D38 (F10 A) */
+  --surface-bubble-received-quote: #050E0A;   /* ★ S20G N-1: the S19 rule on it (was #112620). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #08221A). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1E2C28) */
 }
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #021135/#020721 · ink #C2DDFB · Auto sent #2D48A3 · card #1E253E · gap #1C2C5A · bubble #0C1F4B · quote #02071C · alpha 0.101 (the dark default). */
 :root[data-theme='dark'][data-chat-ground='blue'],
 :root[data-theme='dark'] [data-chat-ground='blue'] {
-  --gradient-chat: linear-gradient(160deg, #021135 0%, #020721 100%), var(--chat-canvas-base);   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #06193E / #050D28). ★ S19 option B: L × 0.85 (was #0F2349 / #0A1430). ★ S17 C v3: full coverage (was 180deg #0D2238 → #0C1828 → the canvas) */
-  --chat-pattern-ink: #C2DDFB;
-  --surface-select-row-gap: #1C2C5A;   /* ★ S20 D: the band over the S20 middle (was #1E3160). ★ S19 B: the band (22 %) made opaque over the middle of the new ground (was #233867) */
-  --surface-bubble-sent: #2D48A3;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #2D48A3;
-  --surface-card-sent: #1E253E;
-  --outline-card-sent: rgba(140, 154, 204, 0.22);
-  --outline-card-sent-selected: rgba(140, 154, 204, 0.55);
+  --gradient-chat: linear-gradient(160deg, #07132B 0%, #04091A 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(160deg, #021135 0%, #020721 100%).  ★ S20 D (#1377 option 1): L × 0.85 again (was #06193E / #050D28). ★ S19 option B: L × 0.85 (was #0F2349 / #0A1430). ★ S17 C v3: full coverage (was 180deg #0D2238 → #0C1828 → the canvas) */
+  --chat-pattern-ink: #C9DCF1;
+  --chat-pattern-alpha-1: 0.0808;   /* ★ photo1b (#1644 Calmer 2): the pattern follows the step (was the dark default 0.101) */
+  --surface-select-row-gap: #1E2D53;   /* ★ S20 D: the band over the S20 middle (was #1E3160). ★ S19 B: the band (22 %) made opaque over the middle of the new ground (was #233867) */
+  --surface-bubble-sent: #374D8A;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #374D8A;
+  --surface-card-sent: #212638;
+  --outline-card-sent: rgba(145, 157, 191, 0.22);
+  --outline-card-sent-selected: rgba(145, 157, 191, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #0C1F4B;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1A2F5C). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #122A5F). ★ S19 option B: Spixi's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #2A3754 (F10 A) */
-  --surface-bubble-received-quote: #02071C;   /* ★ S20G N-1: the S19 rule on it (was #0F1E3F). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #08193D). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1E283C) */
+  --surface-bubble-received: #13213F;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1A2F5C). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #122A5F). ★ S19 option B: Spixi's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #2A3754 (F10 A) */
+  --surface-bubble-received-quote: #040817;   /* ★ S20G N-1: the S19 rule on it (was #0F1E3F). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #08193D). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1E283C) */
 }
+/* ★ photo1b (#1644, Damir's pick: dark Mist = "Calmer 2" + the ground back to #0C0E10): written HERE and in the root rule below — NEVER in the shared dark defaults (other surfaces and Iris share them). Was (S20): ground #040607 · Auto sent #1A4A96 · card #19253B. Mist light = Today (no change). */
 :root[data-theme='dark'] [data-chat-ground='flat'] {
-  --gradient-chat: #040607;   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #07090B). ★ S19 option B: the Mist ground L × 0.85 (#0C0E10 → #07090B) — the ground only; --chat-canvas-base / ink-950 stay (the chrome and every other reader keep #0C0E10). Was var(--chat-canvas-base) */
-  --surface-bubble-sent: #1A4A96;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #1A4A96;
-  --surface-card-sent: #19253B;
+  --gradient-chat: #0C0E10;   /* ★ photo1b (#1644): the ground back to #0C0E10 (= --chat-canvas-base / ink-950; was #040607). ★ S20 D (#1377 option 1): L × 0.85 again (was #07090B). ★ S19 option B: the Mist ground L × 0.85 (#0C0E10 → #07090B) — the ground only; --chat-canvas-base / ink-950 stay (the chrome and every other reader keep #0C0E10). Was var(--chat-canvas-base) */
+  --surface-bubble-sent: #2D4D81;   /* ★ photo1b (#1644 Calmer 2; was #1A4A96). ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #2D4D81;
+  --surface-card-sent: #1E2636;   /* ★ photo1b (#1644 Calmer 2; was #19253B) */
   --outline-card-sent: rgba(118, 157, 255, 0.22);
   --outline-card-sent-selected: rgba(118, 157, 255, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
@@ -2494,9 +2507,14 @@
    1.25 · 12.8 · 4.7 — Dusk 1.18 / 1.25 · 13.4 · 4.9 — Ocean 1.19 / 1.32 · 12.5 · 4.7 (pins-s20g/c-n1). */
 :root[data-theme='dark'][data-chat-ground='flat'],
 :root[data-theme='dark'] [data-chat-ground='flat'] {
-  --gradient-chat: #040607;   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #07090B). ★ S19 option B: the Mist GROUND L × 0.85 (#0C0E10 → #07090B) on the chat root too (the descendant rule above says the same); --chat-canvas-base / ink-950 stay. Was the dark block's var(--chat-canvas-base) */
-  --surface-bubble-received: #1A1D1F;   /* ★ S20G N-1: OKLCH L −0.04, h + C kept (was #232729). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #1F2326). ★ S19 option B: Mist's OWN received bubble — OKLCH L 0.25, a touch of the ink hue (Mist is neutral, so B only darkens it). Was #292B2D (F10 A: the ground + 12 % white) */
-  --surface-bubble-received-quote: #000000;   /* ★ S20G N-1: the S19 rule lands ON #000 (1.24 : 1) (was #0F1113). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #090A0C). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1B1C1E) */
+  --gradient-chat: #0C0E10;   /* ★ photo1b (#1644): back to #0C0E10 (was #040607) on the chat root too.  ★ S20 D (#1377 option 1): L × 0.85 again (was #07090B). ★ S19 option B: the Mist GROUND L × 0.85 (#0C0E10 → #07090B) on the chat root too (the descendant rule above says the same); --chat-canvas-base / ink-950 stay. Was the dark block's var(--chat-canvas-base) */
+  --chat-pattern-ink: #C9D0F0;   /* ★ photo1b (#1644 Calmer 2; was the dark default #C6CFFD, which other surfaces keep; Iris has its own #C8D0F7 and no tile reset exists any more) */
+  --chat-pattern-alpha-1: 0.0808;   /* ★ photo1b (#1644 Calmer 2; was the dark default 0.101; desktop line = 0.06464 in the desktop rules below) */
+  --surface-bubble-sent: #2D4D81;   /* ★ photo1b (#1644 Calmer 2; was the shared dark default #1A4A96) */
+  --gradient-bubble-sent: #2D4D81;
+  --surface-card-sent: #1E2636;   /* ★ photo1b (#1644 Calmer 2; was the shared dark default #19253B) */
+  --surface-bubble-received: #272B2D;   /* ★ photo1b (#1644): LIFTED with the ground back to #0C0E10 — OKLab L raised, a + b kept (same hue), the smallest 8-bit value with WCAG bubble : ground ≥ 1.35 (1.353; #1A1D1F was 1.20 on #040607 — 1.35 is the S20 figure Damir named; #262A2C reads 1.335). Was #1A1D1F.  ★ S20G N-1: OKLCH L −0.04, h + C kept (was #232729). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #1F2326). ★ S19 option B: Mist's OWN received bubble — OKLCH L 0.25, a touch of the ink hue (Mist is neutral, so B only darkens it). Was #292B2D (F10 A: the ground + 12 % white) */
+  --surface-bubble-received-quote: #151819;   /* ★ photo1b (#1644): the S19 rule on the new bubble — OKLab scaled to 1.25 : 1 darker (1.249; was #000000).  ★ S20G N-1: the S19 rule lands ON #000 (1.24 : 1) (was #0F1113). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #090A0C). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1B1C1E) */
 }
 
 /* ═══ ★ S17 C (#1334) — CHAT APPEARANCE: three NEW canvases + the bubble colours ═══════════════════════════════════
@@ -2515,109 +2533,125 @@
    Measured white-on-sent (light / dark, WCAG): blue #2160C2 5.97 / #1A4A96 8.52 · violet #6C4CF2 5.31 / #4B27E4 7.75 · teal #0C7F73 4.88 / #0B4D46 9.70 · pink #D02B7D 4.86 / #A62264 6.92 · orange #B85414 4.87 / #844115 7.64 · graphite #3C4352 9.92 / #262B35 14.20.
    v3 Auto per canvas (white / meta ink, light · dark): Mist #2160C2 5.97 / 5.05 · #1A4A96 8.52 / 7.21 — Iris #6145D6 6.31 / 5.33 · #4B31B7 8.67 / 7.33 — Spixi #3050BD 6.98 / 5.90 · #2D48A3 8.18 / 6.92 — Meadow #0E7A55 5.34 / #f9fafb 5.11 · #11603F 7.58 / 6.41 — Aurora #07666B 6.73 / 5.69 · #08626A 7.08 / 5.99 — Dusk #D02B7D 4.86 / #f9fafb 4.65 · #A62264 6.92 / 5.85 — Ocean #0D7AA7 4.82 / #f9fafb 4.61 · #13729A 5.38 / 4.55.
    Sent cards: light = 10 % of the colour over white + a 1 px edge at 18 % / 45 %; dark = 25 % of the colour over #19191D + an edge of the colour lifted 45 % to white at 22 % / 55 %. */
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #7EE0C4/#5FB4EE/#8F80F2 · Auto sent #07666B · card #E6F0F0 · gap #57A4E6 · alpha 0.192 · ring #2B47A9. */
 :root:not([data-theme='dark'])[data-chat-ground='aurora'],
 :root:not([data-theme='dark']) [data-chat-ground='aurora'] {
-  --gradient-chat: linear-gradient(150deg, #7EE0C4 0%, #5FB4EE 48%, #8F80F2 100%), var(--chat-canvas-base);
+  --gradient-chat: linear-gradient(150deg, #99DAC6 0%, #7AB2DA 48%, #8F88D7 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(150deg, #7EE0C4 0%, #5FB4EE 48%, #8F80F2 100%). */
   --chat-pattern-ink: #FFFFFF;
-  --chat-pattern-alpha-1: 0.192;  /* white lines on a vivid ground need more (render: .3; v3 −20 % → .24; #1351 −20 % → .192) */
+  --chat-pattern-alpha-1: 0.1536;  /* white lines on a vivid ground need more (render: .3; v3 −20 % → .24; #1351 −20 % → .192) */   /* ★ photo1b (#1644 Calmer 2): was 0.192 — the pattern follows the step. */
   --chat-pattern-tile-max: 0.8;   /* ★ #1351: the Background tiles on this ground (alpha × boost > 1, so the opacity clamp hid every step) — 20 % under the 1 they showed */
-  --surface-select-row-gap: #57A4E6;
-  --outline-select-ring: #2B47A9;   /* ★ fixb2 #1614: the jumped-to row's ring, 2.61 → 3.05 : 1 on the gap (#3050BD, same hue) */
-  --surface-bubble-sent: #07666B;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #07666B;
-  --surface-card-sent: #E6F0F0;
-  --outline-card-sent: rgba(7, 102, 107, 0.18);
-  --outline-card-sent-selected: rgba(7, 102, 107, 0.45);
+  --surface-select-row-gap: #6EA2D5;
+  --outline-select-ring: #2B47A9;   /* ★ fixb2 #1614: the jumped-to row's ring, 2.61 → 3.05 : 1 on the gap (#3050BD, same hue). ★ photo1b (#1644): measured again on the Calmer 2 gap #6EA2D5 = 3.02 : 1 (≥ 3) — NOT re-set, the same #2B47A9 holds */
+  --surface-bubble-sent: #316366;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #316366;
+  --surface-card-sent: #EAEFF0;
+  --outline-card-sent: rgba(49, 99, 102, 0.18);
+  --outline-card-sent-selected: rgba(49, 99, 102, 0.45);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #001B18/#000F3E/#120041 · ink #FFFFFF (kept) · Auto sent #08626A · card #152B30 · gap #1A2E68 · bubble #0D2353 · quote #040E2A · alpha 0.101 (the dark default). */
 :root[data-theme='dark'][data-chat-ground='aurora'],
 :root[data-theme='dark'] [data-chat-ground='aurora'] {
-  --gradient-chat: linear-gradient(150deg, #001B18 0%, #000F3E 52%, #120041 100%), var(--chat-canvas-base);   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #002421 / #041848 / #18064D). ★ S19 option B: L × 0.85 on the S17 v3 stops (C kept). Was #072F2B / #0C2354 / #201358 (F10 A: L × 0.9, C × 0.9); before it #0A3833 / #102A62 / #261866. ★ S17 C v3 (Damir 21:50): full coverage */
+  --gradient-chat: linear-gradient(150deg, #081A17 0%, #051332 52%, #110A33 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(150deg, #001B18 0%, #000F3E 52%, #120041 100%).  ★ S20 D (#1377 option 1): L × 0.85 again (was #002421 / #041848 / #18064D). ★ S19 option B: L × 0.85 on the S17 v3 stops (C kept). Was #072F2B / #0C2354 / #201358 (F10 A: L × 0.9, C × 0.9); before it #0A3833 / #102A62 / #261866. ★ S17 C v3 (Damir 21:50): full coverage */
   --chat-pattern-ink: #FFFFFF;
-  --surface-select-row-gap: #1A2E68;   /* ★ S20 D: the band over the S20 middle stop #000F3E (was #1D3570). ★ S19 B: the band (22 %) opaque over the new middle stop #041848 (was #233E7A; #264385) */
-  --surface-bubble-sent: #08626A;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #08626A;
-  --surface-card-sent: #152B30;
-  --outline-card-sent: rgba(119, 169, 173, 0.22);
-  --outline-card-sent-selected: rgba(119, 169, 173, 0.55);
+  --chat-pattern-alpha-1: 0.0808;   /* ★ photo1b (#1644 Calmer 2): the pattern follows the step (was the dark default 0.101) */
+  --surface-select-row-gap: #1E315F;   /* ★ S20 D: the band over the S20 middle stop #000F3E (was #1D3570). ★ S19 B: the band (22 %) opaque over the new middle stop #041848 (was #233E7A; #264385) */
+  --surface-bubble-sent: #2F5F64;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #2F5F64;
+  --surface-card-sent: #1F2B2F;
+  --outline-card-sent: rgba(141, 167, 170, 0.22);
+  --outline-card-sent-selected: rgba(141, 167, 170, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #0D2353;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1B3364). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #122D67). ★ S19 option B: Aurora's OWN received bubble — OKLCH L 0.315, C 1.5 × the canvas mid chroma, its hue. Was #2E3C5E (F10 A) */
-  --surface-bubble-received-quote: #040E2A;   /* ★ S20G N-1: the S19 rule on it (was #112349). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #091D46). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #212B44) */
+  --surface-bubble-received: #152546;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #1B3364). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #122D67). ★ S19 option B: Aurora's OWN received bubble — OKLCH L 0.315, C 1.5 × the canvas mid chroma, its hue. Was #2E3C5E (F10 A) */
+  --surface-bubble-received-quote: #071023;   /* ★ S20G N-1: the S19 rule on it (was #112349). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #091D46). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #212B44) */
 }
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #FFD9C4/#E9C9FF · ink #7A3F5E · Auto sent #D02B7D · card #FAEAF2 · gap #D5BCDC · alpha 0.1024 (the :root default). */
 :root:not([data-theme='dark'])[data-chat-ground='dusk'],
 :root:not([data-theme='dark']) [data-chat-ground='dusk'] {
-  --gradient-chat: linear-gradient(160deg, #FFD9C4 0%, #E9C9FF 100%), var(--chat-canvas-base);
-  --chat-pattern-ink: #7A3F5E;
-  --surface-select-row-gap: #D5BCDC;
-  --surface-bubble-sent: #D02B7D;
-  --gradient-bubble-sent: #D02B7D;
-  --surface-card-sent: #FAEAF2;
-  --outline-card-sent: rgba(208, 43, 125, 0.18);
-  --outline-card-sent-selected: rgba(208, 43, 125, 0.45);
+  --gradient-chat: linear-gradient(160deg, #F7DCCD 0%, #E4CEF3 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(160deg, #FFD9C4 0%, #E9C9FF 100%). */
+  --chat-pattern-ink: #70475C;
+  --chat-pattern-alpha-1: 0.08192;   /* ★ photo1b (#1644 Calmer 2): the pattern follows the step (was the light default 0.1024) */
+  --surface-select-row-gap: #CFC0DA;
+  --surface-bubble-sent: #B74C7A;
+  --gradient-bubble-sent: #B74C7A;
+  --surface-card-sent: #F8EDF2;
+  --outline-card-sent: rgba(183, 76, 122, 0.18);
+  --outline-card-sent-selected: rgba(183, 76, 122, 0.45);
   --text-bubble-sent-meta: var(--neutral-10);   /* ★ S17 C (values file 21:24): #f9fafb — today's #e9ecf3 is 4.11 : 1 on this sent colour (fails 4.5) */
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #200821/#0B051B · ink #FFC9E4 · Auto sent #A62264 · card #3C1B2F · gap #2B2850 · bubble #2E193A · quote #0F0515 · alpha 0.101 (the dark default). */
 :root[data-theme='dark'][data-chat-ground='dusk'],
 :root[data-theme='dark'] [data-chat-ground='dusk'] {
-  --gradient-chat: linear-gradient(160deg, #200821 0%, #0B051B 100%), var(--chat-canvas-base);   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #281029 / #100921). ★ S19 option B: L × 0.85 on the S17 v3 stops (C kept). Was #321933 / #161028 (F10 A); before it #3B1F3C / #1B1430. ★ S17 C v3 (Damir 21:50): full coverage */
-  --chat-pattern-ink: #FFC9E4;
-  --surface-select-row-gap: #2B2850;   /* ★ S20 D: the band over the S20 middle (was #302C55). ★ S19 B: the band (22 %) opaque over the new ground's middle (was #36335C; #3C3762) */
-  --surface-bubble-sent: #A62264;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #A62264;
-  --surface-card-sent: #3C1B2F;
-  --outline-card-sent: rgba(206, 133, 170, 0.22);
-  --outline-card-sent-selected: rgba(206, 133, 170, 0.55);
+  --gradient-chat: linear-gradient(160deg, #1D0C1D 0%, #0A0716 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(160deg, #200821 0%, #0B051B 100%).  ★ S20 D (#1377 option 1): L × 0.85 again (was #281029 / #100921). ★ S19 option B: L × 0.85 on the S17 v3 stops (C kept). Was #321933 / #161028 (F10 A); before it #3B1F3C / #1B1430. ★ S17 C v3 (Damir 21:50): full coverage */
+  --chat-pattern-ink: #F5CFE1;
+  --chat-pattern-alpha-1: 0.0808;   /* ★ photo1b (#1644 Calmer 2): the pattern follows the step (was the dark default 0.101) */
+  --surface-select-row-gap: #292A4C;   /* ★ S20 D: the band over the S20 middle (was #302C55). ★ S19 B: the band (22 %) opaque over the new ground's middle (was #36335C; #3C3762) */
+  --surface-bubble-sent: #943E63;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #943E63;
+  --surface-card-sent: #38222F;
+  --outline-card-sent: rgba(196, 149, 169, 0.22);
+  --outline-card-sent-selected: rgba(196, 149, 169, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #2E193A;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #3D284A). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #3B224A). ★ S19 option B: Dusk's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #3E3147 (F10 A) */
-  --surface-bubble-received-quote: #0F0515;   /* ★ S20G N-1: the S19 rule on it (was #291932). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #24132F). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #2D2333) */
+  --surface-bubble-received: #2B1D34;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #3D284A). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #3B224A). ★ S19 option B: Dusk's OWN received bubble — OKLCH L 0.30, C 1.5 × the canvas mid chroma, its hue. Was #3E3147 (F10 A) */
+  --surface-bubble-received-quote: #0E0813;   /* ★ S20G N-1: the S19 rule on it (was #291932). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #24132F). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #2D2333) */
 }
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #BDEFFF/#C9D6FF · ink #0E5770 · Auto sent #0D7AA7 · card #E7F2F6 · gap #ABCBF4 · alpha 0.1024 (the :root default). */
 :root:not([data-theme='dark'])[data-chat-ground='ocean'],
 :root:not([data-theme='dark']) [data-chat-ground='ocean'] {
-  --gradient-chat: linear-gradient(160deg, #BDEFFF 0%, #C9D6FF 100%), var(--chat-canvas-base);
-  --chat-pattern-ink: #0E5770;
-  --surface-select-row-gap: #ABCBF4;
-  --surface-bubble-sent: #0D7AA7;
-  --gradient-bubble-sent: #0D7AA7;
-  --surface-card-sent: #E7F2F6;
-  --outline-card-sent: rgba(13, 122, 167, 0.18);
-  --outline-card-sent-selected: rgba(13, 122, 167, 0.45);
+  --gradient-chat: linear-gradient(160deg, #CAECF7 0%, #CDD7F3 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(160deg, #BDEFFF 0%, #C9D6FF 100%). */
+  --chat-pattern-ink: #2C5566;
+  --chat-pattern-alpha-1: 0.08192;   /* ★ photo1b (#1644 Calmer 2): the pattern follows the step (was the light default 0.1024) */
+  --surface-select-row-gap: #B3CAEC;
+  --surface-bubble-sent: #3E7897;
+  --gradient-bubble-sent: #3E7897;
+  --surface-card-sent: #ECF2F5;
+  --outline-card-sent: rgba(62, 120, 151, 0.18);
+  --outline-card-sent-selected: rgba(62, 120, 151, 0.45);
   --text-bubble-sent-meta: var(--neutral-10);   /* ★ S17 C (values file 21:24): #f9fafb — today's #e9ecf3 is 4.07 : 1 on this sent colour (fails 4.5) */
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
 }
+/* ★ photo1b (#1644, Damir's pick "Calmer 2" of the chat-backgrounds proposal): less colour, the same hue — every colour line of this rule is the picked step. Was (S20 values): ground #001C27/#010B22 · ink #A6ECFF · Auto sent #13729A · card #182F3C · gap #1A3255 · bubble #032A43 · quote #011524 · alpha 0.101 (the dark default). */
 :root[data-theme='dark'][data-chat-ground='ocean'],
 :root[data-theme='dark'] [data-chat-ground='ocean'] {
-  --gradient-chat: linear-gradient(160deg, #001C27 0%, #010B22 100%), var(--chat-canvas-base);   /* ★ S20 D (#1377 option 1): L × 0.85 again (was #002633 / #031129). ★ S19 option B: L × 0.85 on the S17 v3 stops (C kept). Was #08313F / #081831 (F10 A); before it #0B3A4A / #0B1D3A. ★ S17 C v3 (Damir 21:50): full coverage */
-  --chat-pattern-ink: #A6ECFF;
-  --surface-select-row-gap: #1A3255;   /* ★ S20 D: the band over the S20 middle (was #1B385C). ★ S19 B: the band (22 %) opaque over the new ground's middle (was #203F64; #23456C) */
-  --surface-bubble-sent: #13729A;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
-  --gradient-bubble-sent: #13729A;
-  --surface-card-sent: #182F3C;
-  --outline-card-sent: rgba(125, 177, 199, 0.22);
-  --outline-card-sent-selected: rgba(125, 177, 199, 0.55);
+  --gradient-chat: linear-gradient(160deg, #091B23 0%, #040C1C 100%), var(--chat-canvas-base);   /* ★ photo1b (#1644 Calmer 2): was linear-gradient(160deg, #001C27 0%, #010B22 100%).  ★ S20 D (#1377 option 1): L × 0.85 again (was #002633 / #031129). ★ S19 option B: L × 0.85 on the S17 v3 stops (C kept). Was #08313F / #081831 (F10 A); before it #0B3A4A / #0B1D3A. ★ S17 C v3 (Damir 21:50): full coverage */
+  --chat-pattern-ink: #B9E8F5;
+  --chat-pattern-alpha-1: 0.0808;   /* ★ photo1b (#1644 Calmer 2): the pattern follows the step (was the dark default 0.101) */
+  --surface-select-row-gap: #1F3251;   /* ★ S20 D: the band over the S20 middle (was #1B385C). ★ S19 B: the band (22 %) opaque over the new ground's middle (was #203F64; #23456C) */
+  --surface-bubble-sent: #3B708C;   /* ★ S17 C v3 (Damir 21:50): this canvas's OWN flat bubble (Auto) */
+  --gradient-bubble-sent: #3B708C;
+  --surface-card-sent: #222F39;
+  --outline-card-sent: rgba(147, 176, 192, 0.22);
+  --outline-card-sent-selected: rgba(147, 176, 192, 0.55);
   --text-bubble-sent-meta: var(--primary-50);
   --icon-bubble-delivered: var(--text-bubble-sent-meta);
-  --surface-bubble-received: #032A43;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #153A54). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #053655). ★ S19 option B: Ocean's OWN received bubble — OKLCH L 0.32, C 1.5 × the canvas mid chroma, its hue. Was #263F50 (F10 A) */
-  --surface-bubble-received-quote: #011524;   /* ★ S20G N-1: the S19 rule on it (was #0D293E). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #02243B). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1B2D3A) */
+  --surface-bubble-received: #122A3B;   /* ★ S20G N-1: OKLCH L −0.06, h + C kept (was #153A54). ★ S20 (#1403, Damir 19:54 "more difference between incoming and outgoing"): the render's option-3 bubble half — OKLCH C × 0.85, L + 0.015 (was #053655). ★ S19 option B: Ocean's OWN received bubble — OKLCH L 0.32, C 1.5 × the canvas mid chroma, its hue. Was #263F50 (F10 A) */
+  --surface-bubble-received-quote: #071520;   /* ★ S20G N-1: the S19 rule on it (was #0D293E). ★ S20 (#1403): the S19 rule on the new bubble — scaled in OKLab to 1.25 : 1 darker (was #02243B). ★ S19 B: the reply quote — the bubble 1.25 : 1 darker in OKLab (was #1B2D3A) */
 }
 /* ★ S17 C (#1334, values v3 §1 / §7): THE PREVIEW TILES MUST NOT INHERIT ANOTHER CANVAS. Custom properties inherit, so a tile
    (a descendant with its own data-chat-ground) under a root on Aurora / Meadow / Ocean … would take the root's values wherever
    its own rule is silent:
-   · light — only Aurora raises the pattern strength (0.192): every OTHER tile resets it to the :root value (0.1024; a pin keeps
-     the two equal);
-   · dark — the Mist descendant rule carries no ink and the Iris ink is the :root periwinkle: both reset to it here, so a
-     Meadow / Spixi / new canvas ink never leaks into their tiles. (The sent colour cannot leak: EVERY ground rule — the flat
+   · light — only Aurora raises the pattern strength (0.1536 since photo1b; was 0.192): the Background-tile cap `tile-max` is reset to 1 on
+     every other tile below; the alpha reset (0.1024 phone / 0.08192 desktop) is kept for Mist (`flat`) ALONE, the one canvas with no own
+     alpha — every picked canvas carries its own alpha in its own rule, root + descendant forms (photo1b fix round 1, O2-1);
+   · dark — no ink reset any more (photo1b fix round 1): EVERY dark canvas rule, root + descendant form, sets its own ink (Mist #C9D0F0,
+     Iris #C8D0F7), so no Meadow / Spixi / new canvas ink leaks into a tile. (The sent colour cannot leak: EVERY ground rule — the flat
      descendant rules included — sets its own Auto colour.) */
 :root:not([data-theme='dark']) [data-chat-ground]:not([data-chat-ground='aurora']) {
-  --chat-pattern-alpha-1: 0.1024;
   --chat-pattern-tile-max: 1;   /* ★ #1351: only Aurora caps its tiles (0.8) */
 }
-:root[data-theme='dark'] [data-chat-ground='flat'],
-:root[data-theme='dark'] [data-chat-ground='gradient'] {
-  --chat-pattern-ink: #C6CFFD;
+/* ★ photo1b (#1644, fix round 1 O2-1): a tile must show what the chat shows. The light alpha reset (0.1024, weight 0,4,0) used to hit EVERY non-Aurora tile, which
+   now beat the picked alphas of Iris / Spixi / Meadow / Dusk / Ocean (0.09216 / 0.08192, their own descendant rules, 0,3,0). So it keeps ONLY the canvas that has no
+   own alpha: Mist (`flat`), whose value is the :root default. Every other light canvas carries its own alpha in its own rule (root + descendant forms). */
+:root:not([data-theme='dark']) [data-chat-ground='flat'] {
+  --chat-pattern-alpha-1: 0.1024;
 }
+/* ★ photo1b (#1644, fix round 1 O2-1): the dark ink reset (#C6CFFD on the Mist and Iris tiles) is GONE — every dark canvas rule (root + descendant form) now sets
+   its own ink (Mist #C9D0F0, Iris #C8D0F7, the six others their own), so nothing can leak into a tile, and a tile now shows the ink of the chat. The shared dark default
+   #C6CFFD stays for other surfaces (pins-photo1b/g-tokens: key `tile`). */
 /* ★ S18 D1 (S17 walk CA-PATTERN, Damir 2026-10-12 17:17: "desktop −20 % more; mobile is right"): DESKTOP = 0.8 × the mobile
    pattern strength on EVERY canvas, both themes, keyed on the #228 PLATFORM flag :root[data-desktop] (set before first paint,
    chat.html :19 + the ?desktop=1 / ?mobile=1 override) — never a width query. Each rule mirrors the mobile rule above it one
@@ -2632,14 +2666,49 @@
 :root[data-desktop][data-theme='dark'] {
   --chat-pattern-alpha-1: 0.0808;   /* ★ S20 D: 0.8 × the phone 0.101 (was 0.07456). ★ S19 option B: 0.8 × the new phone 0.0932 (was 0.06656 = 0.8 × 0.0832) */
 }
+/* ★ photo1b (#1644, Damir's picks): the pattern follows the step, so a CHANGED canvas has its own phone alpha in its own rule (above) and its own desktop line here = 0.8 × phone (pins-s18/e-pattern-desktop). One step MORE specific (0,4,0) than the canvas's phone rule (0,3,0) and than the generic desktop lines (0,3,0) — a plain desktop line would lose to it. Mist light keeps today's :root defaults (0.1024 / 0.08192). */
+:root[data-desktop]:not([data-theme='dark'])[data-chat-ground='gradient'],
+:root[data-desktop]:not([data-theme='dark']) [data-chat-ground='gradient'],
+:root[data-desktop]:not([data-theme='dark'])[data-chat-ground='blue'],
+:root[data-desktop]:not([data-theme='dark']) [data-chat-ground='blue'] {
+  --chat-pattern-alpha-1: 0.073728;   /* ★ photo1b (#1644 Calmer 1): 0.8 × 0.09216 (was the desktop default 0.08192) */
+}
+:root[data-desktop]:not([data-theme='dark'])[data-chat-ground='green'],
+:root[data-desktop]:not([data-theme='dark']) [data-chat-ground='green'],
+:root[data-desktop]:not([data-theme='dark'])[data-chat-ground='dusk'],
+:root[data-desktop]:not([data-theme='dark']) [data-chat-ground='dusk'],
+:root[data-desktop]:not([data-theme='dark'])[data-chat-ground='ocean'],
+:root[data-desktop]:not([data-theme='dark']) [data-chat-ground='ocean'] {
+  --chat-pattern-alpha-1: 0.065536;   /* ★ photo1b (#1644 Calmer 2): 0.8 × 0.08192 (was the desktop default 0.08192) */
+}
+:root[data-desktop][data-theme='dark'][data-chat-ground='gradient'],
+:root[data-desktop][data-theme='dark'] [data-chat-ground='gradient'] {
+  --chat-pattern-alpha-1: 0.07272;   /* ★ photo1b (#1644 Calmer 1): 0.8 × 0.0909 (was the dark desktop default 0.0808) */
+}
+:root[data-desktop][data-theme='dark'][data-chat-ground='flat'],
+:root[data-desktop][data-theme='dark'] [data-chat-ground='flat'],
+:root[data-desktop][data-theme='dark'][data-chat-ground='blue'],
+:root[data-desktop][data-theme='dark'] [data-chat-ground='blue'],
+:root[data-desktop][data-theme='dark'][data-chat-ground='green'],
+:root[data-desktop][data-theme='dark'] [data-chat-ground='green'],
+:root[data-desktop][data-theme='dark'][data-chat-ground='aurora'],
+:root[data-desktop][data-theme='dark'] [data-chat-ground='aurora'],
+:root[data-desktop][data-theme='dark'][data-chat-ground='dusk'],
+:root[data-desktop][data-theme='dark'] [data-chat-ground='dusk'],
+:root[data-desktop][data-theme='dark'][data-chat-ground='ocean'],
+:root[data-desktop][data-theme='dark'] [data-chat-ground='ocean'] {
+  --chat-pattern-alpha-1: 0.06464;   /* ★ photo1b (#1644 Calmer 2 + dark Mist): 0.8 × the new phone 0.0808 (was the dark desktop default 0.0808) */
+}
 :root[data-desktop]:not([data-theme='dark'])[data-chat-ground='aurora'],
 :root[data-desktop]:not([data-theme='dark']) [data-chat-ground='aurora'] {
-  --chat-pattern-alpha-1: 0.1536;
+  --chat-pattern-alpha-1: 0.12288;   /* ★ photo1b (#1644 Calmer 2): 0.8 × the new phone 0.1536 (was 0.1536 = 0.8 × 0.192) */
   --chat-pattern-tile-max: 0.64;
 }
 :root[data-desktop]:not([data-theme='dark']) [data-chat-ground]:not([data-chat-ground='aurora']) {
-  --chat-pattern-alpha-1: 0.08192;
   --chat-pattern-tile-max: 0.8;
+}
+:root[data-desktop]:not([data-theme='dark']) [data-chat-ground='flat'] {
+  --chat-pattern-alpha-1: 0.08192;   /* ★ photo1b (#1644, fix round 1 O2-1): only Mist (no own alpha) is reset on a light desktop tile; the picked canvases carry their own descendant lines above */
 }
 :root:not([data-theme='dark'])[data-chat-sent='blue'],
 :root:not([data-theme='dark']) [data-chat-sent='blue'] {

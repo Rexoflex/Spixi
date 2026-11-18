@@ -21,6 +21,7 @@
  *       with it (`chat-jump-ring` and the static reduced-motion ring name `var(--outline-select-ring)`, none names `--outline-action-default`);
  *   (5) the six moment defaults of #1343 stay as built: the files that hold them (`S17MomentRules.cs`, `SMoments.cs`, `moment-sheet.js`, `moment-sheet.css`)
  *       are held whole by SHA-256 (CRLF → LF, BOM off); a later batch that edits them re-bases the hash after a look at its diff.
+ * ★ photo1b (#1644): the gap this pin HOLDS moved with Damir's pick (Calmer 2: light #57A4E6 → #6EA2D5, dark #1A2E68 → #1E315F); the ring #2B47A9 measured again on it = 3.02 : 1 (≥ 3), so the ring is NOT re-set; clause (2) holds ≥ 3 on both.
  * Deliberate breaks (#802, fixb2 report; one token in a full temp copy + build-shells): the light Aurora ring `#2B47A9` → `#3050BD` → (2) (3) red; → `#2B8FA9` (hue) → (2) (3) red;
  * the ring token added to the light Gradient block → (4) red; the gap `#57A4E6` → `#4F9BDD` → (1) (2) red; the light root default `var(--outline-action-default)` → a literal
  * `#3050BD` → (4) red; the dark default → a literal `#769DFF` → (4) red; `--outline-action-default: #2B47A9` put back in the Aurora block (the first version) → (3) (4) red;
@@ -64,9 +65,9 @@ export default async function (h) {
     const ring = rgb(resolve(th, '--outline-select-ring', true)), gap = rgb(resolve(th, '--surface-select-row-gap', true));
     got[th] = { ring, gap, ratio: ring && gap ? Math.round(cr(ring, gap) * 100) / 100 : null, own: lastDecl(aur(th), '--outline-select-ring') };
   }
-  const gapHeld = got.light.gap && got.light.gap.join() === '87,164,230' && got.dark.gap && got.dark.gap.join() === '26,46,104';   // #57A4E6 · #1A2E68
+  const gapHeld = got.light.gap && got.light.gap.join() === '110,162,213' && got.dark.gap && got.dark.gap.join() === '30,49,95';   // ★ photo1b (#1644 RE-BASE, Calmer 2): #6EA2D5 · #1E315F (was #57A4E6 · #1A2E68 — Damir's pick moved the gap; the ring #2B47A9 measures 3.02 : 1 on it, NOT re-set)
   ok(aur('light').length === 1 && aur('dark').length === 1 && gapHeld && got.light.ring && got.dark.ring,
-    '★ fixb2 item 7 (1): the built token sheet has ONE light and ONE dark Aurora ground block; the ring (--outline-select-ring) and the gap resolve from it; the gaps are Damir\'s #57A4E6 (light) and #1A2E68 (dark), unchanged: ' + JSON.stringify(got));
+    '★ fixb2 item 7 (1): the built token sheet has ONE light and ONE dark Aurora ground block; the ring (--outline-select-ring) and the gap resolve from it; the gaps are the picked Calmer 2 #6EA2D5 (light) and #1E315F (dark) (photo1b #1644; were #57A4E6 / #1A2E68): ' + JSON.stringify(got));
 
   ok(got.light.ratio >= 3 && got.dark.ratio >= 3,
     '★ fixb2 item 7 (2): the ring (--outline-select-ring) against its gap (--surface-select-row-gap) is >= 3 : 1 on light Aurora (' + got.light.ratio + ', was 2.61) AND dark Aurora (' + got.dark.ratio + ')');

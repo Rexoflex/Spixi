@@ -114,6 +114,7 @@ namespace SPIXI
             if (paintedSeen)
             {
                 signalPreloadReady();
+                runReleasedMedia(mediaGate.armed(SpixiFlags.PhotoMediaAfterPaint, paintedSeen, thumbDoc));   // ★ photo1a PO-1: the paint was seen already — the held media go now
                 return;
             }
             Task.Delay(PRESENT_BACKSTOP_MS).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
@@ -123,6 +124,7 @@ namespace SPIXI
                     cdperf("backstop", "t=" + openClock.ElapsedMilliseconds);   // ★ Session K [CDPERF]
                 }
                 signalPreloadReady();   // idempotent: no-op once presented
+                runReleasedMedia(mediaGate.backstop(SpixiFlags.PhotoMediaAfterPaint, thumbDoc));   // ★ photo1a PO-1: the backstop releases the held media too (no-op once released)
             }));
         }
 
@@ -143,11 +145,102 @@ namespace SPIXI
         private void onPainted()
         {
             cdperf("painted", "t=" + openClock.ElapsedMilliseconds);   // ★ Session K [CDPERF]
+            mediaCounts.painted(thumbDoc);   // ★ photo1a PO-0: the pushes after this are not `pre=`
             paintedSeen = true;
             if (presentArmed)
             {
                 signalPreloadReady();
             }
+            runReleasedMedia(mediaGate.paint(SpixiFlags.PhotoMediaAfterPaint, thumbDoc));   // ★ photo1a PO-1: the paint signal, then the media
+        }
+
+        /* ★ photo1a PO-1 (SpixiFlags.PhotoMediaAfterPaint, P65; PhotoOpenRules.MediaGate, executed in csh) — THE MEDIA OF AN
+         * OPEN WAIT FOR THE FIRST PAINT. A chat open (onLoad: the hold opens for the new document unless the paint was seen
+         * already — a reload) holds the thumbnail, waveform and offer-preview jobs its load batched (loadMessages, after
+         * messagesDone; a load-more prepend never holds) until the shell's paint signal (onPainted) or the present's backstop
+         * (armPresentOnPainted) releases them, here, on the main thread, in their old order. A release before the load reached
+         * the hold = the load enqueues at once; held items of an older document are dropped (open / release are per thumbDoc).
+         * Switch OFF = the hold never opens: every caller enqueues as before. ★ PO-0: `mediaCounts` = the per-document numbers
+         * of the `[P1] chat media` line (written 2000 ms after the present, onPreloadPresented). */
+        private readonly PhotoOpenRules.MediaGate<Action> mediaGate = new PhotoOpenRules.MediaGate<Action>();
+        private readonly PhotoOpenRules.MediaCounts mediaCounts = new PhotoOpenRules.MediaCounts();
+        private const int MEDIA_LINE_MS = 2000;
+
+        /** Main thread (onPainted, the backstop, the arm with the paint seen): run the released jobs (enqueue…) in order. */
+        private void runReleasedMedia(List<Action> go)
+        {
+            if (isDisposed)
+            {
+                return;   // ★ #46 r1 (C-open NIT-2): a torn-down page enqueues nothing (its drainers would drop each job anyway)
+            }
+            foreach (Action a in go)
+            {
+                try
+                {
+                    a();
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("chat media release failed (" + e.GetType().Name + ")");   // a type only
+                }
+            }
+        }
+
+        /** loadMessages (its own thread): hold one media job of the open of document `doc`; false = enqueue it now (the
+         *  switch OFF, a prepend, no hold open for `doc`, or released already). */
+        private bool holdMedia(bool prepend, int doc, Action enqueue)
+        {
+            if (!mediaGate.tryHold(SpixiFlags.PhotoMediaAfterPaint, prepend, doc, enqueue))
+            {
+                return false;
+            }
+            mediaCounts.held(doc);
+            return true;
+        }
+
+        /** ★ PO-1: a push whose text the drainer built (PhotoOpenRules.uiCommandText — Utils.sendUiCommand's exact text); the
+         *  main thread only hands it over. ★ #46 r1 (S-delete n-2): its error line names the exception TYPE only (a fixed
+         *  word + a type, all builds — the handover-gate log rule for a NEW line); Utils.sendUiCommand's own catch
+         *  (Utils.cs:321, the whole exception) is inherited and keeps its form. */
+        private void sendBuiltCommand(string text)
+        {
+            try
+            {
+                sendMessage(text);
+            }
+            catch (Exception e)
+            {
+                Logging.error("Exception occured in sendUiCommand (" + e.GetType().Name + ")");
+            }
+        }
+
+        /** ★ PO-0: the `[P1] chat media` line, ONCE per document, MEDIA_LINE_MS after the present (developer builds only;
+         *  a page torn down before = no line; a newer document in between = no line for the old one). */
+        private void scheduleMediaLine()
+        {
+            if (!P1Perf.enabled)
+            {
+                return;
+            }
+            int doc = thumbDoc;
+            Task.Delay(MEDIA_LINE_MS).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    if (isDisposed)
+                    {
+                        return;
+                    }
+                    string? body = mediaCounts.takeLine(doc, thumbQueue.Count + Volatile.Read(ref voiceInfoQueued));
+                    if (body != null)
+                    {
+                        P1Perf.line(body);
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            }));
         }
 
         public SingleChatPage(Friend fr) : this(fr, null)
@@ -285,6 +378,7 @@ namespace SPIXI
         protected internal override void onPreloadPresented()
         {
             cdperf("present", "t=" + openClock.ElapsedMilliseconds);
+            scheduleMediaLine();   // ★ photo1a PO-0: the `[P1] chat media` line, 2000 ms from now (developer builds only)
 #if ANDROID
             try
             {
@@ -1380,6 +1474,7 @@ namespace SPIXI
 
         private void onLoad()
         {
+            long onloadT0 = P1Perf.now();   // ★ photo1a PO-0: the `[P1] chat onload-main` clock (0 in a store build)
             // N51 (N50 loop A-3/B-4 lesson): a shell reload (reloadAllPages on a theme
             // or language flip) builds a fresh document with no overlay open, and the
             // mirror only reports CHANGES — reset here or a stale true swallows back.
@@ -1403,6 +1498,11 @@ namespace SPIXI
             }
             photoPreviewsPushed = null;
             pushPhotoPreviews();
+            mediaCounts.reset(thumbDoc);   // ★ photo1a PO-0: the `chat media` numbers are per document (thumbDoc was bumped above)
+            /* ★ photo1a PO-1: an OPEN holds its media until the paint signal; a reload finds the paint seen (paintedSeen is reset
+             * only at the spare attach) — nothing is held, the media go at once. Either way an older document's held items go.
+             * Switch OFF: nothing (PhotoOpenRules.MediaGate.load). */
+            mediaGate.load(SpixiFlags.PhotoMediaAfterPaint, paintedSeen, thumbDoc);
             readReceiptsPushed = null;   // ★ #46 r1 (X5): a new document — told before the first history push
             pushReadReceipts();
             typingShownKnown = SPrivacyPrefs.typingIndicators;
@@ -1694,6 +1794,10 @@ namespace SPIXI
             // (ctor), so during the brief load the user sees that themed color, then
             // the finished chat fades in in one go — no empty/spinner flash.
 
+            if (P1Perf.enabled)
+            {
+                P1Perf.line(PhotoOpenRules.onloadMainBody(P1Perf.msSince(onloadT0)));   // ★ photo1a PO-0 (developer builds only)
+            }
             Task.Run(async () =>
             {
                 try
@@ -5355,6 +5459,9 @@ namespace SPIXI
              * exists. The baseline asked for exactly `want` and offered "show older" whenever it
              * got that many — so a chat of exactly 50 messages showed a pill that loaded nothing. */
             int window = want + 1;
+            long readT0 = P1Perf.now();   // ★ photo1a PO-0: the `[P1] chat read` clock (0 in a store build)
+            int readPasses = 0;           // ★ photo1a PO-0: the getMessages calls of this load
+            int deleteGen0 = Volatile.Read(ref fileDeleteGen);   // ★ photo1a PO-5: the delete generation before any file row is read
             bool exhausted = false;
             List<FriendMessage>? messages = null;
             /* ★★ P0 #1155: each getMessages(channel, window) below REPLACES Core's in-memory list with a disk read
@@ -5373,6 +5480,7 @@ namespace SPIXI
                     window++;   // D-18 (#354): exactly 100 returns Core's STALE cache instead of reading storage
                 }
                 messages = friend.getMessages(readChannel, window);
+                readPasses++;   // ★ photo1a PO-0
                 if (messages == null || messages.Count == 0)
                 {
                     break;
@@ -5399,6 +5507,7 @@ namespace SPIXI
                     ? window + headRun
                     : Math.Max(window * 2, window + (want + 1 - visibleNow));
             }
+            int readRows = messages != null ? messages.Count : 0;   // ★ photo1a PO-0: the rows the read loop ended with
             if (messages != null)
             {
                 /* ★ #1155 (#46 r1 M-2): Core's write drops every on-disk row with ts >= the list's first ts, and ts is whole
@@ -5411,6 +5520,10 @@ namespace SPIXI
                     Logging.warn("[P0] reattach n=" + reattached);   // ★ #1155: the CORE-8 race happened (a count, no address)
                 }
                 healLastMessage(arrivalKey, readChannel, messages);   // ★ 7b (#1223): F9 — the saved excerpt's message, put back
+            }
+            if (P1Perf.enabled)
+            {
+                P1Perf.line(PhotoOpenRules.readBody(readRows, readPasses, P1Perf.msSince(readT0)));   // ★ photo1a PO-0: the read alone (both paths below)
             }
             if (messages == null
                 || messages.Count == 0)
@@ -5519,6 +5632,7 @@ namespace SPIXI
                     batch.replyIndex = buildReplyIndex(readChannel, messages);   // ★ #46 r1 A MAJOR-1: one index for every row of this load
                 }
                 byte[]? firstPushedId = null;   // ★ #1166 B2: the oldest row this load hands the shell = the next prepend's anchor
+                using IDisposable? rowScope = beginRowCache(batch);   // ★ photo1a PO-5: once-per-load values for this batch's rows (null = switch OFF)
                 foreach (FriendMessage message in messages)
                 {
                     if (prependUntil != null && message.id != null && message.id.SequenceEqual(prependUntil))
@@ -5629,21 +5743,39 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "messagesDone", show_more);
                     pushPendingJump();   // ★ #1106: a widening jump lands after the rows that hold it
                 }
+                /* ★ photo1a PO-1: an OPEN's media wait for the paint signal (holdMedia → mediaGate, released by onPainted / the
+                 * backstop, in this order); a load-more prepend, a load with no open in flight and the switch OFF enqueue as before. */
+                int holdDoc = thumbDoc;
+                bool holdOpen = !prepend && SpixiFlags.PhotoMediaAfterPaint;   // OFF / a prepend: the old statements only
                 // ★ A5 #1124: the burst's preview candidates, now that the shell holds their rows (decoded off this thread)
                 foreach (KeyValuePair<string, FriendMessage> t in batch.thumbs)
                 {
-                    enqueueThumb(t.Key, t.Value);
+                    if (!(holdOpen && holdMedia(prepend, holdDoc, () => enqueueThumb(t.Key, t.Value))))
+                    {
+                        enqueueThumb(t.Key, t.Value);
+                    }
                 }
-                recheckBurstFileRows(batch, readChannel);   // ★ #1202 (#1190 #46 r5 MINOR): AFTER the batch's pushes — a file deleted during the build is re-pushed as "0"
+                /* ★ photo1a PO-5: re-check only when an in-app delete notification moved the delete generation during this load
+                 * (PhotoOpenRules.recheckFileRows; switch OFF = always, as before). Not media: it keeps its place. */
+                if (PhotoOpenRules.recheckFileRows(SpixiFlags.PhotoFewerFileChecks, deleteGen0, Volatile.Read(ref fileDeleteGen)))
+                {
+                    recheckBurstFileRows(batch, readChannel);   // ★ #1202 (#1190 #46 r5 MINOR): AFTER the batch's pushes — a file deleted during the build is re-pushed as "0"
+                }
                 // ★ #1208 V4: the burst's voice rows, now that the shell holds them (decoded off this thread)
                 foreach (KeyValuePair<string, FriendMessage> v in batch.voices)
                 {
-                    enqueueVoiceInfo(v.Key, v.Value);
+                    if (!(holdOpen && holdMedia(prepend, holdDoc, () => enqueueVoiceInfo(v.Key, v.Value))))
+                    {
+                        enqueueVoiceInfo(v.Key, v.Value);
+                    }
                 }
                 // ★ S11 G (#1258): the burst's offer previews, now that the shell holds their rows (re-encoded off this thread)
                 foreach (KeyValuePair<string, FriendMessage> o in batch.offers)
                 {
-                    enqueueOfferPreview(o.Key);
+                    if (!(holdOpen && holdMedia(prepend, holdDoc, () => enqueueOfferPreview(o.Key))))
+                    {
+                        enqueueOfferPreview(o.Key);
+                    }
                 }
             }
             if (zeroedUnread)
@@ -5725,6 +5857,64 @@ namespace SPIXI
                 local = -1;   // missing / unreadable → "" (the card shows no size)
             }
             return S11MediaRules.fileSizeArg(message.localSender, message.completed, headerBytes, outgoing, local);
+        }
+
+        /* ★ photo1a PO-5 (SpixiFlags.PhotoFewerFileChecks, P66; PhotoOpenRules.fileSizeArgOnce, executed in csh): fileSizeArgOf
+         * with the path SharedItems.localArgOf already resolved for this row (`resolvedPath`) — a finished sent row reads the
+         * length of THAT path instead of a second localPathOf. An unfinished sent row with no live transfer still resolves its
+         * copy (localArgOf does not look at an unfinished row). The same argument text. */
+        private static string fileSizeArgOnce(FriendMessage message, ulong headerBytes, string fLocal, string? resolvedPath)
+        {
+            return PhotoOpenRules.fileSizeArgOnce(message.localSender, message.completed, headerBytes, fLocal, resolvedPath, message.transferId,
+                id =>
+                {
+                    FileTransfer? t = TransferManager.getOutgoingTransfer(id);
+                    return t != null && t.uid == id ? t.fileSize : 0UL;
+                },
+                () => SharedItems.localPathOf(message),
+                p => new FileInfo(p).Length);
+        }
+
+        /* ★ photo1a PO-5: the values a batch load reads ONCE (PhotoOpenRules.LoadOnce): the 1:1 received rows' avatar per
+         * address and the two preferences the row build reads per row that are checked LIVE again before their effect
+         * (SChatPrefs.photoPreviews, SAutoDownload.loadPictures — each a Preferences read; the thumbnail and offer-preview
+         * drainers read them again before each push). ★ #46 r1 (C-open MINOR-3): SPrivacyPrefs.readReceipts is NOT
+         * one of them — it gates an outbound send (msgRead) with no later re-check, so updateMessageReadStatus reads it live
+         * per row, as at the base. Installed by loadMessages around its row loop on ITS thread
+         * (System.ThreadStaticAttribute, restored by the scope's Dispose — a `using` declaration, so a throw restores it too),
+         * and used only for the rows of that batch (rowCacheFor: the batch is the owner). Switch OFF = never installed. */
+        private sealed class RowCache
+        {
+            public readonly UiBatch owner;
+            public readonly PhotoOpenRules.LoadOnce once = new PhotoOpenRules.LoadOnce();
+            public RowCache(UiBatch b) { owner = b; }
+        }
+
+        [ThreadStatic] private static RowCache? rowCache;
+
+        private sealed class RowCacheScope : IDisposable
+        {
+            private readonly RowCache? prev;
+            public RowCacheScope(RowCache? p) { prev = p; }
+            public void Dispose() { rowCache = prev; }
+        }
+
+        private static IDisposable? beginRowCache(UiBatch batch)
+        {
+            if (!SpixiFlags.PhotoFewerFileChecks)
+            {
+                return null;
+            }
+            RowCacheScope scope = new RowCacheScope(rowCache);
+            rowCache = new RowCache(batch);
+            return scope;
+        }
+
+        /** The load's once-values for a row of `batch`; null = the live path, another batch, or the switch OFF. */
+        private static RowCache? rowCacheFor(UiBatch? batch)
+        {
+            RowCache? rc = rowCache;
+            return batch != null && rc != null && ReferenceEquals(rc.owner, batch) ? rc : null;
         }
 
         /* ★ #1177 (Android: a big download, the phone locked mid-transfer — the reopened chat showed "Tap to download" for
@@ -5931,6 +6121,7 @@ namespace SPIXI
          *  held here (another channel, outside the loaded window, never shown) → nothing is pushed. */
         public bool refreshFileRow(FriendMessage? message, int channel)
         {
+            Interlocked.Increment(ref fileDeleteGen);   // ★ photo1a PO-5: an in-app delete notification (held or not) — a running load re-checks
             if (message == null || message.type != FriendMessageType.fileHeader || !hasLoadedFileRow(message.id, channel))
             {
                 return false;
@@ -5960,6 +6151,7 @@ namespace SPIXI
          *  not rows). Each re-push reads the disk again (SharedItems.localArgOf) — a few dozen rows at most. */
         public int refreshHeldFileRows()
         {
+            Interlocked.Increment(ref fileDeleteGen);   // ★ photo1a PO-5: an in-app delete notification (the contact purge) — a running load re-checks
             List<string> held;
             lock (fileRowsShown)
             {
@@ -5990,6 +6182,26 @@ namespace SPIXI
          * the fresh "0" lands after the stale batch. A delete AFTER this re-check is the ordinary case: its own refresh is
          * queued after the batch. "1" rows only (only a delete can be missed); COMPLETE rows only touch the disk
          * (SharedItems.localArgOf's own early return, #46 r4 m1). */
+        /* ★ photo1a PO-5 (SpixiFlags.PhotoFewerFileChecks, P66): the DELETE GENERATION — every in-app delete notification
+         * that reaches this page (refreshFileRow, refreshHeldFileRows, deleteMessage; one statement each) moves it, and a load
+         * runs the re-check below only when it moved while the load ran (PhotoOpenRules.recheckFileRows). Interlocked.
+         * ★ #46 r1 (C-open MINOR-1): PROCESS-WIDE (static), so a delete that tells no notification to the loading page moves it
+         * too: a notification sent to ANOTHER page instance (a spare, a second chat page), and the in-app deletes that notify no
+         * page at all — the Downloads page delete, Settings' single download delete (right after each File.Delete) and
+         * Settings "delete all downloads" (after EACH File.Delete in its loop and once at the end) call noteFileDeleted(). A
+         * move from an unrelated delete costs one re-check pass (today's cost). Accepted losses: a delete in the gap between
+         * its File.Delete and its increment behaves as a delete just after the re-check (as at the base); a
+         * file deleted OUTSIDE the app (a file manager, the OS) moves nothing — the base has the same state a few ms after its
+         * own re-check, so the row shows "1" until the next load or the next tap, as at the base. */
+        private static int fileDeleteGen = 0;
+
+        /** ★ #46 r1 (C-open MINOR-1): an in-app file delete that notifies no chat page (any thread, never throws) — a running
+         *  load of any chat runs its re-check (PhotoOpenRules.recheckFileRows). */
+        public static void noteFileDeleted()
+        {
+            Interlocked.Increment(ref fileDeleteGen);
+        }
+
         private void recheckBurstFileRows(UiBatch batch, int channel)
         {
             foreach (KeyValuePair<FriendMessage, string> row in batch.fileRows)
@@ -6091,6 +6303,8 @@ namespace SPIXI
             }
             string prefix = "addMe";
             string avatar = "";
+            RowCache? rowOnce = rowCacheFor(batch);   // ★ photo1a PO-5: this load's once-values (null = live path / switch OFF)
+            bool avatarFinal = false;                  // ★ photo1a PO-5: true = `avatar` is the row's final argument already
             string address = friend.nickname;
             if(address == "")
             {
@@ -6141,7 +6355,16 @@ namespace SPIXI
                 }
 
                 prefix = "addThem";
-                if(resolvedSender != null)
+                if (PhotoOpenRules.oneToOneAvatarOnce(rowOnce != null, friend.bot, friend.type == FriendType.Group))
+                {
+                    /* ★ photo1a PO-5: a 1:1 chat — the received rows' avatar (getAvatarPath → imageToDataUri → avatarForRow's 1:1
+                     * answer, PhotoOpenRules.oneToOneRowAvatar) is resolved ONCE per load per address; the same string. */
+                    string avatarKey = resolvedSender != null ? resolvedSender.ToString() : friend.walletAddress.ToString();
+                    avatar = rowOnce!.once.once("avatar|" + avatarKey,   // rowOnce != null: oneToOneAvatarOnce's first argument
+                        () => PhotoOpenRules.oneToOneRowAvatar(IxianHandler.localStorage.getAvatarPath(avatarKey), Utils.imageToDataUri));
+                    avatarFinal = true;
+                }
+                else if(resolvedSender != null)
                 {
                     avatar = IxianHandler.localStorage.getAvatarPath(resolvedSender.ToString());
                 }
@@ -6168,8 +6391,11 @@ namespace SPIXI
             // X1: convert the (possibly local) avatar path to a data-URI ONCE here — covers
             // every avatar push below (message/payment/file/app rows). "" (own messages) and
             // "img/..." sentinels pass through unchanged.
-            avatar = Utils.imageToDataUri(avatar);
-            avatar = avatarForRow(avatar, resolvedSender);   // ★ #1166 P-04: the picture goes ONCE per sender (setAvatarFor), the row carries ""
+            if (!avatarFinal)   // ★ photo1a PO-5: a 1:1 row's once-per-load avatar is final already
+            {
+                avatar = Utils.imageToDataUri(avatar);
+                avatar = avatarForRow(avatar, resolvedSender);   // ★ #1166 P-04: the picture goes ONCE per sender (setAvatarFor), the row carries ""
+            }
 
             // D-5/N26 (#366): per-sender RELATION for the member sheet — received
             // multi-chat rows only ("" elsewhere; the shell treats "" as none).
@@ -6382,7 +6608,17 @@ namespace SPIXI
                      * look; SharedItems.localArgOf = localPathOf + FileRowRules (csh). The shell: "0" on a complete row →
                      * mine = the compact card "Not available on this device", a received one = "… deleted from this
                      * device" — no tap, no viewer. An older shell ignores arg 16; an older exe sends none ("" = today). */
-                    string fLocal = SharedItems.localArgOf(message, out string fCase);
+                    string fLocal;
+                    string fCase;
+                    string? fPath = null;   // ★ photo1a PO-5: the path localArgOf resolved (one file-check pass per row)
+                    if (rowOnce != null)
+                    {
+                        fLocal = SharedItems.localArgOf(message, out fCase, out fPath);
+                    }
+                    else
+                    {
+                        fLocal = SharedItems.localArgOf(message, out fCase);
+                    }
                     if (message.localSender && SharedItems.isImageName(name))
                     {
                         P1Perf.line("filelocal sent-image " + fCase);   // ★ #1190 dev-only (SPIXI_DEV_COEXIST): a fixed case word — no path, no name, no id
@@ -6408,7 +6644,15 @@ namespace SPIXI
                     }
                     /* ★ S20 E (#1376, P29): flag ON = the size in BOTH directions (fileSizeArgOf: C#'s own sources only); OFF = the
                      * S11 rule above (received offers only). */
-                    string fSize = SpixiFlags.S20FileSize ? fileSizeArgOf(message, fBytes, fLocal) : S11MediaRules.offerSizeArg(message.localSender, message.completed, fBytes);
+                    string fSize;
+                    if (rowOnce != null)
+                    {
+                        fSize = SpixiFlags.S20FileSize ? fileSizeArgOnce(message, fBytes, fLocal, fPath) : S11MediaRules.offerSizeArg(message.localSender, message.completed, fBytes);   // ★ photo1a PO-5: no second localPathOf
+                    }
+                    else
+                    {
+                        fSize = SpixiFlags.S20FileSize ? fileSizeArgOf(message, fBytes, fLocal) : S11MediaRules.offerSizeArg(message.localSender, message.completed, fBytes);
+                    }
                     string fTransfer = incomingTransferArg(message, uid);   // ★ #1177: arg 15 — "live:<pct>" / "paused:<pct>" / "" (an older shell ignores it)
                     deliveryTicks(message, out bool fSent, out bool fConfirmed, out bool fRead);
                     push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal, fVoice, fGroup, fPlayed, fSize);
@@ -6704,6 +6948,7 @@ namespace SPIXI
                 UIHelpers.setContactStatus(friend.walletAddress, friend.online, friend.metaData.unreadMessageCount, "", 0);
 
                 // ★ S8 (#1234): read receipts OFF → no msgRead (1:1 and groups); never for the added-to-group line {7} (#1231)
+                // ★ photo1a PO-5 (#46 r1 C-open MINOR-3): read LIVE per row, never once per load — it gates a network send (msgRead)
                 if (PrivacyRules.sendsReadReceipt(SPrivacyPrefs.readReceipts, friend.bot, UnreadRule.isAddedToGroupLineId(message.id)))
                 {
                     // Send read confirmation
@@ -6778,6 +7023,7 @@ namespace SPIXI
                 }
                 Utils.sendUiCommand(this, "deleteMessage", Crypto.hashToString(msg_id));
             }
+            Interlocked.Increment(ref fileDeleteGen);   // ★ photo1a PO-5: an in-app delete notification — a running load re-checks
         }
 
         /* ★ C21 (Session AD): WHO is typing, appended (new args LAST). In a room the
@@ -7276,7 +7522,16 @@ namespace SPIXI
          *  a load burst defers it to messagesDone. */
         private void noteThumbCandidate(FriendMessage message, string name, UiBatch? batch)
         {
-            if (message == null || message.id == null || !(message.completed || message.localSender) || !SharedItems.isImageName(name) || !SChatPrefs.photoPreviews)
+            RowCache? rowOnce = rowCacheFor(batch);   // ★ photo1a PO-5: a batch load reads the pref once
+            if (rowOnce != null)
+            {
+                if (message == null || message.id == null || !(message.completed || message.localSender) || !SharedItems.isImageName(name)
+                    || !rowOnce.once.flag(PhotoOpenRules.LoadOnce.PhotoPreviews, () => SChatPrefs.photoPreviews))
+                {
+                    return;
+                }
+            }
+            else if (message == null || message.id == null || !(message.completed || message.localSender) || !SharedItems.isImageName(name) || !SChatPrefs.photoPreviews)
             {
                 return;
             }
@@ -7365,6 +7620,28 @@ namespace SPIXI
             }
         }
 
+        /** ★ photo1a PO-0: chatThumbOf, unchanged, plus `hit` = its process memory cache held this file version when the job
+         *  ran (no decode) — for the `[P1] chat media hit=` count only. (The kept thumbnail of PO-3 is parked for a later batch:
+         *  docs/parked/photo1a-po3-po6.patch.) Never throws. */
+        private static string? chatThumbOfCounted(FileInfo fi, out bool hit)
+        {
+            hit = false;
+            try
+            {
+                string key = fi.FullName + "|" + fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + "|" + fi.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                lock (chatThumbLock)
+                {
+                    hit = chatThumbCache.ContainsKey(key);
+                }
+            }
+            catch (Exception)
+            {
+                hit = false;
+            }
+            return chatThumbOf(fi);
+        }
+
         private void processThumb(ThumbJob job)
         {
             if (isDisposed || job.doc != thumbDoc || friend == null || !SChatPrefs.photoPreviews)
@@ -7393,13 +7670,19 @@ namespace SPIXI
                     return;   // this message's file, this version, already went to this document
                 }
             }
-            string? uri = chatThumbOf(fi);
+            bool hit = false;   // ★ photo1a PO-0: the `[P1] chat media hit=` count — a developer build only (review round 3 NIT-2)
+            string? uri = P1Perf.enabled ? chatThumbOfCounted(fi, out hit) : chatThumbOf(fi);   // a store build: exactly the base call
             if (uri == null)
             {
                 return;
             }
             int doc = job.doc;
             string id = job.id;
+            // ★ photo1a PO-1: the command text is built HERE, on the drainer thread (Utils.sendUiCommand's exact text); OFF = null
+            string? builtCmd = SpixiFlags.PhotoMediaAfterPaint ? PhotoOpenRules.uiCommandText("setFileThumb", id, uri) : null;
+            /* ★ #46 r1 (C-open MINOR-2, memory): the closure below holds ONE copy of the picture — the built text, or (OFF) the
+               data URI. It never names `uri`, so `uri` is not captured: ~48 jobs released at once hold what they held before. */
+            string? plainUri = builtCmd == null ? uri : null;
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (isDisposed || doc != thumbDoc || friend == null || !SChatPrefs.photoPreviews)
@@ -7412,7 +7695,15 @@ namespace SPIXI
                     }
                     return;
                 }
-                Utils.sendUiCommand(this, "setFileThumb", id, uri);
+                if (builtCmd != null)
+                {
+                    sendBuiltCommand(builtCmd);   // ★ photo1a PO-1: the main thread only hands the text over
+                }
+                else
+                {
+                    Utils.sendUiCommand(this, "setFileThumb", id, plainUri!);   // OFF: the data URI (non-null: checked above)
+                }
+                mediaCounts.thumb(doc, hit);   // ★ photo1a PO-0
             });
         }
 
@@ -7500,7 +7791,18 @@ namespace SPIXI
 
         private void noteOfferPreview(FriendMessage message, string name, UiBatch? batch)
         {
-            if (message == null || message.id == null || friend == null
+            RowCache? rowOnce = rowCacheFor(batch);   // ★ photo1a PO-5: a batch load reads the two prefs once
+            if (rowOnce != null)
+            {
+                if (message == null || message.id == null || friend == null
+                    || !S11MediaRules.offerPreviewPushOk(rowOnce.once.flag(PhotoOpenRules.LoadOnce.LoadPictures, () => SAutoDownload.loadPictures),
+                        rowOnce.once.flag(PhotoOpenRules.LoadOnce.PhotoPreviews, () => SChatPrefs.photoPreviews), message.localSender, message.completed,
+                        SharedItems.isImageName(name), autoDownloadContactOk(friend, message)))
+                {
+                    return;
+                }
+            }
+            else if (message == null || message.id == null || friend == null
                 || !S11MediaRules.offerPreviewPushOk(SAutoDownload.loadPictures, SChatPrefs.photoPreviews, message.localSender, message.completed, SharedItems.isImageName(name),
                     autoDownloadContactOk(friend, message)))
             {
@@ -9215,6 +9517,24 @@ namespace SPIXI
             }
             int doc = job.doc;
             string id = job.id;
+            /* ★ photo1a PO-1: the command text is built HERE, on the drainer thread (Utils.sendUiCommand's exact text); OFF, or
+             * a value the old main-thread statements would have refused (no '|'), = null → the old statements below */
+            string? builtCmd = null;
+            if (SpixiFlags.PhotoMediaAfterPaint)
+            {
+                if (info == null)
+                {
+                    builtCmd = PhotoOpenRules.uiCommandText("voiceState", id, "error", "0", "0");
+                }
+                else
+                {
+                    int builtBar = info.IndexOf('|');
+                    if (builtBar >= 0)
+                    {
+                        builtCmd = PhotoOpenRules.uiCommandText("voiceInfo", id, info.Substring(0, builtBar), info.Substring(builtBar + 1));
+                    }
+                }
+            }
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (isDisposed || doc != thumbDoc)
@@ -9225,6 +9545,15 @@ namespace SPIXI
                     }
                     return;
                 }
+                if (builtCmd != null)
+                {
+                    sendBuiltCommand(builtCmd);   // ★ photo1a PO-1: the main thread only hands the text over
+                    if (info != null)
+                    {
+                        mediaCounts.voice(doc);   // ★ photo1a PO-0: a voiceInfo push
+                    }
+                    return;
+                }
                 if (info == null)
                 {
                     Utils.sendUiCommand(this, "voiceState", id, "error", "0", "0");
@@ -9232,6 +9561,7 @@ namespace SPIXI
                 }
                 int bar = info.IndexOf('|');
                 Utils.sendUiCommand(this, "voiceInfo", id, info.Substring(0, bar), info.Substring(bar + 1));
+                mediaCounts.voice(doc);   // ★ photo1a PO-0: a voiceInfo push
             });
         }
 

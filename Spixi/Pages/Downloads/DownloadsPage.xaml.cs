@@ -187,6 +187,7 @@ namespace SPIXI
                     try
                     {
                         File.Delete(path);
+                        SingleChatPage.noteFileDeleted();   // ★ photo1a PO-5: a running chat load re-checks its file rows
                     }
                     catch (Exception ex)
                     {

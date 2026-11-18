@@ -853,6 +853,7 @@ namespace SPIXI
                     try
                     {
                         File.Delete(path);
+                        SingleChatPage.noteFileDeleted();   // ★ photo1a PO-5 (review round 2 NIT-1): a running chat load re-checks its file rows
                     }
                     catch (Exception ex)
                     {
@@ -2160,6 +2161,7 @@ namespace SPIXI
                 foreach (var file in Directory.EnumerateFiles(Path.Combine(Config.spixiUserFolder, "Downloads")))
                 {
                     File.Delete(file);
+                    SingleChatPage.noteFileDeleted();   // ★ photo1a PO-5 (review round 3 MINOR-2): per file — a load that checks during the loop re-checks its rows
                     file_count++;
                 }
                 displaySpixiAlert(SpixiLocalization._SL("settings-deletedd-title"), string.Format(SpixiLocalization._SL("settings-deletedd-text"), file_count), SpixiLocalization._SL("global-dialog-ok"));
@@ -2169,6 +2171,7 @@ namespace SPIXI
                 Logging.error("Exception while deleting downloads: " + e);
                 displaySpixiAlert(SpixiLocalization._SL("settings-deleted-error-title"), SpixiLocalization._SL("settings-deleted-error-text"), SpixiLocalization._SL("global-dialog-ok"));
             }
+            SingleChatPage.noteFileDeleted();   // ★ photo1a PO-5: a running chat load re-checks its file rows (also after a partial failure)
         }
 
         public async Task onChangeAvatarAsync(object sender, EventArgs e)

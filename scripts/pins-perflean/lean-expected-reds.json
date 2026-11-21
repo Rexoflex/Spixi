@@ -1,10 +1,5 @@
 {
-  "copy": [
-    {
-      "match": "★ S15 D (O-27, #1293): .gitignore ignores the device captures",
-      "reason": "the packaged copy has no .git folder, so `git check-ignore` cannot run there (red in the plain packaged run too; proven on the untouched base 2026-11-15)"
-    }
-  ],
+  "copy": [],
   "css": [
     {
       "match": "★ Session N: the csproj Remove+Include pairs are EXACTLY the allowlist",

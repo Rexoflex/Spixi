@@ -31929,7 +31929,11 @@ console.log('★★ handover-gate fix batch — the security pins');
       "Spixi/Pages/Contacts/ContactNewPage.xaml.cs :: Invalid address format:",
       "Spixi/Pages/Contacts/ContactNewPage.xaml.cs :: viewcontact failed:",
       "Spixi/Pages/Home/HomePage.xaml.cs :: Exception occurred in HomePage.UpdateScreen:",
-      "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs :: Exception while processing Mini App action '{0}': {1}",
+      /* ★ fixb3 item 1 re-base (#1744 (4), P84; after a look at the diff): the catch's log line no longer names the action or
+         the exception (FixB3Rules.actionFailedLine: fixed words, a listed name, the TYPE word — pins-fixb3/a-miniapp-guard k3),
+         so its first Logging call holds no literal. The catch still names `e` through `sendActionRejected(…, e.Message)` — to the
+         SAME mini app, not the log: legacy, kept untouched (P61 (6), P84). LIMIT: `<no literal>` is a per-file entry. */
+      "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs :: <no literal>",
       "Spixi/Platforms/Android/SPushService.cs :: postOurPushRow failed, the raw push is kept:",
       "Spixi/Utils/SpixiContentPage.cs :: sendContactRequest: invalid address payload:",
     ];

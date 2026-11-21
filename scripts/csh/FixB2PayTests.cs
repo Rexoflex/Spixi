@@ -57,7 +57,9 @@ public class FixB2PayTests
         Assert.AreEqual(want, mine[0], why + ": the line matches the state");
         int fix = L.FindIndex(l => l.StartsWith("[FLAGS] confirmdefault=", StringComparison.Ordinal));
         Assert.IsTrue(fix >= 0 && L.IndexOf(mine[0]) == fix + 1, why + ": right after the fixb1 line — " + string.Join("|", L));
-        Assert.AreEqual(L.Count - 1, L.IndexOf(mine[0]), why + ": the last line of init");
+        // ★ merge with photo1a (2026-11-18, re-based after a look): the last line of init, or followed ONLY by the one photo1a line
+        int at = L.IndexOf(mine[0]);
+        Assert.IsTrue(at == L.Count - 1 || (at == L.Count - 2 && L[L.Count - 1].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal)), why + ": the last line of init (only the photo1a line may follow)");
     }
 
     [TestMethod]

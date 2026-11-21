@@ -793,6 +793,7 @@ namespace SPIXI
                             {
                                 deleted = true;
                             }
+                            if (deleted) { ChatMediaStore.deleteSource(item.path); }   // ★ photo1a PO-3 / PO-6 · review round 1 (F6): the FILE left this device (the message stays) — what was kept from that path goes; a later re-download is kept again (C#'s own path, the one deleteLocal deleted; never throws)
                             string json = SharedItems.toJson(page.p1NoteShared(SharedItems.scan(scanned)));   // ★ #1194 probe — TEMPORARY
                             MainThread.BeginInvokeOnMainThread(() =>
                             {
@@ -1294,6 +1295,7 @@ namespace SPIXI
                 SReactionFlags.clear(friend.walletAddress.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
                 SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                 SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+                ChatMediaStore.deleteChat(friend.walletAddress);   // ★ photo1a PO-3 / PO-6: the kept thumbnails and peaks of the deleted history go too (never throws)
                 CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back
                 UIHelpers.shouldRefreshContacts = true;
                 /* ★ #46 loop B, MAJOR-1 — THE CONVERSATION IS GONE ON DISK, SO SAY SO.

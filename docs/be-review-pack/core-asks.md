@@ -41,3 +41,8 @@ These patches exist as proposals on Damir's PC, not in Core; BE decides. The clo
 - CORE-14 / CORE-15: `be-cutover-brief.md` § Blockers says "YES" (17 blockers); #1137 puts S-01 / S-05 / C-06 in "v1.1 (needs Core)". Damir or BE must pick one.
 - `be-cutover-brief.md` CORE-14 cites `fetchAllFriendsPresences` at `:2999` / `:3005` / `:2986`; at `097341a` it is `:2946`, the `InSector` twin `:2967`.
 - Voice: `be-cutover-brief.md` still frames VN-1 / VN-2 as "two questions for v1.1"; #1138 (11) made voice v1 without Core.
+
+## photo1a (2026-11-17) — the whole-file read per chat open (a BE ask, not a blocker)
+| Ask | Where (Ixian-Core `097341a`) | Why | What we did instead |
+|---|---|---|---|
+| CORE-17 · keep the last load window of a chat in memory, so an open does not deserialize the whole messages file (up to 1000 messages) every time | `Streaming/Friends/Friend.cs:913` (`getMessages` → `readLastMessages`), `Streaming/Storage/LocalStorage.cs:540` | the read + build part of a chat open is 17–73 ms on the Galaxy A52s and bimodal (`claude/photo-open-research-2026-11-17.md` § 2, gap 2); the new line `[P1] chat read … ms=` (photo1a) now shows the read alone | nothing in Core (BE-only); the dev line measures it |

@@ -171,3 +171,21 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1704 | Light Aurora ring: the dedicated token `--outline-select-ring` (#2B47A9, 3.05 : 1); the global action token unchanged. |
 | #1705 | #46 stopped at round 3 by rule 9 (three pin scanners); answered by #1735 (a): the pin limits are accepted and recorded; the final readers: 0 MAJOR in the code. |
 | #1706 | Session record (walk-ready by #1546 after #1735; merged tree 6617 / CSH 643). |
+| #1715 | Photo open 1a PO-1 (P65, switch `PhotoMediaAfterPaint`): a chat open's media pushes wait for the paint signal / the 400 ms backstop; the push text is built off the main thread, byte-identical. |
+| #1716 | PO-5 (P66, switch `PhotoFewerFileChecks`): one file-check pass per row; the 1:1 avatar + two prefs once per load (`readReceipts` stays live); the re-check only when a process-wide delete generation moved (`noteFileDeleted()`). |
+| #1717 | PO-0 (P69): `[P1] chat onload-main` / `chat read` / `chat media` (dev builds) and `[FLAGS] photo1a mediaafterpaint= fewerchecks=`. |
+| #1718 | The walk steps `open-seed` (`-SeedIndex`, a proven restart + a cold rep, the (pid, index) warm-up) and `mem-photos`; new parser rows not required. |
+| #1719 ✅ | PO-3 + PO-6 (the thumbnail / waveform store) stopped after review round 2 — the Fable 5.2 limit; parked with its open findings. Superseded by #1728: resumed and finished. |
+| #1720 | What images by URL (#1642) can read from the parked store, and what it still needs. |
+| #1721 | The spec for "Photo open 1b" (the shell half). |
+| #1722 | BE ask CORE-17: keep the last load window of a chat in memory (Core reads the whole file per open). |
+| #1723 | The pins of photo1a (`pins-photo1a/a-open`, `c-walk`) and the re-bases (#1568, #1596). |
+| #1724 ✅ | The #46 loop: CLEAN NOT CLAIMED at round 5 on a pin gap (no code defect in r3–r5); not delivered. Answered by #1726 (a). |
+| #1725 | Session "Photo open 1a" record. |
+| #1726 | Damir's ruling in the work session: #1724 → (a), #1719 → (a); complete the session; Fable 5.2 only for its intended work. |
+| #1727 | The S15 pin loop hit rule 9 at round 8 (F1 / F2, inherited limits of `pins-s15/c-transport`); Damir chose (a) "Accept, then push" (main-chat ruling #1746). |
+| #1728 | PO-3 + PO-6 (the thumbnail / waveform store) resumed and finished: store fix rounds 2 and 3, store round 7 CLEAN; the recorded limits m-1, m-A…m-F; packets P67 / P68. |
+| #1729 | The one builder `UiCommandText` for the push text (S15 O-11 kept; byte-identical; packet P70) + the N51 clock position. |
+| #1730 | The #46 verdict of rounds 6–9: CLEAN (F1 / F2 recorded). |
+| #1731 | The merge with Fix batch 2 (`55feaddc`) and its pin re-bases. |
+| #1732 | Session "Photo open 1a" — the record, final state (CSH 766; models; owed: the operator block, compiles). |

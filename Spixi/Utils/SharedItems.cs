@@ -148,6 +148,20 @@ namespace SPIXI
             }
         }
 
+        /** ★ photo1a PO-5 (SpixiFlags.PhotoFewerFileChecks; PhotoOpenRules.localArgOnce, executed in csh): the SAME value and
+         *  case word as localArgOf(fm, out pathCase) above, plus `path` = the file localPathOf resolved for it (null = none, or
+         *  not looked at: an unfinished row) — so the row's size argument reads THAT path instead of resolving it again. */
+        public static string localArgOf(FriendMessage fm, out string pathCase, out string? path)
+        {
+            path = null;
+            if (fm == null || fm.type != FriendMessageType.fileHeader)
+            {
+                pathCase = FileRowRules.CaseNone;
+                return "";
+            }
+            return PhotoOpenRules.localArgOnce(fm.localSender, fm.completed, fm.filePath, () => localPathOf(fm), () => cacheDirOnce.Value, out pathCase, out path);
+        }
+
         /* ★ G-6b (#1121): thumbnails made once per file version (path + size + write time), kept in memory for the
          * process (bounded) — reopening chat info does not decode again. */
         private static readonly object thumbLock = new object();

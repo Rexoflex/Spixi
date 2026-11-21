@@ -1,0 +1,777 @@
+{
+  "version": 1,
+  "files": {
+    "app_details.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "app_new.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "call.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "chat.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "contact_details.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "contact_new.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "contributors.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "dev.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "downloads.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "empty_detail.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "fonts/TwemojiCountryFlags.js": {
+      "owner": "third-party",
+      "component": "twemoji-flags"
+    },
+    "img/flags/al.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/br.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/cn.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/co.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/de.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/fr.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/id.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/it.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/jp.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/lt.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/rs.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/ru.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/si.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "img/flags/us.png": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "index.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "intro.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "js/html5-qrcode.min.js": {
+      "owner": "third-party",
+      "component": "html5-qrcode"
+    },
+    "lock.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "scan.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "settings.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "settings_backup.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "settings_encryption.html": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "spixi.base.css": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "spixi.bundle.js": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "spixi.chat-pattern.css": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "spixi.icons.js": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "spixi.strings.js": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "spixi.tokens.css": {
+      "owner": "ours",
+      "component": "spixi"
+    },
+    "wallet_sent.html": {
+      "owner": "ours",
+      "component": "spixi"
+    }
+  },
+  "embedded": [
+    {
+      "in": "fonts/TwemojiCountryFlags.js",
+      "kind": "data-url",
+      "sha256": "9f04f14429bb6a9f415c7a4dd902a918d7e81a4f7526c415496fdb063954e3b8",
+      "component": "twemoji-flags"
+    },
+    {
+      "in": "intro.html",
+      "kind": "data-url",
+      "sha256": "c163c536f68befd99a83d4f17e8b88030e7f54229688a45c44f70c7149db7385",
+      "component": "sora"
+    },
+    {
+      "in": "js/html5-qrcode.min.js",
+      "kind": "data-url",
+      "sha256": "0e533c7600504e0173a5998de653099c05fd096d8832db2187f30fb411872b90",
+      "component": "html5-qrcode"
+    },
+    {
+      "in": "js/html5-qrcode.min.js",
+      "kind": "data-url",
+      "sha256": "552a201e4c75ebceba1f683e4804f6794715d9380682149a9945df48b9df54eb",
+      "component": "html5-qrcode"
+    },
+    {
+      "in": "js/html5-qrcode.min.js",
+      "kind": "data-url",
+      "sha256": "10bd1f63d16cb15921749735f065ea378775bf82ecd2ceaca0a4fc14192a2ebd",
+      "component": "html5-qrcode"
+    },
+    {
+      "in": "js/html5-qrcode.min.js",
+      "kind": "data-url",
+      "sha256": "f132e7e2dca1f45f8a74ead95651b91bdbe69cf33228b02c378e434a9fa3a910",
+      "component": "html5-qrcode"
+    },
+    {
+      "in": "spixi.base.css",
+      "kind": "data-url",
+      "sha256": "fa26406eeda9a3c6ec3d9ea8813c3045d6dc755e30c716d5c094e8ef43be5a7f",
+      "component": "sora"
+    },
+    {
+      "in": "spixi.chat-pattern.css",
+      "kind": "data-url",
+      "sha256": "56050c3f0811faa9adf4e0b183ef84aa1ed3ce5fbc619e623e94f539ca7cf073",
+      "component": "spixi"
+    },
+    {
+      "in": "spixi.chat-pattern.css",
+      "kind": "data-url",
+      "sha256": "0613e48cdcceceacdf4dc57fe1623d9bbe7dd8fa6602be5d7c2d9cd8aee8ec66",
+      "component": "spixi"
+    },
+    {
+      "in": "spixi.bundle.js",
+      "kind": "code",
+      "marker": "// Copyright (c) 2009 Kazuhiko Arase",
+      "component": "qrcode-generator"
+    },
+    {
+      "in": "spixi.icons.js",
+      "kind": "code",
+      "marker": "(filled Tabler set + logo from Figma)",
+      "component": "tabler-icons"
+    },
+    {
+      "in": "js/html5-qrcode.min.js",
+      "kind": "code",
+      "marker": "Use html5qrcode.min.js without edit, ZXing not found.",
+      "component": "zxing-js"
+    },
+    {
+      "in": "js/html5-qrcode.min.js",
+      "kind": "code",
+      "marker": "reset(){this.count=0}toByteArray(){return",
+      "component": "openjdk-classes"
+    }
+  ],
+  "components": {
+    "spixi": {
+      "name": "Spixi's own files (shells, generated sheets and scripts, the flag PNGs, the chat pattern, the logo)",
+      "version": "-",
+      "licence": "MIT, Copyright (c) 2019 Ixian (the LICENSE of this repo); the flag PNGs: \"Damir's own asset\" by src/components/flags.js:23",
+      "licenceFiles": [],
+      "noticeHeading": "### Spixi's own files",
+      "textRequired": false,
+      "why": "ours: this repo's own files; no third-party text applies",
+      "scope": "html",
+      "unproven": "UNPROVEN — question for Damir: the origin of the flag PNGs al.png and us.png (not in the fork point; recorded nowhere beyond flags.js:23); this is a question about two files, not a licence claim"
+    },
+    "html5-qrcode": {
+      "name": "html5-qrcode (mebjas)",
+      "version": "2.3.8 (byte-identical to html5-qrcode.min.js of npm html5-qrcode@2.3.8)",
+      "licence": "Apache-2.0 (package.json and LICENSE of the package)",
+      "licenceFiles": [
+        "licenses/html5-qrcode.Apache-2.0.txt"
+      ],
+      "noticeHeading": "### html5-qrcode — Apache License 2.0",
+      "textRequired": true,
+      "why": "Apache-2.0 section 4 (a): a recipient gets a copy of the licence",
+      "scope": "html"
+    },
+    "zxing-js": {
+      "name": "ZXing for JS (zxing-js/library) inside html5-qrcode.min.js",
+      "version": "UNPROVEN — question for Damir: the zxing-js version inside the minified file is not proven; nearest npm @zxing/library 0.18.3 (866 diff lines against html5-qrcode third_party/zxing-js.umd.js); the LICENSE of zxing-js/library is the same MIT bytes at v0.17.1, v0.18.3 and v0.19.1 (SHA-256 4c26c307…) and is the Apache-2.0 text at v0.20.0 and v0.21.0 (849b3ff4…)",
+      "licence": "MIT for zxing-js/library (its LICENSE); Apache-2.0 in the per-file headers \"Copyright 2007-2013 ZXing authors\" of the umd source",
+      "licenceFiles": [
+        "licenses/zxing-js.MIT.txt",
+        "licenses/zxing.Apache-2.0.txt"
+      ],
+      "noticeHeading": "### ZXing code inside html5-qrcode — MIT and Apache License 2.0",
+      "textRequired": true,
+      "why": "MIT: the copyright and permission notice in copies; Apache-2.0 section 4 (a): a copy of the licence",
+      "scope": "html",
+      "unproven": "UNPROVEN — question for Damir: which zxing-js version is inside js/html5-qrcode.min.js (the licence text of zxing-js/library differs between v0.19.1 and v0.20.0)"
+    },
+    "openjdk-classes": {
+      "name": "OpenJDK java.io classes (ByteArrayOutputStream, OutputStream) ported inside zxing-js",
+      "version": "JDK version not stated",
+      "licence": "GNU GPL v2 only with the Classpath Exception, as the file headers \"Copyright (c) 1994, 2004 / 2010, Oracle\" of html5-qrcode third_party/zxing-js.umd.js state it",
+      "licenceFiles": [
+        "licenses/openjdk.GPL-2.0-Classpath-exception.txt"
+      ],
+      "noticeHeading": "### OpenJDK classes inside html5-qrcode — GPL-2.0 with the Classpath Exception",
+      "textRequired": true,
+      "why": "the source headers say the licence file accompanies the code; the minified file carries no header",
+      "unproven": "UNPROVEN — question for Damir: which JDK version the code was ported from, and whether the minified file keeps all of it",
+      "scope": "html"
+    },
+    "qrcode-generator": {
+      "name": "qrcode-generator (Kazuhiko Arase)",
+      "version": "code equals qrcode.js of npm qrcode-generator 1.4.4, 1.5.0 and 1.5.2 (one file, three versions); the header of src/components/qr.js says v1.5.x",
+      "licence": "MIT (banner in the code, LICENSE of the repo)",
+      "licenceFiles": [
+        "licenses/qrcode-generator.MIT.txt"
+      ],
+      "noticeHeading": "### qrcode-generator — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "html"
+    },
+    "sora": {
+      "name": "Sora (The Sora Project Authors)",
+      "version": "2.000 (font name table); the two woff2 files are byte-identical to @fontsource-variable/sora 5.3.0",
+      "licence": "SIL OFL 1.1 (font name table copyright line \"Copyright 2019 The Sora Project Authors\")",
+      "licenceFiles": [
+        "licenses/sora.OFL-1.1.txt"
+      ],
+      "noticeHeading": "### Sora — SIL Open Font License 1.1",
+      "textRequired": true,
+      "why": "OFL 1.1 condition 2: each copy of the Font Software carries the copyright notice and the licence",
+      "scope": "html"
+    },
+    "tabler-icons": {
+      "name": "Tabler Icons (Pawel Kuna)",
+      "version": "UNPROVEN — question for Damir: the Tabler version of the 106 exported glyphs is not stated in the repo; the LICENSE of tabler-icons differs between v1.0.0, v2.0.0, v3.0.0, v3.35.0 and v3.37.0 (and v3.41.0) only in the copyright line (2020 / 2020-2023 / 2020-2024 / 2020-2025 / 2020-2026); 106 files src/assets/icons/tabler-icon-*.svg + logo.svg, Figma exports",
+      "licence": "MIT (per the notices doc and the in-app credit; the files carry no licence line)",
+      "licenceFiles": [
+        "licenses/tabler-icons.MIT.txt"
+      ],
+      "noticeHeading": "### Tabler Icons — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "html",
+      "unproven": "UNPROVEN — question for Damir: which Tabler version the glyphs were exported from (the shipped text is v3.35.0, copyright 2020-2025)"
+    },
+    "twemoji-flags": {
+      "name": "Twemoji Country Flags (font file)",
+      "version": "font name table: \"Version 0.6.0\"; byte-identical to dist/TwemojiCountryFlags.woff2 of npm country-flag-emoji-polyfill@0.1.10",
+      "licence": "CC-BY-4.0 for the artwork (LICENSE.md of the package, README of twitter/twemoji); MIT for the polyfill code (none of it ships)",
+      "licenceFiles": [
+        "licenses/twemoji-country-flags.CC-BY-4.0.txt",
+        "licenses/country-flag-emoji-polyfill.MIT.txt"
+      ],
+      "noticeHeading": "### Twemoji Country Flags — CC-BY 4.0",
+      "textRequired": true,
+      "why": "CC-BY 4.0 section 3(a): credit, a licence link, an indication of changes",
+      "scope": "html"
+    },
+    "open-sans": {
+      "name": "Open Sans (Google / Ascender)",
+      "version": "1.10 (font name table)",
+      "licence": "Apache-2.0 (font name table nameID 13 and 14)",
+      "licenceFiles": [
+        "licenses/open-sans.Apache-2.0.txt"
+      ],
+      "noticeHeading": "### Open Sans — Apache License 2.0",
+      "textRequired": true,
+      "why": "Apache-2.0 section 4 (a): a recipient gets a copy of the licence",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: the origin of the two shipped Open Sans files (they match no static blob of google/fonts apache/opensans); this is a question about the files, not a licence claim: the licence text above is by the name table"
+    },
+    "uisfx": {
+      "name": "UI SFX audio (uisfx.com)",
+      "version": "0.4.0 (waveform proof: the decoded message_sent.mp3 / message_received.mp3 correlate 0.99998 with minimal/swipe and minimal/drag-start of npm uisfx@0.4.0)",
+      "licence": "CC0-1.0 (LICENSE-AUDIO of npm uisfx@0.4.0)",
+      "licenceFiles": [
+        "licenses/uisfx.CC0-1.0.txt"
+      ],
+      "noticeHeading": "### UI SFX sounds — CC0 1.0",
+      "textRequired": true,
+      "why": "CC0-1.0: the text of LICENSE-AUDIO of npm uisfx@0.4.0 is licenses/uisfx.CC0-1.0.txt",
+      "scope": "app-package"
+    },
+    "call-tones": {
+      "name": "Call tones busy_tone, default_ringtone, dialing_tone, error_tone",
+      "version": "-",
+      "licence": "no tag or licence line in the files; DECISIONS N84 records Damir's statement that they were synthesized by AI",
+      "licenceFiles": [],
+      "noticeHeading": "### Call tones — UNPROVEN",
+      "textRequired": false,
+      "why": "no text exists for them: no tag or licence line in the files, and the repo holds only DECISIONS N84 (Damir: \"synthesized by AI, entirely made up\")",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: the statement is a record, not a file fact"
+    },
+    "rocksdbsharp": {
+      "name": "RocksDbSharp (curiosity-ai/rocksdb-sharp): vendored source for Mac Catalyst, and the NuGet package RocksDB 0.0.42 (Android, iOS)",
+      "version": "source commit f1cf0ba0 (the nuspec of RocksDB.0.0.42.nupkg names it); the licence of NuGet RocksDB 10.4.2.64152 (Windows) is UNPROVEN and is not claimed by this text",
+      "licence": "BSD-2-Clause (LICENSE of the repo at f1cf0ba0, nuspec license expression of 0.0.42)",
+      "licenceFiles": [
+        "licenses/rocksdbsharp.BSD-2-Clause.txt"
+      ],
+      "noticeHeading": "### RocksDbSharp (vendored managed wrapper, Mac Catalyst only) — BSD-2-Clause",
+      "textRequired": true,
+      "why": "BSD-2-Clause condition 2: binary redistributions reproduce the copyright notice, the conditions and the disclaimer in the documentation or other materials",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: the licence of NuGet package RocksDB 10.4.2.64152 (Windows) is not read from its nuspec; nuget.org is blocked for this work"
+    },
+    "auto-native-import": {
+      "name": "AutoNativeImport.cs (warrenfalk/auto-native-import): compiled from the vendored folder for Mac Catalyst, and a part of RocksDbSharp.dll of RocksDB.0.0.42.nupkg (Android, iOS)",
+      "version": "file header: no version; LICENSE of the repo master 4e94c5e4. In the DLL lib/net10.0/RocksDbSharp.dll of local-nuget/RocksDB.0.0.42.nupkg the metadata holds namespace NativeImport and the type names Auto, Importers, NativeFunctionMissingException and NativeLoadException — the names AutoNativeImport.cs defines; that the code is the same is not proven (the DLL is a modified build)",
+      "licence": "MIT (file header)",
+      "licenceFiles": [
+        "licenses/auto-native-import.MIT.txt"
+      ],
+      "noticeHeading": "### AutoNativeImport — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package"
+    },
+    "rocksdb-native": {
+      "name": "RocksDB native library (facebook/rocksdb)",
+      "version": "Android 3 x librocksdb.so and iOS 2 x librocksdb_full.a: built from facebook/rocksdb commit 3f51c0a1 (branch main, version header 11.2.0), 2026-04-08; Windows: from NuGet RocksDB 10.4.2.64152, not in the repo; Mac Catalyst: a gitignored, machine-local vtool-restamped copy of the NuGet osx-arm64 dylib (Spixi.csproj:113-120; the 10.4.2 package is excluded for maccatalyst at :295)",
+      "licence": "Apache-2.0 or GPL-2.0, at the option of the recipient (README of facebook/rocksdb); LevelDB-derived code under its own BSD-style licence (LICENSE.leveldb); other copyright lines in RocksDB's own source files that these binaries build, under the same dual licence header: \"Copyright (c) 2018, Arm Limited and affiliates\" (util/crc32c_arm64.cc, exported crc32c_arm64), \"Copyright (c) 2015, Red Hat, Inc.\" (utilities/env_mirror.cc, EnvMirror symbols), \"Copyright (c) 2019 Intel Corporation\" (memory/memkind_kmem_allocator.h, memkind symbols); third-party code that has its own row: LZ4, xxHash (5 blocks), PerconaFT, MurmurHash, TimerQueue, LLVM libc++",
+      "licenceFiles": [
+        "licenses/rocksdb.Apache-2.0.txt",
+        "licenses/rocksdb.GPL-2.0.txt",
+        "licenses/rocksdb.LICENSE-leveldb.txt"
+      ],
+      "noticeHeading": "### RocksDB native library — Apache-2.0 or GPL-2.0",
+      "textRequired": true,
+      "why": "Apache-2.0 section 4 (a): a copy of the licence; GPL-2.0: the licence text with the work; LevelDB part: the notice in the documentation",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: the build of the Windows native library (inside the NuGet package, not in the repo); the Mac Catalyst dylib is a local copy of the osx-arm64 file of that package; the source and licence of `__emutls_get_address` (compiler-rt emutls, exported weak by the 3 Android .so)"
+    },
+    "bouncycastle": {
+      "name": "BouncyCastle.Cryptography",
+      "version": "2.6.2",
+      "licence": "MIT (LICENSE.md of bcgit/bc-csharp at release-2.6.2)",
+      "licenceFiles": [
+        "licenses/bouncycastle.MIT.txt"
+      ],
+      "noticeHeading": "### BouncyCastle.Cryptography — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package"
+    },
+    "communitytoolkit-maui": {
+      "name": "CommunityToolkit.Maui",
+      "version": "14.2.0",
+      "licence": "MIT (LICENSE of CommunityToolkit/Maui at 14.2.0)",
+      "licenceFiles": [
+        "licenses/communitytoolkit-maui.MIT.txt"
+      ],
+      "noticeHeading": "### CommunityToolkit.Maui — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package"
+    },
+    "maui": {
+      "name": "Microsoft.Maui.Controls and Microsoft.Maui.Controls.Compatibility",
+      "version": "10.0.71 (both)",
+      "licence": "MIT (LICENSE.txt of dotnet/maui at 10.0.71); Spixi/Platforms/iOS/MauiFilePicker.cs:3 says \"Based on official .NET MAUI code, adapted for iOS-specific requirements including:\" (our file, no copyright line; the MIT text of this row is the text of dotnet/maui at 10.0.71)",
+      "licenceFiles": [
+        "licenses/maui.MIT.txt"
+      ],
+      "noticeHeading": "### Microsoft.Maui.Controls — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package"
+    },
+    "concentus": {
+      "name": "Concentus",
+      "version": "2.2.2",
+      "licence": "BSD-style, three conditions (the LICENSE file the package packs; no SPDX name in it)",
+      "licenceFiles": [
+        "licenses/concentus.LICENSE.txt"
+      ],
+      "noticeHeading": "### Concentus — BSD-style licence",
+      "textRequired": true,
+      "why": "the LICENSE text: binary redistributions reproduce the copyright notice, the conditions and the disclaimer in the documentation or other materials",
+      "scope": "app-package"
+    },
+    "mono-nat": {
+      "name": "Mono.Nat",
+      "version": "3.0.4",
+      "licence": "MIT (LICENSE.md of mono/Mono.Nat at release-v3.0.4)",
+      "licenceFiles": [
+        "licenses/mono-nat.MIT.txt"
+      ],
+      "noticeHeading": "### Mono.Nat — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package"
+    },
+    "newtonsoft-json": {
+      "name": "Newtonsoft.Json",
+      "version": "13.0.4",
+      "licence": "MIT (LICENSE.md of JamesNK/Newtonsoft.Json at 13.0.4)",
+      "licenceFiles": [
+        "licenses/newtonsoft-json.MIT.txt"
+      ],
+      "noticeHeading": "### Newtonsoft.Json — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package"
+    },
+    "onesignal-dotnet": {
+      "name": "OneSignalSDK.DotNet",
+      "version": "6.1.9",
+      "licence": "MIT (LICENSE.md of OneSignal/OneSignal-DotNet-SDK at 6.1.9); the native OneSignal SDKs the package binds are the component onesignal-native",
+      "licenceFiles": [
+        "licenses/onesignal-dotnet.MIT.txt"
+      ],
+      "noticeHeading": "### OneSignalSDK.DotNet — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package"
+    },
+    "plugin-fingerprint": {
+      "name": "Plugin.Fingerprint",
+      "version": "3.0.0-beta.1",
+      "licence": "MS-PL (PackageLicenseExpression and LICENSE of smstuebe/xamarin-fingerprint, branch maui-support)",
+      "licenceFiles": [
+        "licenses/plugin-fingerprint.MS-PL.txt"
+      ],
+      "noticeHeading": "### Plugin.Fingerprint — MS-PL",
+      "textRequired": true,
+      "why": "MS-PL (C): retain all copyright, patent, trademark and attribution notices; (D): a complete copy of the licence with source-form distribution",
+      "scope": "app-package"
+    },
+    "naudio": {
+      "name": "NAudio (Windows only)",
+      "version": "2.3.0",
+      "licence": "MIT (license.txt of naudio/NAudio at v2.3.0)",
+      "licenceFiles": [
+        "licenses/naudio.MIT.txt"
+      ],
+      "noticeHeading": "### NAudio — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package"
+    },
+    "ixian-core": {
+      "name": "Ixian-Core (sibling repo, compiled into the app)",
+      "version": "commit 097341ac (the pinned sibling)",
+      "licence": "MIT (LICENSE of the sibling: \"Copyright (c) 2019 Ixian\"); 133 of the 140 files that IXICore.projitems compiles carry an Ixian header; the other files and the third-party code inside them are the components bigint-chewkeong, crc32-net, base58check, bip39-wordlists, nbitcoin",
+      "licenceFiles": [
+        "licenses/ixian-core.MIT.txt"
+      ],
+      "noticeHeading": "### Ixian-Core — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: which package supplies libargon2 and IXICrypt.dll, which Ixian-Core imports by DllImport and no file of this tree names (not a licence claim)"
+    },
+    "lz4": {
+      "name": "LZ4 library (lz4/lz4), compiled into the RocksDB native binaries",
+      "version": "1.9.4 (the string \"1.9.4\" and the export LZ4_versionString in all 3 Android librocksdb.so and both iOS librocksdb_full.a; the iOS members lz4, lz4file, lz4frame, lz4hc, xxhash are the five lib/ sources of lz4 1.9.4)",
+      "licence": "BSD 2-Clause (lib/LICENSE of lz4/lz4 v1.9.4, \"Copyright (c) 2011-2020, Yann Collet\"; lib/README.md: \"All source material within lib directory are BSD 2-Clause licensed\")",
+      "licenceFiles": [
+        "licenses/lz4.BSD-2-Clause.txt"
+      ],
+      "noticeHeading": "### LZ4 — BSD 2-Clause",
+      "textRequired": true,
+      "why": "BSD-2-Clause condition 2: binary redistributions reproduce the copyright notice, the conditions and the disclaimer in the documentation or other materials",
+      "scope": "app-package"
+    },
+    "xxhash": {
+      "name": "xxHash (Cyan4973/xxHash): the copies in facebook/rocksdb util/xxhash.h, util/xxhash.cc and util/xxph3.h, and the copy in lz4/lz4 lib/xxhash.c",
+      "version": "RocksDB copy: 0.8.1 (XXH_VERSION in util/xxhash.h at 3f51c0a1; exported as ROCKSDB_XXH* by the Android .so; member xxhash.cc of the iOS .a); lz4 copy: 0.6.5 (lib/xxhash.h of lz4 1.9.4; member xxhash of the iOS .a); XXPH3 preview copy: util/xxph3.h of RocksDB (version 0.7.2 by its own text; included by util/hash.cc: XXPH3_* locals in the hash.cc member of the iOS .a, Hash64 exported by the Android .so)",
+      "licence": "BSD 2-Clause, each file header: RocksDB copy \"Copyright (C) 2012-2021 Yann Collet\", lz4 copy \"Copyright (C) 2012-2016, Yann Collet\"; util/xxhash.cc of RocksDB (member xxhash.cc) carries its own block: \"Copyright (C) 2012-2020 Yann Collet\"; util/xxph3.h of RocksDB carries two blocks: \"Copyright (C) 2012-2016, Yann Collet.\" (lines 5-37) and \"Copyright (C) 2019-present, Yann Collet.\" (lines 656-688)",
+      "licenceFiles": [
+        "licenses/xxhash.BSD-2-Clause.txt",
+        "licenses/xxhash-lz4.BSD-2-Clause.txt",
+        "licenses/xxhash-rocksdb-cc.BSD-2-Clause.txt",
+        "licenses/xxhash-xxph3-a.BSD-2-Clause.txt",
+        "licenses/xxhash-xxph3-b.BSD-2-Clause.txt"
+      ],
+      "noticeHeading": "### xxHash — BSD 2-Clause",
+      "textRequired": true,
+      "why": "BSD-2-Clause condition 2: binary redistributions reproduce the copyright notice, the conditions and the disclaimer in the documentation or other materials",
+      "scope": "app-package"
+    },
+    "bigint-chewkeong": {
+      "name": "BigInteger Class Version 1.03 (Chew Keong TAN), Ixian-Core/Crypto/BigInteger.cs",
+      "version": "\"BigInteger Class Version 1.03\" (file header); no upstream URL in the file, no upstream copy found",
+      "licence": "a permission notice in the file header, \"Copyright (c) 2002 Chew Keong TAN\"; no SPDX name is stated",
+      "licenceFiles": [
+        "licenses/bigint-chewkeong.file-header-notice.txt"
+      ],
+      "noticeHeading": "### BigInteger (Chew Keong TAN) in Ixian-Core — permission notice of the file header",
+      "textRequired": true,
+      "why": "the header text: \"provided that the above copyright notice(s) and this permission notice appear in all copies of the Software and that both the above copyright notice(s) and this permission notice appear in supporting documentation\"",
+      "scope": "app-package"
+    },
+    "crc32-net": {
+      "name": "Crc32.NET (force-net/Crc32.NET), Ixian-Core/Crypto/ForceCRC32/*.cs",
+      "version": "v1.2.0 (commit ebdc2861): Crc32Algorithm.cs, Crc32CAlgorithm.cs and SafeProxyC.cs equal the files of that tag apart from an added header comment and a trailing newline; SafeProxy.cs differs from it in 17 lines of expressions (an Ixian edit); v1.1.0, v2.0.0 and master differ more",
+      "licence": "MIT (\"Copyright (c) 2016 force\"); the MIT text is also inside Crc32Algorithm.cs and Crc32CAlgorithm.cs",
+      "licenceFiles": [
+        "licenses/crc32-net.MIT.txt"
+      ],
+      "noticeHeading": "### Crc32.NET in Ixian-Core — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: SafeProxy.cs:3 says \"It based on Robert Vazan native implementations of Crc32C\" (robertvazan/crc32c.net: BSD 3-Clause, Copyright (c) 2014-2021 Robert Važan, at master); whether his code is in these files is not proven (review round 5)"
+    },
+    "base58check": {
+      "name": "Base58Check encoding (adamcaudill/Base58Check), Ixian-Core/Utils/Base58CheckEncoding.cs",
+      "version": "not stated; the file says \"Code received and adapted from https://github.com/adamcaudill/Base58Check/blob/master/src/Base58Check/Base58CheckEncoding.cs\"",
+      "licence": "not readable: the repository adamcaudill/Base58Check is not reachable from the build machine (git clone and raw.githubusercontent.com both fail); the file header is Ixian's MIT header and names no other licence",
+      "licenceFiles": [],
+      "noticeHeading": "### Base58Check in Ixian-Core — UNPROVEN",
+      "textRequired": false,
+      "why": "no text exists to ship: the upstream licence could not be read",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: the licence of adamcaudill/Base58Check (not readable from here)"
+    },
+    "bip39-wordlists": {
+      "name": "BIP-39 wordlists (bitcoin/bips), Ixian-Core/Utils/WordlistSources.cs",
+      "version": "six lists (chinese_simplified, chinese_traditional, english, japanese, spanish, french), each equal to the file of bip-0039/ at bitcoin/bips a7f91321 (master at the time of reading); the other four lists of the BIP (korean, italian, czech, portuguese) are not in the file",
+      "licence": "by bip-0039.mediawiki: \"License: MIT\" and \"This BIP falls under the MIT License.\"; the BIP holds no MIT text and no copyright line, bip-0039-wordlists.md states no licence, and the bips repository has no LICENSE file; the Wordlist.cs and HardcodedWordlistSource code around these lists is NBitcoin code (component nbitcoin)",
+      "licenceFiles": [
+        "licenses/bip39-wordlists.BIP-MIT-statement.txt"
+      ],
+      "noticeHeading": "### BIP-39 wordlists in Ixian-Core — MIT, by the statement of the BIP",
+      "textRequired": true,
+      "why": "the BIP states MIT for itself; the MIT conditions name a copyright notice, and the BIP names its authors (Marek Palatinus, Pavol Rusnak, Aaron Voisine, Sean Bowe) but no copyright line",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: whether the wordlist files carry the same MIT statement as the BIP text (the BIP states it for the BIP; the wordlists page states none)"
+    },
+    "onesignal-native": {
+      "name": "Native OneSignal SDKs bound by OneSignalSDK.DotNet 6.1.9 (OneSignal-Android-SDK, OneSignal-iOS-SDK)",
+      "version": "versions.json of OneSignal-DotNet-SDK at tag 6.1.9 (commit 7db6a33e) reads android 5.9.3, ios 5.5.2; UNPROVEN — question for Damir: the published NuGet package could not be read (nuget.org is blocked), so that it holds exactly those native versions is not verified",
+      "licence": "\"Modified MIT License\" (LICENSE of each SDK repo: Android \"Copyright 2016 OneSignal\", iOS \"Copyright 2017 OneSignal\"): MIT wording plus condition 2 \"All copies of substantial portions of the Software may only be used in connection with services provided by OneSignal.\"; the Android text also lists \"portions from the Google GcmClient demo project\" (Apache-2.0), \"RootTools\" (Apache-2.0 or GPL-2.0) and \"ShortcutBadger\"",
+      "licenceFiles": [
+        "licenses/onesignal-android-sdk.Modified-MIT.txt",
+        "licenses/onesignal-ios-sdk.Modified-MIT.txt"
+      ],
+      "noticeHeading": "### OneSignal native SDKs — Modified MIT License",
+      "textRequired": true,
+      "why": "the licence text: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: the native versions inside the published OneSignalSDK.DotNet 6.1.9 package (the repo file versions.json says 5.9.3 / 5.5.2)"
+    },
+    "perconaft": {
+      "name": "PerconaFT locktree (percona/PerconaFT) as vendored in facebook/rocksdb utilities/transactions/lock/range/range_tree/lib/",
+      "version": "in facebook/rocksdb at 3f51c0a1 (the build commit of the Android and iOS binaries); the PerconaFT version is not stated (README: \"originally come from https://github.com/percona/PerconaFT/\", modified: \"Make locktree usable outside of PerconaFT library\", \"Add shared read-only lock support\"); 312 toku:: exports in the arm64 and armeabi-v7a .so (311 x86_64), 375 defined toku:: lines in the iOS arm64 .a (llvm-nm -C; 336 text symbols); members concurrent_tree keyrange lock_request locktree manager range_buffer treenode txnid_set wfg dbt memarena",
+      "licence": "the header of 35 files of that directory (\"This file is part of PerconaFT. Copyright (c) 2006, 2015, Percona and/or its affiliates\") offers GPL version 2, GNU Affero GPL version 3 and Apache License 2.0, each in its own paragraph; the directory holds COPYING.GPLv2, COPYING.AGPLv3, COPYING.APACHEv2 and a README",
+      "licenceFiles": [
+        "licenses/perconaft.GPL-2.0.txt",
+        "licenses/perconaft.AGPL-3.0.txt",
+        "licenses/perconaft.Apache-2.0.txt",
+        "licenses/perconaft.PerconaFT-file-header.txt"
+      ],
+      "noticeHeading": "### PerconaFT locktree in the RocksDB native binaries — GPL-2.0, AGPL-3.0 or Apache-2.0 by its header",
+      "textRequired": true,
+      "why": "the header text names three licences and the directory ships the three texts with the code",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: which of the three licences of the PerconaFT header Spixi takes (the repo states no choice, as for RocksDB itself)"
+    },
+    "murmurhash": {
+      "name": "MurmurHash (Austin Appleby) in facebook/rocksdb util/murmurhash.cc",
+      "version": "not stated; exported symbol MurmurHashNeutral2 in the arm64 and armeabi-v7a .so, MurmurHash64A instead in the x86_64 .so (util/murmurhash.h picks it on __x86_64__); member murmurhash.cc in the iOS .a",
+      "licence": "the file states: \"All code is released to the public domain. For business purposes, Murmurhash is under the MIT license.\" It holds no MIT text and no author copyright line",
+      "licenceFiles": [
+        "licenses/murmurhash.file-statement.txt"
+      ],
+      "noticeHeading": "### MurmurHash in the RocksDB native binaries — the file's own statement",
+      "textRequired": true,
+      "why": "the file's own statement is the only licence text that exists for it",
+      "scope": "app-package"
+    },
+    "timer-queue": {
+      "name": "TimerQueue (crazygaze.com, \"portable C++ timer queue\") in facebook/rocksdb util/timer_queue.h",
+      "version": "not stated (\"Borrowed from http://www.crazygaze.com/blog/2016/03/24/portable-c-timer-queue/\"); 15 TimerQueue symbols in each Android .so; used by utilities/blob_db",
+      "licence": "CC0, by the statement in the file (\"The source code in this article is licensed under the CC0 license … No attribution is required\")",
+      "licenceFiles": [
+        "licenses/timer-queue.file-statement.txt"
+      ],
+      "noticeHeading": "### TimerQueue in the RocksDB native binaries — CC0 by the file's own statement",
+      "textRequired": true,
+      "why": "the file's own statement is the only licence text that exists for it",
+      "scope": "app-package"
+    },
+    "llvm-libcxx": {
+      "name": "LLVM libc++, libc++abi, libunwind and compiler-rt (__emutls_get_address), statically linked into the 3 Android librocksdb.so",
+      "version": "NDK r29 by .note.android.ident (\"r29\", API level 23, build 14206865); the mangled names carry the libc++ ABI tag \"ne210000\"; 8182 std::__ndk1 exports (arm64; 8208 armeabi-v7a, 8186 x86_64), 33 __cxxabiv1 exports, the string \"libc++abi: terminating due to %s exception\". UNPROVEN — question for Damir: the exact LLVM version inside NDK r29 (the LICENSE.TXT files are the same bytes at llvmorg-19.1.0, 20.1.0, 21.1.0 and main)",
+      "licence": "Apache License v2.0 with LLVM Exceptions (the LICENSE.TXT of libcxx and of libcxxabi, each also holding the MIT and University of Illinois/NCSA texts for the library)",
+      "licenceFiles": [
+        "licenses/llvm-libcxx.Apache-2.0-with-LLVM-exception.txt",
+        "licenses/llvm-libcxxabi.Apache-2.0-with-LLVM-exception.txt",
+        "licenses/llvm-libunwind.Apache-2.0-with-LLVM-exception.txt",
+        "licenses/llvm-compiler-rt.Apache-2.0-with-LLVM-exception.txt"
+      ],
+      "noticeHeading": "### LLVM libc++ and libc++abi in the Android binaries — Apache-2.0 with LLVM Exceptions",
+      "textRequired": true,
+      "why": "the LICENSE.TXT of the LLVM project is the text of the libraries",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: the exact LLVM version of NDK r29 (the libcxx / libcxxabi texts do not differ between llvmorg-19.1.0 and main); the exact source of __emutls_get_address (compiler-rt is the LLVM runtime that defines it; not proven for this binary). libunwind: 18 / 1 / 20 strings \"libunwind: …\" in arm64 / armeabi-v7a / x86_64, no _Unwind* export"
+    },
+    "nbitcoin": {
+      "name": "NBitcoin (MetacoSA/NBitcoin) code in Ixian-Core: Utils/Wordlist.cs, KDTable.cs, WordlistSources.cs (HardcodedWordlistSource), Mnemonics.cs, BitWriter.cs",
+      "version": "UNPROVEN — question for Damir: the NBitcoin version is not stated in the files. Closest blobs found in the NBitcoin history (unique non-trivial lines shared, Ixian file / NBitcoin blob): Wordlist.cs 192/216 with bdac4b64 (2020-01-16); KDTable.cs 38/52 with a615d201 (2019-08-19); BitWriter.cs 109/119 with a615d201; WordlistSources.cs 17/29 with 8ee8441f (2021-06-21, IWordlistSource.cs); Mnemonics.cs 96/177 with 689fee7a (2016-08-24, Mnemonic.cs). Against the NBitcoin tree at 9b4ecc0e: Wordlist.cs 89/91, Mnemonics.cs 68/88, BitWriter.cs 40/47, WordlistSources.cs 17/17, KDTable.cs 14/16 long lines. The comment of Mnemonics.cs:314 (a StackOverflow URL) is in Mnemonic.cs of NBitcoin (line 234 at 689fee7a, line 216 at 9b4ecc0e)",
+      "licence": "MIT (LICENSE of MetacoSA/NBitcoin; the copyright line differs by version: \"Copyright (c) 2014 Nicolas Dorier\" 2014-08, \"2014 Metaco SA\" 2015-08, \"2019 Metaco SA\" 2019-08, \"2021 / 2022 / 2023 Metaco SA\" later; the versions from 660743e8 to 75efb082 differ from 1348e841 only in the copyright line, e881f0d4 also lacks the final newline; before 2014-08 the LICENSE was the LGPL v3). The shipped text is the LICENSE at 1348e841 (2019)",
+      "licenceFiles": [
+        "licenses/nbitcoin.MIT.txt"
+      ],
+      "noticeHeading": "### NBitcoin code in Ixian-Core — MIT",
+      "textRequired": true,
+      "why": "MIT: the copyright notice and the permission notice in all copies or substantial portions",
+      "scope": "app-package",
+      "unproven": "UNPROVEN — question for Damir: which NBitcoin version Ixian copied, hence which copyright line (2014 Nicolas Dorier / 2014 Metaco SA / 2019 Metaco SA) applies"
+    },
+    "murmurhash3-csharp": {
+      "name": "MurmurHash3 C# variant (Elliott B. Edwards; algorithm by Austin Appleby) in the vendored RocksDbSharp/BinaryComparer.cs",
+      "version": "not stated; Spixi/Platforms/MacCatalyst/RocksDbSharp/BinaryComparer.cs lines 94-103 (vendored curiosity-ai/rocksdb-sharp @ f1cf0ba0); the string MurMurHash3 is also in RocksDbSharp.dll of RocksDB.0.0.42.nupkg (Android, iOS; its body was not read)",
+      "licence": "the file's own statement: \"This code is public domain.\", \"placed into the public domain as a gist\"; it holds no MIT text and no copyright line",
+      "licenceFiles": [
+        "licenses/murmurhash3-csharp.file-statement.txt"
+      ],
+      "noticeHeading": "### MurmurHash3 C# variant in the vendored RocksDbSharp — the file's own statement",
+      "textRequired": true,
+      "why": "the file's own statement is the only licence text that exists for it",
+      "scope": "app-package"
+    }
+  },
+  "scans": {
+    "native-binaries": {
+      "files": [
+        "Spixi/Platforms/Android/lib/arm64-v8a/librocksdb.so",
+        "Spixi/Platforms/Android/lib/armeabi-v7a/librocksdb.so",
+        "Spixi/Platforms/Android/lib/x86_64/librocksdb.so",
+        "Spixi/Platforms/iOS/NativeLibraries/RocksDB.xcframework/ios-arm64/librocksdb_full.a",
+        "Spixi/Platforms/iOS/NativeLibraries/RocksDB.xcframework/ios-arm64_x86_64-simulator/librocksdb_full.a"
+      ],
+      "method": "llvm-nm -D, llvm-readelf -d and strings on the .so; ar t, llvm-nm and strings on the .a (the simulator .a is a fat Mach-O: arm64 and x86_64 slices read separately)",
+      "found": "LZ4 1.9.4 (81 LZ4_* exports per .so; 100 LZ4_* text symbols in the iOS device .a), xxHash (49 ROCKSDB_XXH* exports per .so; members xxhash.cc and xxhash in the .a), RocksDB own code; NOT found: zstd library code (only RocksDB own ZSTD wrapper classes and the string \"ZSTD 1.1.3+ is not linked with the binary\"), snappy (string \"Snappy not supported in this build\"), bzip2, zlib (no deflate / inflate / adler32 / BZ2_ symbol); .so NEEDED: libm, libdl, libc; the iOS simulator x86_64 slice holds 5 members, lz4 lz4file lz4frame lz4hc xxhash",
+      "not-scanned": "the native libraries inside NuGet RocksDB 10.4.2.64152 (Windows, Mac Catalyst): the package could not be read; the 8 files under runtimes/ in local-nuget/RocksDB.0.0.42.nupkg are 52-byte stubs",
+      "symbol-families-arm64-so": "rocksdb:: 13207, std::__ndk1 (libc++) 8182 names, toku:: 312, LZ4_* 81, ROCKSDB_XXH* 49, TimerQueue 15, __cxxabiv1 33 + __cxa_*, MurmurHashNeutral2 1, crc32c_* 3, __emutls_get_address 1 (compiler-rt, exported weak; UNPROVEN — question for Damir), 18 libunwind strings (0 _Unwind* exports; armeabi-v7a 1, x86_64 20)",
+      "member-to-source": "the 365 .a members (363 distinct names) mapped by file name to facebook/rocksdb at 3f51c0a1 through src.mk: 358 sources; unmapped: lz4, lz4file, lz4frame, lz4hc, xxhash (lz4 1.9.4, lib/xxhash.c) and build_version.cc (generated). The WHOLE text (not the first 60 / 80 lines) of 843 files (377 paths — a name such as slice.cc matches several paths, java/rocksjni included — and every header of their directories) was searched line by line for: copyright, (c) <year>, redistribution / permission / licence words, public domain, released to, copied / borrowed / adapted from / originally from / taken from / derived from, and URLs; it was a pattern search with a look at each hit, not a read of every line by a person. Not shipped, found in a mapped source, not compiled for these targets: util/crc32c.cc:399-428 (Ferry Toth) is the notice of crc32c_3way, which sits in util/crc32c.cc:429-1104 under #if defined(__SSE4_2__) && defined(__PCLMUL__); the x86_64 .so holds 0 pclmul instructions (llvm-objdump -d, 1,866,299 lines) and no crc32c_3way symbol, the arm64 and armeabi-v7a .so and the iOS arm64 crc32c.cc.o member use the HAVE_ARM64_CRC / table path (no 3way, no pclmul symbol), and the iOS x86_64 simulator slice holds the 5 lz4 / xxhash members only. Licence blocks found: PerconaFT (11 .cc and the lib/ headers), util/xxhash.cc and util/xxhash.h, BOTH blocks of util/xxph3.h (5-37 and 656-688), murmurhash.cc / .h, timer_queue.h (CC0), crc32c_arm64 (Arm), env_mirror.cc (Red Hat), memkind_kmem_allocator (Intel), crc32c_ppc*.h / ppc-opcode.h (IBM; no ppc symbol in the binaries); java/rocksjni/merge_operator.cc \"Copyright (c) 2014, Vlad Balan\" (the .so exports 0 Java_org_rocksdb symbols and holds no rocksjni string: the JNI sources are not in the binaries). Origin comments with no licence text in the file (facts): table/merging_iterator.cc:308 \"optimization adapted from Pebble\" (cockroachdb/pebble, LICENSE at master: \"Copyright (c) 2011 The LevelDB-Go Authors\", redistribution text, SHA-256 d1f46db68f5899a5…); util/string_util.cc:476 \"Copied from folly/string.cpp\"; util/crc32c.cc:1136 \"crc32c combine, copied with permission from folly\"; util/coding.h:71 \"Borrowed from\" fbthrift VarintUtils-inl.h (zigzag, 2 lines); util/slice.cc:243 \"Originally from wdt/util/EncryptionUtils.cpp\" (toHex); util/xxhash.h:3591 and util/xxph3.h:878 \"Adapted from\" google/highwayhash (util/xxhash.h:4291 is a quoted comment above XXH3_scrambleAcc_avx512; no highwayhash code follows it); util/thread_local.cc:229 a gperftools URL on the Windows-only #else branch (not built for Android, iOS); util/fastrange.h:7 a link to lemire/fastrange; util/hash.cc:150 \"Adapted from XXH3_len_9to16_128b\"; db/kv_checksum.h:80 a constant \"taken from head -c8 /dev/urandom\" (not a source); util/hash.cc:27 MurmurHash1 with a link to aappleby/smhasher (in the compiled rocksdb::Hash); util/mutexlock.h:157 \"Inspired by Guava\"; util/distributed_mutex.h:12 and port/jemalloc_helper.h:94 folly links. The rule: every hit in a compiled member that names an outside origin of code, or a licence or copyright block, is listed; links to papers, bug trackers, Q&A sites and design notes are not (review round 5); the doc holds the same list. Found, NOT compiled: util/work_queue.h (an excerpt from Facebook's zstd repo, its own Facebook BSD / GPLv2 block; only util/work_queue_test.cc includes it). The 127 headers that the mapped sources include from other directories (include/, the PerconaFT lib/ft and portability, port/) were read whole too (review round 4): only PerconaFT and include/rocksdb/utilities/env_mirror.h (Red Hat) besides links to RocksDB's own pages. Compiled-or-not test of the other origin comments: Pebble (merging_iterator.cc:308) COMPILED (comment on RocksDB's own code in a mapped member; 96 MergingIterator symbols); folly strerror_r trick (string_util.cc:476) COMPILED (non-Windows branch); folly crc32c combine (crc32c.cc:1136) COMPILED (Crc32cCombine exported by all 3 .so); fbthrift zigzag (coding.h:71) COMPILED (used by table/block_based/index_builder.cc); wdt toHex (slice.cc:243) COMPILED (slice.cc member); highwayhash (its code at xxhash.h:3591 and xxph3.h:878 sits under the PowerPC VSX / AltiVec guards) NOT COMPILED for these targets; gperftools (thread_local.cc:229) NOT COMPILED (inside #ifdef OS_WIN). No text of these origins ships. UNPROVEN — question for Damir: whether a text is wanted for the Pebble, folly, fbthrift, wdt, highwayhash, fastrange, smhasher and Guava fragments."
+    },
+    "ixian-core-headers": {
+      "compiled-files": 140,
+      "with-an-Ixian-header": 133,
+      "without": [
+        "Crypto/BigInteger.cs",
+        "Crypto/ForceCRC32/Crc32Algorithm.cs",
+        "Crypto/ForceCRC32/Crc32CAlgorithm.cs",
+        "Crypto/ForceCRC32/SafeProxy.cs",
+        "Crypto/ForceCRC32/SafeProxyC.cs",
+        "Streaming/GroupChat.cs (no header, no third-party marker)",
+        "Utils/AddressComparer.cs (no header, no third-party marker)"
+      ],
+      "third-party-markers-in-Ixian-headed-files": [
+        "Utils/Base58CheckEncoding.cs: \"Code received and adapted from https://github.com/adamcaudill/Base58Check\"",
+        "Utils/WordlistSources.cs: the BIP-39 wordlists (no marker in the file; equal to bitcoin/bips)",
+        "Utils/Mnemonics.cs:314: a StackOverflow URL comment that is also in NBitcoin Mnemonic.cs (the file is NBitcoin code: 68/88 long lines shared); Utils/Wordlist.cs, KDTable.cs, BitWriter.cs and the class HardcodedWordlistSource of WordlistSources.cs carry an Ixian header and are NBitcoin code too (no marker in the files)"
+      ],
+      "native-imports": "Platform/NativeMethods.cs has DllImport(\"libargon2\") and Crypto/KeyDerivation.cs has DllImport(\"IXICrypt.dll\"); no such binary is tracked in the repo and Spixi.csproj names neither, so this tree ships none of them; whether a package supplies them is not proven"
+    },
+    "body-overlap": {
+      "method": "every file that IXICore.projitems compiles (140) and every .cs of Spixi and Spixi-PushService outside the vendored RocksDbSharp folder (235) against the .cs lines (30+ characters, not using / namespace / comment lines) of the NBitcoin tree at 9b4ecc0e (52371 lines) and of Crc32.NET v1.2.0 (223 lines); a file with 3 or more shared lines is listed",
+      "found": {
+        "Utils/Wordlist.cs": "89 of 91 lines (NBitcoin)",
+        "Utils/Mnemonics.cs": "68 of 88",
+        "Utils/BitWriter.cs": "40 of 47",
+        "Utils/WordlistSources.cs": "17 of 17 (HardcodedWordlistSource)",
+        "Utils/KDTable.cs": "14 of 16",
+        "Crypto/ForceCRC32/Crc32Algorithm.cs": "37 of 51 (Crc32.NET)",
+        "Crypto/ForceCRC32/Crc32CAlgorithm.cs": "36 of 50",
+        "Crypto/ForceCRC32/SafeProxy.cs": "20 of 25"
+      },
+      "others": "3 or 4 shared lines in 5 Core files and 2 Spixi files — common lines, no copy",
+      "headers-of-Spixi": "259 .cs / .xaml files of Spixi and Spixi-PushService (RocksDbSharp folder excluded): none carries a copyright line; the marker words (derived from, adapted, based on, borrowed, copied) matched lines that are prose about our own code and one line that names a source: Spixi/Platforms/iOS/MauiFilePicker.cs:3 (see the maui row). The vendored RocksDbSharp folder (43 .cs, read whole for copyright / licence / public domain / derived / adapted / borrowed / copied / http): line 2 of each file names the upstream and commit; besides it only BinaryComparer.cs:94-103 (MurmurHash3, own row), AutoNativeImport.cs:10 (own row) and Native.cs:10 (a source URL of RocksDB c.h v10.4.2); bodies are held by MANIFEST.sha256, not compared with upstream here"
+    }
+  },
+  "method-and-limits": {
+    "not-covered": [
+      "the transitive NuGet packages of the packages named",
+      "the .NET / MAUI / Android / iOS runtimes and SDK libraries",
+      "code inside a native binary that exports no symbol and has no archive member of its own",
+      "code reused without a marker from an upstream that is not named in this inventory",
+      "the natives inside NuGet packages that could not be read (RocksDB 10.4.2.64152, OneSignalSDK.DotNet 6.1.9)",
+      "the bodies of RocksDbSharp.dll of RocksDB.0.0.42.nupkg (read for type names and the nuspec only), and the bodies of the vendored RocksDbSharp files against their upstream (held only by MANIFEST.sha256)",
+      "the DllImport names libargon2 (Platform/NativeMethods.cs) and IXICrypt.dll (Crypto/KeyDerivation.cs) of Ixian-Core: no binary of this tree holds or names them — UNPROVEN — question for Damir: which package supplies them (not a licence claim)"
+    ]
+  }
+}

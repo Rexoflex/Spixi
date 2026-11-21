@@ -746,6 +746,8 @@ const isMainModule = (() => {
   try { return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]); }
   catch (_) { return false; }
 })();
+/* r2C-9: a failing run ends with a `FAILED:` block like the other harnesses (an empty line, the line `FAILED:`, every problem line, at most 50): the CI annotation step publishes the lines after it */
+const failBlock = (lines) => { console.log('\nFAILED:'); for (const l of lines.slice(0, 50)) console.log('  ' + l); if (lines.length > 50) console.log('  … ' + (lines.length - 50) + ' more'); };
 if (isMainModule) {
   const args = process.argv.slice(2);
   const val = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
@@ -754,13 +756,14 @@ if (isMainModule) {
       const st = selfTest();
       for (const p of st.problems) console.log('  \u2717 selftest: ' + p);
       console.log('x-parser-crosscheck --selftest: ' + (st.problems.length ? 'FAILED' : 'OK') + ' — ' + (st.total - st.problems.length) + ' / ' + st.total + ' hand-made pairs judged as expected (JS: jsPairProblems; CSS: cssDeletionProblems + cssPairProblems)');
-      if (st.problems.length) process.exit(1);
+      if (st.problems.length) { failBlock(st.problems.map((p) => 'selftest: ' + p)); process.exit(1); }
       if (args.includes('--selftest')) process.exit(0);
     }
     if (args.includes('--corpus')) {
       const r = await runCorpus();
       for (const p of r.problems) console.log('  \u2717 ' + p);
       console.log('x-parser-crosscheck --corpus: ' + (r.problems.length ? 'FAILED' : 'OK') + ' — ' + r.pass + ' / ' + r.total + ' cases pass (expected output or expected throw; acorn token equality on every JS case that does not throw, except ' + r.v8Cases + ' marked acorn:false — V8 compiles input and output alike there)');
+      if (r.problems.length) failBlock(r.problems);
       process.exit(r.problems.length ? 1 : 0);
     }
     let css = args.includes('--lean-css'), js = args.includes('--lean-js');
@@ -773,6 +776,7 @@ if (isMainModule) {
     const r = crosscheck({ committed, packaged, css, js });
     for (const p of r.problems.slice(0, 40)) console.log('  \u2717 ' + p);
     if (r.problems.length > 40) console.log('  … ' + (r.problems.length - 40) + ' more');
+    if (!r.n || (js && !r.n.js) || (css && !r.n.css)) { console.log('x-parser-crosscheck: FAILED (' + r.problems.length + ' problem(s)) — stopped before the comparison'); failBlock(r.problems); process.exit(1); }
     const n = r.n;
     console.log('x-parser-crosscheck: ' + (r.problems.length ? 'FAILED (' + r.problems.length + ' problem(s))' : 'OK') + ' — lean ' + [css && 'css', js && 'js'].filter(Boolean).join(',')
       + (packaged ? ' (packaged ' + packaged + ')' : ' (stripped in memory)')
@@ -781,9 +785,11 @@ if (isMainModule) {
       + (css ? ' · css: ' + n.sheets + ' sheets idempotent, independent tokens equal, only kept comments left, changed only at a removed comment and its white space' : (n.legacy ? ' · css: spixi.tokens.css \u2261 today\'s no-flag stripCssComments (lean CSS off, #1478)' : ''))
       + ' · lean difference: ' + [js && 'js ' + (n.js.changed || 0) + ' changed / ' + (n.js.removed || 0) + ' comments removed / ' + (n.js.beyond || 0) + ' kept beyond this file\'s model', css && 'css ' + (n.css.changed || 0) + ' changed / ' + (n.css.removed || 0) + ' comments removed / ' + (n.css.beyond || 0) + ' kept beyond this file\'s model'].filter(Boolean).join(', ')
       + ' · ' + Math.round((Date.now() - t0) / 100) / 10 + ' s');
+    if (r.problems.length) failBlock(r.problems);
     process.exit(r.problems.length ? 1 : 0);
   } catch (e) {
     console.log('x-parser-crosscheck: FAILED — ' + (e && e.message));
+    failBlock(['x-parser-crosscheck: ' + (e && e.message)]);
     process.exit(1);
   }
 }

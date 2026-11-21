@@ -48,8 +48,8 @@
  *      files as directories are named, no crash).
  *  S3  the count guard: one external script missing → `compared NOTHING … 2 of 3`.
  *  S4  --out (lean) pre-flight: a directory in place of a target → exit 1 REFUSED, nothing replaced / left / created (a link target too, where links can be made).
- *  S5  --out inside the source folder → refused; a sibling with the same name prefix is fine; out == the source folder (lean): refused WITHOUT --in-place (nothing written), exit 0
- *      + GATE 1 OK WITH --in-place; a no-flag --out into a copy's own source folder → exit 0, 1 file written (#46 r2 C-3).
+ *  S5  --out inside the source folder → refused; a sibling of the project folder Spixi/ with the same name prefix, and a folder under Spixi/obj, are fine (leanfollow R2 / r1S-4: a sibling of Raw/html and Resources/Raw-sibling are inside Resources and refused; round 2 r2S-2: Spixi/Resources-sibling is inside the project folder outside obj and bin and refused); out == the source folder (lean): refused WITHOUT --in-place (nothing written), exit 0
+ *      + GATE 1 OK WITH --in-place; a no-flag --out into a copy's own source folder → (leanfollow R2, was: exit 0, 1 file written, #46 r2 C-3) refused WITHOUT --in-place, exit 0 with 1 file written WITH it.
  *  S6  --out two phases with a fault injected into fs (a --import preload patches writeFileSync / renameSync of the child): phase 1 → nothing changed, own temp
  *      files and made folders gone; phase 2 → "THE OUT FOLDER IS NOT CONSISTENT: 3 of N …", no target deleted.
  *  S7  CLI edges: --out + --check, one-dash / stray words, --lean-j, no arguments → exit 2 (single-mode calls only: the combined modes are S12); where the env SPIXI_PACKAGED_LEAN is read.
@@ -667,9 +667,22 @@ export default async function (h) {
           if (!existsSync(outside)) p.push('removing the test link removed its target folder');
         }
       }
-      const sib = T2.raw + '-sibling';                      // a sibling that only SHARES the name prefix is not inside it
-      const rs = sr(T2, ['--out', sib, '--lean-css']);
-      if (rs.code !== 0 || !existsSync(pjoin(sib, 'wallet_sent.html'))) p.push('a sibling folder whose name starts with the source folder name: ' + brief2(rs) + ' (want exit 0 — not inside)');
+      // leanfollow R2: the rule now covers Resources/Raw, not only Raw/html. A sibling of Raw/html is a folder INSIDE Raw: refused. A sibling of Raw that only SHARES the name prefix is not inside it.
+      const sibHtml = T2.raw + '-sibling';
+      const rh = sr(T2, ['--out', sibHtml, '--lean-css']);
+      if (rh.code !== 1 || !rh.stderr.includes('nothing was written') || existsSync(sibHtml)) p.push('a sibling of the source folder inside Resources/Raw (html-sibling): ' + brief2(rh) + ' (want exit 1, nothing written: it is inside the asset folder)');
+      // leanfollow round 1 (r1S-4): the rule covers the WHOLE Spixi/Resources folder now, so Resources/Raw-sibling (was: exit 0) is refused; the sibling that only SHARES the name prefix
+      // is now a sibling of Resources (Spixi/Resources-sibling), not inside it
+      const sibRaw = pdirname(T2.raw) + '-sibling', rr = sr(T2, ['--out', sibRaw, '--lean-css']);
+      if (rr.code !== 1 || !rr.stderr.includes('nothing was written') || existsSync(sibRaw)) p.push('Resources/Raw-sibling (inside Resources): ' + brief2(rr) + ' (want exit 1, nothing written: r1S-4)');
+      // leanfollow round 2 (r2S-2): the project folder Spixi/ is refused outside obj and bin, so the old allowed neighbour Spixi/Resources-sibling (was: exit 0) is now refused (old -> new:
+      // Spixi/Resources-sibling exit 0 -> exit 1 'the project folder'); the allowed neighbours are a sibling of the project folder (Spixi-sibling, shares its name prefix) and a folder under Spixi/obj
+      const rps = pdirname(pdirname(T2.raw)) + '-sibling', rpr = sr(T2, ['--out', rps, '--lean-css']);
+      if (rpr.code !== 1 || !rpr.stderr.includes('the project folder') || existsSync(rps)) p.push('Spixi/Resources-sibling (inside the project folder, outside obj and bin): ' + brief2(rpr) + ' (want exit 1 "the project folder", nothing written: r2S-2)');
+      for (const sib of [pdirname(pdirname(pdirname(T2.raw))) + '-sibling', pjoin(pdirname(pdirname(pdirname(T2.raw))), 'obj', 'Resources-sibling')]) {   // a sibling of the project folder that only SHARES its name prefix; a folder under Spixi/obj
+        const rs = sr(T2, ['--out', sib, '--lean-css']);
+        if (rs.code !== 0 || !existsSync(pjoin(sib, 'wallet_sent.html'))) p.push('an allowed folder ' + sib.slice(sib.indexOf('t2')) + ': ' + brief2(rs) + ' (want exit 0 — outside the project folder, or under obj)');
+      }
       // out == the source folder itself (#46 r2 S-2): a lean strip in place needs --in-place — refused without it, the folder untouched
       const snap = (d) => filesUnder(d).map((f) => f + ':' + createHash('sha256').update(readRaw(pjoin(d, f))).digest('hex').slice(0, 12)).join('|');
       const before = snap(T2.raw);
@@ -680,11 +693,14 @@ export default async function (h) {
       if (inpl.code !== 0 || /REFUSED/.test(inpl.out) || snap(T2.raw) === before) p.push('out == the source folder with --in-place: ' + brief2(inpl) + ' (want exit 0 and the folder stripped)');
       const g1 = sr(T1, ['--check', T2.raw, '--lean-css']);
       if (g1.code !== 0 || !/GATE 1 OK — lean css/.test(g1.stdout)) p.push('GATE 1 on the in-place package: ' + brief2(g1) + ' (want exit 0 "GATE 1 OK")');
-      // a NO-FLAG --out into the source folder of a copy still works as at the base: exit 0, one file (the tokens strip)
+      // a NO-FLAG --out into the source folder of a copy: before leanfollow R2 exit 0 with one file; now it is refused like the lean one (the same function), and allowed with --in-place (exit 0, one file, the tokens file stripped)
       const T3 = mkTree('t3');
-      const nf = sr(T3, ['--out', T3.raw]);
-      if (nf.code !== 0 || !/1 file\(s\) written/.test(nf.stdout) || /REFUSED/.test(nf.out) || readRaw(pjoin(T3.raw, 'spixi.tokens.css'), 'utf8') === readRaw(pjoin(T1.raw, 'spixi.tokens.css'), 'utf8')) p.push('a no-flag --out into the source folder of a copy: ' + brief2(nf) + ' (want exit 0, "1 file(s) written", the tokens file stripped)');
-      rowS('--out (lean, C-4 / r2 S-2): an out folder INSIDE the source folder (a copy of Raw/html, its own script; also one named `..lean`, `...` or `..a/b`, #46 r3 B-4; also a link inside it that points outside, #46 r4 B-2) → exit 1 "inside the source folder … nothing was written" and nothing created; a sibling that shares only the name prefix is fine; out == the source folder → exit 1 "REFUSED … needs --in-place … nothing was written" (the folder untouched), exit 0 with --in-place and GATE 1 OK on the result; a NO-FLAG --out into the source folder of a copy → exit 0, 1 file', p);
+      const before3 = snap(T3.raw);
+      const nf0 = sr(T3, ['--out', T3.raw]);
+      if (nf0.code !== 1 || !nf0.stderr.includes('is the source folder; a strip in place needs --in-place; nothing was written') || snap(T3.raw) !== before3) p.push('a no-flag --out into the source folder of a copy, no --in-place: ' + brief2(nf0) + ' (want exit 1 "is the source folder; a strip in place needs --in-place; nothing was written" and the folder untouched)');
+      const nf = sr(T3, ['--out', T3.raw, '--in-place']);
+      if (nf.code !== 0 || !/1 file\(s\) written/.test(nf.stdout) || /REFUSED/.test(nf.out) || readRaw(pjoin(T3.raw, 'spixi.tokens.css'), 'utf8') === readRaw(pjoin(T1.raw, 'spixi.tokens.css'), 'utf8')) p.push('a no-flag --out --in-place into the source folder of a copy: ' + brief2(nf) + ' (want exit 0, "1 file(s) written", the tokens file stripped)');
+      rowS('--out (lean, C-4 / r2 S-2): an out folder INSIDE the source folder (a copy of Raw/html, its own script; also one named `..lean`, `...` or `..a/b`, #46 r3 B-4; also a link inside it that points outside, #46 r4 B-2) → exit 1 "inside the source folder … nothing was written" and nothing created; a sibling of the project folder Spixi that shares only its name prefix, and a folder under Spixi/obj, are fine; Spixi/Resources-sibling is refused (r2S-2), a sibling of Raw/html and Resources/Raw-sibling (inside Resources) are refused (leanfollow R2, r1S-4); out == the source folder → exit 1 "REFUSED … needs --in-place … nothing was written" (the folder untouched), exit 0 with --in-place and GATE 1 OK on the result; a NO-FLAG --out into the source folder of a copy → exit 1 without --in-place, exit 0 with it, 1 file', p);
     }
 
     // S6 — C-4: the two phases, with a fault injected into fs (a preload patches writeFileSync / renameSync of the child process only)
@@ -887,11 +903,11 @@ export default async function (h) {
       const X = pjoin(tmpC, 'm-a'), X2 = pjoin(tmpC, 'm-b'), Y = Pnone.dir;
       const ONE = /give exactly one of --out \/ --check \/ --stats \/ --stdout \(got /;
       const TWICE = (f) => new RegExp(f + ' given 2 times \\(each of --out / --check / --stdout at most once\\)');
-      const INPL = /--in-place is valid only together with --out <dir> and --lean-css/;
+      const INPL = /--in-place is valid only together with --out <dir>(?!\s+and)/;   // leanfollow R2: with no --out it is a usage error (the other-folder case is r1S-6, below)
       const table = [
         [['--check', Y, '--stats'], ONE], [['--check', Y, '--stdout', 'spixi.tokens.css'], ONE], [['--stats', '--stdout', 'spixi.tokens.css'], ONE], [['--stats', '--check', Y], ONE],
         [['--stats', '--stats'], ONE], [['--check', Y, '--check', Y], TWICE('--check')], [['--out', X, '--out', X2], TWICE('--out')], [['--stdout', 'spixi.tokens.css', '--stdout', 'spixi.tokens.css'], TWICE('--stdout')],
-        [['--in-place'], INPL], [['--in-place', '--lean-css'], INPL], [['--out', X, '--in-place'], INPL], [['--check', Y, '--in-place', '--lean-css'], INPL], [['--stats', '--in-place', '--lean-js'], INPL],
+        [['--in-place'], INPL], [['--in-place', '--lean-css'], INPL], [['--check', Y, '--in-place', '--lean-css'], INPL], [['--stats', '--in-place', '--lean-js'], INPL],
         [['--out', X, '--out', X2, '--lean-css'], TWICE('--out')], [['--check', Y, '--lean-css', '--stats'], ONE],
       ];
       for (const [args, re] of table) {
@@ -904,7 +920,12 @@ export default async function (h) {
       if (sd.code !== 0 || sd.stdout.length < 1000) p.push('--stdout spixi.tokens.css alone: ' + brief2(sd));
       if (no.code !== 2 || !/one of --out <dir>/.test(no.stderr)) p.push('no arguments: ' + brief2(no));
       const ok1 = sr(T1, ['--check', Y]); if (ok1.code !== 0) p.push('--check alone: ' + brief2(ok1));
-      rowS('one mode, each value once (r2 C-3): `--check X --stats`, `--check X --stdout F`, `--stats --stdout F`, `--stats --check X`, `--stats --stats`, `--check A --check B`, `--out A --out B`, `--stdout F --stdout F`, `--in-place` without --out / without a lean flag / with --check / with --stats → each exit 2 with its own text and nothing written; --stats, --stdout F, --check X alone work; no arguments → exit 2 "one of"', p);
+      // leanfollow round 1 (r1S-6; was: exit 0 "valid with any --out"): --in-place with an out folder that is NOT the source folder is a usage error, plain and lean, nothing written
+      for (const fl of [[], ['--lean-css']]) {
+        const okIn = sr(T1, ['--out', X, '--in-place', ...fl]);
+        if (okIn.code !== 2 || !/--in-place is valid only when --out is the source folder Spixi\/Resources\/Raw\/html/.test(okIn.stderr) || existsSync(X)) p.push('--out <outside> --in-place' + (fl.length ? ' --lean-css' : '') + ': ' + brief2(okIn) + ' (want exit 2 "--in-place is valid only when --out is the source folder …", nothing written)');
+      }
+      rowS('one mode, each value once (r2 C-3): `--check X --stats`, `--check X --stdout F`, `--stats --stdout F`, `--stats --check X`, `--stats --stats`, `--check A --check B`, `--out A --out B`, `--stdout F --stdout F`, `--in-place` without --out / with a lean flag but no --out / with --check / with --stats → each exit 2 with its own text and nothing written; `--out <outside> --in-place` (plain and --lean-css: not the source folder) → exit 2 "--in-place is valid only when --out is the source folder" (leanfollow r1S-6); --stats, --stdout F, --check X alone work; no arguments → exit 2 "one of"', p);
     }
 
     // S13 — #46 r2 C-8: entries of the package that are not regular files are a GATE 1 problem, never opened (no hang)

@@ -59,7 +59,10 @@ public class FixB2PayTests
         Assert.IsTrue(fix >= 0 && L.IndexOf(mine[0]) == fix + 1, why + ": right after the fixb1 line — " + string.Join("|", L));
         // ★ merge with photo1a (2026-11-18, re-based after a look): the last line of init, or followed ONLY by the one photo1a line
         int at = L.IndexOf(mine[0]);
-        Assert.IsTrue(at == L.Count - 1 || (at == L.Count - 2 && L[L.Count - 1].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal)), why + ": the last line of init (only the photo1a line may follow)");
+        // ★ defaultsb re-base (2026-11-18, after a look at init's diff: + the three defaultsb computes and its ONE [FLAGS] line, after the photo1a line): … or followed ONLY by the photo1a line and then the one defaultsb line
+        Assert.IsTrue(at == L.Count - 1 || (at == L.Count - 2 && L[L.Count - 1].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal))
+            || (at == L.Count - 3 && L[L.Count - 2].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal) && L[L.Count - 1].StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal)),
+            why + ": the last line of init (only the photo1a line, then the defaultsb line, may follow)");
     }
 
     [TestMethod]

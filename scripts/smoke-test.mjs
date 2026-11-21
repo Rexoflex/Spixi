@@ -14447,8 +14447,16 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
    * keeping the shape. */
   ok(/TimeSpan sinceUnlock = DateTime\.Now - unlockedDate;/.test(appNC)
     && /!\(ownIntentReturn \|\| withinGrace\)/.test(appNC)
-    && /private const double LOCK_GRACE_SECONDS = 5;/.test(appNC),
-    "★ #454 COOLDOWN → #496 (Damir's call 2026-08-21): the no-auth window is still FIVE seconds and still the only gate between a background and a prompt — but it is now measured from the BACKGROUND, not from the last unlock. The old assertion is deliberately retired here rather than deleted, because a break-my-verdict pin that is simply removed is a ruling that changed with nobody noticing");
+    /* ★ defaultsb re-base (Damir's ruling 1750, 2026-11-18 — a RULING changed this dial, so the row is REWRITTEN, not deleted): the
+     * length of the window left App.xaml.cs (LOCK_GRACE_SECONDS) for DefaultsRules — 60 s with SpixiFlags.LockDelayOneMinute, 5 s
+     * on the old path. The row now holds the ONE statement that reads it and both lengths, so a later edit cannot widen the window
+     * while keeping the shape (the values RUN in csh DefaultsTests.within_grace_bounds; pins-defaultsb/a-defaults d5 / d10). */
+    && /bool withinGrace = DefaultsRules\.withinGrace\(sinceBackground\.TotalSeconds, SpixiFlags\.LockDelayOneMinute\);/.test(appNC)
+    && !/LOCK_GRACE_SECONDS/.test(appNC)
+    && (() => { const dr = stripCs(readFileSync(join(root, 'Spixi/Utils/DefaultsRules.cs'), 'utf8'));
+      return /public const double GraceSecondsOld = 5;/.test(dr) && /public const double GraceSecondsNew = 60;/.test(dr)
+        && /public static double graceSeconds\(bool oneMinute\)\s*\{\s*return oneMinute \? GraceSecondsNew : GraceSecondsOld;\s*\}/.test(dr); })(),
+    "★ #454 COOLDOWN → #496 (Damir's call 2026-08-21) → defaultsb (Damir's ruling 1750, 2026-11-18): the no-auth window is ONE MINUTE (five seconds on the old path, behind the switch LockDelayOneMinute) and still the only gate between a background and a prompt, measured from the BACKGROUND, not from the last unlock. The older assertions are deliberately retired here rather than deleted, because a break-my-verdict pin that is simply removed is a ruling that changed with nobody noticing");
   {
     const iD = appNC.indexOf('private bool dismissPauseLock');
     const body = appNC.slice(iD, iD + 1400);
@@ -15793,12 +15801,17 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     '#496: OnSleep stamps too, for every platform with no pause hook. Idempotent, so on Android it is a no-op');
   ok(/DateTime\? wentAway = backgroundedDate;\s*\n\s*backgroundedDate = null;/.test(appG),
     '★ #496: read ONCE and cleared immediately. OnResume returns from three places, and a stamp surviving one of them would measure the NEXT absence from the previous one');
-  ok(/sinceBackground\.TotalSeconds >= 0\s*\n\s*&& sinceBackground\.TotalSeconds <= LOCK_GRACE_SECONDS;/.test(appG),
+  /* ★ defaultsb re-base (ruling 1750, 2026-11-18): the test moved, unchanged in shape, into DefaultsRules.withinGrace — the negative
+   * guard is held THERE, and OnResume passes it `sinceBackground.TotalSeconds` (the row above the #454 block holds that statement). */
+  const rulesG = codeG(readFileSync(join(root, 'Spixi/Utils/DefaultsRules.cs'), 'utf8'));
+  ok(/public static bool withinGrace\(double secondsAway, bool oneMinute\)\s*\{\s*return secondsAway >= 0 && secondsAway <= graceSeconds\(oneMinute\);\s*\}/.test(rulesG)
+    && /bool withinGrace = DefaultsRules\.withinGrace\(sinceBackground\.TotalSeconds, SpixiFlags\.LockDelayOneMinute\);/.test(appG),
     '★ #496 SECURITY: the negative guard is load-bearing. A clock moved backwards makes any absence look like it happened in the future and satisfies the window — the same guard already protects ownIntentFresh() in this file');
   ok(/wentAway\.HasValue \? \(DateTime\.Now - wentAway\.Value\) : sinceUnlock;/.test(appG),
     '★ #496: no stamp → the OLD measure. A cold start, or a resume with no pause before it, keeps exactly today\'s behaviour rather than inventing a zero — which would have granted the grace to a resume the app knows nothing about');
-  ok(/private const double LOCK_GRACE_SECONDS = 5;/.test(appG),
-    '#496: ONE constant. These were two separately written 5-second tests, and the second had already been wrong once (#229: `ts.Seconds` is the 0-59 component, so 63 s away read as 3 and never locked)');
+  ok(/public const double GraceSecondsOld = 5;/.test(rulesG) && /public const double GraceSecondsNew = 60;/.test(rulesG)
+    && (appG.match(/DefaultsRules\.withinGrace\(/g) || []).length === 1 && !/LOCK_GRACE_SECONDS/.test(appG) && !/TotalSeconds\s*<=/.test(appG),
+    '#496 (★ defaultsb re-base, ruling 1750: the bound lives in DefaultsRules — 5 s old path / 60 s — and App.xaml.cs holds ONE call of it and no second `<=` test): ONE constant. These were two separately written 5-second tests, and the second had already been wrong once (#229: `ts.Seconds` is the 0-59 component, so 63 s away read as 3 and never locked)');
   /* ★ CAUGHT BY MUTATION: counting `withinGrace` and forbidding the literal `<= 5` both
    * survived putting the OLD measure back in the second branch — the count still cleared
    * its threshold, and `> 5` is not `<= 5`. Both are pinned by their actual call sites
@@ -42508,6 +42521,7 @@ for (const mod of ['a-file-seed', 'b-walk-steps']) await (await import(new URL('
 for (const mod of ['a-lines']) await (await import(new URL('./pins-coldstart1/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Session Cold start 1 (coldstart1, #1680) — the cold-start marks are developer-only LOG LINES: a = source pins (the cloud cannot compile the Android arm; the pure rule runs in csh ColdStartTests): DEV ONLY, CALL SITES, NO MOVE (the rest of each touched body hashes to the base cdc4f717), NOTHING NEW, HARNESS
 for (const mod of ['a-confirm-focus', 'b-divider', 'c-unread-pill', 'd-pay-confirm', 'e-sheet-height', 'f-txrow', 'g-aurora-ring']) await (await import(new URL('./pins-fixb2/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Fix batch 2 (fixb2, #1629 / #1633 / #1639 / #1614, DECISIONS #1695–#1714): a = the Windows confirm takes the keyboard focus on Cancel + the text scrolls (P59) · b = the divider line on the hairline + the reset width (P62) · c = the unread marker is a centred pill (the Chromium sweep c-unread-pill-sweep.mjs runs by hand) · d = the payment and mini-app confirms on Windows (P60, P61) · e = centred desktop sheets use the free height · f = desktop tx rows take the chat-row inset · g = the light Aurora ring at 3 : 1 (b-hairline-sweep.mjs by hand)
 for (const mod of ['a-open', 'b-store', 'c-walk']) await (await import(new URL('./pins-photo1a/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch photo1a (Photo open 1a, #1715–#1734) — a = PO-0 the three developer-only `[P1] chat` lines + the `[FLAGS] photo1a` line, PO-1 the media of an open held until the paint signal (the push text built off the main thread), PO-5 one file-check pass + the process-wide delete generation · b = PO-3 / PO-6 the kept thumbnail and waveform store (Android only; links, delete generations, the delete paths, the LRU only if current; resumed by ruling 1737) · c = the opt-in walk steps open-seed (-SeedIndex, a proven restart + a cold rep, the (pid, index) warm-up) and mem-photos, the parser rows (new rows not required), the old steps byte-identical
+for (const mod of ['a-defaults']) await (await import(new URL('./pins-defaultsb/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch defaultsb (Defaults batch, Damir's ruling 1750) — a = a NEW account (create / restore) starts with App lock On and Confirm payments On (DefaultsRules.writeNewAccount at the two new-account sites, FIXED values, each behind its own switch), the no-auth window is one minute (DefaultsRules.withinGrace; the old 5 s behind the switch), an existing account is not touched (no reader changed, no start path writes a key); a SOURCE pin — its limits are its first lines
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

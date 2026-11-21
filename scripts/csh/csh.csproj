@@ -102,6 +102,7 @@
     <Compile Include="../../Spixi/Utils/PhotoOpenRules.cs" />   <!-- ★ photo1a (PO-0 / PO-1 / PO-5): the [FLAGS] line, the media hold after the paint signal, the re-check rule, the counts line, the one-pass row arguments (tests: PhotoOpenTests.cs) -->
     <Compile Include="../../Spixi/Utils/UiCommandText.cs" />   <!-- ★ photo1a (ruling 1736): the ONE builder of the executeUiCommand( text, shared by Utils.sendUiCommand and the off-thread push (tests: PhotoOpenTests.cs) -->
     <Compile Include="../../Spixi/Utils/ChatMediaStoreRules.cs" /><Compile Include="../../Spixi/Utils/ChatMediaStore.cs" />   <!-- ★ photo1a (PO-3 / PO-6): the thumbnail + peaks store (engine + glue), the LRU, the delete paths' calls (tests: ChatMediaStoreTests.cs, with its own harness stubs of FileSystem / WalletStorage / IxianHandler) -->
+    <Compile Include="../../Spixi/Utils/DefaultsRules.cs" />   <!-- ★ defaultsb (ruling 1750): the new-account defaults (App lock, Confirm payments), the lock delay bound, the [FLAGS] line (tests: DefaultsTests.cs; SpixiFlags.init calls it) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

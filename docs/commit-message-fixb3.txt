@@ -1,0 +1,54 @@
+Commit messages of batch fixb3 (Fix batch 3), one logical unit each, in order. No attribution lines, no session link, no `#` before a number.
+
+1) Fix batch 3, item 1: refuse a mini-app action before ixian:onload; log the command name only
+
+MiniAppPage.handleAction: the first statement is FixB3Rules.refuseBeforeOnload. With no
+handler yet the action is refused "not ready": one fixed log line with the command name
+from a fixed list (else "unknown"), the existing SpixiAppSdk reply for storage and
+payment, no dialog, no exception. Both catches log fixed words, the name and the
+exception type only - never the action text, an argument or the exception message.
+A hole-closing fix with no switch (ruling 1744 (4), DECISIONS 1810, packet P84).
+Files: Spixi/Pages/MiniApps/MiniAppPage.xaml.cs, Spixi/Utils/FixB3Rules.cs (new),
+scripts/csh/FixB3GuardTests.cs (new), scripts/csh/csh.csproj,
+scripts/pins-fixb3/a-miniapp-guard.mjs (new), re-based scripts/pins-fixb2/d-pay-confirm.mjs
+and the inline gate 18 entry of scripts/smoke-test.mjs.
+
+2) Fix batch 3, item 2: chat info shows nothing of a deleted history; its delete runs the Sent sweep
+
+After a successful Delete history, chat info re-scans off the UI thread and pushes
+setSharedItems again (an empty list), with one scan gate per page; the cache is written
+only where the gate passes and is emptied at the delete; the viewer token is reset.
+ContactDetails.onRemoveHistory uses SContacts.removeHistory, which also runs the Sent-copy
+sweep this path missed. The chats-list delete tells an open chat-info page of that
+contact. No switch (ruling 1744 (3), DECISIONS 1811, packet P85).
+Files: Spixi/Pages/Contacts/ContactDetails.xaml.cs, Spixi/Pages/Home/HomePage.xaml.cs,
+Spixi/Utils/SharedItems.cs, Spixi/Utils/FixB3ChatInfoRules.cs (new),
+scripts/csh/FixB3ChatInfoTests.cs (new), scripts/csh/csh.csproj,
+scripts/pins-fixb3/b-delete-history.mjs (new), re-based scripts/pins-photo1a/b-store.mjs,
+scripts/pins-s4/fixr1.mjs, scripts/pins-s5/viewer.mjs, scripts/pins-s6/probe.mjs,
+scripts/pins-s8/cs-wiring.mjs, scripts/pins-s5/p0.mjs and the inline row
+offUiThreadNoBots of scripts/smoke-test.mjs.
+
+3) Fix batch 3, items 3 and 4: the adb walk scrolls to Downloads; history on one dev-seed chat
+
+downloads: after the Account tab, one fixed swipe from the device map, a check of the
+scrolled hub (its picture deleted at once), and only then the tap; four map keys gate the
+step and stay absent until a calibrate. -HistorySeed <k>: the history step on one dev-seed
+chat, a proven restart per rep, the derived address, one page request, own rows; without
+it every old step is byte-identical (rulings 1739 (3), 1742 (2), DECISIONS 1812, packet P86).
+Files: scripts/device/adb-walk.ps1, scripts/device/adb-walk-parse.ps1,
+scripts/pins-fixb3/c-walk.mjs (new), re-based scripts/pins-perfb1toggle/b-walk.mjs,
+scripts/pins-filewalk/b-walk-steps.mjs, scripts/pins-photo1a/c-walk.mjs, and the
+registration line of pins-fixb3 in scripts/smoke-test.mjs.
+
+4) Fix batch 3: docs, packets, gate rows, walk sheet, handoff
+
+DECISIONS 1810-1815, the decisions index, lessons L257-L260, packets P84-P86, the
+security handover gate section, core-asks CORE-18, the mechanisms, the contract, the
+review brief with the verdict (CLEAN), the walk sheet, the handoff, the status-log entry
+and CLAUDE.md "Where we are now".
+Files: DECISIONS.md, docs/decisions-index.md, docs/lessons.md, docs/be-review-pack/P84-*.md,
+P85-*.md, P86-*.md, docs/be-review-pack/core-asks.md, docs/security-handover-gate.md,
+docs/fixb3-mechanisms.md, docs/contract-fixb3.md, docs/review-brief-fixb3.md,
+docs/walk-fixb3.md, docs/handoff-2026-11-18-fixb3.md, docs/status-log.md, CLAUDE.md,
+docs/commit-message-fixb3.txt.

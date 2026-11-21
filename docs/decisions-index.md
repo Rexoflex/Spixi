@@ -189,3 +189,9 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1730 | The #46 verdict of rounds 6–9: CLEAN (F1 / F2 recorded). |
 | #1731 | The merge with Fix batch 2 (`55feaddc`) and its pin re-bases. |
 | #1732 | Session "Photo open 1a" — the record, final state (CSH 766; models; owed: the operator block, compiles). |
+| #1810 | Fix batch 3 item 1: a mini-app action before `ixian:onload` is refused "not ready"; both catches log the command name + exception type only (P84; no switch). |
+| #1811 | Fix batch 3 item 2: chat info re-scans after "Delete history" (both paths), one scan gate, the cache after the gate; chat info's delete runs the Sent sweep (P85; no switch). |
+| #1812 | Fix batch 3 items 3 + 4: the walk step `downloads` scrolls the Account hub (swipe → check → tap); `-HistorySeed <k>` (P86). #1666 ④ moved by #1739 (3). |
+| #1813 | Fix batch 3: the #46 verdict. |
+| #1814 | Session "Fix batch 3" — the record. |
+| #1815 | Question Q-2: received downloads after chat info › Delete history (open, Damir). |

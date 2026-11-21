@@ -46,3 +46,8 @@ These patches exist as proposals on Damir's PC, not in Core; BE decides. The clo
 | Ask | Where (Ixian-Core `097341a`) | Why | What we did instead |
 |---|---|---|---|
 | CORE-17 · keep the last load window of a chat in memory, so an open does not deserialize the whole messages file (up to 1000 messages) every time | `Streaming/Friends/Friend.cs:913` (`getMessages` → `readLastMessages`), `Streaming/Storage/LocalStorage.cs:540` | the read + build part of a chat open is 17–73 ms on the Galaxy A52s and bimodal (`claude/photo-open-research-2026-11-17.md` § 2, gap 2); the new line `[P1] chat read … ms=` (photo1a) now shows the read alone | nothing in Core (BE-only); the dev line measures it |
+
+## fixb3 (2026-11-18) — a delayed messages write can undo a history delete (a BE ask, not a blocker)
+| Ask | Where (Ixian-Core `097341a`) | Why | What we did instead |
+|---|---|---|---|
+| CORE-18 · take the copy of the list and the file write under ONE lock with `deleteMessages`, and drop a pending write request of an address whose messages were deleted; log no address in the write's error line | `Streaming/Storage/LocalStorage.cs:673`–`:677` (`writeMessages` copies the list under `lock (messages)`, BEFORE it takes `messagesLock`), `:780` (`deleteMessages` takes `messagesLock`), `:236` (the delayed write's `Logging.error` names `request.Key.ToString()` + the whole exception) | a write that races "Delete history" can write the deleted history back to disk, and a write pending after the delete can log the contact's address (fixb3 #46 r1 S N-4; legacy, Core) | nothing in Core (BE-only): our delete paths call `SContacts.removeHistory` → `friend.deleteHistory()` as before; P85 names it |

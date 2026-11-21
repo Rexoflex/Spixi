@@ -63,6 +63,10 @@
  * photo1a (2026-11-17), re-based after a look at the diff (DECISIONS 1596 / 1634): b1 + b10 (the two new opt-in steps open-seed, mem-photos at the END of AllSteps / OptInSteps; the legend rows), b2 (one new PipedCmds entry: the chatmedia count poll; ShellAllow unchanged), b15 (the step-name regex takes open-seed), b21 (Save-FileRepPid sites 5 → 7), b24 (the two raw hashes + the diagnostics of the five changed driver functions and Invoke-Main of the parser).
  * 2026-11-17 (photo1a, review round 1, scope C-walk; re-based after a look at the diff, DECISIONS 1596): b15 (call sites 5 -> 6: Clear-FileStepPngs at the end of Invoke-OpenSeedStep), b24 (the two raw hashes and the two script-level remainders; the per-function diagnostics of the old functions did not move).
  * 2026-11-17 (photo1a, review round 2, scope C-walk; after a look at the diff): b21 pidVarUses ($script:FileRepPid 5 -> 7, Save-FileRepPid 7 -> 8: the warm key and its decision in open-seed), b24 re-based again (the two raw hashes and the driver remainder; the parser is unchanged; no old function moved).
+ * 2026-11-18 (fixb3, scope C-walk; re-based after a look at the diff, DECISIONS 1596 / 1739 (3)): the downloads rep gets ONE swipe + the scrolled-hub check before the tap: b3 newFnTaps (+ the swipe key), b7 inputsToGate (3 -> 4 inputs, the swipe second), b8 twoShotCalls / noneBetween / firstAfterGate / noneAfterShotCheck (two -> three screenshots: the scrolled-hub check is the only one between the Account tap and the gate; this REPLACES the old rule `no screenshot on the Account screen`), b12 fileShotCallers (3 -> 4 Invoke-FileShot callers), b22 callSets (Invoke-DownloadsRep also calls Get-Nn, Invoke-FileShot), b23 downloadsFirstChatNewer (3 swipes, the chatNewer swipe still first of the two old ones); -HistorySeed: b15 regexExact (the sweep line has a third pattern), b21 pidVarUses (Save-FileRepPid 8 -> 9); b24 re-based (raw hashes 2fc646d6... -> a39d8dc2... (the lead added one EnsureHome line to Invoke-HistorySeedRestart before the push, as open-seed), 319d7f18... -> 1314d8e1..., and the diagnostic constants of the moved functions); b20 skip12Assign stays green (the new state variable stands above CalSkip12).
+ * 2026-11-18 (fixb3, review round 1, scope C-walk; after a look at the diff): b8 (m2: exactly ONE Invoke-CalAccountScroll call between the tabAccount tap and the gate of Invoke-CalFileTaps, and exactly ONE Save-CalShot (cal-17s) in the bodies of Invoke-CalAccountScroll + Invoke-CalHubBack, none in the way back), b15 (the history-seed reset counter is 2..4 digits), b24 re-based again (raw hashes a39d8dc2... -> 3e407de2..., 1314d8e1... -> cf42f078...; the moved functions: Clear-FileStepPngs, Invoke-DownloadsRep and Invoke-CalFileTaps (comments), Complete-Rep (`pages`), Get-EstimateSec (the downloads estimate), parser New-Ctx / New-RepCtx / Invoke-Main (Pages, the legend)).
+ * 2026-11-18 (fixb3, review round 2, scope C-walk; after a look at the diff, #1596): b15 callSites 6 -> 7 (Invoke-HistorySeedStep ends with Clear-FileStepPngs, NIT 5), b22 callSets Clear-FileStepPngs + Clear-CalAccountPng (m2 b: the sweep deletes cal-17s-account-scrolled.png once screens.accountScrolled is set), b24: the two whole-file hashes, the script-level hashes of both scripts, Clear-FileStepPngs and the parser Invoke-Main (the legend text) re-based (the other function hashes are unchanged).
+ * 2026-11-18 (fixb3, review round 3, scope C-walk; after a look at the diff, #1596): b24 re-based again (driver eca79886... -> acd8ed6e...: the swipe note of Invoke-CalAccountScroll adds the gap text of a present but invalid swipes.accountDownloads; parser 826f74d1... -> 4a80770b...: X-SeedPagesGate / X-SeedGated, every row of history-seed-kNN gated on pages >= 1; moved: the script-level remainders of both files and Invoke-Main (legend))
  * Deliberate breaks (#802, the filewalk pins report): one-token mutations in a full copy of the tree, each red for the named key(s). */
 import { createHash } from 'node:crypto';
 export default async function (h) {
@@ -241,7 +245,7 @@ export default async function (h) {
     phonePaths: uniq([...D.matchAll(/\/(?:data|sdcard|storage|mnt)\/[^\s'"|)]*/g)].map((m) => m[0])).join('\n') === BASE_PATHS.join('\n') && D.includes('$script:PhoneFiles = @($script:PhoneShot, $script:PhoneLog)'),
     newFnNoPaths: !/\/(data|sdcard|storage|mnt)\b|screencap|\bpush\b|\bpull\b|install|\brm\b| > /.test(newBody.replace(/Wait-Ms[^\n]*/g, '')),
     newFnShell: shellLits.join('\n') === ['; am start -n ', '; input keyevent 4', 'am start -n ', 'logcat -c', 'pidof '].join('\n'),
-    newFnTaps: uniq([...newBody.matchAll(/Get-TapText '(\w+)'/g)].map((m) => m[1])).join() === 'accountDownloads,photoTile,tabAccount,tabChats' && uniq([...newBody.matchAll(/Get-SwipeText '(\w+)'/g)].map((m) => m[1])).join() === 'chatNewer,chatOlder',
+    newFnTaps: uniq([...newBody.matchAll(/Get-TapText '(\w+)'/g)].map((m) => m[1])).join() === 'accountDownloads,photoTile,tabAccount,tabChats' && uniq([...newBody.matchAll(/Get-SwipeText '(\w+)'/g)].map((m) => m[1])).join() === 'accountDownloads,chatNewer,chatOlder',
     noCoordinates: !/input (tap|swipe) [0-9]/.test(newBody) && !/\$tap\.x|\$sw\.x1/.test(newBody),
   };
   ok(F(b3).length === 0,
@@ -344,7 +348,7 @@ export default async function (h) {
   const b7 = {
     found: dTab > 0 && dTry > 0 && dGate > dTry && dCatch > dGate && vTap > 0 && vTry > 0 && vGate > vTry && vCatch > vGate && fcScreen > 0,
     gateInTry: dTry < dGate && dGate < dCatch && dl[dGate + 1] === "throw 'X'" && dl[dGate + 2] === '}',
-    inputsToGate: dInputs.length === 3 && dInputs[0] === TAB && dInputs[1] === "[void](Invoke-ShellReq 'logcat -c')" && dInputs[2] === "$r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-TapText 'accountDownloads'))",
+    inputsToGate: dInputs.length === 4 && dInputs[0] === TAB && dInputs[1] === "[void](Invoke-ShellReq (Get-SwipeText 'accountDownloads'))" && dInputs[2] === "[void](Invoke-ShellReq 'logcat -c')" && dInputs[3] === "$r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-TapText 'accountDownloads'))",   // fixb3 item 3: + the ONE swipe swipes.accountDownloads (checked by the scrolled-hub check before the tap: pins-fixb3/c-walk d1)
     orderAfterGate: seq(dl, dGate, [/^if \(-not \(Invoke-FileShotCheck \$Rec 'downloads'\)\) \{ throw 'X' \}$/, '$sbase = Get-ScrollBase $Rec', "$r2 = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-SwipeText 'chatNewer'))", "[void](Invoke-ShellReq (Get-SwipeText 'chatOlder'))", "Wait-FilePull $Rec 'scrolllines' ($sbase + 1)", 'Invoke-LogPull $Rec', 'Invoke-BackReq', "[void](Invoke-ShellReq (Get-TapText 'tabChats'))"]),
     catchFirst: dl.slice(dCatch).join('\n') === ['} catch {', "if (-not ([string]$_.Exception.Message).StartsWith('ADBWALK-STOP:')) { [void](Invoke-FileReset $Rec 'downloads: a failed rep after the Account tap') }", 'throw', '}', '}'].join('\n'),
     oneReset: count(fnD('Invoke-DownloadsRep'), 'Invoke-FileReset') === 1 && count(fnD('Invoke-DownloadsRep'), 'Reset-AppToChats') === 0,
@@ -358,7 +362,7 @@ export default async function (h) {
     calAccountReset: calFn.includes("[void](Invoke-CalReset $Cal ('cal-17 failed (' + $why + ')'))") && /if \(\$why\) \{[\s\S]*?Invoke-CalReset[\s\S]*?return\s*\}/.test(calFn) && !calFn.includes('Reset-AppToChats'),
   };
   ok(F(b7).length === 0,
-    '★ filewalk walk steps (b7 failClosed): in `downloads` only the tabAccount tap, logcat -c and the accountDownloads tap are sent before the gate (count of send loaddownloads = 1 AND frames-subscreen-open >= 1, 6 s), the gate and the screen check throw inside the try, and the catch block is exactly `Invoke-FileReset` (a PROVEN restart, no tap) and `throw` — no second input on the Account screen (then, in order: the Downloads check, `$sbase = Get-ScrollBase`, the chatNewer swipe with stamp2, chatOlder, the pull wait, the pull, BACK, the Chats tap); the same for `viewer` (catch = the proven restart only when a foreign window is in front) and the chat step (a bad chat check sends no swipe / BACK); the gate never passes on a second send line or on a timer; the calibrate failure path uses Invoke-CalReset — failing: ' + JSON.stringify(F(b7)));
+    '★ filewalk walk steps (b7 failClosed): in `downloads` only the tabAccount tap, (fixb3 item 3) the ONE accountDownloads swipe, logcat -c and the accountDownloads tap are sent before the gate (count of send loaddownloads = 1 AND frames-subscreen-open >= 1, 6 s), the gate and the screen check throw inside the try, and the catch block is exactly `Invoke-FileReset` (a PROVEN restart, no tap) and `throw` — no second input on the Account screen (then, in order: the Downloads check, `$sbase = Get-ScrollBase`, the chatNewer swipe with stamp2, chatOlder, the pull wait, the pull, BACK, the Chats tap); the same for `viewer` (catch = the proven restart only when a foreign window is in front) and the chat step (a bad chat check sends no swipe / BACK); the gate never passes on a second send line or on a timer; the calibrate failure path uses Invoke-CalReset — failing: ' + JSON.stringify(F(b7)));
 
   /* ── b8 · no screenshot between the tabAccount tap and the accountDownloads gate (ANY call form) ── */
   const SHOTANY = /\b(Invoke-ShotCheck|Invoke-PreCheck|Invoke-FileShotCheck|Invoke-FilePreCheck|Invoke-FileShot|Save-Shot|Save-CalShot|Test-Screen|Test-CalShotScreen)\b|screencap/;
@@ -370,20 +374,25 @@ export default async function (h) {
   const cShot17a = calFn.indexOf("Save-CalShot 'cal-17a-home-before.png' 'home' $Cal");
   const cViewGate = calFn.indexOf("Wait-FileGate 'viewimage' 'overlayopen' $script:FileGateMs $bv $bo");
   const cShot15 = calFn.indexOf("Save-CalShot 'cal-15-viewer.png' 'viewer' $Cal");
+  const calBetween = calFn.slice(cTab, cGate);
+  const helperBody = [...stm(fnD('Invoke-CalAccountScroll')), ...stm(fnD('Invoke-CalHubBack'))];   // fixb3 review round 1 (m2): cal-17s is taken in the helpers, not in Invoke-CalFileTaps
+  const helperShots = helperBody.filter((l) => SHOTANY.test(l) && !/Test-CalShotScreen/.test(l));
+  const helperChecks = helperBody.filter((l) => /Test-CalShotScreen/.test(l));
   const b8 = {
     found: dTab > 0 && dGate > dTab && dShots.length > 0 && cTab > 0 && cGate > cTab,
-    twoShotCalls: dShots.length === 2 && dl[dShots[0]] === "Invoke-FilePreCheck $Rec 'home'" && /^if \(-not \(Invoke-FileShotCheck \$Rec 'downloads'\)\) \{ throw 'X' \}$/.test(dl[dShots[1]]),
+    twoShotCalls: dShots.length === 3 && dl[dShots[0]] === "Invoke-FilePreCheck $Rec 'home'" && /^if \(-not \(Invoke-FileShot \$Rec 'accountScrolled' \('shot-' \+ \$Rec\.step \+ '-' \+ \(Get-Nn \$Rec\.rep\) \+ '-scrolled\.png'\)\)\) \{ throw 'X' \}$/.test(dl[dShots[1]]) && /^if \(-not \(Invoke-FileShotCheck \$Rec 'downloads'\)\) \{ throw 'X' \}$/.test(dl[dShots[2]]),   // fixb3 item 3 (DECISIONS 1739 (3)): the ONE scrolled-hub check between the swipe and the tap
     preBeforeTab: dShots[0] < dTabIn,
-    noneBetween: dShots.filter((i) => i > dTabIn && i <= dGate + 2).length === 0,
-    firstAfterGate: dShots.length === 2 && dShots[1] > dGate + 2,
-    noneAfterShotCheck: dShots.filter((i) => i > dShots[1]).length === 0,
-    calNoneBetween: !SHOTANY.test(calFn.slice(cTab, cGate)),
+    noneBetween: dShots.filter((i) => i > dTabIn && i <= dGate + 2 && i !== dShots[1]).length === 0 && dShots[1] > dTabIn && dShots[1] < dl.findIndex((l) => /Get-TapText 'accountDownloads'/.test(l) && /StampCmd/.test(l)),
+    firstAfterGate: dShots.length === 3 && dShots[2] > dGate + 2,
+    noneAfterShotCheck: dShots.filter((i) => i > dShots[2]).length === 0,
+    calNoneBetween: !SHOTANY.test(calFn.slice(cTab, cGate)) && calBetween.split("\n").filter((l) => /Invoke-CalAccountScroll/.test(l)).length === 1 && calBetween.split("\n").filter((l) => /Invoke-CalHubBack/.test(l)).length === 1,   // fixb3 review round 1 (m2): the ONE helper call between the tabAccount tap and the gate may take the picture (below), and the way-back helper none
+    calHelperOneShot: helperShots.length === 1 && /^Save-CalShot 'cal-17s-account-scrolled\.png' 'accountScrolled' \$Cal$/.test(helperShots[0]) && helperChecks.length === 1 && helperChecks[0] === "} elseif (Test-CalShotScreen $s17s 'accountScrolled') {" && !SHOTANY.test(stm(fnD('Invoke-CalHubBack')).join('\n')),   // fixb3 item 3, DECISIONS 1739 (3): exactly ONE Save-CalShot (cal-17s, the scrolled hub) in the two helpers, its probe check, and no screenshot at all in the way back
     calShotAfterGate: cShot17 > cGate && /else \{\s*\$gateOk = \$true/.test(calFn.slice(cGate, cShot17 + 10)),
     calViewerAfterGate: cViewGate > 0 && cShot15 > cViewGate && /if \(\$vOk\) \{[\s\S]*?Save-CalShot 'cal-15-viewer\.png'/.test(calFn),
     calHomeBefore: cShot17a > 0 && cShot17a < cTab,
   };
   ok(F(b8).length === 0,
-    '★ filewalk walk steps (b8 noAccountShot): `downloads` takes exactly two screenshots (matched in ANY call form: `$x = Save-Shot`, `[void](Save-Shot)`, Invoke-File*Check ...), the home pre-check BEFORE the tabAccount tap and the Downloads check AFTER the gate pass; in -Calibrate the fresh home shot cal-17a stands before the tap, no screenshot call stands between the tabAccount tap and the gate, and cal-17 / cal-15 are taken only inside the gate-passed branch — failing: ' + JSON.stringify(F(b8)));
+    '★ filewalk walk steps (b8 noAccountShot): `downloads` takes exactly three screenshots (matched in ANY call form: `$x = Save-Shot`, `[void](Save-Shot)`, Invoke-File*Check ...), the home pre-check BEFORE the tabAccount tap, (fixb3 item 3, DECISIONS 1739 (3)) the scrolled-hub check between the swipe and the accountDownloads tap (and none else before the gate) and the Downloads check AFTER the gate pass; in -Calibrate the fresh home shot cal-17a stands before the tap, no screenshot call stands between the tabAccount tap and the gate in Invoke-CalFileTaps but exactly ONE call of Invoke-CalAccountScroll, whose body takes exactly ONE Save-CalShot (cal-17s, the scrolled hub; the DECISIONS #1739 (3) exception, kept only while screens.accountScrolled is not set) with its probe check, and the way-back helper takes none, and cal-17 / cal-15 are taken only inside the gate-passed branch — failing: ' + JSON.stringify(F(b8)));
 
   /* ── b9 · Invoke-FileShot: the PNG is deleted in a finally, never recorded ── */
   const shotSt = stm(fnD('Invoke-FileShot'));
@@ -524,7 +533,7 @@ export default async function (h) {
     found: ROUTE_FNS.every((n) => fnD(n).length > 0),
     noRawShot: ROUTE_FNS.every((n) => stm(fnD(n)).every((l) => !RAWSHOT.test(l))),
     noOldRoutes: !/\bInvoke-ShotCheck\b|\bInvoke-PreCheck\b/.test(newBody),
-    fileShotCallers: ['Invoke-FileShotCheck', 'Invoke-FilePreCheck', 'Invoke-FileReset'].every((n) => count(fnD(n), 'Invoke-FileShot ') === 1) && fileShotCalls === 3,   // the three callers (the definition has no space after the name)
+    fileShotCallers: ['Invoke-FileShotCheck', 'Invoke-FilePreCheck', 'Invoke-FileReset'].every((n) => count(fnD(n), 'Invoke-FileShot ') === 1) && fileShotCalls === 4,   // the three callers (the definition has no space after the name) + fixb3 item 3: the scrolled-hub check in Invoke-DownloadsRep
     saveShotOnlyThere: ['Invoke-FileShot'].every((n) => count(fnD(n), 'Save-Shot') === 1) && ROUTE_FNS.filter((n) => n !== 'Invoke-FileShot').every((n) => count(fnD(n), 'Save-Shot') === 0),
     repsUseWrappers: [['Invoke-FileChatRep', 1], ['Invoke-ViewerRep', 2], ['Invoke-DownloadsRep', 2]].every(([n, c]) => count(fnD(n), 'Invoke-FileShotCheck') + count(fnD(n), 'Invoke-FilePreCheck') === c),
   };
@@ -573,11 +582,11 @@ export default async function (h) {
   const walkLoop = fnD('Invoke-Walk');
   const b15 = {
     found: sweep.length > 0 && SWEEP_RE.length > 0,
-    regexExact: SWEEP_RE === '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads|open-seed)-[A-Za-z0-9-]{1,40}\\.png\\z' && SWEEP_RE2 === '^cal-reset-[0-9]{2,4}\\.png\\z' && count(sweep, '-cmatch') === 2 && sweep.includes("if ($f.Name -cmatch '" + SWEEP_RE + "' -or $f.Name -cmatch '" + SWEEP_RE2 + "') {"),
+    regexExact: SWEEP_RE === '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads|open-seed)-[A-Za-z0-9-]{1,40}\\.png\\z' && SWEEP_RE2 === '^cal-reset-[0-9]{2,4}\\.png\\z' && count(sweep, '-cmatch') === 3 && sweep.includes("if ($f.Name -cmatch '" + SWEEP_RE + "' -or $f.Name -cmatch '" + SWEEP_RE2 + "' -or $f.Name -cmatch '^shot-history-seed-k[0-9]{2}-reset-[0-9]{2,4}\\.png\\z') {"),   // fixb3 item 4: + the reset PNG of history-seed (pins-fixb3/c-walk d4)
     calReset: ['cal-reset-01.png', 'cal-reset-12.png', 'cal-reset-0123.png'].every((n) => sj2.test(n)) && ['cal-reset-1.png', 'cal-reset-12345.png', 'cal-reset-01.png.bak', 'cal-reset-01.PNG', 'cal-17-downloads.png', 'cal-16-home-after-viewer.png', 'cal-17a-home-before.png', 'shot-home-reset-01.png'].every((n) => !sj2.test(n)),
     behaviour: ['shot-viewer-01.png', 'shot-downloads-02-pre.png', 'shot-scroll-files-03.png', 'shot-scroll-voice-reset-01.png', 'shot-scroll-photos-01-pre.png'].every((n) => sj.test(n)) && ['shot-scroll-image-01.png', 'shot-scroll-01.png', 'shot-home-01.png', 'cal-17-downloads.png', 'shot-viewer-01.png.bak', 'shot-viewer-01.PNG', 'shot-viewer-../x.png'].every((n) => !sj.test(n)),
     deletes: sweep.includes('if (Remove-LocalFile $f.FullName) { Write-WalkLog (\'sweep: \' + $f.Name + \' deleted\') }') && sweep.includes('Get-ChildItem -LiteralPath $script:RunDir -File'),
-    callSites: count(D, 'Clear-FileStepPngs') === 6,
+    callSites: count(D, 'Clear-FileStepPngs') === 7,   // fixb3 review round 2 (NIT 5): + the end of Invoke-HistorySeedStep
     calSweep: (() => { const c = stm(fnD('Invoke-Calibrate')), i = c.indexOf('Invoke-CalFileTaps $cal'); return i > 0 && c[i + 1] === 'Clear-FileStepPngs' && count(c.join('\n'), 'Clear-FileStepPngs') === 1; })(),
     viewerEnd: (() => { const v = stm(fnD('Invoke-ViewerStep')); return v[v.length - 1] === '}' && v[v.length - 2] === 'Clear-FileStepPngs' && v[v.length - 3] === '$script:ViewerReopen = $false'; })(),
     fileStepsEnd: /elseif \(\$script:FileChatKeys\.ContainsKey\(\$s\) -or \$s -eq 'downloads'\) \{\s*Invoke-Step \$s \$script:RepeatsN \$true\s*if \(\$script:NeedRecover[^\n]*\n\s*Clear-FileStepPngs\s*\}/.test(walkLoop),
@@ -701,7 +710,7 @@ export default async function (h) {
   const b21 = {
     found: spSt.length > 0 && rsSt.length > 0 && vPid > 0 && dPid > 0,
     saveText: spSt.join('\n') === ['{', "$script:FileRepPid = ''", "$ids = @(Get-Pids (Invoke-Shell ('pidof ' + $script:Pkg)).StdOut)", "if ($ids.Count -eq 1) { $script:FileRepPid = [string]$ids[0]; return $true }", 'return $false', '}'].join('\n'),
-    pidVarUses: count(D, '$script:FileRepPid') === 7 && count(D, 'Save-FileRepPid') === 8,
+    pidVarUses: count(D, '$script:FileRepPid') === 7 && count(D, 'Save-FileRepPid') === 9,   // fixb3 item 4: + the proven restart of a history-seed rep
     viewerBeforeTap: count(vw.join('\n'), PIDTHROW) === 1 && vw[vPid - 1] === "Invoke-FilePreCheck $Rec 'chat'" && vw[vPid + 1] === 'Assert-AppFront' && vPid < vTry && vTry < vTap && vw.slice(vPid, vTap).filter((l) => INPUT.test(l)).length === 0,
     downloadsBeforeTap: count(dl.join('\n'), PIDTHROW) === 1 && dl[dPid - 1] === "Invoke-FilePreCheck $Rec 'home'" && dl[dPid + 1] === 'Assert-AppFront' && dl[dPid + 2] === 'try {' && dl[dPid + 3] === TAB && dPid < dTab,
     calBeforeTap: consec(cft, CAL15) >= 0 && consec(cft, CAL17) >= 0 && count(fnD('Invoke-CalFileTaps'), 'Save-FileRepPid') === 2,
@@ -717,7 +726,7 @@ export default async function (h) {
   const CALLS = {   // FROZEN: every Verb-Noun command a function of the five steps (and of the restart proof) calls
     'Invoke-FileChatRep': ['Add-AmResult', 'Assert-AppFront', 'Get-ScrollBase', 'Get-Seed', 'Get-SwipeText', 'Invoke-BackReq', 'Invoke-FileShotCheck', 'Invoke-LogPull', 'Invoke-ShellReq', 'Read-AmOutput', 'Set-RepStamp', 'Set-RepStamp2', 'Wait-FilePull', 'Wait-Ms'],
     'Invoke-ViewerRep': ['Add-Note', 'Assert-AppFront', 'Get-TapText', 'Invoke-EnsureHome', 'Invoke-FilePreCheck', 'Invoke-FileReset', 'Invoke-FileShotCheck', 'Invoke-LogPull', 'Invoke-OpenSeedChat', 'Invoke-ShellReq', 'Save-FileRepPid', 'Set-RepStamp', 'Set-RepStamp2', 'Test-AppFront', 'Wait-FileGate', 'Wait-FilePull', 'Wait-Ms'],
-    'Invoke-DownloadsRep': ['Assert-AppFront', 'Get-ScrollBase', 'Get-SwipeText', 'Get-TapText', 'Invoke-BackReq', 'Invoke-FilePreCheck', 'Invoke-FileReset', 'Invoke-FileShotCheck', 'Invoke-LogPull', 'Invoke-ShellReq', 'Save-FileRepPid', 'Set-RepStamp', 'Set-RepStamp2', 'Wait-FileGate', 'Wait-FilePull', 'Wait-LogCount', 'Wait-Ms'],
+    'Invoke-DownloadsRep': ['Assert-AppFront', 'Get-Nn', 'Get-ScrollBase', 'Get-SwipeText', 'Get-TapText', 'Invoke-BackReq', 'Invoke-FilePreCheck', 'Invoke-FileReset', 'Invoke-FileShot', 'Invoke-FileShotCheck', 'Invoke-LogPull', 'Invoke-ShellReq', 'Save-FileRepPid', 'Set-RepStamp', 'Set-RepStamp2', 'Wait-FileGate', 'Wait-FilePull', 'Wait-LogCount', 'Wait-Ms'],
     'Invoke-ViewerStep': ['Clear-FileStepPngs', 'Get-AdbWhy', 'Get-Seed', 'Get-StepGap', 'Invoke-Back', 'Invoke-EnsureHome', 'Invoke-Shell', 'Invoke-Step', 'Read-AmOutput', 'Say-Log', 'Wait-Ms'],
     'Invoke-FileReset': ['Add-Note', 'Get-Pids', 'Invoke-FileShot', 'Invoke-Shell', 'Reset-AppToChats', 'Say-Log', 'Test-AppFront', 'Test-Ordinal'],
     'Invoke-FileShot': ['Add-Note', 'Remove-LocalFile', 'Save-Shot', 'Test-AppFront', 'Test-Screen'],
@@ -726,7 +735,7 @@ export default async function (h) {
     'Wait-FilePull': ['Add-Note', 'Wait-LogCount'],
     'Get-ScrollBase': ['Add-Note', 'Get-LogCount'],
     'Save-FileRepPid': ['Get-Pids', 'Invoke-Shell'],
-    'Clear-FileStepPngs': ['Get-ChildItem', 'Remove-LocalFile', 'Say-Log', 'Test-Path', 'Write-WalkLog'],
+    'Clear-FileStepPngs': ['Clear-CalAccountPng', 'Get-ChildItem', 'Remove-LocalFile', 'Say-Log', 'Test-Path', 'Write-WalkLog'],   // fixb3 review round 2 (m2): + the call that deletes cal-17s once screens.accountScrolled is set
   };
   const callDiff = Object.entries(CALLS).filter(([n, want]) => nameSet(fnD(n)).join() !== want.join()).map(([n]) => n);
   const b22 = {
@@ -752,7 +761,7 @@ export default async function (h) {
     downloadsOrder: consec(dl, swipeSeq(SN, 'chatOlder')) > dGate && count(fnD('Invoke-DownloadsRep'), 'Get-ScrollBase') === 1,
     waitBasePlus2: count(D, "Wait-FilePull $Rec 'scrolllines' ($sbase + 1)") === 2 && count(D, "Wait-FilePull $Rec 'scrolllines'") === 2 && fnD('Wait-LogCount').includes('if ($null -ne $c -and $c -gt $Above) {'),
     baseBeforeStamp2: [fc, dl].every((st) => { const b = idx(st, (l) => l === '$sbase = Get-ScrollBase $Rec'); const s2 = idx(st, (l) => /^\$r2 = Invoke-ShellReq \(\$script:StampCmd/.test(l)); return b > 0 && s2 > b && count(st.join('\n'), '$sbase') === 2; }),
-    downloadsFirstChatNewer: (() => { const f = dl.find((l) => /Get-SwipeText/.test(l)); return f === SN && dl.filter((l) => /Get-SwipeText/.test(l)).length === 2 && dl.findIndex((l) => /Get-SwipeText 'chatNewer'/.test(l)) < dl.findIndex((l) => /Get-SwipeText 'chatOlder'/.test(l)); })(),
+    downloadsFirstChatNewer: (() => { const f = dl.find((l) => /Get-SwipeText/.test(l) && !/Get-SwipeText 'accountDownloads'/.test(l)); return f === SN && dl.filter((l) => /Get-SwipeText/.test(l)).length === 3 && dl.findIndex((l) => /Get-SwipeText 'accountDownloads'/.test(l)) < dl.findIndex((l) => /Get-SwipeText 'chatNewer'/.test(l)) && dl.findIndex((l) => /Get-SwipeText 'chatNewer'/.test(l)) < dl.findIndex((l) => /Get-SwipeText 'chatOlder'/.test(l)); })(),
     chatFirstChatOlder: fc.find((l) => /Get-SwipeText/.test(l)) === SO,
     getCount: count(D, 'Get-ScrollBase') === 3,
   };
@@ -777,12 +786,12 @@ export default async function (h) {
   const CHGP = ['New-Ctx', 'New-RepCtx', 'Invoke-Main'];
   const OLDP = ['Get-Hits', 'Test-Ready', 'Get-Tok', 'Get-MissingTok', 'Get-MissingLine', 'X-Scroll', 'X-Long', 'X-Send', 'X-SendLine', 'Convert-T0'];
   const dgD = diag(bufD, [...NEWD, ...CHGD, ...OLDD]), dgP = diag(bufP, [...NEWP, ...CHGP, ...OLDP]);
-  const B24_DRIVER_SHA = '2fc646d642fdce315c4e79f11a9cbaf773a1cefca80191c411d324c41a96eca7', B24_PARSER_SHA = '319d7f184bbaf36b9b50cb019b87bb6775207d8a9b9807797228336dc7e688d8', B24_DRIVER_REST = 'a5ec24447c868998440b1d85140ffa050e43aef32f5dbffd43ee7a36fb22cf43', B24_PARSER_REST = 'aceb009fca43c28b9b0b001b1e6a31dbf17e08f88ef2d2df9883798c26c8fc4a';   // the guard (…_SHA) and the diagnostics
+  const B24_DRIVER_SHA = 'acd8ed6e9fb4055160c97dce81c57d478a3c10b4556d3dfb573275bff2e0c623', B24_PARSER_SHA = '4a80770bf20ba5f350a7eb289df961ab26fb483ead233fe8985b9dc0c52210a0', B24_DRIVER_REST = 'd16e78cb719d477f402663d0e6c30739b56a0622bf449c10c0116e493fe93f0f', B24_PARSER_REST = '988f1969edf851530bb3bd90896e9bbc033d3d4ecfa0463bf27c971b453d7212';   // the guard (…_SHA) and the diagnostics
   const B24_DRIVER_FN = {
     "Set-RepStamp2": "b810fbc48072ef35d08d2ad824f4e6b32b4ec4ee9d169ea01ce27580003a56c7",
     "ConvertTo-Base58": "607782670e7e397d660daaca5f441110ec9e8366c0a8d87ecd05073e3977faa9",
     "Get-DevSeedAddress": "63a55df1d170cb1ae768c7357397e92ada7a2750ae1ed9b49ca34fcde562b238",
-    "Clear-FileStepPngs": "b27cd9dc238ebda5969969923548a57f927fb0c91c4454e4352626d4bb90be2f",
+    "Clear-FileStepPngs": "d3b77fac2cf76256ea01c85c99da9aaa1fe8c2257952f15e84440ac828fc81b0",
     "Invoke-FileShot": "4c7b63d9c74bde808e00c4575175317d0e5803676bd9fac2e6c4c491df350b94",
     "Invoke-FileShotCheck": "a3c8d12dbfcea83a5b7fa56fac20afee557eb1b911e6af0b11ca54c288f4181d",
     "Invoke-FilePreCheck": "f0dae6671306203ae309e7cf1288e90c227bc1f37485b30c31521d8ea711237e",
@@ -794,16 +803,16 @@ export default async function (h) {
     "Invoke-FileChatRep": "ae7321b83edeb3679baaa72ce13f9b77ef9452e4f8142cf08d0b1b00f1dda094",
     "Invoke-ViewerRep": "eb9bb215e424b7960dbac94816a749b5ab5498e270c31b043f6a67c3c09d1407",
     "Invoke-ViewerStep": "1bbfba8a4838c1c056012498974f90d26c95d7d4c9b1f4b1355cd1f021c64c47",
-    "Invoke-DownloadsRep": "133631188732ebb2776c5b9e35cfbf35526c552218a112842cf9c200ce02b8fe",
+    "Invoke-DownloadsRep": "6d40ae1aaec989b18416d3996b5fcb09f2d4b2e351abcc2cba350df8e693e7a1",
     "Test-CalGateShot": "9c83fa0e99af74c7022972b7777bff0d7857a86ed3660378a0433db945ed55ed",
     "Invoke-CalReset": "2ab8f9c3169234021d24ced742f94944cb6290a6a34fc4b842cf0ce2d1bd2d90",
-    "Invoke-CalFileTaps": "08d93d90b66a787a936cd20ff655357462ff76c1f592b6d7e5bde1a763f9df2a",
+    "Invoke-CalFileTaps": "f6e50cac81fb22e3c396a018f6c73684856678b5ffc8ceb228032044995d6a64",
     "Initialize-Allowlist": "5fb3deea4e1d758e42eca42fcb735814515bfe6ab60de6a6bd40c1880f28b8c4",
-    "Get-StepGap": "fb8283f5a12922b99627218d17ec506c6f4a8410f54bf58700cf09cddb26d70c",
-    "Complete-Rep": "f3e37a776f63bb5f6765f972c5bcfa98367260493886775eb0b98f9f8f19d199",
-    "Invoke-RepBody": "c2b329635136ba066ec40da34fec5dcca1fb75be26364e35371dafd866b76537",
-    "Get-EstimateSec": "9283b66632d59007d88bc6df7da72f4703369cbebf9af90316ff3ab61f1a1ff3",
-    "Invoke-Walk": "7385741a3f302e880605c47c4af8078f295e8d4715c641fa068f76c6a1d6cb28",
+    "Get-StepGap": "f273e5567fbb8d75444c09f6fefe1c0faf01e3ae86cb342b6df9826bca87ef68",
+    "Complete-Rep": "b3eb31eefca4adcc72d0a3659affa6ae3696111f9910a303631a3b7ecefdc4ba",
+    "Invoke-RepBody": "c87669ed2062ccd62869d4b992bba653e1431889e229b44c11b53113b24d462a",
+    "Get-EstimateSec": "0d5f958d9af50ab4cb5a097c9f3e5ed483b44c6304ad3a5f0ec5d3c5051ed130",
+    "Invoke-Walk": "c4ea0fd9a5b03ff301293b36bfe4b74aa97aa4583f91cc6c0a17f8a9b8042aba",
     "Invoke-CalNewTaps": "82a90e9586891a4405e24aa9578a48f17c33bd0a7edadae48d5960ca6580f335",
     "Invoke-Calibrate": "d8d0d4d9407a93f8cd7071eb4929780d9bc1cb9b0350086971f5113b00216710",
     "Assert-AppFront": "2ab25b07f54f84768f166a7285067b238b633ff02a73fc890e6dd4896c6c63f8",
@@ -838,9 +847,9 @@ export default async function (h) {
     "X-TokenW": "6d416421fd090d26b1667666762be77cbc7fae464d61c7b08dcf5e15f213df36",
     "X-ScrollW": "348a7c452da4af8d96d418f88bc5907a041db475c75829cfb46fa18b5db6edf0",
     "X-LongW": "ed3d79f0bad44ed63f2b7fba766feb2f9bb6b3d6a378db4c7f0934cc028d0328",
-    "New-Ctx": "08b97ebdc7cace4ff177a027e1eca1d9a8882ce484d424dee72c8879b941f388",
-    "New-RepCtx": "d745d8c884b7ed892fbff31095c4cdfdfae424b3923858572cc5f0a9fdd827cd",
-    "Invoke-Main": "ae04c31ef9460e39ee36d2c20aa34afe0543035300155665fe6c426c8ee205d8",
+    "New-Ctx": "aa47f939777d49b4c86a96b784fea317c6ed33dbb5aa1340a1e40898eaf630b6",
+    "New-RepCtx": "cb832a0d05945c1ea40f885ee5b4b92ad107cff24693e78971e7e23d8fe2ac91",
+    "Invoke-Main": "47719fd40383cec0f2665bbd9ce2268172eb6507f16415e5c2da6a7a712da920",
     "Get-Hits": "59e531bfb6a713b9643b8cf057ffd6e8c387a03407bb36e4f27fc5dbfa27436e",
     "Test-Ready": "6113f1d735b818943964016e113a5f8657e9aeb9bc283c37963f7a46eb71cd61",
     "Get-Tok": "095e09a4141a5101c6df2cf550d3983012464626f3e29d9710ca250c34539361",

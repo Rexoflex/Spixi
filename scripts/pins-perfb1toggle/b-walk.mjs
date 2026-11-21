@@ -43,7 +43,11 @@
  * filewalk #46 round 3 (2026-11-16): the parser hash re-based again after a look at the diff (X-LongW: the same two-scroll-line rule as X-ScrollW); the driver hash is unchanged; logPullSites stays 13, every frozen body key stayed green
  * photo1a (2026-11-17): the two whole-file hashes and logPullSites 13 → 15 re-based after a look at the diff (the opt-in steps open-seed + mem-photos, -SeedIndex, five parser rows; two new Invoke-LogPull sites); every frozen body key stayed green
  * 2026-11-17 (photo1a, review round 1, scope C-walk): the two whole-file hashes re-based again after a look at the diff (driver: the warm-up open, the pid-less halt, the neutral restart lines, the <seed-index k> label, the sweep at the end of open-seed; parser: the lower bound of Get-SeedIndexes); logPullSites stays 15, every frozen body key stayed green (Reset-AppToChats and Invoke-LogPull untouched)
+ * 2026-11-18 (fixb3, scope C-walk): the two whole-file hashes (2fc646d6... -> a39d8dc2... (the lead added one EnsureHome line to Invoke-HistorySeedRestart before the push, as open-seed), 319d7f18... -> 1314d8e1...) and logPullSites 15 -> 16 re-based after a look at the diff (item 3: the scrolled-hub swipe + check in Invoke-DownloadsRep, cal-17s and the way back in -Calibrate; item 4: -HistorySeed, the step history-seed-kNN with ONE new Invoke-LogPull site, its parser rows); every frozen body key stayed green (Reset-AppToChats and Invoke-LogPull untouched)
  * 2026-11-17 (photo1a, review round 2, scope C-walk): the two whole-file hashes re-based again after a look at the diff (driver: the (pid, index) warm key, the open-seed mask loop first); every frozen body key stayed green
+ * 2026-11-18 (fixb3, review round 1, scope C-walk): the two whole-file hashes re-based again after a look at the diff (driver a39d8dc2... -> 3e407de2...: cal-17s kept only while screens.accountScrolled is not set, the load-time refusal of a weak accountScrolled, the estimate of downloads, `pages` in run.json, -HistorySeed last in the param block, the sweep counter 2..4 digits, comments; parser 1314d8e1... -> cf42f078...: X-SeedPage, Pages in the rep context); logPullSites stays 16, every frozen body key stayed green
+ * 2026-11-18 (fixb3, review round 2, scope C-walk): the two whole-file hashes re-based again after a look at the diff (driver 3e407de2... -> eca79886...: Invoke-CalAccountScroll in a try / finally, the new Clear-CalAccountPng called at the end of Clear-FileStepPngs, Clear-FileStepPngs at the end of Invoke-HistorySeedStep, the load-time usage error of a present but invalid screens.accountScrolled, the one-row-offset limit in the headers and the calibrate note; parser cf42f078... -> 826f74d1...: X-SeedFirstPage, the SendLoadMore line definition, the legend and header text); logPullSites stays 16, every frozen body key stayed green
+ * 2026-11-18 (fixb3, review round 3, scope C-walk): the two whole-file hashes re-based again after a look at the diff (driver eca79886... -> acd8ed6e...: the swipe note of Invoke-CalAccountScroll names the gap of a PRESENT but invalid swipes.accountDownloads; parser 826f74d1... -> 4a80770b...: X-SeedPagesGate / X-SeedGated, every row of history-seed-kNN behind pages >= 1, the legend and header text); logPullSites stays 16, every frozen body key stayed green
  * Deliberate breaks (#802): see the builder's report of batch perfb1toggle item 2. */
 import { createHash } from 'node:crypto';
 export default async function (h) {
@@ -283,7 +287,7 @@ export default async function (h) {
   const asrt = fn(D, 'Assert-FlagsPid'), reset = fn(D, 'Reset-AppToChats'), lpull = fn(D, 'Invoke-LogPull'), mem = fn(D, 'Invoke-MemPhase'), sl = fn(D, 'Save-Log');
   const noLineBranch = /if \(\$states\.Count -eq 0\) \{[\s\S]*?if \(\$script:FlagsAsked\) \{[\s\S]*?\$Rec\.status = 'error'[\s\S]*?Complete-Rep[\s\S]*?Stop-Flags 'no-state-line'[\s\S]*?\}\s*return\s*\}/.test(upd2);
   const pr2 = {
-    logPullSites: count(D, 'Invoke-LogPull $Rec') === 15,
+    logPullSites: count(D, 'Invoke-LogPull $Rec') === 16,
     pidGuard: asrt.includes('if ($script:LastPullPid -and $script:FlagsPid -and (Test-Ordinal $script:LastPullPid $script:FlagsPid)) { return }') && asrt.includes("Stop-Flags 'unproven-process'") && asrt.includes("$Rec.status = 'error'"),
     pullGuard: lpull.includes("if ($script:FlagsAsked -and $Rec.step -cne 'coldstart') { Assert-FlagsPid $Rec }"),
     pidSaved: sl.includes("$script:LastPullPid = [string]$ids[0]") && count(D, '$script:FlagsPid = $script:LastPullPid') === 2,
@@ -351,8 +355,8 @@ export default async function (h) {
   for (const [, key, body, want] of frozen) fz[key] = body !== null && sha(body) === want;
   // R4-A: the two scripts WHOLE. R4-B: no function / filter / workflow name is defined twice in a script (comment-stripped text,
   // case-insensitive, optional scope prefix).
-  fz['file:adb-walk.ps1'] = sha(DN) === '2fc646d642fdce315c4e79f11a9cbaf773a1cefca80191c411d324c41a96eca7';
-  fz['file:adb-walk-parse.ps1'] = sha(PN) === '319d7f184bbaf36b9b50cb019b87bb6775207d8a9b9807797228336dc7e688d8';
+  fz['file:adb-walk.ps1'] = sha(DN) === 'acd8ed6e9fb4055160c97dce81c57d478a3c10b4556d3dfb573275bff2e0c623';
+  fz['file:adb-walk-parse.ps1'] = sha(PN) === '4a80770bf20ba5f350a7eb289df961ab26fb483ead233fe8985b9dc0c52210a0';
   for (const [sn, txt] of [['adb-walk.ps1', D], ['adb-walk-parse.ps1', P]]) {
     const seen = new Map();
     for (const m of txt.matchAll(/(?:^|[^\w-])(?:function|filter|workflow)\s+(?:(?:global|script|local|private):)?([\w-]+)/gi)) { const k = m[1].toLowerCase(); seen.set(k, (seen.get(k) || 0) + 1); }

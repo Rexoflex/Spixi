@@ -4,7 +4,7 @@ adb-walk.ps1 - device timing walk of the Spixi Dev app on ONE Android phone over
 Usage:
   powershell -ExecutionPolicy Bypass -File scripts\device\adb-walk.ps1 [-Calibrate] [-Steps coldstart,scroll]
              [-Repeats 5] [-Serial <id>] [-Apk <path>] [-KillRenderer]
-             [-Flags warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1>] [-SeedIndex 0,50,51,52,55]
+             [-Flags warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1>] [-SeedIndex 0,50,51,52,55] [-HistorySeed 55]
 
 Walk: pre-flight, then each step x Repeats (one screenshot + one DOTNET log pull per rep), run.json after
 every rep, then adb-walk-parse.ps1 -RunDir <run folder>; the exit code is the parser's.
@@ -27,7 +27,7 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
   coldstart, mem-home, chat-intent, chat-tap, scroll, resume, resume-long, network, mem-end, mem-trim,
   resume-now, resume-3s (60 s in the background, then the chat tap at once / after 3 s; resume = after 2 s),
   chatinfo (tap on the chat header of seed chat k-1), tab-apps, tab-wallet, tab-account (tap on the tab, then
-  Chats), history (seed chat k+4, swipes to older until 3 older pages were asked for).
+  Chats), history (seed chat k+4, swipes to older until 3 older pages were asked for; with -HistorySeed: see below).
   scroll-image runs only when named in -Steps: it needs imageChatAddress in walk.local.json. imageChatAddress must be
   the address of a dev-seed chat (Spixi/Utils/SDevSeed.cs), never a real contact; scroll-image keeps no screenshot.
   Batch filewalk - five more opt-in steps, only when named in -Steps, run after scroll-image in this order:
@@ -41,7 +41,10 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
     frames-overlay-close line, the log pull; a failed gate or check sends no more input in that rep, a foreign window
     (the OS chooser of a tap before the thumbnail) gets none and the app is restarted, the next rep opens the chat
     again) - downloads (from Chats: the home check, the tap on
-    tabAccount with the tab-account gates, logcat -c, stamp + tap taps.accountDownloads (t0), a gate (shell send
+    tabAccount with the tab-account gates, a focus check, ONE swipe swipes.accountDownloads (batch fixb3: the Downloads row is
+    below the first screen of the Account hub; the swipe is a fling that ends at the bottom of the hub, so its end does not
+    depend on its speed), scrollSettleMs, the check of the scrolled hub (screens.accountScrolled; its PNG is deleted at once
+    in a finally, never kept; a failed check sends NO tap), logcat -c, stamp + tap taps.accountDownloads (t0), a gate (shell send
     loaddownloads exactly once and shell frames-subscreen-open, 6 s), the Downloads check (screens.downloads), stamp2 +
     swipe chatNewer FIRST (the list opens at the top), then swipe chatOlder, the wait for two shell scroll lines, the log pull, BACK with the
     frames-subscreen-close gate, the tap on tabChats with its gates; from the tabAccount tap command on, any failure
@@ -52,11 +55,23 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
   The local keys are masked like a seed and must equal the address that the script derives for the seed (addressFor of
   Spixi/Utils/SDevSeed.cs): fileChatAddress = Seed 54, voiceChatAddress = Seed 55, photoChatAddress = Seed 56; for viewer
   imageChatAddress must be Seed 51, 52 or 53 (scroll-image keeps its old check). A missing, invalid or other key, or a missing map key
-  (taps.photoTile, taps.accountDownloads, screens.viewer, screens.downloads: absent until the calibrate run of the
-  operator block), makes every rep of that step skipped ("no data", exit 2) with no command sent. No PNG of these
+  (taps.photoTile, screens.viewer, screens.downloads: absent until the calibrate run of the operator block; for downloads
+  also swipes.accountDownloads and screens.accountScrolled, batch fixb3, absent until the first calibrate of that batch; the gap
+  list of downloads names all four: swipe:accountDownloads, screen:accountScrolled, tap:accountDownloads, screen:downloads),
+  makes every rep of that step skipped ("no data", exit 2) with no command sent. No PNG of these
   steps is kept: the checks (also those before the input) photograph our app's screen for the probes, then the PNG is
-  deleted (in a finally; a sweep at the end of each step and of the run deletes any shot-<step>-*.png left); they never
-  photograph the Account screen. "send" and "live" are not steps (questions for Damir: DECISIONS #1669, #1670).
+  deleted (in a finally; a sweep at the end of each step and of the run deletes any shot-<step>-*.png left). The only
+  picture of the Account hub is the check of the scrolled hub of downloads (screens.accountScrolled), for its probes
+  only, deleted at once (DECISIONS #1739 (3) asks for it; it replaces the old rule "never photograph the Account screen").
+  The tap on Downloads follows ONE fixed swipe, so it is safe only when the probes of screens.accountScrolled pin the scroll
+  position: at least one probe ON the Downloads row (its icon) at the y of taps.accountDownloads, at least one on a row edge,
+  and minMatch = the number of probes. The script refuses (a usage error before any adb command) when both keys are set and no
+  probe has a y within 60 px of taps.accountDownloads, or minMatch is less than the number of probes. LIMIT: that rule cannot
+  see a fling that stops short by a whole row (the rows of the hub repeat, so a one-row offset passes it). Text only, not enforced
+  by the script: put ONE more probe on a feature that does not repeat (the end of the hub or its last row). An invalid
+  screens.accountScrolled (present, but a bad probe or minMatch) is a usage error before any adb command; only an absent key
+  keeps the calibrate picture cal-17s.
+  "send" and "live" are not steps (questions for Damir: DECISIONS #1669, #1670).
   Batch photo1a - two more opt-in steps, only when named in -Steps, run after downloads in this order:
   open-seed (needs -SeedIndex: 1 to 8 whole numbers 0..55 = the dev-seed index, 0 = Seed 01, 50 = Seed 51, 55 = Seed 56; a
     comma list, no repeat; anything else is a usage error before any adb command; without -SeedIndex the step is a gap, "no
@@ -73,6 +88,18 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
     switch state of the new process would not be proven). The steps keep the AllSteps order whatever the order in
     -Steps: coldstart, mem-home, chat-intent, ..., mem-end, ..., scroll-files, scroll-voice, scroll-photos, viewer,
     downloads, open-seed, mem-photos.
+  Batch fixb3 - -HistorySeed <k> (ONE whole number 0..55 = the dev-seed index, as -SeedIndex: 55 = Seed 56, the photo chat with
+  100 messages and ONE older page): the step history runs as the step history-seed-kNN (NN = k, two digits) instead of history.
+  Usage error before any adb command: with -Flags, with -Calibrate, without history named in -Steps, with a value that is not
+  exactly one whole number 0..55 ("5,6", "56", "-1", text). Per rep: a PROVEN restart first (the pid read before, am force-stop,
+  am start -W, one different pid after, our app in front, a home check whose PNG is deleted; not proven = the run halts, no
+  further input), logcat -c, the fa intent with the address that THIS script derives for k (Get-DevSeedAddress: never read from
+  a file, never typed; masked as <seed-index k>), chatSettleMs, the chat check, then swipes historyOlder until ONE page request
+  is counted (the count of "shell send loadmore" lines) or historyMaxSwipes (t0 = the first swipe, as history), the settle, the
+  chat check, the log pull, BACK. No page request after historyMaxSwipes = the rep is "no data" with a note (a chat with no older
+  page cannot measure it). run.json gets the integer historySeed; the parser gives history-seed-kNN the rows of history, with
+  the page rows for the first page (older pages loaded, first swipe -> 1st page). Without -HistorySeed history and every old
+  step send the same commands and give a byte-identical summary.csv.
   mem-photos (the app + renderer PSS, the shape of mem-end, files meminfo-photos-app.txt / -renderer.txt): runs LAST.
   New steps take a screenshot before the input too (shot-<step>-NN-pre.png): no input when that check fails
   (except resume-now, resume-3s and scroll-image: a focus check only, as the old resume). A pre-check PNG that fails is
@@ -89,12 +116,30 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
             Batch filewalk (nothing at all after a failed cal-11): cal-14 (the image chat, no tap, so the photoTile
             point can be read; deleted when it is not the chat screen) whenever imageChatAddress is an image seed and
             screens.chat exists; only with taps.photoTile: cal-15 (the viewer with a dev-seed photo, only after its gate
-            passed; a failed gate sends no BACK), then cal-16 (home); only with taps.accountDownloads (with tabAccount
-            and tabChats): cal-17a (a fresh home check right before the tabAccount tap), cal-17 (the Downloads list,
-            only after its gate passed; no PNG of the Account screen; it shows the newest downloads: take it right
-            after "Remove the seed, then Seed"), cal-18 (home). A cal-15 or cal-17 PNG is kept while its screen is not
+            passed; a failed gate sends no BACK), then cal-16 (home); with tabAccount and tabChats (batch fixb3: no
+            longer only with taps.accountDownloads): cal-17a (a fresh home check right before the tabAccount tap), cal-17s
+            (below), cal-17 (the Downloads list, only after its gate passed; no PNG of the Account hub but cal-17s; it shows
+            the newest downloads: take it right after "Remove the seed, then Seed"), cal-18 (home). A cal-15 or cal-17 PNG is kept while its screen is not
             calibrated and deleted when it fails its probes; a failure after an Account tap, or a foreign window after
             the photo tap, restarts the app and the restart is proven (not proven: no further input).
+            Batch fixb3: the Downloads steps need no taps.accountDownloads to start: after cal-17a and the tabAccount tap (and its
+            gates) ONE swipe (swipes.accountDownloads of the map when valid, else the fixed calibrate default
+            $script:CalHubSwipe = input swipe 540 2000 540 400 150, printed in calibrate.json and walk.log: a fling over 1600 px
+            that ends at the bottom of a hub about 1300 CSS px tall), scrollSettleMs, cal-17s (the scrolled hub: the one Account
+            picture the calibrate keeps, ONLY while screens.accountScrolled is not set; once that key is set cal-17s is deleted at
+            once, after a pass ("confirmed, not kept") and after a fail). ONLY when screens.accountScrolled passes AND
+            taps.accountDownloads is set: the tap, cal-17 and cal-18 as above; otherwise the way back without the tap (tabChats, the
+            two frames lines, cal-18). A failure after the Account tap restarts the app, proven. So the FIRST calibrate gives the
+            keys to read from cal-17s (taps.accountDownloads, screens.accountScrolled, and the swipe if the default is changed) and a
+            SECOND calibrate (the proof run) gives screens.downloads (cal-17); the second calibrate keeps no cal-17s once the
+            screen key is set (to read the Downloads point again, make a calibrate run with screens.accountScrolled removed from
+            a52s.json, or use the picture of the first calibrate). The probes of screens.accountScrolled must pin the scroll
+            position, because the tap follows ONE fixed swipe: at least one probe ON the Downloads row (its icon) at the y of
+            taps.accountDownloads, at least one on a row edge, and minMatch = the number of probes (the script refuses a map with
+            both keys set where no probe is within 60 px of that y or minMatch is lower, before any adb command). That rule cannot
+            see a fling that stops short by a whole row (the rows repeat): also put ONE probe on a feature that does not repeat, the
+            end of the hub or its last row (text only, not enforced). Once screens.accountScrolled is set, cal-17s is deleted even
+            after an error (a finally; the sweep of the run deletes it too); only an absent key keeps it.
 Inputs: a52s.json next to this script (timing, taps, swipes, screen probes; the package is pinned below);
         <repo>\Claude outputs\adbwalk\walk.local.json (optional, never in git): { "seedAddresses": [...],
         "imageChatAddress": "...", "fileChatAddress": "...", "voiceChatAddress": "...", "photoChatAddress": "..."
@@ -155,7 +200,8 @@ param(
     [switch]$Calibrate,
     [switch]$KillRenderer,
     [string[]]$Flags,
-    [string[]]$SeedIndex
+    [string[]]$SeedIndex,
+    [string[]]$HistorySeed
 )
 
 $ErrorActionPreference = 'Stop'
@@ -205,6 +251,15 @@ $script:OpenSeedAddr = @{}
 # open of an index failed, its remaining reps are skipped.
 $script:OpenSeedWarmKey = ''
 $script:OpenSeedSkipIdx = $false
+# Batch fixb3 (item 4): -HistorySeed = the dev-seed index (0..55) the step history runs on (-1 = not asked) and the step name its reps
+# get (history-seed-kNN, NN = the two-digit index). The address is derived by Get-DevSeedAddress and masked <seed-index k>.
+$script:HistorySeed = -1
+$script:HistorySeedStep = ''
+# Batch fixb3 (item 3): the fixed swipe of -Calibrate on the Account hub (a fling from the lower part of the hub to the upper part, 150 ms;
+# the hub scroller is about 1300 CSS px tall, 1 CSS px = 2.8125 px, so this fling ends at the bottom of the hub whatever its speed). It is
+# used ONLY while a52s.json has no valid swipes.accountDownloads, and it is printed in calibrate.json and walk.log.
+$script:CalHubSwipe = 'input swipe 540 2000 540 400 150'
+$script:CalHubReady = $false
 $script:CalSkip12 = ''
 $script:TabNames = @{ 'tab-apps' = 'tabApps'; 'tab-wallet' = 'tabWallet'; 'tab-account' = 'tabAccount' }
 $script:TabFrames = @{ 'tab-apps' = 'apps'; 'tab-wallet' = 'wallet'; 'tab-account' = 'account' }
@@ -855,6 +910,10 @@ function Get-StepGap([string]$Step) {
     elseif ($Step -eq 'downloads') { $need = @('tap:tabAccount', 'tap:accountDownloads', 'tap:tabChats', 'swipe:chatOlder', 'swipe:chatNewer', 'screen:home', 'screen:downloads') }
     # Batch photo1a: open-seed needs the home check of the proven restart, the chat check and -SeedIndex (no map key is new).
     elseif ($Step -eq 'open-seed') { $need = @('screen:home', 'screen:chat', 'seedidx:') }
+    # Batch fixb3 (item 3): downloads also needs the scroll of the Account hub and the check of the scrolled hub (appended, so the old
+    # gaps keep their order and text). Item 4: history-seed-kNN needs the keys of history and the home check of the proven restart.
+    if ($Step -eq 'downloads') { $need = @($need) + @('swipe:accountDownloads', 'screen:accountScrolled') }
+    if ($Step -cmatch '\Ahistory-seed-k[0-9]{2}\z') { $need = @('swipe:historyOlder', 'screen:chat', 'screen:home', 'count:historyMaxSwipes') }
     foreach ($n in $need) {
         $kind, $name = $n -split ':', 2
         $gap = ''
@@ -1286,6 +1345,7 @@ function Save-RunJson([bool]$Finished) {
     $doc['repeats'] = $script:RepeatsN
     $doc['stepsRequested'] = [string[]]$script:StepsReq
     if ($script:SeedIdx.Count -gt 0) { $doc['seedIndex'] = [int[]]$script:SeedIdx }
+    if ($script:HistorySeed -ge 0) { $doc['historySeed'] = [int]$script:HistorySeed }
     $doc['reps'] = $script:Reps
     $doc['memory'] = $script:Mem
     $doc['finished'] = $Finished
@@ -1295,6 +1355,8 @@ function Save-RunJson([bool]$Finished) {
 function Complete-Rep($Rec, [int]$Of) {
     $out = [ordered]@{ step = $Rec.step; rep = $Rec.rep; status = $Rec.status }
     foreach ($k in @('t0', 'stamp2', 'log', 'shot', 'shotPre', 'screen', 'screenOk', 'swipes', 'am')) { if ($Rec.ContainsKey($k)) { $out[$k] = $Rec[$k] } }
+    # Batch fixb3 (item 4): the page requests of a history-seed rep (a whole number; 0 = no older page: the parser says "no data").
+    if ($Rec.ContainsKey('pages')) { $out['pages'] = [int]$Rec['pages'] }
     $full = ($Rec.notes -join ', ')
     $out['note'] = Get-SafeNote $full
     $script:Reps.Add($out)
@@ -1720,6 +1782,81 @@ function Invoke-HistoryRep($Rec) {
     Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
 }
 
+function Invoke-HistorySeedStep {
+    # Batch fixb3 (item 4): the step history on ONE named dev-seed chat (-HistorySeed k), reps named history-seed-kNN. Like history: after a
+    # failed rep, one bounded recovery.
+    Invoke-Step $script:HistorySeedStep $script:RepeatsN $true
+    if ($script:NeedRecover -and -not $script:Halted) { [void](Invoke-EnsureHome) }
+    # Review round 2 (NIT 5): no reset PNG of the proven restarts stays in the run folder (as open-seed and the file steps).
+    Clear-FileStepPngs
+}
+
+function Invoke-HistorySeedRestart($Rec, [int]$K) {
+    # Batch fixb3 (item 4): the PROVEN restart before each rep (each rep starts at the newest page in a new process): the app pid is read
+    # BEFORE (exactly one), then Invoke-FileReset (force-stop, am start -W, the settle, exactly one different pid after, our app in front, a
+    # home check whose PNG is deleted). Not proven: Invoke-FileReset has halted the run (no further input) and this throws; no single pid
+    # before = the same halt (as Invoke-OpenSeedRestart). First, as open-seed: the app in front on Chats (a bounded recovery).
+    if (-not (Invoke-EnsureHome)) { throw 'ADBWALK-NOSCREEN: foreign window in front (the app did not come back)' }
+    if (-not (Save-FileRepPid)) {
+        $script:Halted = $true
+        $script:HaltNote = 'run stopped: an app restart was not proven (no further input)'
+        Add-Note $Rec 'restart not proven: no app pid was stored before the restart: the run stops'
+        Say-Log '  restart NOT proven (no app pid was stored before the restart): the run sends no further input'
+        throw 'ADBWALK-REP: cannot read the app pid before the restart: no restart, no input'
+    }
+    Say-Log ('  history-seed k=' + $K + ': planned restart before the rep (the "tab step" line below is the shared helper text, no tab rep ran)')
+    if (-not (Invoke-FileReset $Rec ('history-seed k=' + $K + ': the restart before the rep'))) {
+        throw 'ADBWALK-REP: no restart proof, so no further input'
+    }
+    # The restart is proven and consumed here: the rep that follows judges its own end state.
+    $script:FileResetOk = $false; $script:NeedRecover = $false; $script:LastFailed = $false
+    Add-Note $Rec 'restart proven before this rep'
+}
+
+function Invoke-HistorySeedRep($Rec) {
+    # Batch fixb3 (item 4): the seed chat of -HistorySeed (the address THIS script derives, never read from a file or typed; masked as
+    # <seed-index k>) after a proven restart, the chat check, then swipes to older messages until ONE page request is counted or
+    # historyMaxSwipes. t0 = the first swipe (as history). No page request = a chat with no older page cannot measure this: the rep
+    # still ends (settle, shot check, log pull, BACK) and the parser says "no data" for the missing page lines. The rep ends with BACK.
+    $K = $script:HistorySeed
+    $addr = Get-DevSeedAddress $K
+    $script:OpenSeedAddr[[string]$K] = $addr
+    Invoke-HistorySeedRestart $Rec $K
+    [void](Invoke-ShellReq 'logcat -c')
+    $r = Invoke-ShellReq ('am start -n ' + $script:Comp + ' --es fa ' + $addr)
+    $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
+    if ($am.Error) { throw ('ADBWALK-REP: am: ' + $am.Error) }
+    Wait-Ms $script:Tm['chatSettleMs'] 'chatSettleMs'
+    Invoke-PreCheck $Rec 'chat'
+    $c0 = Get-LoadMoreCount
+    if ($null -eq $c0) { throw 'ADBWALK-REP: cannot count the page requests in the phone log' }
+    $sw = 0
+    $got = 0
+    while ($sw -lt $script:Tm['historyMaxSwipes']) {
+        Assert-AppFront
+        if ($sw -eq 0) {
+            $r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-SwipeText 'historyOlder'))
+            Set-RepStamp $Rec $r.StdOut
+        } else {
+            [void](Invoke-ShellReq (Get-SwipeText 'historyOlder'))
+        }
+        $sw++
+        $Rec['swipes'] = $sw
+        Wait-Ms $script:Tm['historySwipeMs'] 'historySwipeMs'
+        $c = Get-LoadMoreCount
+        if ($null -eq $c) { throw 'ADBWALK-REP: cannot count the page requests in the phone log' }
+        $got = $c - $c0
+        if ($got -ge 1) { break }
+    }
+    $Rec['pages'] = [int]$got
+    if ($got -lt 1) { Add-Note $Rec ('no page request after ' + $sw + ' swipes: a chat with no older page cannot measure this') }
+    Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
+    Invoke-ShotCheck $Rec 'chat'
+    Invoke-LogPull $Rec
+    Invoke-BackReq
+    Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
+}
+
 # ---------------------------------------------------------------- batch filewalk: the file chats, the viewer, Downloads
 function ConvertTo-Base58([byte[]]$Bytes) {
     # #46 r1 (S-W-4): base58 (Bitcoin alphabet) by long division of the byte array; one '1' per leading zero byte.
@@ -1763,9 +1900,24 @@ function Clear-FileStepPngs {
     # #46 r2 (B2-2): also the restart checks of -Calibrate (cal-reset-NN.png).
     if (-not $script:RunDir -or -not (Test-Path -LiteralPath $script:RunDir)) { return }
     foreach ($f in @(Get-ChildItem -LiteralPath $script:RunDir -File -ErrorAction SilentlyContinue)) {
-        if ($f.Name -cmatch '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads|open-seed)-[A-Za-z0-9-]{1,40}\.png\z' -or $f.Name -cmatch '^cal-reset-[0-9]{2,4}\.png\z') {
+        if ($f.Name -cmatch '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads|open-seed)-[A-Za-z0-9-]{1,40}\.png\z' -or $f.Name -cmatch '^cal-reset-[0-9]{2,4}\.png\z' -or $f.Name -cmatch '^shot-history-seed-k[0-9]{2}-reset-[0-9]{2,4}\.png\z') {
             if (Remove-LocalFile $f.FullName) { Write-WalkLog ('sweep: ' + $f.Name + ' deleted') }
             else { Say-Log ('  WARNING: a PNG of a file-walk step could not be deleted: ' + $f.Name + ' (delete it by hand)') }
+        }
+    }
+    Clear-CalAccountPng
+}
+
+function Clear-CalAccountPng {
+    # Batch fixb3 (item 3, review round 2 m2): the calibrate picture of the scrolled Account hub (cal-17s-account-scrolled.png) is deleted by
+    # the sweep too, whenever screens.accountScrolled is set (an exception or Ctrl+C in Invoke-CalAccountScroll must not leave it). While the
+    # key is absent it is KEPT: it is the one picture the lead reads. (A key that is present but invalid is a usage error at load time.)
+    if (-not $script:RunDir -or -not (Test-Path -LiteralPath $script:RunDir)) { return }
+    if (Get-ScreenGap 'accountScrolled') { return }
+    foreach ($f in @(Get-ChildItem -LiteralPath $script:RunDir -File -ErrorAction SilentlyContinue)) {
+        if ($f.Name -cmatch '^cal-17s-account-scrolled\.png\z') {
+            if (Remove-LocalFile $f.FullName) { Write-WalkLog ('sweep: ' + $f.Name + ' deleted') }
+            else { Say-Log ('  WARNING: the picture of the scrolled Account hub could not be deleted: ' + $f.Name + ' (delete it by hand)') }
         }
     }
 }
@@ -1996,10 +2148,12 @@ function Invoke-ViewerStep {
 }
 
 function Invoke-DownloadsRep($Rec) {
-    # From Chats: the home check (PNG deleted), the tap on tabAccount with the gates of tab-account, logcat -c, stamp + tap
-    # accountDownloads (t0), the gate (loaddownloads = 1 and frames-subscreen-open >= 1), the Downloads check (PNG deleted
-    # at once: it shows file names and senders), stamp2 + the two swipes, the wait for the scroll lines, the log pull, BACK
-    # with the subscreen-close gate, the tap on Chats with its gates. NO screenshot while the Account screen is in front.
+    # From Chats: the home check (PNG deleted), the tap on tabAccount with the gates of tab-account, a focus check, ONE swipe
+    # (swipes.accountDownloads), scrollSettleMs, the check of the scrolled hub (screens.accountScrolled: the ONE picture of the
+    # Account hub, deleted at once, a failed check sends no tap), logcat -c, stamp + tap accountDownloads (t0), the gate
+    # (loaddownloads = 1 and frames-subscreen-open >= 1), the Downloads check (PNG deleted at once: it shows file names and
+    # senders), stamp2 + the two swipes, the wait for the scroll lines, the log pull, BACK with the subscreen-close gate, the tap
+    # on Chats with its gates. No other screenshot while the Account screen is in front.
     # From the tabAccount tap command on, any failure restarts the app at once and proves the restart (Invoke-FileReset):
     # a wrong tap on the Account screen never gets a second input.
     $to = 3 * $script:Tm['tabSettleMs']
@@ -2011,6 +2165,14 @@ function Invoke-DownloadsRep($Rec) {
         [void](Invoke-ShellReq (Get-TapText 'tabAccount'))
         if (-not (Wait-LogCount 'account' $to)) { throw 'ADBWALK-REP: the account tab did not show (no frames line): no further input' }
         if (-not (Wait-LogCount 'settings' $to)) { throw 'ADBWALK-REP: the account settings page did not show (no frames line): no further input' }
+        # Batch fixb3 (item 3): the Downloads row is below the first screen of the Account hub. After the gates and a focus check: ONE swipe
+        # (swipes.accountDownloads: a fling that ends at the bottom of the hub), scrollSettleMs, the check of the scrolled hub
+        # (screens.accountScrolled; its PNG is deleted in a finally inside Invoke-FileShot, never kept). A failed check sends no tap: it
+        # throws into the catch below (the app is restarted and the restart proven). The tap goes out only after a passed check.
+        Assert-AppFront
+        [void](Invoke-ShellReq (Get-SwipeText 'accountDownloads'))
+        Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
+        if (-not (Invoke-FileShot $Rec 'accountScrolled' ('shot-' + $Rec.step + '-' + (Get-Nn $Rec.rep) + '-scrolled.png'))) { throw 'ADBWALK-NOSCREEN: the scrolled Account hub check failed: no tap' }
         [void](Invoke-ShellReq 'logcat -c')
         Assert-AppFront
         $r = Invoke-ShellReq ($script:StampCmd + '; ' + (Get-TapText 'accountDownloads'))
@@ -2237,6 +2399,7 @@ function Invoke-RepBody($Rec) {
     elseif ($s -eq 'chatinfo') { Invoke-ChatInfoRep $Rec }
     elseif ($script:TabNames.ContainsKey($s)) { Invoke-TabRep $Rec }
     elseif ($s -eq 'history') { Invoke-HistoryRep $Rec }
+    elseif ($s -cmatch '\Ahistory-seed-k[0-9]{2}\z') { Invoke-HistorySeedRep $Rec }
     elseif ($s -eq 'scroll-image') { Invoke-ScrollRep $Rec }
     elseif ($script:FileChatKeys.ContainsKey($s)) { Invoke-FileChatRep $Rec }
     elseif ($s -eq 'viewer') { Invoke-ViewerRep $Rec }
@@ -2540,11 +2703,12 @@ function Get-EstimateSec {
         elseif ($s -eq 'resume-3s') { $sum += $n * ($t['resumeWaitSec'] + ($t['resumeLateTapMs'] + $t['chatSettleMs'] + $t['backSettleMs']) / 1000 + 8) }
         elseif ($s -eq 'chatinfo') { $sum += $n * ((2 * $t['chatSettleMs'] + 2 * $t['backSettleMs']) / 1000 + 10) }
         elseif ($script:TabNames.ContainsKey($s)) { $sum += $n * (2 * $t['tabSettleMs'] / 1000 + 7) }
+        elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { $sum += $n * ($t['coldStartSettleSec'] + 12 + ($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 6 * ($t['historySwipeMs'] / 1000 + 1) + 8) }
         elseif ($s -eq 'history') { $sum += $n * (($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 10 * ($t['historySwipeMs'] / 1000 + 1) + 8) }
         elseif ($s -eq 'scroll-image') { $sum += 5 + $n * (2 * $t['scrollSettleMs'] / 1000 + 6) }
         elseif ($script:FileChatKeys.ContainsKey($s)) { $sum += $n * (($t['chatSettleMs'] + 2 * $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 10) }
         elseif ($s -eq 'viewer') { $sum += 5 + $t['chatSettleMs'] / 1000 + $n * ($t['backSettleMs'] / 1000 + 12) }
-        elseif ($s -eq 'downloads') { $sum += $n * ((2 * $t['scrollSettleMs'] + 3 * $t['tabSettleMs']) / 1000 + 16) }
+        elseif ($s -eq 'downloads') { $sum += $n * ((3 * $t['scrollSettleMs'] + 3 * $t['tabSettleMs']) / 1000 + 19) }
         # Batch photo1a: per index one restart (its own settle + 12 s of proof) and Repeats + 1 reps (the chat settle, the media wait, BACK).
         elseif ($s -eq 'open-seed') { $sum += $script:SeedIdx.Count * ($t['coldStartSettleSec'] + 12 + ($n + 1) * (($t['chatSettleMs'] + $t['backSettleMs']) / 1000 + 10)) }
         elseif ($s -eq 'mem-photos') { $sum += $t['memQuietSec'] + 6 }
@@ -2565,6 +2729,7 @@ function Invoke-Walk {
         elseif ($s -eq 'chat-tap') { Invoke-Step 'chat-tap' $script:RepeatsN $true }
         elseif ($s -eq 'scroll') { Invoke-ScrollStep 'scroll' 0 'the chat of seed 0' }
         elseif ($s -eq 'resume-now' -or $s -eq 'resume-3s' -or $s -eq 'chatinfo' -or $script:TabNames.ContainsKey($s)) { Invoke-Step $s $script:RepeatsN $true }
+        elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { Invoke-HistorySeedStep }
         elseif ($s -eq 'history') {
             Invoke-Step 'history' $script:RepeatsN $true
             # The step leaves the chat closed: after a failed rep, one bounded recovery.
@@ -2831,12 +2996,64 @@ function Invoke-CalReset($Cal, [string]$Why) {
     return $ok
 }
 
+function Invoke-CalAccountScroll($Cal) {
+    # Batch fixb3 (item 3): -Calibrate, the Account hub is in front (after the tabAccount gates): ONE swipe (swipes.accountDownloads of the
+    # map when it is valid, else the fixed calibrate default $script:CalHubSwipe; a key that is PRESENT but invalid adds its gap text to the
+    # note (review round 3 n3: not only "the fixed calibrate default"); the line used is printed in calibrate.json and walk.log),
+    # scrollSettleMs, then cal-17s = the scrolled hub. cal-17s is KEPT ONLY while screens.accountScrolled is not set (the lead reads its
+    # probes and the Downloads row from it). When the key is set the picture is DELETED at once: after a pass ('confirmed, not kept', before
+    # anything else) and after a fail. $script:CalHubReady (the tap may follow) is set ONLY when screens.accountScrolled passes AND
+    # taps.accountDownloads is set. Returns: the swipe was sent.
+    $script:CalHubReady = $false
+    $cmd = $script:CalHubSwipe
+    $src = 'the fixed calibrate default'
+    if (-not (Get-SwipeGap 'accountDownloads')) { $cmd = Get-SwipeText 'accountDownloads'; $src = 'swipes.accountDownloads of a52s.json' }
+    elseif ($null -ne (Get-Field (Get-Field $script:Cfg 'swipes') 'accountDownloads')) { $src = 'the fixed calibrate default; swipes.accountDownloads of a52s.json is present but unusable (' + (Get-SwipeGap 'accountDownloads') + ')' }
+    $Cal.notes.Add('cal-17s swipe (' + $src + '): ' + $cmd)
+    Say-Log ('  cal-17s swipe (' + $src + '): ' + $cmd)
+    if (-not (Invoke-CalInput $Cal $cmd 'cal-17s swipe')) { return $false }
+    Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'
+    Save-CalShot 'cal-17s-account-scrolled.png' 'accountScrolled' $Cal
+    $s17s = Get-LastCalShot
+    if (-not $s17s -or -not $s17s.Path) { $Cal.notes.Add('cal-17s not taken: no tap on Downloads'); return $true }
+    try {
+        if (Get-ScreenGap 'accountScrolled') {
+            $Cal.notes.Add('cal-17s kept: ' + (Get-ScreenGap 'accountScrolled') + ' (read the probes of the scrolled hub and the Downloads row from it: set at least one probe ON the Downloads row (its icon) at the y of taps.accountDownloads, at least one on a row edge, and minMatch = the number of probes, because the tap follows ONE fixed swipe; the load-time rule cannot see a fling that stops short by a whole row, so also put one probe on a feature that does not repeat: the end of the hub or its last row (text only, not enforced)); no tap on Downloads')
+        } elseif (Test-CalShotScreen $s17s 'accountScrolled') {
+            Remove-CalShot $Cal $s17s 'confirmed, not kept'
+            if (Get-TapGap 'accountDownloads') { $Cal.notes.Add('no tap on Downloads: ' + (Get-TapGap 'accountDownloads') + ' (cal-17s was deleted because screens.accountScrolled is set: read the point from the picture of the first calibrate, or make a calibrate run with screens.accountScrolled removed from a52s.json)') }
+            else { $script:CalHubReady = $true }
+        } else {
+            Remove-CalShot $Cal $s17s 'not the scrolled Account hub'
+            $Cal.notes.Add('no tap on Downloads: the scrolled hub was not confirmed')
+        }
+    } finally {
+        # Review round 2 (m2): an exception (an IOException while the probes read the PNG, Ctrl+C) must not leave the picture of the Account hub
+        # once screens.accountScrolled is set. A path that deleted it already has no Path left.
+        if (-not (Get-ScreenGap 'accountScrolled') -and $s17s.Path) { Remove-CalShot $Cal $s17s 'cleanup after an error: the key is set, the picture is never kept' }
+    }
+    return $true
+}
+
+function Invoke-CalHubBack($Cal, [int]$To, [int]$Bcl, [int]$Bc) {
+    # Batch fixb3 (item 3): the way back from the scrolled Account hub when no tap on Downloads follows: the tabChats tap and the two
+    # frames-line gates, as the old path ends. Returns '' when Chats is back, else the reason (the caller restarts the app, proven).
+    if (-not (Invoke-CalInput $Cal (Get-TapText 'tabChats') 'cal-18 tabChats')) { $why = 'tabChats not sent' }
+    elseif (-not (Wait-LogCount 'settingsclosed' $To $Bcl)) { $why = 'the SettingsPage did not close (no close line)' }
+    elseif (-not (Wait-LogCount 'chats' $To $Bc)) { $why = 'Chats did not come back (no frames line)' }
+    else { $why = '' }
+    if ($why) { Add-CalTry $Cal 'account-scroll' 'error' $why }
+    else { Add-CalTry $Cal 'account-scroll' 'ok' 'the Account hub was scrolled, no tap on Downloads' }
+    return $why
+}
+
 function Invoke-CalFileTaps($Cal) {
     # Batch filewalk: cal-14 (the image chat, no tap) whenever imageChatAddress is an image seed and screens.chat exists, so
-    # the photoTile point can be read from it; cal-15..16 (one tap of taps.photoTile) only when that key exists; cal-17..18
-    # (one try of taps.accountDownloads) only when that key exists. Nothing at all after a failed cal-11 (#46 r1 B1-1). No
-    # logcat -c here: the counts before each tap are read and the gates wait for counts above them. Never a screenshot while
-    # the Account screen is in front; a viewer or Downloads PNG only after its gate passed; any failure after an Account tap,
+    # the photoTile point can be read from it; cal-15..16 (one tap of taps.photoTile) only when that key exists; cal-17a..18
+    # (batch fixb3: the tabAccount tap, ONE swipe, cal-17s; the one try of taps.accountDownloads only when screens.accountScrolled
+    # passes AND that tap key exists). Nothing at all after a failed cal-11 (#46 r1 B1-1). No logcat -c here: the counts before each
+    # tap are read and the gates wait for counts above them. The ONE picture of the Account hub is cal-17s (kept only while
+    # screens.accountScrolled is not set); a viewer or Downloads PNG only after its gate passed; any failure after an Account tap,
     # or a foreign window after the photo tap, restarts the app and proves the restart.
     $to = 3 * $script:Tm['tabSettleMs']
     if ($script:CalSkip12) { $Cal.notes.Add('cal-14..18 not taken: ' + $script:CalSkip12 + ' (no further input)'); return }
@@ -2885,7 +3102,7 @@ function Invoke-CalFileTaps($Cal) {
         if ($s16 -and $s16.Path -and -not (Test-CalShotScreen $s16 'home')) { Remove-CalShot $Cal $s16 'not home' }
     }
     $gapDl = ''
-    foreach ($tn in @('tabAccount', 'accountDownloads', 'tabChats')) { if (-not $gapDl) { $gapDl = Get-TapGap $tn } }
+    foreach ($tn in @('tabAccount', 'tabChats')) { if (-not $gapDl) { $gapDl = Get-TapGap $tn } }
     if ($gapDl) { $Cal.notes.Add('cal-17..18 not taken: ' + $gapDl); return }
     # #46 r1 (B1-1): a FRESH home check right before the tabAccount tap (no stale earlier shot); a home PNG is kept as
     # the old home shots are, and deleted when it is not home.
@@ -2911,6 +3128,10 @@ function Invoke-CalFileTaps($Cal) {
     if ($r.ExitCode -ne 0 -or $r.TimedOut) { $why = 'the tabAccount tap command failed' }
     elseif (-not (Wait-LogCount 'account' $to $ba)) { $why = 'no account frames line' }
     elseif (-not (Wait-LogCount 'settings' $to $bs)) { $why = 'no SettingsPage frames line' }
+    # Batch fixb3 (item 3): the swipe and cal-17s first; the tap on Downloads and cal-17 only when screens.accountScrolled passes AND
+    # taps.accountDownloads is set; else the way back without the tap.
+    elseif (-not (Invoke-CalAccountScroll $Cal)) { $why = 'the accountDownloads swipe was not sent' }
+    elseif (-not $script:CalHubReady) { $gateOk = $true; $why = Invoke-CalHubBack $Cal $to $bcl $bc }
     elseif (-not (Invoke-CalInput $Cal (Get-TapText 'accountDownloads') 'cal-17 accountDownloads')) { $why = 'accountDownloads not sent' }
     elseif (-not (Wait-FileGate 'loaddownloads' 'subscreenopen' $script:FileGateMs $bl $bso)) { $why = 'no loaddownloads / frames-subscreen-open gate' }
     else {
@@ -3201,6 +3422,23 @@ if ($PSBoundParameters.ContainsKey('SeedIndex')) {
     foreach ($seedNum in $script:SeedIdx) { $script:OpenSeedAddr[[string]$seedNum] = Get-DevSeedAddress $seedNum }
 }
 
+# Batch fixb3 (item 4): -HistorySeed = ONE dev-seed index (a whole number 0..55, 55 = Seed 56) for the step history. A string array on
+# purpose, as -SeedIndex (a -File comma list is joined and refused here). Refused before any adb command: with -Calibrate, with -Flags
+# (every rep restarts the app: the new process has no proven switch state), without history named in -Steps, and any value that is not
+# exactly one number 0..55. The address is derived by this script (Get-DevSeedAddress) and armed as a mask (<seed-index k>) at once.
+if ($PSBoundParameters.ContainsKey('HistorySeed')) {
+    if ($Calibrate) { Exit-Usage '-HistorySeed cannot be used with -Calibrate' }
+    $histText = (@($HistorySeed) | ForEach-Object { [string]$_ }) -join ','
+    if ($histText -cnotmatch '\A[0-9]{1,2}\z') { Exit-Usage '-HistorySeed takes ONE whole number 0..55 (the dev-seed index, 0 = Seed 01, 55 = Seed 56)' }
+    $histNum = [int]::Parse($histText, $script:Inv)
+    if ($histNum -lt 0 -or $histNum -gt 55) { Exit-Usage '-HistorySeed takes ONE whole number 0..55 (the dev-seed index, 0 = Seed 01, 55 = Seed 56)' }
+    if ($want -notcontains 'history') { Exit-Usage '-HistorySeed needs the step history named in -Steps' }
+    if ($script:FlagsAsked) { Exit-Usage '-HistorySeed cannot be combined with -Flags (every rep restarts the app: the new process has no proven switch state)' }
+    $script:HistorySeed = $histNum
+    $script:HistorySeedStep = 'history-seed-k' + $histNum.ToString('00', $script:Inv)
+    $script:OpenSeedAddr[[string]$histNum] = Get-DevSeedAddress $histNum
+}
+
 $cfgPath = Join-Path $PSScriptRoot 'a52s.json'
 if (-not (Test-Path -LiteralPath $cfgPath)) { Exit-Usage 'a52s.json is missing next to this script' }
 if ((New-Object System.IO.FileInfo($cfgPath)).Length -gt 65536) { Exit-Usage 'a52s.json is larger than 64 KB' }
@@ -3213,12 +3451,30 @@ $script:Pkg = $script:PinnedPackage
 foreach ($scrName in @('home', 'chat', 'chatinfo', 'viewer', 'downloads')) {
     if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') $scrName) 'probes').Count -gt 16) { Exit-Usage ('a52s.json screens.' + $scrName + ' has more than 16 probes') }
 }
+# Batch fixb3 (item 3): the new screen of the Account hub has the same probe limit.
+if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') 'accountScrolled') 'probes').Count -gt 16) { Exit-Usage 'a52s.json screens.accountScrolled has more than 16 probes' }
 $cdev = Get-Field $script:Cfg 'device'
 if (-not [string](Get-Field $cdev 'model')) { Exit-Usage 'a52s.json device.model is missing' }
 if (-not (Test-IsInt (Get-Field $cdev 'width')) -or -not (Test-IsInt (Get-Field $cdev 'height'))) { Exit-Usage 'a52s.json device.width/height are not integers' }
 $script:W = [int](Get-Field $cdev 'width')
 $script:H = [int](Get-Field $cdev 'height')
 if ($script:W -lt 1 -or $script:H -lt 1 -or $script:W -gt 10000 -or $script:H -gt 10000) { Exit-Usage 'a52s.json device.width/height must be 1..10000' }
+# Batch fixb3 (item 3, review round 2 m2): a screens.accountScrolled that is PRESENT but invalid is a usage error (fail closed, before any adb
+# command): "key set" must mean a valid key, and only an ABSENT key keeps the calibrate picture cal-17s.
+if ($null -ne (Get-Field (Get-Field $script:Cfg 'screens') 'accountScrolled') -and (Get-ScreenGap 'accountScrolled')) { Exit-Usage ('a52s.json screens.accountScrolled is invalid (' + (Get-ScreenGap 'accountScrolled') + '): fix it, or remove the key (only an absent key keeps the calibrate picture)') }
+# Batch fixb3 (item 3, review round 1 m4): the Downloads tap goes out after ONE fixed swipe, so it is safe only when the probes of the scrolled
+# hub pin the scroll position. When BOTH screens.accountScrolled and taps.accountDownloads are set (valid), refuse before any adb command
+# unless minMatch = the number of probes (every probe must match) and at least ONE probe sits within 60 px (in y) of the Downloads tap
+# (the probe ON the Downloads row, e.g. its icon). That a second probe sits on a row edge is written in the header and the calibrate note.
+if (-not (Get-ScreenGap 'accountScrolled') -and -not (Get-TapGap 'accountDownloads')) {
+    $asScr = Get-Field (Get-Field $script:Cfg 'screens') 'accountScrolled'
+    $asProbes = @(Get-Field $asScr 'probes')
+    $asTapY = [int](Get-Field (Get-Field (Get-Field $script:Cfg 'taps') 'accountDownloads') 'y')
+    $asNear = 0
+    foreach ($asPr in $asProbes) { if ([Math]::Abs([int](Get-Field $asPr 'y') - $asTapY) -le 60) { $asNear++ } }
+    if ([int](Get-Field $asScr 'minMatch') -lt $asProbes.Count) { Exit-Usage 'a52s.json screens.accountScrolled.minMatch must equal the number of probes (every probe must match: the tap on Downloads is safe only when the probes pin the scroll position)' }
+    if ($asNear -lt 1) { Exit-Usage 'a52s.json screens.accountScrolled has no probe within 60 px (in y) of taps.accountDownloads: put one probe ON the Downloads row (its icon) and one on a row edge' }
+}
 $timing = Get-Field $script:Cfg 'timing'
 foreach ($k in $script:TimingKeys) {
     $v = Get-Field $timing $k

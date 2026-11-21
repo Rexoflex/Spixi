@@ -24,7 +24,10 @@
  *   (b) a re-flush and a peer switch after the first onChatScreenLoaded never wrap, and only the first open writes a late line.
  *   Breaks (observed 2026-11-18): (5) the backstop `cdLate.timer = setTimeout(cdLateEnd, CD_LATE_MAX_MS);` deleted → red
  *   `★ photo1b PO-0 d-lines (fix r2 S2-2 a)`; (6) the gate `|| chatScreenLoadedOnce` removed → red `… (fix r2 S2-2 b)`;
- *   (7) R2-5 reverted (a null count prints zeros) → red `… (fix r2 S2-2 b)`. */
+ *   (7) R2-5 reverted (a null count prints zeros) → red `… (fix r2 S2-2 b)`.
+ * ★ fix r4 (SR4-1): the two dev-line changes of fix r3 — a page the burst safety timer painted says its rows; an open the timer
+ *   painted writes no `chat-shell build=` line. Breaks: (8) `: olderPageTimerRows;` → `: 0;` and (9) `const sp = openSplit;` →
+ *   `const sp = openSplit || {};` — each → red `★ photo1b HV-0 / PO-0 d-lines (fix r4 SR4-1)`. */
 import { photo1bKit } from './a-kit.mjs';
 export default async function (h) {
   const { ok } = h;
@@ -155,5 +158,36 @@ export default async function (h) {
     } finally { s.close(); }
     ok(b && b.neverWrapped && b.late === 1,
       '★ photo1b PO-0 d-lines (fix r2 S2-2 b): after the first onChatScreenLoaded a re-flush and a peer switch never wrap setFileThumb / voiceInfo, and only the first open writes a late line — ' + JSON.stringify(b));
+  }
+
+  /* ★ fix r4 (SR4-1): the two dev-line behaviours of fix r3 — (a) an older page the 250 ms burst SAFETY TIMER painted before its
+     messagesDone says its own row count (`rows=30`, never `rows=0`: R3-4 `olderPageTimerRows`); (b) an open the timer painted
+     before messagesDone writes NO `[CDPERF] chat-shell build=` line (no fixed zeros: the `if (sp)` guard), while the control open
+     (pushed without a pause) writes exactly one. */
+  {
+    let c = null;
+    const s = await K.boot({ p1: true });
+    try {
+      s.push('onChatScreenReady', 'addrPeer');
+      s.push('setChatMode', '0', '0', '', 'False');
+      s.push('setCaps', 'reply,edit,voice,media,olderInsert');
+      s.push('setPhotoPreviews', 'True');
+      s.push('clearMessages', 'true');
+      s.push('addMessages', JSON.stringify({ strs: [], items: items.slice(0, 20) }), 'append');
+      await sleep(450);   // > the 250 ms safety timer: the open paints without messagesDone
+      s.push('messagesDone');
+      s.push('onChatScreenLoaded');
+      await sleep(300);
+      const openTimer = s.warns.filter((w) => /^\[CDPERF\] chat-shell build=/.test(w)).length;
+      s.push('addMessages', JSON.stringify({ strs: [], items: older }), 'prepend');
+      await sleep(450);   // > the safety timer: the page paints without messagesDone
+      const w0 = s.warns.length;
+      s.push('messagesDone', 'true');
+      await sleep(50);
+      const pageLines = s.warns.slice(w0).filter((w) => /^\[P1\] shell older insert /.test(w));
+      c = { openTimer, openControl: on.warns.filter((w) => /^\[CDPERF\] chat-shell build=/.test(w)).length, pageLines };
+    } finally { s.close(); }
+    ok(c && c.openTimer === 0 && c.openControl === 1 && c.pageLines.length === 1 && / rows=30 /.test(c.pageLines[0]),
+      '★ photo1b HV-0 / PO-0 d-lines (fix r4 SR4-1): a page the burst safety timer painted says rows=30 (its own rows); an open the timer painted writes no chat-shell build= line (the control open writes one) — ' + JSON.stringify(c));
   }
 }

@@ -25,7 +25,7 @@
  *        deleted → red `… b-anchor (2)` (the scroll between the two pushes is undone under the cap);
  *   (a5) the renderLogNow reset `olderPageBase = -1;` deleted → GREEN, an EQUIVALENT mutation: the timer's paint consumes the
  *        addMessages anchor (restorePrependAnchor clears it), so the late messagesDone anchors only the top-affordance change,
- *        where a fresh anchor is right either way (with the reset that page's dev line reads rows=0 at messagesDone: the timer's paint already drew them). */
+ *        where a fresh anchor is right either way (the page's dev line still says its rows: fix r3 R3-4 `olderPageTimerRows`, pinned in d-lines fix r4 SR4-1). */
 import { photo1bKit } from './a-kit.mjs';
 export default async function (h) {
   const { ok } = h;

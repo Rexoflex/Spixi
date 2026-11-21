@@ -988,3 +988,15 @@ method name. Please check the null path (a pending message whose friend / stream
 True on `spixi2` (ECDH + ML-KEM-1024, `CoreStreamProcessor.cs:1919`); NOT true for a peer that falls back to `rsa2`
 (RSA-4096, `:1618/1623`). Damir accepted the gap because old peers will be deprecated (#702). When `rsa2` is removed,
 tell us — the claim then holds on every path. If `rsa2` must stay long-term, the welcome copy goes back to the #702 wording.
+
+## Defaults batch addenda (2026-11-18, #1790–#1798) — App lock and Confirm payments On for new accounts, the lock delay of 1 minute (no Ixian-Core change, no wire change, no bridge change)
+
+Damir's ruling #1750 (main chat). Each change has its own switch (#1478); OFF = the old path. Packets P79–P81.
+
+| Change | What moves | Your read |
+|---|---|---|
+| App lock On for a NEW or RESTORED account (P79, `DefaultAppLockOn`) | create and `applyRestorePrefs` write `lockenabled = true` (a fixed value, C#) right after their `Remove("lockenabled")`; readers unchanged — an existing account without a stored value stays Off | a stronger default; check that no other path makes an account real (we found two: create, restore) |
+| Confirm payments On for a NEW or RESTORED account, Android / iPhone / Mac (P80, `DefaultPayConfirmOn`) | the same two sites write `paymentauth = true` where `paymentAuthSupported()`; `SPayments.cs` / `SConfirm.cs` byte-identical | the no-credential device: the native confirm alone stands (`SPayments.cs:631–633`) — never sent without it, never blocked for ever |
+| The app-lock no-auth window 60 s on the phone and the Mac (P81, `LockDelayOneMinute`; OFF = 5 s) | the bound of `withinGrace` in `App.OnResume`; the cold start, the #500 re-stamp, the negative-age guard and Windows (10 min idle) unchanged | the security dial is Damir's; it changes for existing users with App lock On too |
+| ⚠ D-1 (inherited, not changed) — a device with no screen lock and no fingerprint shows "Authentication Failed" before the password form at each app lock (`LockPage.SetResultAsync` treats `NotAvailable` as a failed prompt) | — | not a bypass; with the lock On by default it becomes common. A fix is proposed to Damir (#1794) |
+| ⚠ R1-1 (inherited mechanism, widened by the 60 s window) — the absence is measured on the local wall clock (`App.markBackgrounded`, `DateTime.Now`) | a person with the unlocked phone sets the time back to 0–60 s after the stamp and opens Spixi without an auth; the stamp is put back after each failed try | exists at the fork point (5 s). A fix needs a sleep-counting clock (Android `SystemClock.ElapsedRealtime`) as a second measure — platform code; Damir decides (#1796) |

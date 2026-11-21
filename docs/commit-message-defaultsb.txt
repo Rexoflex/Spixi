@@ -1,0 +1,27 @@
+Commit messages of the Defaults batch (work/defaultsb), one logical unit per commit. No number sign before a number.
+
+1) Defaults batch: App lock and Confirm payments On for a new or restored account, the lock delay of 1 minute
+
+   Ruling 1750. DefaultsRules.cs (new): the new-account write (fixed values, after the create and after the verified
+   restore), the stored App lock reader (moved unchanged), the no-auth window 60 s / 5 s, the clear of the leaving stamp
+   after a verified unlock. SpixiFlags: three switches DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute (absent =
+   on, the old path when off). LaunchPage: two inserted statements. App.xaml.cs: isLockEnabled delegates, the withinGrace
+   statement, the stamp clear in onUnlock. SPayments.cs and SConfirm.cs unchanged.
+   Files: Spixi/Utils/DefaultsRules.cs, Spixi/Utils/SpixiFlags.cs, Spixi/Pages/Launch/LaunchPage.xaml.cs, Spixi/App.xaml.cs
+
+2) Defaults batch: tests, the pin and the re-bases
+
+   C# harness DefaultsTests (15 tests over the real DefaultsRules and SpixiFlags.init); pin pins-defaultsb/a-defaults
+   (14 keys, limits stated); re-bases of other batches' pins for the new tail of SpixiFlags.init; the smoke rows of the
+   five-second window rewritten for ruling 1750.
+   Files: scripts/csh/DefaultsTests.cs, scripts/csh/csh.csproj, scripts/csh/FixB2PayTests.cs,
+   scripts/pins-defaultsb/a-defaults.mjs, scripts/pins-fixb1/g-sparekeep.mjs, scripts/pins-fixb2/d-pay-confirm.mjs,
+   scripts/pins-perfb1/f-flags.mjs, scripts/pins-s16/b-l8.mjs, scripts/pins-v1am/c-csharp.mjs, scripts/smoke-test.mjs
+
+3) Defaults batch: docs (mechanisms, contract, review, packets P79-P81, gate, walk sheet, handoff, decisions 1790-1800)
+
+   Files: docs/defaultsb-mechanisms.md, docs/contract-defaultsb.md, docs/review-brief-defaultsb.md, docs/walk-defaultsb.md,
+   docs/be-review-pack/P79-new-account-app-lock-on.md, docs/be-review-pack/P80-new-account-confirm-payments-on.md,
+   docs/be-review-pack/P81-lock-delay-one-minute.md, docs/be-review-pack/README.md, docs/security-handover-gate.md,
+   docs/security-review-for-be-engineer.md, docs/handoff-2026-11-18-defaultsb.md, docs/commit-message-defaultsb.txt,
+   DECISIONS.md, docs/decisions-index.md, docs/lessons.md, docs/status-log.md, CLAUDE.md

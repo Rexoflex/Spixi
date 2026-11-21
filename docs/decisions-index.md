@@ -189,3 +189,14 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1730 | The #46 verdict of rounds 6–9: CLEAN (F1 / F2 recorded). |
 | #1731 | The merge with Fix batch 2 (`55feaddc`) and its pin re-bases. |
 | #1732 | Session "Photo open 1a" — the record, final state (CSH 766; models; owed: the operator block, compiles). |
+| #1790 | Defaults batch (ruling #1750, main chat): items 1–3 built behind three switches; item 4 (the Android lock flash) stopped with a question; the shell defaults are Fix batch 3's. |
+| #1791 | A NEW or RESTORED account is written with App lock On (`DefaultAppLockOn`; create body + `applyRestorePrefs`, after the verify; readers unchanged, absent = Off; P79). |
+| #1792 | A NEW or RESTORED account is written with Confirm payments On where the row exists (`DefaultPayConfirmOn`; not Windows; `SPayments.cs` / `SConfirm.cs` untouched; P80). |
+| #1793 | The app lock's no-auth window is 60 s on the phone and the Mac (`LockDelayOneMinute`, OFF = 5 s; `DefaultsRules.withinGrace`); a verified unlock clears the leaving stamp (R1-2); Windows unchanged (P81). |
+| #1794 🟡 | The no-credential device: the lock falls back to the Spixi password, a send to the native confirm alone; D-1 (the "Authentication Failed" alert) proposed for a later lock batch. |
+| #1795 🟡 | The Android lock flash: the shell's 3 s belt fires during the absence + an animated pop; the fix needs `lock.html` → a question (A / B / C). |
+| #1796 🟡 | Review round 1: 0 MAJOR; R1-1 (the wall-clock measure, inherited) a question; R1-2 fixed; R1-3 Mac plugin unproven. |
+| #1797 | The walk: a new Windows account through `ixian.cfg`; no safe new account on the test phone (emulator / spare phone / launch walk); the pin re-bases of other batches. |
+| #1798 🟡 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1). |
+| #1799 | The #46 verdict of the batch. |
+| #1800 | Session "Defaults batch" — the record (numbers, models, owed). |

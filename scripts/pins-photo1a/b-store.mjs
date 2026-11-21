@@ -156,7 +156,7 @@ export default async function (h) {
     'ContactDetails chat-info "Delete from this device" (sharedDeleteLocal)': P('Spixi/Pages/Contacts/ContactDetails.xaml.cs', 'private void onNavigating(object sender, WebNavigatingEventArgs e)', 'deleteSource',
       /deleted = true;\s*\}\s*if \(deleted\) \{ ChatMediaStore\.deleteSource\(item\.path\); \}/),   // round 1 (F6): the FILE left, the message stays — by the path
     'ContactDetails.onRemoveHistory (a chat history deleted)': P('Spixi/Pages/Contacts/ContactDetails.xaml.cs', 'private void onRemoveHistory()', 'deleteChat',
-      /SPeerLocalStores\.forget\(friend\.walletAddress\.ToString\(\)\);\s*ChatMediaStore\.deleteChat\(friend\.walletAddress\);/),
+      /^\{\s*if \(SContacts\.removeHistory\(friend\)\)\s*\{/, 0, 0),   // ★ fixb3 re-base (item 2, P85): ONE body — the page calls SContacts.removeHistory (its row below holds the ONE deleteChat), so no store call of its own
     'SContacts.leaveGroup (a group left)': P('Spixi/Utils/SContacts.cs', 'public static bool leaveGroup(Friend group)', 'deleteChat',
       /scheduleSentSweep\(\);\s*ChatMediaStore\.deleteChat\(group\.walletAddress\);/),
     'SContacts.removeContact (a contact removed)': P('Spixi/Utils/SContacts.cs', 'public static string removeContact(Friend friend, bool leaveSharedGroups, out List<string> blockers)', 'deleteChat',
@@ -191,8 +191,8 @@ export default async function (h) {
     const x = p.file === SCP_F ? SCP : load(p.file);
     const bd = body(x, p.sig);
     const calls = storeCallsIn(bd);
-    b1[name] = bd.length > 20 && calls.length === p.n && calls.includes(p.verb) && p.shape.test(bd) && count(bd, 'ChatMediaStore.' + p.verb + '(') === p.k;
-    (byFile[p.file] = byFile[p.file] || []).push(p.verb);
+    b1[name] = bd.length > 20 && calls.length === p.n && (p.n === 0 || calls.includes(p.verb)) && p.shape.test(bd) && count(bd, 'ChatMediaStore.' + p.verb + '(') === p.k;
+    if (p.n > 0) (byFile[p.file] = byFile[p.file] || []).push(p.verb);   // ★ fixb3 re-base: a row with n = 0 reaches the store through another row's body (no call of its own to count)
   }
   /* no other call of a delete verb anywhere outside the two store files: the per-file totals equal the table; the page's own non-delete calls are the cache ones */
   const DELETE_VERBS = ['deleteMessage', 'deleteChat', 'deleteSource', 'deleteSourceNow', 'wipe', 'wipeThumbs'];
@@ -207,7 +207,7 @@ export default async function (h) {
   /* HomePage: removeFriend / removeHistory paths there call no store member (an orphan is swept by the store itself — round 1, F2) */
   b1.homePageNone = storeCallsIn(OUTSIDE.find((x) => x.f === 'Spixi/Pages/Home/HomePage.xaml.cs').m).length === 0;
   ok(F(b1).length === 0,
-    '★ photo1a b1 deletePaths (PO-3 / PO-6, contract § 4.4): every delete path calls the store EXACTLY ONCE at its own site — a message deleted (UIHelpers.deleteMessage + SingleChatPage.deleteMessage: deleteMessage), the chat-info "Delete from this device" (ContactDetails sharedDeleteLocal: `ChatMediaStore.deleteSource(item.path)`, only when the delete worked — the FILE left, the message stays; ★ photo1a re-base 2026-11-18: this text said deleteMessage, the code and the shape always were deleteSource), a chat history deleted (ContactDetails.onRemoveHistory + SContacts.removeHistory: deleteChat), a group left / a contact removed / a contact\'s files purged (SContacts.leaveGroup / removeContact / purgeFiles: deleteChat), a file deleted from Downloads or Settings (deleteSource, right after File.Delete), delete all histories / the account wipe / delete all downloads (SettingsPage.wipeEverything / wipeAccountData / onDeleteHistory / onDeleteDownloads: wipe), the account and wallet-file restore (LaunchPage.restoreAccountFile / restoreWalletFile: wipe, before the restored prefs) — and no other file calls a delete verb; the page\'s other store calls are the cache ones — failing: ' + JSON.stringify(F(b1)));
+    '★ photo1a b1 deletePaths (PO-3 / PO-6, contract § 4.4): every delete path calls the store EXACTLY ONCE at its own site — a message deleted (UIHelpers.deleteMessage + SingleChatPage.deleteMessage: deleteMessage), the chat-info "Delete from this device" (ContactDetails sharedDeleteLocal: `ChatMediaStore.deleteSource(item.path)`, only when the delete worked — the FILE left, the message stays; ★ photo1a re-base 2026-11-18: this text said deleteMessage, the code and the shape always were deleteSource), a chat history deleted (SContacts.removeHistory: deleteChat; ★ fixb3 re-base: ContactDetails.onRemoveHistory calls it first and holds no store call of its own), a group left / a contact removed / a contact\'s files purged (SContacts.leaveGroup / removeContact / purgeFiles: deleteChat), a file deleted from Downloads or Settings (deleteSource, right after File.Delete), delete all histories / the account wipe / delete all downloads (SettingsPage.wipeEverything / wipeAccountData / onDeleteHistory / onDeleteDownloads: wipe), the account and wallet-file restore (LaunchPage.restoreAccountFile / restoreWalletFile: wipe, before the restored prefs) — and no other file calls a delete verb; the page\'s other store calls are the cache ones — failing: ' + JSON.stringify(F(b1)));
 
   /* ── b2 · platformOn is Android only ── */
   const isAt = ST.m.indexOf('platformOn = true;'), isFalse = ST.m.indexOf('platformOn = false;');

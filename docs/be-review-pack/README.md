@@ -121,8 +121,8 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P79](P79-new-account-app-lock-on.md) | Defaults batch item 1 (#1750): a NEW or RESTORED account is written with App lock On (flag `DefaultAppLockOn`); existing accounts and every reader unchanged | LOW | no | none | built · ⚠ uncompiled | 4 min |
 | [P80](P80-new-account-confirm-payments-on.md) | Defaults batch item 3: a NEW or RESTORED account is written with Confirm payments On on Android / iPhone / Mac (flag `DefaultPayConfirmOn`); the send path byte-identical | LOW | no | none | built · ⚠ uncompiled | 3 min |
 | [P81](P81-lock-delay-one-minute.md) | Defaults batch item 2: the no-auth window of the app lock is 60 s on the phone and the Mac (flag `LockDelayOneMinute`, OFF = 5 s); Windows unchanged | MEDIUM | no | none | built · ⚠ uncompiled | 5 min |
-| [P77](P77-licence-texts.md) | Speed lean follow-up: 49 third-party licence texts in `Spixi/Resources/Raw/licenses/` + one inventory; UNPROVEN facts are questions for Damir | LOW | no | none | built · not delivered (#1781) | 3 min |
-| [P78](P78-packaging-refusals-and-ci.md) | Speed lean follow-up: the P-07 park inside the lean target, no strip out folder in the project folder but under obj / bin, the plain packaged smoke, two CI steps; recorded limits r5C-1 … r5C-3 | LOW | no | none | built · not delivered (#1781) | 4 min |
+| [P77](P77-licence-texts.md) | Speed lean follow-up: 49 third-party licence texts in `Spixi/Resources/Raw/licenses/` + one inventory; UNPROVEN facts are questions for Damir | LOW | no | none | built · CLEAN (#1783) | 3 min |
+| [P78](P78-packaging-refusals-and-ci.md) | Speed lean follow-up: the P-07 park inside the lean target, no strip out folder in the project folder but under obj / bin, the plain packaged smoke, two CI steps; recorded limits r5C-2, r5C-3, R6-1 | LOW | no | none | built · CLEAN (#1783) | 4 min |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

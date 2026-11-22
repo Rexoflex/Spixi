@@ -169,7 +169,51 @@ Every round-4 fix was verified (the exception, row 21, `--linked`, the handshake
 |---|---|---|---|---|
 | L-1 | MAJOR (in effect: the outcome of item 3 does not hold on the merged tree) | the plain `node scripts/smoke-packaged.mjs` (2026-11-22, 00:47 UTC) ends `GATE 2 FAILED`: two rows of THIS batch are red in the packaged copy — `b-refusals` row 4 ("plain / lean `--out Raw/html --in-place`: exit 0 but spixi.tokens.css was not stripped (65357 → 65357 bytes)") and row 15 ("`<out>/spixi.tokens.css` holds the committed bytes (not stripped)"). Mechanism: `mkTree` (`b-refusals.mjs:84-86`) copies `spixi.tokens.css` from `root`; in a packaged run `root` is the copy, whose stylesheet is already stripped, so a second strip changes nothing and the "was stripped" checks fail. The four rows that were red in the copy before the batch (S15 D, #1101 F-1b, A10, S14) pass; every other row passes but the 2 KNOWN. No reader ran the packaged smoke on the final tree. CI does not run `smoke-packaged`, so `redesign-ci` would stay green | TRUE (observed; `/home/claude/logs/pkg-plain.log`) | NOT fixed (lead rule 8). Fix direction: `mkTree` takes the source folder from `process.env.SPIXI_PACKAGED_FROM` when it is set (the committed tree, as `smoke-test.mjs:24649` and `:25822` do), else `pjoin(root, HTML)`; then the plain and the lean packaged runs once each. Lesson: run every gate the batch claims (here the packaged smoke) on the tree the LAST reader reads, before that reader starts |
 
+### 5.7 · Round 6 — permitted by Damir's ruling #1753 (2026-11-22): ONE fix round in `b-refusals.mjs` + ONE fresh Opus reader
+Scope of the fix (no other file): L-1 — `mkTree` copies its small Raw/html from `SPIXI_PACKAGED_FROM` when it is set and is a
+folder (`PKG_FROM`, read at module start; children still get an env without it), else from the tree; row 5 compares with the
+same source. r5C-1 — a helper `projectLinks` adds the project-folder rule THROUGH A LINK: an INBOUND link (outside the project
+folder → `Spixi/Other`) and an OUTBOUND link (inside `Spixi/Other` → a folder outside it), each as `--out <link>` and
+`--out <link>/x`, in row 3 (plain and lean) and row 4 (with `--in-place`; 72 calls); row 21 gains `<link>/Spixi/Other/x`.
+Builder: Sonnet (ruling #1753 (2)). Deliberate breaks (scratch copies only):
+| Break | Failing rows |
+|---|---|
+| L-1 revert (`mkTree` reads the tree), in a simulated packaged run (stylesheet stripped, `SPIXI_PACKAGED_FROM` = the committed folder) | 4, 15 |
+| M1: the project-folder rule by the path AS WRITTEN only (`strip-release.mjs:545`) | 3, 4, 21 |
+| M2: the project-folder rule by the REAL path only | 3, 4 |
+| M3: the project-folder rule removed (`at = 'outside'`) | 1, 2, 3, 4, 21 |
+Runs before the reader (ruling #1753 (3)), on the merged tree with the fix: pins leanfollow 154 / 154; the full smoke, the plain
+and the lean packaged runs — results below. Reader: ONE fresh read-only Opus instance (ruling #1753 (4)).
+Observed 2026-11-22 (cloud twin, `TZ=America/Los_Angeles`, one run at a time): full smoke `BASELINE OK — 6814 pass / the 2
+KNOWN` · plain `smoke-packaged`: `BASELINE OK — 6814 pass / the 2 KNOWN` + `GATE 2 OK — the packaged tree passes the suite` (L-1
+closed) · `smoke-packaged --lean-css`: `GATE 2 OK (lean css) — 6810 pass · 4 red by design (listed) · the 2 KNOWN` · no temp
+folder left behind.
+The base moved twice during the round (pull requests 19 and 17 merged); `work/leanfollow` merged it each time (no rebase;
+`4f0eb11` with `c9d6bf6`, `9691018` with `1ad3a44`), and the three runs were run AGAIN on the final tree `9691018` (2026-11-22,
+16:05–18:40 UTC): full smoke `BASELINE OK — 6914 pass / the 2 KNOWN` (= 6760 + 154) · plain `smoke-packaged` `BASELINE OK — 6914
+pass` + `GATE 2 OK` · `--lean-css` `GATE 2 OK (lean css) — 6910 pass · 4 red by design · the 2 KNOWN` · CSH `pass=791 fail=0` · the
+gates ✓ · pins leanfollow + fixb3 + perflean 246 / 246. The reader reads `9691018` + this brief.
+
+**Round 6 reader (ONE fresh read-only Opus instance, ruling #1753 (4); tree `9691018`): CLEAN (0 MAJOR).** It ran the breaks
+itself: M1 → rows 3, 4, 21 · M2 → 3, 4 · M3 → 1, 2, 3, 4, 21 · the L-1 revert in a simulated packaged run → 4, 15; the fixed file
+in the same run 21 / 21; a `SPIXI_PACKAGED_FROM` at a stripped folder → 4, 15 red, at an empty folder → a loud crash, at a
+missing path → the tree (correct); no `spixi-b-refusals-*` folder left in `/tmp` after any run.
+| Id | Sev | Finding (short) | Disposition |
+|---|---|---|---|
+| R6-1 | MINOR | when `os.tmpdir()` is reached through a link (macOS: `/var` → `/private/var`) `tmpLinked` is true, the two OUTBOUND cases are skipped and M2 passes 21 / 21; the head's LIMITS name only case (a) of r4S-2; CI (Linux, `/tmp` not linked) catches M2 | NOT fixed (lead rule 8; no round left): recorded. Fix direction: `const tmp = realpathSync(mkdtempSync(...))` (the reader's run: the skip goes away and M2 fails rows 3, 4 with a linked `TMPDIR`) |
+| R6-2 | NIT | the head still says row 4 makes "(50 calls)"; the row prints 72; the old file printed 64 (not 50: § 5.7's "50 → 72" is wrong too) — +4 cases per flag, none removed | recorded (a comment; the file stays as read) |
+| R6-3 | NIT | the WHAT IT PINS lines of rows 3 / 4 do not name the round-6 link cases (only the ROUND 6 paragraph does) | recorded |
+| R6-4 | NIT | a `SPIXI_PACKAGED_FROM` that is set but not a folder falls back to the tree with no note | recorded |
+After the reader the base moved once more (pull request 18, `338d30f`, the Defaults batch): merged as `cec3f98` (no rebase);
+every code file of the batch is byte-identical to the reader's tree (63 files; only `scripts/smoke-test.mjs` differs, by the base's
+registration line); on `cec3f98`: full smoke `BASELINE OK — 6928 pass / the 2 KNOWN` · plain `smoke-packaged` `BASELINE OK — 6928 pass` + `GATE 2
+OK` (the first plain run on `cec3f98` ended `GATE 2 FAILED` on ONE row of another batch, `#1147 (5)` of `pins-s4/chat` — a timing probe (`rebuiltStillQuiet`, probe at 688 ms, after the ~600 ms reveal) under load; green alone 3 / 3; the second plain run is the one quoted) · `--lean-css` `GATE 2 OK (lean css) — 6924 pass · 4 red by design · the 2 KNOWN` · CSH `pass=806 fail=0` · the gates ✓ · pins
+leanfollow + defaultsb 168 / 168.
+
 ## 6 · Verdict
+
+**FINAL (2026-11-22): CLEAN at round 6** (ruling #1753: one more fix round + one fresh Opus reader; MAJOR per round 4 → 3 → 1 → 1 → 1 → 0). L-1 and r5C-1 are closed; R6-1 (MINOR) and R6-2 … R6-4 (NIT) are recorded. The round-5 text below is kept as written.
+
 **NOT CLEAN at round 5 — CLEAN not claimed; the batch is not delivered.** The security-only pass is CLEAN at round 5 (0 MAJOR; MAJOR of that pass per round 0 → 0 → 0 → 1 → 0). The one MAJOR of round 5 is a pin gap in item 2 (r5C-1); no round found a defect in the code that ships since round 4's regression was reverted. MAJOR per round, all readers: 4 → 3 → 1 → 1 → 1. **After round 5 the lead's own plain packaged run found L-1 (§5.6): two rows of this batch are red in the packaged copy, so item 3 does not yet hold on the merged tree.**
 
 | Round | S (Fable 5.2) | B (Opus) | C (Opus) |

@@ -233,9 +233,11 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1818 | Finding: the `-HistorySeed` row "first swipe -> 1st page" gives no data (log order); recorded, fix direction in a later scripts batch (Q-3). |
 | #1775 | The third-party notices against what ships: one inventory (37 components), 49 licence texts in `Spixi/Resources/Raw/licenses/`, UNPROVEN facts as questions (packet P77). |
 | #1776 | The two packaging refusals (the P-07 park inside the lean target; no out folder in the project folder but under obj / bin) and the link refusals; the recorded obj / bin limit (P78). |
-| #1777 | 🟡 The plain `smoke-packaged` fixed at its cause (the copy is a git work tree, Core linked beside it, links removed first; the four old reds green); L-1: two new rows of `b-refusals` red in the packaged copy. |
+| #1777 | The plain `smoke-packaged` fixed at its cause (the copy is a git work tree, Core linked beside it, links removed first); L-1 closed by #1783. |
 | #1778 | CI runs the parser cross-check and the MSBuild harness (`--fake`, `--real`) after CSH; no new action, secret, permission or fetch. |
 | #1779 | The lean expected reds re-based (`copy: []`; css / js lists checked by GATE 2). |
 | #1780 | With the lean switches off the package is byte-equal to the base but `Raw/licenses/**`. |
-| #1781 | 🟡 #46 of the follow-up: NOT CLEAN at round 5 (one pin-gap MAJOR r5C-1) + L-1 found by the lead after it; not delivered; Damir's choice owed. |
+| #1781 | ⛔ #46 of the follow-up: NOT CLEAN at round 5 — superseded by #1783. |
 | #1782 | Session "Speed lean follow-up" — the record (stopped before the push; models; numbers). |
+| #1783 | #46 round 6 of the follow-up (ruling #1753): L-1 and r5C-1 closed in `b-refusals.mjs`; CLEAN (one Opus reader); R6-1 recorded (outbound link cases skipped where the temp folder is linked). |
+| #1784 | Session "Speed lean follow-up" — the delivery record (three base merges, numbers, push by #1546). |

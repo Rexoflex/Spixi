@@ -52,3 +52,11 @@ the parser rows (h4c: every row gated on `pages ≥ 1`), n1 the new function bod
 statements byte-identical, o2 `$script:LogRe`, o3 the allowlist; source / statement pins, their limits in the pin) · **LIMITS (n1, corrected in round 3):** a trailing comment on a statement line and the spaces inside a line ARE caught (only whole-line comments, blank lines and the indentation are not code) · **re-base after the map commit (n2):** the keys `d2 realFileGap` and `d5 realFileInert` read the REAL `scripts/device/a52s.json` and turn red BY DESIGN when the operator block commits the hub keys to it (the same tripwire as filewalk b6, #1674) · re-based `pins-perfb1toggle/b-walk`,
 `pins-filewalk/b-walk-steps`, `pins-photo1a/c-walk` (after a look at the diff, #1596 / #1634) · `tree-sitter-powershell` parse:
 0 errors in both scripts · NOT proven: a fake-adb dry run (no PowerShell in the cloud), Windows PowerShell 5.1, the phone.
+
+## The operator block (2026-11-22; #1817, #1818)
+- The four keys of `downloads` are in `scripts/device/a52s.json` (two calibrates). The first walk run stopped at once: the typed
+  parameter `[string[]]$HistorySeed` was reused as the state variable; renamed to `$script:HistSeedIdx` (`bfc991b`, review round 5
+  CLEAN). No adb command, allowlist entry, file write or log line changed.
+- Runs `20261122-1342`, `-1346` (`downloads,history`): RESULT OK. Runs `20261122-1350`, `-1354` (`history -HistorySeed 55`): every
+  rep ok with a proven restart, one older page each; the row "first swipe -> 1st page" gives no data (#1818: the shell's send line
+  reaches logcat after the C# answer). Recorded, not changed.

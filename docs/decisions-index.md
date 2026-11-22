@@ -196,3 +196,5 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1814 | Session "Fix batch 3" — the record. |
 | #1815 | Question Q-2: received downloads after chat info › Delete history (answered by #1816). |
 | #1816 | Q-2 answered (Damir #1754): option (a), received downloads stay after chat info › Delete history for v1. |
+| #1817 | Fix batch 3 operator block: the four map keys, the `-HistorySeed` state renamed (`$script:HistSeedIdx`; round 5 CLEAN), the device runs. |
+| #1818 | Finding: the `-HistorySeed` row "first swipe -> 1st page" gives no data (log order); recorded, fix direction in a later scripts batch (Q-3). |

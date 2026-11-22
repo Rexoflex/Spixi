@@ -61,3 +61,9 @@ Every MINOR of every round is fixed or recorded with its reason (P84, P85, P86).
 after a look at the diff (green alone 5 / 5; removing the forget there turns it red). No code file changed. Expected in `redesign-ci`:
 `BASELINE OK 6692 / the 2 KNOWN` = 6660 + 32.
 
+**Round 5 (the operator block, 2026-11-22; #1817):** the first walk run on Windows PowerShell 5.1 stopped at the run.json line: the
+typed parameter `[string[]]$HistorySeed` was reused as the script-scope state. Fix `bfc991b` (`$script:HistSeedIdx`, six lines; pin key
+`c-walk` p1 with a self-test). One fresh read-only Fable 5.2 reader: **CLEAN, 0 / 0 / 0**, incl. a hunt for the same class of
+run-time-only faults in every function this batch added. After it the runs on the phone passed; one row of `-HistorySeed` gives no data
+(#1818, recorded: it came after the last permitted round). Expected in `redesign-ci`: `BASELINE OK 6693 / the 2 KNOWN` = 6660 + 33.
+

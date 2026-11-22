@@ -1,0 +1,21 @@
+Chat shell batch (Mission Control photo1b) — the commits on work/photo1b, in order (delivery by ruling 1546: the session
+pushed the branch; Damir opens the pull request inside the fork, base Rexoflex/Spixi redesign/frontend).
+
+1. Chat shell batch: the agent contract, the mechanisms and the review brief
+2. Chat shell batch: five switches of the chat page and their caps
+3. Chat shell batch: the older-page insert, the lighter photo tile and voice wave, the developer lines
+4. Chat shell batch: the chat-background values of ruling 1644
+5. Chat shell batch: the pins, the harness and the smoke registration
+6. Merge redesign/frontend (14ae57f: Photo open 1a) into work/photo1b
+7. Chat shell batch: review round 2 fixes
+8. Chat shell batch: review round 3 fixes
+9. Chat shell batch: review round 4 fixes (pins only)
+10. Chat shell batch: the review verdict (CLEAN at round 5)
+11. Chat shell batch: BE review packets P71-P76 and the gate section
+12. Chat shell batch: export (DECISIONS 1755-1767, lessons L241-L246, handoff, walk sheet, status log, CLAUDE.md)
+
+Pull request title:
+Chat shell batch: older pages insert only their rows, the lighter photo tile and voice wave, the chat backgrounds
+
+Smoke on the merged tree: BASELINE OK 6727 / the 2 KNOWN (= 6660 + 67). CSH 775 (= 766 + 9).
+C# uncompiled: Spixi/Pages/Chat/SingleChatPage.xaml.cs (one line), Spixi/Utils/SpixiFlags.cs (compiles in csh).

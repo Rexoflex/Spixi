@@ -1,0 +1,24 @@
+Session Speed lean follow-up: the records (stopped before the push: not CLEAN at review round 5)
+
+The batch is committed on work/leanfollow in five units and one merge of
+redesign/frontend (14ae57f, Photo open 1a). It is NOT pushed: review round
+5, the last permitted round, found one MAJOR (r5C-1, a pin gap; the code is
+correct by the reader's trace). After round 5 the plain packaged smoke on the
+merged tree found two rows of this batch red in the packaged copy (L-1).
+Damir chooses in the main chat: one more fix round with one fresh reader,
+deliver as is with both recorded, or stop.
+
+- DECISIONS 1775-1782 (the four items, the byte-equal package, the review
+  verdict, the record); the decisions index.
+- Packets P77 (the licence texts in the package) and P78 (the refusals, the
+  plain packaged smoke, the CI steps); the packet index; the gate section.
+- Lessons L247-L250; the handoff docs/handoff-2026-11-18-leanfollow.md; the
+  status-log entry; CLAUDE.md "Where we are now".
+- Numbers on the merged tree: smoke BASELINE OK 6814 / the 2 KNOWN (= 6660 + 154), CSH 766 (+0), the gates pass.
+
+The unit commits (base 55feaddc):
+1. the third-party notices against what ships (DECISIONS 1775)
+2. the packaging refusals (DECISIONS 1776)
+3. the plain packaged smoke (DECISIONS 1777, 1779)
+4. the parser cross-check and the MSBuild harness in redesign-ci (DECISIONS 1778)
+5. the pin registration and the work docs

@@ -164,8 +164,13 @@ Every round-1 fix was verified for the input it names; four were incomplete for 
 
 Every round-4 fix was verified (the exception, row 21, `--linked`, the handshake, SIGPROF, rows 19 / 20); d-ci row 17 only in part (r5C-3).
 
+### 5.6 · After round 5 — the lead's own final runs on the merged tree (no reader; no code changed)
+| Id | Sev | Finding (short) | Verdict | Disposition |
+|---|---|---|---|---|
+| L-1 | MAJOR (in effect: the outcome of item 3 does not hold on the merged tree) | the plain `node scripts/smoke-packaged.mjs` (2026-11-22, 00:47 UTC) ends `GATE 2 FAILED`: two rows of THIS batch are red in the packaged copy — `b-refusals` row 4 ("plain / lean `--out Raw/html --in-place`: exit 0 but spixi.tokens.css was not stripped (65357 → 65357 bytes)") and row 15 ("`<out>/spixi.tokens.css` holds the committed bytes (not stripped)"). Mechanism: `mkTree` (`b-refusals.mjs:84-86`) copies `spixi.tokens.css` from `root`; in a packaged run `root` is the copy, whose stylesheet is already stripped, so a second strip changes nothing and the "was stripped" checks fail. The four rows that were red in the copy before the batch (S15 D, #1101 F-1b, A10, S14) pass; every other row passes but the 2 KNOWN. No reader ran the packaged smoke on the final tree. CI does not run `smoke-packaged`, so `redesign-ci` would stay green | TRUE (observed; `/home/claude/logs/pkg-plain.log`) | NOT fixed (lead rule 8). Fix direction: `mkTree` takes the source folder from `process.env.SPIXI_PACKAGED_FROM` when it is set (the committed tree, as `smoke-test.mjs:24649` and `:25822` do), else `pjoin(root, HTML)`; then the plain and the lean packaged runs once each. Lesson: run every gate the batch claims (here the packaged smoke) on the tree the LAST reader reads, before that reader starts |
+
 ## 6 · Verdict
-**NOT CLEAN at round 5 — CLEAN not claimed; the batch is not delivered.** The security-only pass is CLEAN at round 5 (0 MAJOR; MAJOR of that pass per round 0 → 0 → 0 → 1 → 0). The one MAJOR of round 5 is a pin gap in item 2 (r5C-1); no round found a defect in the code that ships since round 4's regression was reverted. MAJOR per round, all readers: 4 → 3 → 1 → 1 → 1.
+**NOT CLEAN at round 5 — CLEAN not claimed; the batch is not delivered.** The security-only pass is CLEAN at round 5 (0 MAJOR; MAJOR of that pass per round 0 → 0 → 0 → 1 → 0). The one MAJOR of round 5 is a pin gap in item 2 (r5C-1); no round found a defect in the code that ships since round 4's regression was reverted. MAJOR per round, all readers: 4 → 3 → 1 → 1 → 1. **After round 5 the lead's own plain packaged run found L-1 (§5.6): two rows of this batch are red in the packaged copy, so item 3 does not yet hold on the merged tree.**
 
 | Round | S (Fable 5.2) | B (Opus) | C (Opus) |
 |---|---|---|---|
@@ -175,4 +180,4 @@ Every round-4 fix was verified (the exception, row 21, `--linked`, the handshake
 | 4 | 1 / 3 / 5 | 0 / 3 / 7 | 0 / 4 / 1 |
 | 5 | 0 / 2 / 6 | 0 / 4 / 4 | 1 / 2 / 4 |
 
-(MAJOR / MINOR / NIT.) The code files are committed exactly as the round-5 readers read them (SHA-256 list `scratch/lead/r5-tree.sha256` of the cloud twin; compared before each commit). Damir's choice (in the main chat): accept the pin limit of r5C-1 (the pattern of #1735), or one more fix round with one fresh reader, or stop the batch — the options are in the status doc `claude/session-leanfollow-status.md`.
+(MAJOR / MINOR / NIT.) The code files are committed exactly as the round-5 readers read them (SHA-256 list `scratch/lead/r5-tree.sha256` of the cloud twin; compared before each commit). Damir's choice (in the main chat), the options in the status doc `claude/session-leanfollow-status.md`: (a) one more fix round — the link rows of r5C-1 and the source folder of L-1, both in `b-refusals.mjs` — with one fresh reader and both packaged runs; (b) deliver as is, with r5C-1 accepted as a pin limit (the pattern of #1735) and L-1 recorded as two known red rows of the packaged copy; (c) stop the batch.

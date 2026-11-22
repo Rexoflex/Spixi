@@ -317,16 +317,16 @@ export default async function (h) {
   // ★ fixb3 operator block 2026-11-22 (re-base after the map commit, as planned in #1812 / P86): calibrate-20261122-1324 gave
   // taps.accountDownloads, swipes.accountDownloads and screens.accountScrolled; screens.downloads stays absent until the proof run.
   // Was c69474965f8f28aefa5c49314c36082e935f6a241abee1b9f56701228240f43f (the map of 2026-11-17).
-  const CAL_A52_SHA = '2a6071966dd9f973243b417fd2fa7e84d368acb3eec855f10c25e0a5e2637be6';
+  const CAL_A52_SHA = '898fad4002ce485602e4574eae0912aef0e3093caf14c67e78274aea7e029ce8';
   const b6 = {
     found: !!cfgReal.taps,
     sha: sha(A52) === CAL_A52_SHA,
     tapKeys: Object.keys(cfgReal.taps || {}).join() === 'chatRow1,chatHeader,tabChats,tabApps,tabWallet,tabAccount,photoTile,accountDownloads',
-    screenKeys: Object.keys(cfgReal.screens || {}).join() === 'home,chat,chatinfo,viewer,accountScrolled',
-    noDownloadsKeys: !/"downloads"/.test(A52),   // fixb3: screens.downloads still absent (the proof calibrate gives it)
+    screenKeys: Object.keys(cfgReal.screens || {}).join() === 'home,chat,chatinfo,viewer,accountScrolled,downloads',
+    hasDownloadsKey: !!(cfgReal.screens && cfgReal.screens.downloads),   // fixb3: screens.downloads from the proof calibrate of 2026-11-22
     swipeKeys: Object.keys(cfgReal.swipes || {}).join() === 'chatOlder,chatNewer,historyOlder,accountDownloads',
     realViewerNoGap: gapOf('viewer', cfgReal, true) === '',
-    realDownloadsGap: gapOf('downloads', cfgReal, true) === 'a52s.json has no screens.downloads',
+    realDownloadsGap: gapOf('downloads', cfgReal, true) === '',
   };
   ok(F(b6).length === 0,
     '★ filewalk walk steps (b6 a52sCalibrated): scripts/device/a52s.json is the calibrated file (SHA-256 c6947496…): taps.photoTile and screens.viewer from the calibrate runs of 2026-11-17, taps.accountDownloads and screens.downloads absent (the Downloads row is below the first screen of the Account hub) — the real file gives `viewer` no gap and `downloads` the gap taps.accountDownloads; a later edit re-bases this key — failing: ' + JSON.stringify(F(b6)));

@@ -226,7 +226,7 @@ export default async function (h) {
     eachOneAbsent: gapOf(without('swipes', 'accountDownloads')) === 'a52s.json has no swipes.accountDownloads' && gapOf(without('screens', 'accountScrolled')) === 'a52s.json has no screens.accountScrolled'
       && gapOf(without('taps', 'accountDownloads')) === 'a52s.json has no taps.accountDownloads' && gapOf(without('screens', 'downloads')) === 'a52s.json has no screens.downloads',
     // review round 3 (n2): reads the REAL map: red BY DESIGN once the operator block commits taps.accountDownloads to a52s.json; re-base after the map commit (as filewalk b6, #1674)
-    realFileGap: (() => { try { const A = JSON.parse(readFileSync(join(root, 'scripts/device/a52s.json'), 'utf8')); return gapOf(A) === 'a52s.json has no screens.downloads'; } catch { return false; } })(),   // re-based after the map commit of 2026-11-22 (three hub keys; screens.downloads after the proof calibrate)
+    realFileGap: (() => { try { const A = JSON.parse(readFileSync(join(root, 'scripts/device/a52s.json'), 'utf8')); return gapOf(A) === ''; } catch { return false; } })(),   // re-based after the map commits of 2026-11-22 (three hub keys, then screens.downloads from the proof calibrate): no gap
     gapBeforeInput: iGap >= 0 && iSkip > iGap && iBody > iSkip && stepFn.slice(0, iBody).filter((l) => /Invoke-Shell|Invoke-Adb/.test(l)).length === 0,
     gapWalkStep: D.includes('$gap = Get-StepGap $Step') && fnD('Get-StepGap').includes("if ($gap) { return $gap }"),
   };

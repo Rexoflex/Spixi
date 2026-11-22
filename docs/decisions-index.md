@@ -194,4 +194,5 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1812 | Fix batch 3 items 3 + 4: the walk step `downloads` scrolls the Account hub (swipe → check → tap); `-HistorySeed <k>` (P86). #1666 ④ moved by #1739 (3). |
 | #1813 | Fix batch 3: the #46 verdict. |
 | #1814 | Session "Fix batch 3" — the record. |
-| #1815 | Question Q-2: received downloads after chat info › Delete history (open, Damir). |
+| #1815 | Question Q-2: received downloads after chat info › Delete history (answered by #1816). |
+| #1816 | Q-2 answered (Damir #1754): option (a), received downloads stay after chat info › Delete history for v1. |

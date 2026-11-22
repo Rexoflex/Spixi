@@ -2759,7 +2759,8 @@
       ...senderHeadOpts(rec),
       onRetry: (isSent && rec.kind !== 'file' && rec.status === 'failed' && bridge.cap('resend'))
         ? () => bridge.send('ixian:contextAction:resend:' + rec.id) : null,
-      voice: { ...voiceViewOf(rec), onPlay: () => playVoice(rec.id) },
+      /* ★ photo1b PO-6 (cap `voiceWaveLite`; absent = the old path): the wave writes only the bars that changed */
+      voice: { ...voiceViewOf(rec), onPlay: () => playVoice(rec.id), lite: !!bridge.cap('voiceWaveLite') },
     });
   }
   function voiceAllowed() {
@@ -3180,10 +3181,15 @@
       });
     }
     /* ★ A5 #1124: an image file → the media tile (same options + the preview); OFF or another file → the card */
+    /* ★ photo1b PO-4 (cap `photoTileLite`; absent = the old path): `lite` below = the lighter tile (createImageFileBubble: no hidden
+       file face / overlay icon / spinner until needed, no JPEG head decode) — and `onLoad` re-pins the log only on the old path: a
+       photo tile is FIXED at 320 × 320 and never grows to the picture, so `pinLogEnd` had nothing to follow (the old path re-pinned
+       on every load while the log was near the bottom). The cap is read here, at the moment the row is built. */
     const photoTile = photoPreviews && isPhotoFileName(rec.name);
     const fileRow = (photoTile ? createImageFileBubble : createFileBubble)({
       thumb: photoTile ? (fileThumbs.get(String(rec.id)) || null) : null,
-      onLoad: photoTile ? () => { if (nearBottom()) pinLogEnd(); } : undefined,   // the tile grew to the picture
+      lite: !!photoTile && !!bridge.cap('photoTileLite'),
+      onLoad: photoTile && !bridge.cap('photoTileLite') ? () => { if (nearBottom()) pinLogEnd(); } : undefined,   // the tile grew to the picture (the old path only)
       onThumbError: photoTile ? () => dropFileThumb(String(rec.id)) : undefined,   // #46 r1 B-1: a picture that will not decode is forgotten
       quietKey: photoTile && rec.fromLoad ? String(rec.id) : null,   // ★ #1147 (5): the quiet wait is per message — #46 r1 B-m4: a history-load row only, never a live insert
       direction: rec.direction,
@@ -5869,7 +5875,25 @@
     const t = Math.cbrt(Math.max(0, e) / ENTER_FX_MS);
     return h * (1 - (3 * t * t - 2 * t * t * t));
   }
+  /* ★ photo1b HV-0 / PO-0: the developer-build carrier, read ONCE (the head script sets <html data-p1> before this script runs);
+     every new line and every timing of this batch is behind it — without it they cost one boolean test */
+  const devP1 = document.documentElement.hasAttribute('data-p1');
+  /* ★ photo1b HV-1: the state the insert path proves its seam against (written only while the cap is on — see noteRendered) */
+  let olderInsertArmed = false;   // set by a prepend's addMessages on a clean log; spent by every render and by a renderLog outside the prepend
+  let shownWas = null;            // the shown ids of the last render (a copy)
+  let posWas = null;              // their group positions
+  let logEndWas = null;           // the row that carries data-log-end
+  let renderCtxWas = '';
+  let mentionKeyWas = '';
+  let slWas = null;
+  let renderSplit = null;         // ★ photo1b PO-0 / HV-0 (dev builds): the split of the last render
+  let openSplit = null;           // ★ photo1b PO-0: the split of the open's render (the [CDPERF] chat-shell build= line)
   function renderLogNow() {
+    const spT0 = devP1 ? performance.now() : 0;   // ★ photo1b PO-0 / HV-0: the split of this render (dev builds only, data-p1)
+    let spPhoto = 0, spVoice = 0;
+    olderInsertArmed = false;   // ★ photo1b HV-1: a full render spends the prepend's insert chance (the old path)
+    if (olderPageBase >= 0) olderPageTimerRows = Math.max(0, order.length - olderPageBase);   // fix r3 (R3-4): the rows this paint drew, for the page's dev line
+    olderPageBase = -1;   // ★ photo1b HV-3 fix r1 (R2) / r2 (R2-6): a page in flight is on glass now (the burst safety timer) — messagesDone re-takes no anchor for it
     invalidateMentions();   // rebuild the mention name list from the CURRENT model each render → seen senders (addThem) are always included (review m1)
     /* ★ S15 #46 r1 m-1: a running rise translates the rows DOWN, and a transform grows scrollHeight — so nearBottom() and the
        riseFromH base would read the inflated box (no re-pin, the rows jump). Take the rise off FIRST; keep what is left of it. */
@@ -5942,6 +5966,7 @@
       if (id === unreadBoundaryId || (unreadBoundaryId && gplan.memberLead.get(unreadBoundaryId) === id)) frag.append(createUnreadDivider(window.SL || {}));
       const grp = gplan.groups.get(id);
       const row = grp ? buildGridRow(grp, pos[id]) : buildRow(rec, pos[id]);
+      if (devP1) { if (grp) spPhoto += Math.min(grp.members.length, MOSAIC_MAX); else if (isVoiceRec(rec)) spVoice += 1; else if (rec.kind === 'file' && isPhotoFileName(rec.name)) spPhoto += 1; }   // ★ photo1b PO-0: counted only in dev builds
       row.dataset.msgid = id;
       labelRow(row, rec);                  // ★ S9 a11y (#1206): role + accessible name (sender, time, status)
       rows.set(id, row);
@@ -5957,13 +5982,16 @@
     }
     /* ★ S9 r2 (Damir): the newest message row always reserves the reaction pill's overhang, so a reaction never grows the log and never hides under the composer. */
     if (lastMsgRow) lastMsgRow.dataset.logEnd = '';
+    const spT1 = devP1 ? performance.now() : 0;
     box.replaceChildren(frag);             // atomic swap — no empty intermediate state
     carryReplyHover(replyFocusId);         // ★ #1198: the row under the mouse keeps its hover button (the #1184 carry)
     logDirty = false;                      // ★ Session P: on glass
     keepTypingLast();
+    const spT2 = devP1 ? performance.now() : 0;
     if (prependAnchor && restorePrependAnchor()) olderAnchorId = null;   // ★ #1166 B2: a prepend keeps the first visible row in place (before the 1.5-screen bottom pin)
     else if (scrollWasAtBottom) pinLogEnd();   // #46 r1: the reply hold wins
     else applyOlderAnchor();               // A1: hold the reading position across a load-more re-flush
+    const spT3 = devP1 ? performance.now() : 0;
     /* ★ S15 E v2 (#1301): my send's row is in — rise by the height it added, only when the log is pinned at its end (a prepend /
        reply hold leaves it unpinned: no rise) */
     if (riseFromH >= 0) {
@@ -5986,7 +6014,291 @@
     // rows are gone — a bulk delete therefore empties the selection and the
     // contextual bar closes itself once the last one lands.
     if (chatSelect) chatSelect.refresh();
+    /* ★ photo1b HV-1: what this render drew — the next prepend's insert proves its seam against it (cap absent: not kept at all) */
+    /* fix r3 (S3-3): a throw in the bookkeeping never skips the pass below or the caller's tail — the next page then renders in full */
+    try { if (bridge.cap('olderInsert')) noteRendered(shownIds, pos, lastMsgRow); else shownWas = null; } catch (e) { shownWas = null; }
+    /* ★ photo1b PO-0 / HV-0 (dev builds): the split; `fade` is closed by the caller (closeSplit) — the pass stays LAST */
+    if (devP1) renderSplit = { build: spT1 - spT0, swap: spT2 - spT1, fix: spT3 - spT2, fade: -1, fadeAt: performance.now(), photo: spPhoto, voice: spVoice };
     composerFadeNow();                      // ★ Session AE: every row node is new — the composer-band masks are re-derived NOW, after the swap (when this render runs inside renderLog's rAF a scheduled pass would leave the new rows unmasked for a frame; elsewhere it is simply the earliest correct moment)
+  }
+
+  /* ════ ★★ photo1b HV-1 (cap `olderInsert`, switch HistoryInsertOnly) — AN OLDER PAGE INSERTS ONLY ITS OWN ROWS ════
+   * The old path: a page of older messages (addMessages(json, "prepend") + messagesDone(show_more)) ends in renderLogNow(),
+   * which rebuilds EVERY row of the log. With the cap, messagesDone calls renderOlderInsert() first: it builds ONLY the rows
+   * of `order` before the old first shown row (the SAME builders and per-row steps as the loop above), re-builds the seam
+   * row whose group position changed, drops the day separator above the old first row when the last new row is on its day,
+   * re-makes the top affordance like the full render, and inserts the fragment before the old first row. The result is the
+   * full render's: byte-equal in the pinned cases (the log's serialised markup, the `rows` map, gridCells / gridMembers /
+   * gridGroups); outside them DOM-equal up to the inert marks named at the end of the audit below. Whenever that is not
+   * PROVABLY local it returns false and the caller runs renderLogNow() (the old path, `mode=full`):
+   *   · the insert chance is not armed (a render or a renderLog outside the prepend since the page started, a burst already
+   *     running at its start), the first render not done, an empty log, select mode, a jump pulse, a rise or a log slide;
+   *   · the render context changed since the last render (renderCtxKey — its terms are the audit below), the strings
+   *     object changed, or the @-mention name list changed (it highlights old rows too); a spent one-shot button, a lifted
+   *     row or a tick crossfade inside its window is in the log;
+   *   · the old shown rows are not EXACTLY the tail of the new full plan (payment dedup / photo groups moved a row), a
+   *     photo group crosses the seam or an old group changed, a payment txid is in both parts, the unread divider's row is
+   *     in the new part, a new row quotes an old one, an old row quotes a row LATER in the log, an old row's position other than
+   *     the seam row's changed, the DOM around the seam is not the shape the full render made, focus sits in a node it
+   *     would replace.
+   * Every old row that QUOTES a row the model holds is re-built in place (its quote box reads the target's live state —
+   * a newly loaded target, a voice length C# sent later, a preview — so it is never kept); a quote of a target LATER in
+   * the log, or of an old photo whose live picture is not the preview cache, refuses.
+   * No HTML-string sink: every node comes from the row builders; message text never becomes markup.
+   * Fix r3 (R3-3): an open reactions "+N" sheet and its scrim (overlay.js, hosted INSIDE #messages) stay open across an insert;
+   * the full render's replaceChildren drops them — the new path differs there and is better.
+   * ── ★ photo1b fix r1 (S-1 / R1 / R3) — THE BUILD-TIME STATE AUDIT. What any row builder reads that is NOT its own record
+   * or positionsFor (buildRow and everything it calls: text, media, file / photo tile, voice, payment, app, call, event chip,
+   * grid; senderHeadOpts / tileHead; the quote and its tap; labelRow; applyRowReactions; wireMenu / menuOptsFor /
+   * wireReplyGestures / the hover button; createDateSeparator / createUnreadDivider), and how the insert stays exact:
+   *   in renderCtxKey (compared with the last render's): mode (type, blind, admin, answeredFor …) · identity name / avatar /
+   *     address · selfAvatar, selfNickPushed, selfNick, selfAddress (voice faces) · photoPreviews · mediaAutoloadOn() ·
+   *     loadedMedia.size only while autoload is OFF (the build reads `mediaAutoloadOn() || loadedMedia.has(url)`: with autoload
+   *     ON the set is never read, and it grows after every render that loaded a GIF — fix r2 R2-1) · groupOwner (Owner chip) · the caps · composerLock (isMenuableRec → menu, swipe, hover button,
+   *     a file's Cancel — S-1) · the composer's recording state (canReplyRec) · callVisible + liveCallInLog() (a call card's
+   *     Call back — R3) · groupRoster names (memberQuoteName: reply-button labels, quote senders) · avatarByAddr (recAvatar:
+   *     gutters, tile heads, voice faces) · unreadBoundaryId (positionsFor) · <html data-desktop> (the hover button, the
+   *     double-click) · docLocale() + the hour cycle (labelRow, bubble times) · the DAY (date labels are relative);
+   *   compared on their own: window.SL (the object) · the @-mention name list (mentionKey: highlights in old rows);
+   *   refused when present: a jump pulse, a rise, a log slide, select mode (state above) · a tick crossfade inside its
+   *     TICK_REPLAY_MS on an old row (the full render replays it) · a spent one-shot button (`[data-acted]`) or a lifted row
+   *     (`[data-menu-lift]`) in the log (the full render rebuilds them fresh);
+   *   re-built in place: every old quoting row (replyQuoteFor / quoteTapFor / replySourceFor of the target: its text, its
+   *     kind, voiceViewOf(target).durMs — R1 —, groupFirstCount, quoteThumbOf);
+   *   unaffected (a pure function of the row's own record, or patched in place by its own push for both paths alike):
+   *     voiceClips of the row itself (voiceInfo / voiceState repaint in place), fileThumbs / offerPreviews of the row itself
+   *     (setFileThumb), declinedApps / canceledApps (their writers call renderLog → the insert chance is spent), the photo
+   *     quiet window (per message, time-based on both paths), rec.celebrate (one-shot, consumed at the first build),
+   *     menuOptsFor's getters (read at menu OPEN time), the event chip and the payment / app / call fields (own record).
+   *   Not exact by design (inert — DOM-equal, not byte-equal): on a KEPT old row an in-place mark stays where a fresh build
+   *     has none or puts it elsewhere — an animation mark (c-reactions--in, data-enter, a tile's own fade class,
+   *     data-live-complete, a tick's inline animation-delay and its exit ghost), the attribute ORDER after an in-place select /
+   *     reaction / hover change, the desktop hover button's inline --reply-btn-x / --reply-btn-y, and an empty `style=""`
+   *     after the fade pass cleared a mask. They style or describe a finished change; nothing reads them back. */
+  function renderCtxKey() {
+    let rec = false;
+    try { rec = !!(composerEl && getComposerRecording(composerEl)); } catch (e) { rec = true; }   // TDZ before the composer exists → never equal
+    let auto = '';
+    try { auto = String(mediaAutoloadOn()); } catch (e) { auto = 'x'; }
+    let call = false;
+    try { call = !!liveCallInLog(); } catch (e) { call = true; }
+    /* fix r2 (S2-3): every list goes INTO the JSON as an array — no hand-made separators a name could contain */
+    const roster = [];
+    for (const [k, m] of groupRoster) roster.push([k, (m && m.name) || '']);
+    const avatars = [];
+    for (const [k, u] of avatarByAddr) avatars.push([k, String(u).length, String(u).slice(-24)]);
+    let loc = null;
+    try { loc = [String(docLocale() || ''), String(document.documentElement.dataset.hourCycle || '')]; } catch (e) { loc = ['x']; }
+    return JSON.stringify([mode, identity.name || '', identity.avatar || '', identity.address || '', selfAvatar || '', !!photoPreviews,
+      groupOwner || '', Object.keys(bridge.capabilities || {}).sort(), rec, auto, auto === 'true' ? 0 : loadedMedia.size, new Date().toDateString(),
+      String(composerLock || ''), selfNickPushed || '', selfNick || '', selfAddress || '', !!callVisible, call, roster,
+      avatars, String(unreadBoundaryId || ''), document.documentElement.hasAttribute('data-desktop'), loc]);
+  }
+  function mentionKey() {
+    const m = mentionCtx();
+    return JSON.stringify([m.names, m.self]);
+  }
+  function noteRendered(shownIds, pos, lastMsgRow) {
+    shownWas = shownIds.slice();
+    posWas = pos;
+    logEndWas = lastMsgRow;
+    renderCtxWas = renderCtxKey();
+    mentionKeyWas = mentionKey();
+    slWas = window.SL;
+  }
+  /* one row, built exactly as the full render's loop builds it (no grid row: the caller never asks for one) */
+  function buildLoopRow(id, rec, position) {
+    const row = buildRow(rec, position);
+    row.dataset.msgid = id;
+    labelRow(row, rec);
+    rows.set(id, row);
+    return row;
+  }
+  function finishLoopRow(rec, row) {
+    applyRowReactions(rec, row, false);
+    wireMenu(rec, row);
+    if (rec.tickFx && performance.now() - rec.tickFx.at < TICK_REPLAY_MS) replayStatusChange(row, rec.tickFx.from, performance.now() - rec.tickFx.at);
+  }
+  function renderOlderInsert() {
+    if (!olderInsertArmed || !firstRenderDone || !shownWas || !shownWas.length || !posWas) return false;
+    if (chatSelect || box.hasAttribute('data-selecting') || jumpPulse || riseAt || risePending || logSlide) return false;
+    if (window.SL !== slWas) return false;
+    if (box.querySelector('[data-acted], [data-menu-lift]')) return false;   // a spent one-shot button / a lifted row: the full render rebuilds them
+    const spT0 = devP1 ? performance.now() : 0;
+    invalidateMentions();
+    if (renderCtxKey() !== renderCtxWas || mentionKey() !== mentionKeyWas) return false;
+    /* the full render's plan, over ALL rows (model work only — no DOM): the same dedup, groups and positions */
+    const requestTxids = new Set();
+    for (const oid of order) {
+      const r = model.get(oid);
+      if (r && r.kind === 'payment' && r.txid && isRequestRec(r)) requestTxids.add(r.txid);
+    }
+    const ids = !requestTxids.size ? order : order.filter((oid) => {
+      const r = model.get(oid);
+      return !(r && r.kind === 'payment' && r.txid && !isRequestRec(r) && requestTxids.has(r.txid));
+    });
+    const gplan = planPhotoGroups(ids);
+    const shownIds = gplan.skip.size ? ids.filter((oid) => !gplan.skip.has(oid)) : ids;
+    /* the seam: the old shown rows must be EXACTLY the tail of the new plan */
+    const k = shownIds.length - shownWas.length;
+    if (k < 0) return false;
+    for (let i = 0; i < shownWas.length; i++) if (shownIds[k + i] !== shownWas[i]) return false;
+    const firstOld = shownWas[0];
+    const seamIdx = order.indexOf(firstOld);   // the new part = every model row before the old first shown row (a hidden dedup row too)
+    if (seamIdx < 0) return false;
+    const newIdSet = new Set(order.slice(0, seamIdx));
+    const newShown = shownIds.slice(0, k);
+    for (const sid of newShown) if (!newIdSet.has(sid)) return false;
+    /* photo groups: none crosses the seam; every old group is the one on screen */
+    for (const [lead, g] of gplan.groups) {
+      const isNew = newIdSet.has(lead);
+      for (const mid of g.ids) if (newIdSet.has(mid) !== isNew) return false;
+      if (!isNew) { const was = gridGroups.get(lead); if (!was || was.ids.length !== g.ids.length || was.ids.some((x, i) => x !== g.ids[i])) return false; }   // fix r3 (S3-2): element by element
+    }
+    for (const lead of gridGroups.keys()) if (!gplan.groups.has(lead) || newIdSet.has(lead)) return false;
+    /* the unread divider's row is not in the new part */
+    if (unreadBoundaryId && (newIdSet.has(unreadBoundaryId) || newIdSet.has(gplan.memberLead.get(unreadBoundaryId) || ''))) return false;
+    /* payments: no txid in both parts (the dedup and the request card's story are not local) — every model row counts */
+    const txNew = new Set();
+    for (const nid of newIdSet) { const r = model.get(nid); if (r && r.kind === 'payment' && r.txid) txNew.add(r.txid); }
+    /* quotes: a new row quoting an old one is not local; every old row quoting a model row is re-built in place (below) */
+    for (const nid of newIdSet) {
+      const r = model.get(nid);
+      if (r && r.replyTo && !newIdSet.has(String(r.replyTo)) && model.has(String(r.replyTo))) return false;
+    }
+    const requote = [];
+    const shownOld = new Set(shownWas);
+    const tnow = performance.now();
+    let orderAt = null;
+    for (const oid of order) {
+      if (newIdSet.has(oid)) continue;
+      const r = model.get(oid);
+      if (!r) continue;
+      if (txNew.size && r.kind === 'payment' && r.txid && txNew.has(r.txid)) return false;
+      if (r.tickFx && tnow - r.tickFx.at < TICK_REPLAY_MS) return false;   // the full render would replay this crossfade
+      /* an old row quoting a row the model holds: its quote reads the target's live state → re-built (a grid member / caption
+         and a hidden dedup row draw no quote box) */
+      const tid = r.replyTo ? String(r.replyTo) : '';
+      if (!tid || !model.has(tid) || gplan.memberLead.has(oid) || !shownOld.has(oid)) continue;
+      if (!orderAt) { orderAt = new Map(); order.forEach((x, i) => orderAt.set(x, i)); }
+      if (!(orderAt.get(tid) < orderAt.get(oid))) return false;                      // a target later in the log: the full render builds it after
+      const t = model.get(tid);
+      const tk = replyKindOf(t);
+      if (!newIdSet.has(tid) && (tk === 'file' || tk === 'image' || tk === 'gif') && quoteThumbOf(t) !== (fileThumbs.get(tid) || '')) return false;
+      requote.push(oid);
+    }
+    /* positions: only the seam row may change */
+    const pos = positionsFor(shownIds);
+    for (let i = 1; i < shownWas.length; i++) if (pos[shownWas[i]] !== posWas[shownWas[i]]) return false;
+    const seamRebuild = pos[firstOld] !== posWas[firstOld];
+    if (seamRebuild && gplan.groups.has(firstOld)) return false;
+    /* the DOM the full render made: [top affordance] [day separator] ([unread divider]) [first row] … */
+    for (const sid of shownWas) { const r = rows.get(sid); if (!r || r.parentNode !== box) return false; }
+    const r0 = rows.get(firstOld);
+    let sep = r0.previousElementSibling;
+    if (sep && sep.classList.contains('c-unread-divider')) sep = sep.previousElementSibling;
+    if (!sep || !sep.classList.contains('c-datesep')) return false;
+    const tops = [];
+    for (let n = box.firstElementChild; n && n !== sep; n = n.nextElementSibling) {
+      if (n.dataset.msgid !== undefined || !(n.classList.contains('chat-older') || n.classList.contains('c-sysnotice') || n.hasAttribute('data-blind-notice'))) return false;
+      tops.push(n);
+    }
+    if (tops.length > 2) return false;
+    const ae = document.activeElement;
+    if (ae && ae !== box && box.contains(ae)) {
+      const hit = (n) => n && n.contains(ae);
+      if (tops.some(hit) || hit(sep) || (seamRebuild && hit(r0)) || requote.some((q) => hit(rows.get(q)))) return false;
+    }
+    /* ── proven local: build the new part (the full render's steps, in its order) ── */
+    if (reservePx != null) syncLogReserve();   // the full render's first step (its `withRow` is false: risePending is refused above)
+    const scrollWasAtBottom = nearBottom();
+    const frag = document.createDocumentFragment();
+    const rowsOld = new Map(rows);
+    rows.clear();
+    if (showOlder) frag.append(buildOlderPill());
+    if (!showOlder) frag.append(createSecureNotice());
+    blindNoticeShown = !showOlder && blindGroupNoticeOn();
+    if (blindNoticeShown) {
+      const secure = frag.lastElementChild;
+      if (secure && secure.classList.contains('c-sysnotice')) secure.setAttribute('data-followed', '');
+      frag.append(createBlindGroupNotice());
+    }
+    const cellsOld = gridCells;
+    gridCells = new Map();
+    gridMembers = gplan.memberLead;
+    gridGroups = gplan.groups;
+    let lastDay = null;
+    let lastMsgRow = null;
+    let spPhoto = 0, spVoice = 0;
+    for (const id of newShown) {
+      const rec = model.get(id);
+      const day = new Date(rec.ts).toDateString();
+      if (day !== lastDay) { frag.append(createDateSeparator(rec.ts)); lastDay = day; }
+      const grp = gplan.groups.get(id);
+      const row = grp ? buildGridRow(grp, pos[id]) : buildRow(rec, pos[id]);
+      if (devP1) { if (grp) spPhoto += Math.min(grp.members.length, MOSAIC_MAX); else if (isVoiceRec(rec)) spVoice += 1; else if (rec.kind === 'file' && isPhotoFileName(rec.name)) spPhoto += 1; }
+      row.dataset.msgid = id;
+      labelRow(row, rec);
+      rows.set(id, row);
+      if (grp) for (const mid of grp.ids) rows.set(mid, row);
+      frag.append(row);
+      if (row.classList.contains('c-bubble-row')) lastMsgRow = row;
+      if (grp) continue;
+      finishLoopRow(rec, row);
+    }
+    /* the old rows go back into `rows` / gridCells in the full render's order (the new part first) */
+    for (const sid of shownWas) {
+      const row = rowsOld.get(sid);
+      rows.set(sid, row);
+      const g = gplan.groups.get(sid);
+      if (!g) continue;
+      for (const mid of g.ids) rows.set(mid, row);
+      for (const m of g.members.slice(0, MOSAIC_MAX)) { const c = cellsOld.get(String(m.id)); if (c) gridCells.set(String(m.id), c); }
+    }
+    /* the newest message row keeps the reaction reserve: an old one already has it; else the newest new one */
+    const endOld = logEndWas && logEndWas.parentNode === box && logEndWas.hasAttribute('data-log-end') ? logEndWas : null;
+    if (!endOld && lastMsgRow) lastMsgRow.dataset.logEnd = '';
+    /* the seam row and the re-quoted rows, re-built in place (the full render's per-row steps) */
+    const rebuild = (id) => {
+      const rec = model.get(id);
+      const old = rows.get(id);
+      const row = buildLoopRow(id, rec, pos[id]);
+      finishLoopRow(rec, row);
+      if (old.hasAttribute('data-log-end')) row.dataset.logEnd = '';
+      old.replaceWith(row);
+      return { old, row };
+    };
+    let endRow = endOld || lastMsgRow;
+    const swapEnd = (x) => { if (x.old === endRow) endRow = x.row; };
+    if (seamRebuild) swapEnd(rebuild(firstOld));
+    for (const q of requote) if (!(seamRebuild && q === firstOld)) swapEnd(rebuild(q));
+    const spT1 = devP1 ? performance.now() : 0;
+    const sameDay = newShown.length > 0 && new Date(model.get(firstOld).ts).toDateString() === lastDay;
+    const at = sameDay ? sep.nextElementSibling : sep;
+    for (const n of tops) n.remove();
+    if (sameDay) sep.remove();
+    box.insertBefore(frag, at);
+    carryReplyHover(null);                 // the hover mark + the roving row (no node under focus was replaced — checked above)
+    logDirty = false;
+    keepTypingLast();
+    const spT2 = devP1 ? performance.now() : 0;
+    /* ★ photo1b HV-3: the anchor's fix — a plain scrollTop += of the height the slice added above the anchor row, in this task */
+    if (prependAnchor && restorePrependAnchor()) olderAnchorId = null;
+    else if (scrollWasAtBottom) pinLogEnd();
+    else applyOlderAnchor();
+    const spT3 = devP1 ? performance.now() : 0;
+    firstRenderDone = true;
+    if (typeof updateMentionFab === 'function') updateMentionFab();
+    olderInsertArmed = false;
+    noteRendered(shownIds, pos, endRow);
+    if (devP1) renderSplit = { build: spT1 - spT0, swap: spT2 - spT1, fix: spT3 - spT2, fade: -1, fadeAt: performance.now(), photo: spPhoto, voice: spVoice };
+    composerFadeNow();                     // the full render's last step: the band masks on the rows now on glass
+    return true;
+  }
+  /* ★ photo1b PO-0 / HV-0 (dev builds): the fade part of the split = from just before the render's last step to its return */
+  function closeSplit() {
+    if (devP1 && renderSplit && renderSplit.fade < 0) renderSplit.fade = performance.now() - renderSplit.fadeAt;
+    return renderSplit;
   }
 
   /* Render scheduling — two regimes:
@@ -6113,6 +6425,57 @@
     cdRtt.done = true;
     setTimeout(() => { cdRtt.active = true; cdRtt.samples.length = 0; cdPing(); }, 1500);
   }
+  /* ★ photo1b PO-0 — `[CDPERF] chat-shell late thumbs= voice= js=` (developer builds only, data-p1): the setFileThumb and
+     voiceInfo pushes C# makes between the open's messagesDone and the ixian:painted send, and the ms they took. Counted
+     at the DISPATCH: C# calls the page globals bridge.exposeAll made (executeUiCommand(setFileThumb, …)), so for that
+     window the two globals are wrapped here and put back at the send — the handlers themselves (region T1) are not
+     touched. Without data-p1 nothing is wrapped. Fixed words + integers only. */
+  const cdLate = { on: false, thumbs: 0, voice: 0, ms: 0, wraps: [], timer: 0 };
+  const CD_LATE_MAX_MS = 5000;   // fix r1 (S-4): a re-flush with no onChatScreenLoaded never leaves the wraps installed
+  function cdLateEnd() {
+    if (!cdLate.on) return null;
+    cdLate.on = false;
+    clearTimeout(cdLate.timer); cdLate.timer = 0;
+    for (const [name, orig, wrap] of cdLate.wraps) { try { if (window[name] === wrap) window[name] = orig; } catch (e) {} }
+    cdLate.wraps = [];
+    return { thumbs: cdLate.thumbs, voice: cdLate.voice, ms: Math.round(cdLate.ms) };
+  }
+  function cdLateStart() {
+    if (!devP1 || chatScreenLoadedOnce) return;   // fix r1 (S-4): the OPEN only — this document has not presented yet
+    cdLateEnd();
+    cdLate.on = true; cdLate.thumbs = 0; cdLate.voice = 0; cdLate.ms = 0;
+    cdLate.timer = setTimeout(cdLateEnd, CD_LATE_MAX_MS);
+    for (const [name, key] of [['setFileThumb', 'thumbs'], ['voiceInfo', 'voice']]) {
+      const orig = window[name];
+      if (typeof orig !== 'function') continue;
+      const wrap = function (...a) {
+        const t = performance.now();
+        try { return orig.apply(this, a); } finally { cdLate.ms += performance.now() - t; cdLate[key] += 1; }
+      };
+      try { window[name] = wrap; cdLate.wraps.push([name, orig, wrap]); } catch (e) {}
+    }
+  }
+  /* ★ photo1b HV-0 — the per-page lines (developer builds only): `[P1] shell older insert …` at the end of a prepend's
+     render, then `[P1] shell older frames n= max=` over the P1 frame window after it (p1.js's 600 ms; its sampler is
+     not exported, so the same count runs here and goes out through p1Log, which re-checks the grammar). */
+  const OLDER_FRAMES_MS = 600;
+  function olderLines(mode, n, sp, totalMs) {
+    if (!devP1) return;
+    const r = (v) => Math.max(0, Math.round(Number(v) || 0));
+    p1Log('shell older insert rows=' + r(n) + ' mode=' + (mode === 'insert' ? 'insert' : 'full')
+      + ' build=' + r(sp && sp.build) + ' swap=' + r(sp && sp.swap) + ' fix=' + r(sp && sp.fix) + ' fade=' + r(sp && sp.fade) + ' ms=' + r(totalMs));
+    const t0 = performance.now();
+    let last = t0, frames = 0, max = 0;
+    const tick = () => {
+      const t = performance.now();
+      if (t - last > max) max = t - last;
+      last = t;
+      frames += 1;
+      if (t - t0 >= OLDER_FRAMES_MS) p1Log('shell older frames n=' + frames + ' max=' + Math.round(max));
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
   const loadProbe = { bursts: [], cur: null, t0: 0 };
   let loadProbeEl = null;
   function loadProbeDev() {
@@ -6193,6 +6556,7 @@
   }
   function renderLog() {
     logDirty = true;                                               // ★ Session P
+    if (!prependBatch) olderInsertArmed = false;                   // ★ photo1b HV-1: a change outside the prepend's own rows → that page paints in full
     if (bursting) { loadProbeRow(); armBurstSafety(); return; }   // suppress during the load burst (★ #413 counts here — every insert calls this)
     if (renderQueued) return;
     renderQueued = true;
@@ -6232,6 +6596,8 @@
   let olderResolve = null;       // the lazy trigger's pending promise (resolved with the number of rows that landed)
   let olderRowsAtRequest = 0;    // order.length when the loadmore went out
   let prependAnchor = null;      // { id, off } — the first visible row and its offset from the log's top, before a prepend paints
+  let olderPageBase = -1;        // ★ photo1b HV-0: order.length when this page's first prepend landed (-1 = no page in flight)
+  let olderPageTimerRows = 0;    // ★ photo1b fix r3 (R3-4): the rows of a page the burst safety timer painted before its messagesDone
   const LAZY_HISTORY_MIN_PX = 160;   // the trigger band: one screen from the top, never less than this
   function olderPillMode() {
     return olderFailed || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -6369,6 +6735,8 @@
     olderAnchorUntil = 0;
     olderFailed = false;                  // ★ #1166 B2
     prependAnchor = null;
+    olderPageBase = -1;                   // ★ photo1b HV-0
+    olderInsertArmed = false;             // ★ photo1b HV-1: a new peer never inherits an insert chance
     settleOlder(0);
   }
 
@@ -6947,8 +7315,13 @@
       const strs = Array.isArray(payload.strs) ? payload.strs : [];
       const pos = String(position) === 'prepend' ? 'prepend' : 'append';
       batchSeen = true;
-      /* ★ #1166 B2: the position is taken NOW — the log on glass is still the pre-prepend one (the burst holds renders) */
+      /* ★ #1166 B2: the position is taken NOW — the log on glass is still the pre-prepend one (the burst holds renders)
+         ★ photo1b HV-3 (cap `olderAnchor1`) fix r1 (R2): taken here under the cap TOO — the 250 ms burst safety timer may paint the
+         rows before messagesDone and must keep the reader in place; messagesDone re-takes it only while the rows are not painted
+         yet (a scroll between the two pushes is then kept). */
       if (pos === 'prepend' && !prependAnchor) prependAnchor = firstVisibleAnchor();
+      /* ★ photo1b HV-1: the insert chance of this page — only on a painted, clean log (no change waiting, no burst running) */
+      if (pos === 'prepend' && olderPageBase < 0) { olderPageBase = order.length; olderInsertArmed = firstRenderDone && !logDirty && !bursting; }
       if (!bursting) beginBurst();          // a prepend has no clearMessages before it — still ONE paint
       prependBatch = pos === 'prepend';
       if (prependBatch) cancelQuoteJumpWait();   // ★ r2 (MINOR-5): the older-history prepend a quotejump asked for has started
@@ -7007,11 +7380,25 @@
         loadingOlder = false;
         if (landed === 0 && showOlder) olderFailed = true;   // ★ #1166 r1 M3: an empty slice with more to come — the retry pill, never a dead top
       }
+      /* ★ photo1b HV-3 (cap `olderAnchor1`): the first visible row is RE-taken here, in the task of the render and just before
+         it, while this page's rows are not on glass yet — the fix below is then one `scrollTop +=` of what the slice added
+         above it. Fix r1 (R2): when the burst safety timer already painted them, the addMessages anchor did its work there;
+         the line above (#1166 r1 M2) anchors the top-affordance change as before. */
+      if (prependAnswer && bridge.cap('olderAnchor1') && olderPageBase >= 0) prependAnchor = firstVisibleAnchor();
+      const pageRows = olderPageBase >= 0 ? Math.max(0, order.length - olderPageBase) : olderPageTimerRows;   // fix r3 (R3-4): a page the safety timer painted says its rows too
+      olderPageBase = -1;
+      olderPageTimerRows = 0;
+      if (!prependAnswer) cdLateStart();   // ★ photo1b PO-0 (dev builds): the open's late media pushes are counted from here
       if (wasBursting || logDirty) {
         const t0 = performance.now();
-        renderLogNow();
+        /* ★ photo1b HV-1 (cap `olderInsert`): an older page inserts only its own rows; refused → the full render (the old path) */
+        let inserted = false;
+        try { inserted = prependAnswer && bridge.cap('olderInsert') && renderOlderInsert(); } catch (e) { inserted = false; }   // a throw mid-insert → the full render rebuilds the whole log from the model
+        if (!inserted) renderLogNow();
         lastPaintMs = Math.round(performance.now() - t0);
+        if (devP1) { const sp = closeSplit(); if (prependAnswer) olderLines(inserted ? 'insert' : 'full', pageRows, sp, performance.now() - t0); else openSplit = sp; }
       }
+      olderInsertArmed = false;
       settleOlder(landed);   // after the paint: the trigger re-checks on the new geometry
       dbg('messagesDone');
     },
@@ -7432,6 +7819,7 @@
       if (logDirty) {
         renderLogNow();
         lastPaintMs = Math.round(performance.now() - cdT0);
+        if (devP1) openSplit = closeSplit();   // ★ photo1b PO-0: the old transport's open paints here
       }
       const cdPaint = lastPaintMs;
       box.scrollTop = box.scrollHeight;
@@ -7460,6 +7848,20 @@
             + 'ms paint=' + cdPaint + 'ms glass=' + Math.round(performance.now() - cdT0) + 'ms');
           cdRttProbe();   // ★ Session N [CDPERF] rtt — TEMPORARY, one-shot, armed 1.5 s after this frame (inside the try: it must never touch the present below)
         } catch (e) {}
+        /* ★ photo1b PO-0 — the two new [CDPERF] lines, written ONLY in developer builds (<html data-p1>; unlike the older
+           [CDPERF] lines above): the split of the open's render, and the media pushes that ran between messagesDone and the
+           present send below. Fixed words + integers. Their own try: a failing stamp never touches the present. */
+        if (devP1) {
+          try {
+            const sp = openSplit;
+            openSplit = null;   // fix r1 (R7): one open, one line
+            const r = (v) => Math.max(0, Math.round(Number(v) || 0));
+            if (sp) console.warn('[CDPERF] chat-shell build=' + r(sp.build) + ' layout=' + r((sp.swap || 0) + (sp.fix || 0)) + ' fade=' + r(sp.fade)
+              + ' nodes=' + box.getElementsByTagName('*').length + ' photo=' + r(sp.photo) + ' voice=' + r(sp.voice));
+            const late = cdLateEnd();   // fix r2 (R2-5): no count running (not the first open, or the backstop ended it) → no line, never fixed zeros
+            if (late) console.warn('[CDPERF] chat-shell late thumbs=' + r(late.thumbs) + ' voice=' + r(late.voice) + ' js=' + r(late.ms));
+          } catch (e) {}
+        }
         /* ★★ Session K — THE PRESENT SIGNAL (permanent, unlike the stamp above it). The
            history is on glass at this frame; C# presents the staged page HERE instead of on
            its flat 120 ms `revealDelayMs` timer (SingleChatPage.armPresentOnPainted — #754/#756
@@ -8888,6 +9290,33 @@
     const r2 = (n) => Math.round(n * 100) / 100;
     return { a: r2(bandTop - rowTop), b: r2(bandBottom - rowTop) };
   }
+  /* ★ photo1b HV-4: the index of the LAST child whose top is above the band's bottom (-1 = none), by a binary search over
+     box.children — the log is one flow column, so the tops do not decrease from child to child. A zero-size child
+     (display: none — its rect is all 0) says nothing about the flow: the probe steps to the nearest sized neighbour on its
+     left inside the range (none there → the range's right part). Every child after the answer is below the band or
+     zero-size — exactly the children the old walk `continue`s over — so the walk from the answer writes the old walk's masks.
+     Fix r3 (R3-3): one exception — an OUT-OF-FLOW child of #messages (the reactions "+N" sheet and its scrim, fixed /
+     absolute) breaks the monotonic tops. The old walk masks such a child when its rect crosses the band; the band start can
+     skip it. That differs from the old walk and is better: a sheet or a scrim is not a message row and must not fade. */
+  /* the walk's first index: cap absent, or a transform in flight (a rise, a log slide, a jump pulse — rects may then not be
+     monotonic in flow) → the newest child (the old walk); else the band's index */
+  function fadeStartIndex(kids, bandBottom) {
+    if (!bridge.cap('fadeBand') || riseAt || logSlide || jumpPulse) return kids.length - 1;
+    return fadeBandStart(kids, bandBottom);
+  }
+  function fadeBandStart(kids, bandBottom) {
+    let lo = 0, hi = kids.length - 1, ans = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      let j = mid;
+      let r = kids[j].getBoundingClientRect();
+      while (r.width === 0 && r.height === 0 && j > lo) { j -= 1; r = kids[j].getBoundingClientRect(); }
+      if (r.width === 0 && r.height === 0) { lo = mid + 1; continue; }   // [lo, mid] is all zero-size
+      if (r.top < bandBottom) { ans = mid; lo = mid + 1; }   // mid itself (or the zero-size run up to it) is at or before the band
+      else hi = j - 1;
+    }
+    return ans;
+  }
   let composerFadeRaf = 0;
   const composerFaded = new Set();
   const composerFadeLast = new WeakMap();   // el → the gradient string last WRITTEN (the engine re-serialises what it stores)
@@ -8902,7 +9331,8 @@
       if (!bar || bar.height === 0 || !(bandBottom > bandTop)) { for (const el of [...composerFaded]) clearMask(el); return; }
       const next = new Set();
       const kids = box.children;
-      for (let i = kids.length - 1; i >= 0; i--) {
+      /* ★ photo1b HV-4 (cap `fadeBand`): the walk starts at the band (fadeStartIndex); cap absent = the newest child, as before */
+      for (let i = fadeStartIndex(kids, bandBottom); i >= 0; i--) {
         const el = kids[i];
         const r = el.getBoundingClientRect();
         if (r.width === 0 && r.height === 0) continue;   // display:none — an all-zero rect reads as "above" and would end the walk early (round-2 NIT-10)

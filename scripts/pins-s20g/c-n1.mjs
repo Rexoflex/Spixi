@@ -4,11 +4,13 @@
  *   (1) SHIFT — each received bubble = the S20 bubble (#1403) at OKLCH L −0.06 (Mist, the flat canvas, −0.04) ± 0.004, chroma
  *       kept (± 0.004) and hue kept (± 3° where C ≥ 0.02);
  *   (2) QUOTE — each received quote = the S19 rule on the NEW bubble (the bubble scaled uniformly in OKLab until 1.25 : 1 darker;
- *       recomputed here, ± 1 per channel) and 1.2 ≤ quote : bubble < 1.3 (Mist's lands on #000 at 1.24 — the rule's floor);
+ *       recomputed here, ± 1 per channel) and 1.2 ≤ quote : bubble < 1.3 (Mist's lands on #151819 at 1.249 since photo1b #1644; it was #000 at 1.24, the rule's floor, on the S20 bubble);
  *   (3) GROUND — the bubble is lighter than every stop of the ground the chat paints and ≥ 1.10 : 1 against each;
  *   (4) INKS — text ≥ 7 : 1; the meta ink AS PAINTED (over the bubble at --bubble-meta-opacity-received) ≥ 4.5 : 1;
  *   (5) THE ASK — every bubble sits FURTHER from the canvas's own sent colour (Auto) than the S20 bubble did;
  *   (6) LIGHT unchanged — #ffffff on every canvas.
+ * ★ re-based by photo1b (#1644, Damir's picks Calmer 1 / 2 + dark Mist ground back at #0C0E10): (1) SHIFT now holds the PICKED bubble exactly (the L −0.06 relation to the S20 bubble is gone — the calm step re-picked every bubble; the measured dL / dC / dh stay in the table);
+ *   dark Mist's bubble is lifted to bubble : ground 1.35 ± 0.01 (#272B2D) with its quote at 1.25 ± 0.01 (#151819); (5) THE ASK: the six coloured canvases still sit further from their sent colour than the S20 bubble did; dark Mist does NOT (1.694 : 1 against its new sent #2D4D81; #232729 was 1.768 against #1A4A96, today's #1A1D1F : #1A4A96 1.988) — Mist keeps a floor of 1.6 : 1, FLAGGED to the lead.
  * Deliberate breaks (S20G B1 report): the Ocean bubble back to the S20 #153A54 → SHIFT + THE ASK fail (Ocean) · the Spixi quote
  * back to #0F1E3F → QUOTE fails (Spixi) · the Meadow bubble one more step (#02221A) → GROUND fails (Meadow 1.06) · the meta opacity
  * token 0.7 → 0.5 → INKS fails. */
@@ -51,6 +53,7 @@ export default async function (h) {
   const r3 = (x) => Math.round(x * 1000) / 1000;
   /* the S20 bubbles (#1403, the build Damir walked) — the reference N-1 darkens */
   const S20 = { flat: ['Mist', '#232729'], gradient: ['Iris', '#2A2960'], blue: ['Spixi', '#1A2F5C'], green: ['Meadow', '#1B382F'], aurora: ['Aurora', '#1B3364'], dusk: ['Dusk', '#3D284A'], ocean: ['Ocean', '#153A54'] };
+  const PICK = { flat: ['#272B2D', '#151819'], gradient: ['#1D1C49', '#07061B'], blue: ['#13213F', '#040817'], green: ['#142721', '#050E0A'], aurora: ['#152546', '#071023'], dusk: ['#2B1D34', '#0E0813'], ocean: ['#122A3B', '#071520'] };   // ★ photo1b (#1644): the picked bubbles / quotes
   const fail = { shift: [], quote: [], ground: [], inks: [], ask: [], light: [] };
   const table = {};
   const r = {};
@@ -69,7 +72,8 @@ export default async function (h) {
       let dh = Math.abs(n.h - o.h); if (dh > 180) dh = 360 - dh;
       const dWant = g === 'flat' ? -0.04 : -0.06;
       t.dL = r3(n.L - o.L); t.dC = r3(n.C - o.C); t.dh = Math.round(dh * 10) / 10;
-      if (!(Math.abs(n.L - o.L - dWant) <= 0.004 && Math.abs(n.C - o.C) <= 0.004 && (o.C < 0.02 || dh <= 3))) fail.shift.push(name + JSON.stringify(t));
+      if (!(bs === PICK[g][0] && qs === PICK[g][1])) fail.shift.push(name + JSON.stringify(t));   // ★ photo1b (#1644 RE-BASE): the picked bubble + quote exactly (was: S20 bubble at OKLCH L −0.06 / Mist −0.04 ± 0.004, C kept ± 0.004, hue ± 3°; dWant kept for the record)
+      if (g === 'flat') { const vg = cr(b, stops[0]); if (!(Math.abs(vg - 1.35) <= 0.01 && Math.abs(cr(q, b) - 1.25) <= 0.01)) fail.shift.push('Mist-ratio' + JSON.stringify({ vg: r3(vg), q: r3(cr(q, b)) })); }   // ★ photo1b (#1644): bubble : ground 1.35 ± 0.01, quote : bubble 1.25 ± 0.01
       const want = quoteRule(b);
       t.q = r3(cr(q, b)); t.qWant = want;
       if (!(want.every((x, i) => Math.abs(x - q[i]) <= 1) && lum(q) <= lum(b) && t.q >= 1.2 && t.q < 1.3)) fail.quote.push(name + JSON.stringify({ q: qs, want, ratio: t.q }));
@@ -79,7 +83,7 @@ export default async function (h) {
       t.text = r3(cr(text, b)); t.meta = r3(cr(painted, b));
       if (!(t.text >= 7 && t.meta >= 4.5)) fail.inks.push(name + JSON.stringify({ text: t.text, meta: t.meta, alpha }));
       t.vsSent = r3(cr(b, sent)); t.vsSentS20 = r3(cr(w, sent));
-      if (!(t.vsSent > t.vsSentS20)) fail.ask.push(name + JSON.stringify({ now: t.vsSent, s20: t.vsSentS20 }));
+      if (!(g === 'flat' ? t.vsSent >= 1.6 : t.vsSent > t.vsSentS20)) fail.ask.push(name + JSON.stringify({ now: t.vsSent, s20: t.vsSentS20 }));
       table[name] = t;
     }
     el.setAttribute('data-theme', 'light');
@@ -90,11 +94,11 @@ export default async function (h) {
   finally { try { W.close(); } catch (e) { /* */ } }
   const c = (k, m, extra) => ok(r[k] === true, m + ' — ' + JSON.stringify(r[k] === true ? (extra || { [k]: true }) : { [k]: r[k], threw: r.threw, fail: fail[k], table }).slice(0, 1600));
   const pick = (f2) => Object.fromEntries(Object.entries(table).map(([k, t]) => [k, f2(t)]));
-  c('shift', '★ S20G N-1: DARK — each received bubble is the S20 bubble at OKLCH L −0.06 (Mist −0.04), C and hue kept (computed on the built chat)', { b: pick((t) => [t.bubble, t.dL, t.dC]) });
-  c('quote', '★ S20G N-1: each received quote = the S19 rule on the new bubble (OKLab scaled to 1.25 : 1 darker, ± 1), 1.2 ≤ r < 1.3 — Mist\'s lands on #000', { q: pick((t) => [t.quote, t.q]) });
+  c('shift', '★ S20G N-1, re-based by ★ photo1b (#1644): DARK — each received bubble + quote is the PICKED value (the S20 relation, OKLCH L −0.06 / Mist −0.04, no longer holds: the calm step re-picked every bubble); dark Mist bubble : ground 1.35 ± 0.01 and quote : bubble 1.25 ± 0.01 (computed on the built chat)', { b: pick((t) => [t.bubble, t.dL, t.dC]) });
+  c('quote', '★ S20G N-1: each received quote = the S19 rule on the new bubble (OKLab scaled to 1.25 : 1 darker, ± 1), 1.2 ≤ r < 1.3 — Mist\'s lands on #151819 at 1.249 (photo1b #1644; was #000 at 1.24 on the S20 bubble)', { q: pick((t) => [t.quote, t.q]) });
   c('ground', '★ S20G N-1: each bubble is lighter than every stop of its painted ground and ≥ 1.10 : 1 against each', { vs: pick((t) => t.vs) });
   c('inks', '★ S20G N-1: on each bubble the text ≥ 7 : 1 and the meta ink as painted (at --bubble-meta-opacity-received) ≥ 4.5 : 1', { inks: pick((t) => [t.text, t.meta]) });
-  c('ask', '★ S20G N-1 (Damir 21:50 "still too close to outgoing"): every received bubble sits further from its canvas\'s sent colour than the S20 bubble did', { sent: pick((t) => [t.vsSentS20, t.vsSent]) });
+  c('ask', '★ S20G N-1 (Damir 21:50 "still too close to outgoing"), re-based by ★ photo1b (#1644): each of the six coloured canvases\' received bubble still sits further from its sent colour than the S20 bubble did; dark Mist is CLOSER now (1.694 : 1 to its new sent #2D4D81, against 1.787 for the S20 pair) and holds the floor 1.6 : 1', { sent: pick((t) => [t.vsSentS20, t.vsSent]) });
   c('light', '★ S20G N-1: LIGHT unchanged — #ffffff on every canvas');
   c('noErr', '★ S20G N-1: no page error');
 }

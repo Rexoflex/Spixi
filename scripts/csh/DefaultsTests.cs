@@ -19,7 +19,7 @@
 // [flags_line_text, the three init_*]; m10 SpixiFlags `LockDelayOneMinute = …effectiveFlag(dev, dl)` → `dp`
 // [init_each_switch_its_own_key]; m11 the read `Get(DefaultAppLockOnKey, 1)` → `, 0)` [init_absent_is_on, init_each_switch_…];
 // m12 `DefaultPayConfirmOn = …effectiveFlag(dev, dp)` → `(true, dp)` [init_stored_zero_acts_only_in_dev_mode]; an extra
-// `Logging.info(…)` after the defaultsb line [the three init_*: the LAST line; + FixB2PayTests.pay_flags_defaults_and_dev_mode].
+// `Logging.info(…)` after the defaultsb line [the three init_*: the second to last line; + FixB2PayTests.pay_flags_defaults_and_dev_mode]; ★ merge defaultsb x photo1b (2026-11-22): `readPhoto1b();` swapped with the defaultsb group, or an extra statement between them [the three init_*, FixB2PayTests, Photo1bFlagsTests].
 // ★ #46 round 1 (R1-2, fix builder): m14 stampAfterUnlock `oneMinute ? null : stamp` → `oneMinute ? stamp : null`
 // [stamp_after_unlock: "switch on: the stamp is cleared"]; m15 `: stamp` → `: null` [stamp_after_unlock: "switch off: the stamp is
 // kept"]; m16 the body → `return stamp;` [stamp_after_unlock: "switch on: the stamp is cleared"].
@@ -78,14 +78,16 @@ public class DefaultsTests
         SpixiFlags.init();
     }
 
-    /** The defaultsb [FLAGS] line of the last init: exactly one, it says `want`, directly after the photo1a line, the LAST line. */
+    /** The defaultsb [FLAGS] line of the last init: exactly one, it says `want`, directly after the photo1a line, and ONLY the photo1b line follows it (the very last).
+     *  ★ merge defaultsb x photo1b (2026-11-22): init now ends photo1a line, defaultsb line, photo1b line (SpixiFlags.readPhoto1b, the last call) — so this line is the SECOND to last. */
     private static void oneLine(string want, string why)
     {
         var mine = Lines.Where(l => l.StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal)).ToList();
         Assert.AreEqual(1, mine.Count, why + ": the line is logged exactly once — " + string.Join("|", Lines));
         Assert.AreEqual(want, mine[0], why + ": the line matches the state");
-        Assert.AreEqual(Lines.Count - 1, Lines.IndexOf(mine[0]), why + ": the LAST line of init");
-        Assert.IsTrue(Lines.Count >= 2 && Lines[Lines.Count - 2].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal), why + ": directly after the photo1a line");
+        Assert.AreEqual(Lines.Count - 2, Lines.IndexOf(mine[0]), why + ": the second to last line of init (only the photo1b line follows)");
+        Assert.IsTrue(Lines.Count >= 3 && Lines[Lines.Count - 3].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal), why + ": directly after the photo1a line");
+        Assert.IsTrue(Lines[Lines.Count - 1].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": the photo1b line is the very last line");
     }
 
     /* ===================== the App lock reader (an existing account) ===================== */

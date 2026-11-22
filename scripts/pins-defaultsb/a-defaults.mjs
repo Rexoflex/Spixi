@@ -75,6 +75,7 @@
  * red d10 only (+ CSH); GraceSecondsNew 60 → 600 → red d10 only (+ CSH); the read `Get(LockDelayOneMinuteKey, 1)` → `, 0)` → red d11
  * only (+ CSH, + pins-fixb1/g-sparekeep FLAGSFILE); the start value of DefaultAppLockOn `false` → `true` → red d11 only; a test of
  * DefaultsTests renamed → red d12 only.
+ * ★ merge defaultsb x photo1b (2026-11-22): d11 `oneLineLast` TAIL now ends `… flagsLine(…)); readPhoto1b(); }` — swap the defaultsb group and `readPhoto1b();`, or an extra `dev = true;` between them → red d11 (+ pins-fixb1/g-sparekeep, pins-fixb2/d-pay-confirm, pins-perfb1/f-flags, pins-v1am/c-csharp, CSH).
  * ★ #46 round 1 (R1-2, the fix builder; the same method): the unlock statement's `SpixiFlags.LockDelayOneMinute` → `true` → red d3 +
  * d13; the unlock line moved ABOVE the guard (the first line of onUnlock) → red d13 only; the unlock line moved below
  * `SpixiContentPage.hidePrivacyShield();` → red d13 only; the unlock line wrapped in `#if ANDROID` … `#endif` → red d7 + d13;
@@ -461,7 +462,8 @@ export default async function (h) {
   const afterCatch = (s) => count(init, s) === 1 && iCatchEnd > 0 && init.indexOf(s) > iCatchEnd;
   const PHOTO_LINE = 'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));';
   const TAIL = PHOTO_LINE + ' DefaultAppLockOn = S16PassRules.effectiveFlag(dev, da); DefaultPayConfirmOn = S16PassRules.effectiveFlag(dev, dp); '
-    + 'LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl); Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute)); }';
+    + 'LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl); Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute)); readPhoto1b(); }';
+  /* ★ merge defaultsb x photo1b (2026-11-22): the defaultsb group is now followed by EXACTLY the one statement `readPhoto1b();` (photo1b's own block call; its comment is masked) — the very last statement of init; nothing between, nothing after */
   const devPage = mask(text('Spixi/Pages/Dev/DevPage.xaml.cs'));
   const lineAt = fCode.indexOf('Logging.info(DefaultsRules.flagsLine(');
   const d11 = {

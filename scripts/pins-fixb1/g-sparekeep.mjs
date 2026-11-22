@@ -19,6 +19,7 @@
  *               `compute`: `ConfirmSafeDefault = ` counted as a whole word (the new names end with it).
  * re-based by fixb2 #46 r1 (comment text): the doc comments of PayConfirmSafeDefault / MiniAppConfirmSafeDefault in SpixiFlags.cs now say that the safe path also needs NativeConfirm
  *               (FixB2Rules.useSafeDialog) and that the [FLAGS] line is written on every platform while the switches act only on Windows; no code token changed — FLAGSFILE hash only.
+ * re-based by the photo1b merge with photo1a (2026-11-18): SpixiFlags.cs hash f9e1abe4… (photo1a's) → a580a17e… (photo1a + photo1b: 80 pure insertions, `readPhoto1b();` the last statement of init after photo1a's group); break M1: `readPhoto1b();` moved before the photo1a group → this pin's NEW FLAGS row + FLAGSFILE, pins-fixb2/d-pay-confirm FLAGS and pins-perfb1/f-flags `compute` and pins-v1am/c-csharp `lines` red (measured: 5 pin rows red), csh 6 red (769 pass)
  * Deliberate breaks (#802): fixb1 builder-a report — the read's absent value 1 → 0 → red `readAbsentOn` (+ CSH); the compute
  * back to an opt-in shape (`dev && pk == 1`) → red `computeRule`; the start value `= true` → red `startValueOld`; the fixb1
  * line moved before the perfb1 line → red `oneLineAfterPerfb1`; `dividerline=` → `divider=` → red `lineWords`. Restored. */
@@ -95,7 +96,11 @@ export default async function (h) {
         + FIX_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         /* ★ re-based by fixb2 item 4: after the fixb1 line ONLY the item-4 group may follow (pins-fixb2/d-pay-confirm FLAGS holds it in full) · ★ merge with photo1a (2026-11-18): then the optional exact photo1a tail */
         + '(?:\\s*PayConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fp\\);\\s*MiniAppConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fm\\);\\s*Logging\\.info\\(FixB2Rules\\.flagsLine\\(PayConfirmSafeDefault, MiniAppConfirmSafeDefault\\)\\);)?'
-        + '(?:\\s*' + PHOTO_TAIL.map(reEsc).join('\\s*') + '(?:\\s*' + DEFAULTS_TAIL.map(reEsc).join('\\s*') + ')?)?'   // ★ defaultsb re-base: + the optional exact defaultsb tail, only after the photo1a tail
+        /* ★ photo1a merge: the optional exact photo1a tail; ★ defaultsb re-base: + the optional exact defaultsb tail, only after the photo1a tail */
+        + '(?:\\s*' + PHOTO_TAIL.map(reEsc).join('\\s*') + '(?:\\s*' + DEFAULTS_TAIL.map(reEsc).join('\\s*') + ')?)?'
+        /* ★ re-based by photo1b (flags): after the photo1a group (which follows the fixb2 group) ONLY the one statement `readPhoto1b();` (SpixiFlags' own block: its five reads, [FLAGS] photo1b line) may follow — exact text, exact place, at the very end of init
+         * ★ merge defaultsb x photo1b (2026-11-22): the order is photo1a tail, the optional exact defaultsb tail, then `readPhoto1b();` — nothing else between or after */
+        + '(?:\\s*readPhoto1b\\(\\);)?'
         + '\\s*\\}$').test(init),
     lineWords: /public static string flagsLine\(bool confirmDefault, bool dividerLine\)\s*\{\s*return "\[FLAGS\] confirmdefault=" \+ b\(confirmDefault\) \+ " dividerline=" \+ b\(dividerLine\);\s*\}/.test(FX)
       && /private static string b\(bool v\) => v \? "1" : "0";/.test(FX),
@@ -115,7 +120,7 @@ export default async function (h) {
     '★ fixb1 item 7 HARNESS: FixB1Tests holds the flag-line, new-flag, sparekeep-matrix and fresh-start tests and csh.csproj compiles FixB1Rules.cs — failing: ' + JSON.stringify(F(hz)));
 
   /* ── FLAGSFILE (★ #46 r4, R4-3): SpixiFlags.cs WHOLE — the design answer is to freeze, not to add patterns ── */
-  const FLAGS_FROZEN = 'e56a1754a83375b89628881b5f50cc8b3c43bb6d5b48284ed861aeaba1f957fe';   // ★ defaultsb re-base (2026-11-18, after a look at `git diff -- Spixi/Utils/SpixiFlags.cs`: a pure insertion, 24 lines added, 0 deleted, no #if — 3 key consts, 3 `{ get; private set; } = false` props, `int da = 1, dp = 1, dl = 1;`, 3 `Preferences.Default.Get(…, 1)` reads inside the try, 3 `effectiveFlag` computes and ONE `Logging.info(DefaultsRules.flagsLine(…))` after the photo1a line). Was (the merge of fixb2 + photo1a, 14ae57f2): f9e1abe4… · was (photo1a): 71d575ab… · was (fixb2): 8550c50f…
+  const FLAGS_FROZEN = 'f6bbbddb5a0c7078c5dac56c6f8839a768928f6c6e6c58d3fc6b0232f769af86';   // ★ merge defaultsb x photo1b (2026-11-22): re-based after a look at `git diff origin/redesign/frontend -- Spixi/Utils/SpixiFlags.cs` — the merged file = the photo1b base + EXACTLY the 24 defaultsb lines (24 added, 0 deleted: 3 key consts, 3 props, `int da = 1, dp = 1, dl = 1;`, 3 Get reads inside the try, 3 effectiveFlag computes, ONE Logging.info(DefaultsRules.flagsLine(…)) between the photo1a line and `readPhoto1b();`); nothing else. Superseded: a580a17e0f29… (photo1b + photo1a) and ★ defaultsb re-base (2026-11-18): e56a1754a833… (after a look at the same 24-line insertion: pure insertion, no #if). Was (the merge of fixb2 + photo1a, 14ae57f2): f9e1abe4… · was (photo1a): 71d575ab… · was (fixb2): 8550c50f…
   const flagsGot = createHash('sha256').update(readBytes(join(root, 'Spixi/Utils/SpixiFlags.cs'))).digest('hex');
   ok(flagsGot === FLAGS_FROZEN,
     '★ fixb1 item 7 FLAGSFILE (#46 r4 R4-3): Spixi/Utils/SpixiFlags.cs is held WHOLE by SHA-256 of its EXACT bytes — init() reads every switch there, and a statement the keys above do not name (`#if WINDOWS / dev = true; fc = 0; xc = 0; / #endif` before `SecureWalletPass = …`, `if (System.OperatingSystem.IsWindows()) { fc = 0; }`, a comment line-ended by a lone CR / U+0085 / U+2028 / U+2029) would switch the safety flags per platform where the csh harness never looks. A line-end or BOM change also turns this red. Re-base ONLY after a look at the diff (#1596; pins-perfb1toggle/a-extra counts mentions in this file and does not conflict). want ' + FLAGS_FROZEN.slice(0, 12) + '… got ' + flagsGot);

@@ -2,8 +2,8 @@
 // confirms a payment or a mini-app action": FixB2Rules.flagsLine (the one new [FLAGS] line), FixB2Rules.useSafeDialog (a call site
 // shows the safe-default dialog only with its OWN switch on AND the alert drop on), the answer rule the dialog uses
 // (FixB1Rules.confirmIsOk: only ContentDialogResult.Primary is yes), the REAL SpixiFlags.init over the stubbed Preferences for the
-// two new switches (absent = ON, a stored 0 acts only in dev mode, each key its own switch, the line right after the fixb1 line and
-// LAST), and the REAL ConfirmGate through the steps SConfirm.askPlainSafeWinAsync takes (tryEnter … exit: while it holds the gate
+// two new switches (absent = ON, a stored 0 acts only in dev mode, each key its own switch, the line right after the fixb1 line, followed
+// by the photo1a line and then the photo1b line (the photo1b line is the LAST of init)), and the REAL ConfirmGate through the steps SConfirm.askPlainSafeWinAsync takes (tryEnter … exit: while it holds the gate
 // every other Spixi alert is dropped; it is refused while a confirm or another alert is up). The MAUI-bound sites (the entry, the
 // four call sites) are `#if WINDOWS` code the harness cannot compile: scripts/pins-fixb2/d-pay-confirm.mjs holds them (source).
 // DELIBERATE BREAKS (fixb2 builder-d report): ① useSafeDialog → `ownSwitch || alertDropOn` → use_safe_dialog_needs_both_switches
@@ -48,7 +48,7 @@ public class FixB2PayTests
         }
     }
 
-    /** The item-4 [FLAGS] line of the last init: exactly one, it says `want`, right after the fixb1 line, and the LAST line. */
+    /** The item-4 [FLAGS] line of the last init: exactly one, it says `want`, right after the fixb1 line, followed by the photo1a line, the defaultsb line and then the photo1b line (the very last). */
     private static void oneLine(string want, string why)
     {
         var L = IXICore.Meta.Logging.lines;
@@ -57,12 +57,16 @@ public class FixB2PayTests
         Assert.AreEqual(want, mine[0], why + ": the line matches the state");
         int fix = L.FindIndex(l => l.StartsWith("[FLAGS] confirmdefault=", StringComparison.Ordinal));
         Assert.IsTrue(fix >= 0 && L.IndexOf(mine[0]) == fix + 1, why + ": right after the fixb1 line — " + string.Join("|", L));
-        // ★ merge with photo1a (2026-11-18, re-based after a look): the last line of init, or followed ONLY by the one photo1a line
+        // ★ merge photo1a + photo1b (re-based after a look): after this line init writes the photo1a line, (defaultsb line, see below) and the photo1b line
+        // (the last call of init, SpixiFlags.readPhoto1b) is the very last.
         int at = L.IndexOf(mine[0]);
-        // ★ defaultsb re-base (2026-11-18, after a look at init's diff: + the three defaultsb computes and its ONE [FLAGS] line, after the photo1a line): … or followed ONLY by the photo1a line and then the one defaultsb line
-        Assert.IsTrue(at == L.Count - 1 || (at == L.Count - 2 && L[L.Count - 1].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal))
-            || (at == L.Count - 3 && L[L.Count - 2].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal) && L[L.Count - 1].StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal)),
-            why + ": the last line of init (only the photo1a line, then the defaultsb line, may follow)");
+        // ★ defaultsb re-base (2026-11-18, after a look at init's diff: + the three defaultsb computes and its ONE [FLAGS] line, after the photo1a line).
+        // ★ merge defaultsb x photo1b (2026-11-22): init now ends photo1a line, defaultsb line, photo1b line (readPhoto1b, the very last call) — so this
+        // line is FOURTH from the end: exactly those three lines follow it, in that order, and nothing else.
+        Assert.AreEqual(L.Count - 4, at, why + ": the last line of init but the photo1a, the defaultsb and the photo1b ones — " + string.Join("|", L));
+        Assert.IsTrue(L[L.Count - 3].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal), why + ": the photo1a line right after this one");
+        Assert.IsTrue(L[L.Count - 2].StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal), why + ": the defaultsb line right before the last");
+        Assert.IsTrue(L[L.Count - 1].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": the photo1b line is the very last line");
     }
 
     [TestMethod]

@@ -70,7 +70,11 @@ export default async function (h) {
      the photo1a group follows the fixb2 group (both optional, in this order) */
   const fix2Tail = ['PayConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fp);', 'MiniAppConfirmSafeDefault = S16PassRules.effectiveFlag(dev, fm);',
     'Logging.info(FixB2Rules.flagsLine(PayConfirmSafeDefault, MiniAppConfirmSafeDefault));'];
-  const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '(?:\\s*' + fixTail.map(esc).join('\\s*') + '(?:\\s*' + fix2Tail.map(esc).join('\\s*') + ')?' + '(?:\\s*' + photoTail.map(esc).join('\\s*') + ')?)?(?:\\s*readPhoto1b\\(\\);)?\\s*\\}$');   // ★ re-based by photo1b (flags): after the photo1a group ONLY `readPhoto1b();` as the very last statement of init (exact text, exact place)
+  /* ★ defaultsb re-base (2026-11-18, after a look at `git diff -- Spixi/Utils/SpixiFlags.cs`: a pure insertion, 24 lines added, 0 deleted, no #if — 3 key consts, 3 `{ get; private set; } = false` props, `int da = 1, dp = 1, dl = 1;`, 3 `Preferences.Default.Get(…, 1)` reads inside the try, 3 `effectiveFlag` computes and ONE `Logging.info(DefaultsRules.flagsLine(…))` after the photo1a line): the defaultsb group follows the photo1a group (optional, only after it; pins-defaultsb/a-defaults d11 holds it in full) */
+  const defaultsTail = ['DefaultAppLockOn = S16PassRules.effectiveFlag(dev, da);', 'DefaultPayConfirmOn = S16PassRules.effectiveFlag(dev, dp);', 'LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl);',
+    'Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute));'];
+  /* ★ merge defaultsb x photo1b (2026-11-22): the order is the photo1a group, the optional exact defaultsb group (only after the photo1a group), then ONLY `readPhoto1b();` as the very last statement of init (photo1b's re-base: exact text, exact place) */
+  const tail = new RegExp([safetyLine, ...comp].map(esc).join('\\s*') + '(?:\\s*' + fixTail.map(esc).join('\\s*') + '(?:\\s*' + fix2Tail.map(esc).join('\\s*') + ')?' + '(?:\\s*' + photoTail.map(esc).join('\\s*') + '(?:\\s*' + defaultsTail.map(esc).join('\\s*') + ')?' + ')?)?(?:\\s*readPhoto1b\\(\\);)?\\s*\\}$');   // ★ re-based by photo1b (flags): after the photo1a group (and the defaultsb group) ONLY `readPhoto1b();`
   const fl = {
     found: init.length > 0 && iTry > 0 && iCatch > iTry,
     keys: /public const string WarmOnIdleKey = "flagWarmOnIdle";/.test(SF) && /public const string SpareRearmKey = "flagSpareRearm";/.test(SF)

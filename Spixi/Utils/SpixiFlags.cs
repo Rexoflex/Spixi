@@ -39,6 +39,10 @@ namespace SPIXI
         public const string PhotoFewerFileChecksKey = "flagPhotoFewerFileChecks";   // int pref; absent = default (1) — ★ photo1a PO-5 (P66)
         public const string PhotoThumbStoreKey = "flagPhotoThumbStore";             // int pref; absent = default (1) — ★ photo1a PO-3 (P67)
         public const string VoicePeaksStoreKey = "flagVoicePeaksStore";             // int pref; absent = default (1) — ★ photo1a PO-6 (P68)
+        /* ★ defaultsb (Defaults batch, Damir's ruling 1750; #1478: one switch per change) */
+        public const string DefaultAppLockOnKey = "flagDefaultAppLockOn";           // int pref; absent = default (1) — ★ defaultsb item 1
+        public const string DefaultPayConfirmOnKey = "flagDefaultPayConfirmOn";     // int pref; absent = default (1) — ★ defaultsb item 3
+        public const string LockDelayOneMinuteKey = "flagLockDelayOneMinute";       // int pref; absent = default (1) — ★ defaultsb item 2
 
         /** ★ perfb1: the four keys in PerfB1Rules.DevSwitchNames order (DevPage `ixian:devflash:<name>:<0|1>`). */
         public static readonly string[] PerfB1DevKeys = { WarmOnIdleKey, SpareRearmKey, SpareKeepShortSleepKey, PhoneNoEmptyDetailKey };
@@ -147,6 +151,18 @@ namespace SPIXI
         /** PO-6 (P68): a voice message's duration + 40 peaks are kept in the app cache (ChatMediaStore). Android only.
          *  OFF = exactly the old path. */
         public static bool VoicePeaksStore { get; private set; } = false;
+        /* ★ defaultsb (Defaults batch, ruling 1750, DefaultsRules.cs): one flag per change; OFF = the old path. The start value
+         * is `false` (before init runs: the old path); init sets the effective value. No Developer-screen control. An
+         * existing account is not touched by any of the three: no reader of `lockenabled` / `paymentauth` changes. */
+        /** Item 1: a NEW account (LaunchPage: the create body, applyRestorePrefs) is written with App lock On
+         *  (`lockenabled = true`). OFF = exactly the old path: the key is removed there (absent = Off). */
+        public static bool DefaultAppLockOn { get; private set; } = false;
+        /** Item 3: a NEW account is written with Confirm payments On (`paymentauth = true`) where
+         *  SPayments.paymentAuthSupported() (not on Windows). OFF = exactly the old path: nothing is written. */
+        public static bool DefaultPayConfirmOn { get; private set; } = false;
+        /** Item 2: the no-auth window of App.OnResume is 60 s (DefaultsRules.withinGrace). It only says whether a lock that
+         *  is already on screen needs an authentication; nothing unlocks by it. OFF = exactly the old path: 5 s. */
+        public static bool LockDelayOneMinute { get; private set; } = false;
 
         /* ★ photo1b (Chat shell batch, #1641 / #1742, contract-photo1b § 4): five switches for the CHAT SHELL's new paths. Each
          * one adds ITS cap word to the chat page's setCaps text (SingleChatPage, one line); the shell reads bridge.cap('<word>')
@@ -253,6 +269,7 @@ namespace SPIXI
             int fc = 1, fd = 1;                   // ★ fixb1 items 1 / 4
             int fp = 1, fm = 1;                   // ★ fixb2 item 4
             int qa = 1, qf = 1, qt = 1, qv = 1;   // ★ photo1a PO-1 / PO-5 / PO-3 / PO-6
+            int da = 1, dp = 1, dl = 1;           // ★ defaultsb items 1 / 3 / 2
             try
             {
                 dev = Preferences.Default.Get("devMode", false);
@@ -283,6 +300,9 @@ namespace SPIXI
                 qf = Preferences.Default.Get(PhotoFewerFileChecksKey, 1);
                 qt = Preferences.Default.Get(PhotoThumbStoreKey, 1);
                 qv = Preferences.Default.Get(VoicePeaksStoreKey, 1);
+                da = Preferences.Default.Get(DefaultAppLockOnKey, 1);
+                dp = Preferences.Default.Get(DefaultPayConfirmOnKey, 1);
+                dl = Preferences.Default.Get(LockDelayOneMinuteKey, 1);
             }
             catch (Exception ex)
             {
@@ -330,6 +350,10 @@ namespace SPIXI
             PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;
             VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;
             Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));
+            DefaultAppLockOn = S16PassRules.effectiveFlag(dev, da);
+            DefaultPayConfirmOn = S16PassRules.effectiveFlag(dev, dp);
+            LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl);
+            Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute));
             readPhoto1b();   // ★ photo1b (contract-photo1b § 4): the five chat-shell switches, their own read + [FLAGS] line
         }
 

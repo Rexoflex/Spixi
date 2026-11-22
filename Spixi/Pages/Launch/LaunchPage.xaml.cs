@@ -592,6 +592,7 @@ namespace SPIXI
                         IxianHandler.localStorage.writeAccountFile();
 
                         Preferences.Default.Remove("lockenabled");
+                        DefaultsRules.writeNewAccount(SpixiFlags.DefaultAppLockOn, SpixiFlags.DefaultPayConfirmOn, SPayments.paymentAuthSupported(), SPayments.PAYMENT_AUTH_PREF);   // ★ defaultsb (#1750)
                         Preferences.Default.Remove("walletpass");   // ★ A-13 (#1245): the `waletpass` typo removed a key nothing ever wrote (none at 0e85a4b8 either)
                         /* ★ N12 (#383), amended by N76 (#391): a CREATE is not a restore.
                          * Clearing the reminder stamp is what ARMS the first-asset backup
@@ -766,6 +767,7 @@ namespace SPIXI
         private static void applyRestorePrefs(string pass)
         {
             Preferences.Default.Remove("lockenabled");
+            DefaultsRules.writeNewAccount(SpixiFlags.DefaultAppLockOn, SpixiFlags.DefaultPayConfirmOn, SPayments.paymentAuthSupported(), SPayments.PAYMENT_AUTH_PREF);   // ★ defaultsb (#1750)
 
             /* ★ N12 (#383, Damir 2026-08-18): "when restoring an account, we shouldn't
              * nudge the user to back up immediately, since it's restoring from backup."

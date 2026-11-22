@@ -60,6 +60,9 @@ export default async function (h) {
   const PHOTO_TAIL = ['PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);', 'PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);',
     'PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;', 'VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;',   // ★ photo1a re-base (2026-11-18): PO-3 / PO-6 are back — 4 computes, the line takes 4 properties
     'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));'];
+  /* ★ defaultsb re-base (2026-11-18, after a look at `git diff -- Spixi/Utils/SpixiFlags.cs`: a pure insertion, 24 lines added, 0 deleted, no #if — 3 key consts, 3 `{ get; private set; } = false` props, `int da = 1, dp = 1, dl = 1;`, 3 `Preferences.Default.Get(…, 1)` reads inside the try, 3 `effectiveFlag` computes and ONE `Logging.info(DefaultsRules.flagsLine(…))` after the photo1a line): after the photo1a tail ONLY the exact defaultsb tail may follow (pins-defaultsb/a-defaults d11 holds it in full) */
+  const DEFAULTS_TAIL = ['DefaultAppLockOn = S16PassRules.effectiveFlag(dev, da);', 'DefaultPayConfirmOn = S16PassRules.effectiveFlag(dev, dp);', 'LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl);',
+    'Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute));'];
   const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const RU = rd('Spixi/Utils/PerfB1Rules.cs');
   const FX = rd('Spixi/Utils/FixB1Rules.cs');
@@ -93,8 +96,10 @@ export default async function (h) {
         + FIX_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         /* ★ re-based by fixb2 item 4: after the fixb1 line ONLY the item-4 group may follow (pins-fixb2/d-pay-confirm FLAGS holds it in full) · ★ merge with photo1a (2026-11-18): then the optional exact photo1a tail */
         + '(?:\\s*PayConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fp\\);\\s*MiniAppConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fm\\);\\s*Logging\\.info\\(FixB2Rules\\.flagsLine\\(PayConfirmSafeDefault, MiniAppConfirmSafeDefault\\)\\);)?'
-        + '(?:\\s*' + PHOTO_TAIL.map(reEsc).join('\\s*') + ')?'
-        /* ★ re-based by photo1b (flags): after the photo1a group (which follows the fixb2 group) ONLY the one statement `readPhoto1b();` (SpixiFlags' own block: its five reads, [FLAGS] photo1b line) may follow — exact text, exact place, at the very end of init */
+        /* ★ photo1a merge: the optional exact photo1a tail; ★ defaultsb re-base: + the optional exact defaultsb tail, only after the photo1a tail */
+        + '(?:\\s*' + PHOTO_TAIL.map(reEsc).join('\\s*') + '(?:\\s*' + DEFAULTS_TAIL.map(reEsc).join('\\s*') + ')?)?'
+        /* ★ re-based by photo1b (flags): after the photo1a group (which follows the fixb2 group) ONLY the one statement `readPhoto1b();` (SpixiFlags' own block: its five reads, [FLAGS] photo1b line) may follow — exact text, exact place, at the very end of init
+         * ★ merge defaultsb x photo1b (2026-11-22): the order is photo1a tail, the optional exact defaultsb tail, then `readPhoto1b();` — nothing else between or after */
         + '(?:\\s*readPhoto1b\\(\\);)?'
         + '\\s*\\}$').test(init),
     lineWords: /public static string flagsLine\(bool confirmDefault, bool dividerLine\)\s*\{\s*return "\[FLAGS\] confirmdefault=" \+ b\(confirmDefault\) \+ " dividerline=" \+ b\(dividerLine\);\s*\}/.test(FX)
@@ -115,7 +120,7 @@ export default async function (h) {
     '★ fixb1 item 7 HARNESS: FixB1Tests holds the flag-line, new-flag, sparekeep-matrix and fresh-start tests and csh.csproj compiles FixB1Rules.cs — failing: ' + JSON.stringify(F(hz)));
 
   /* ── FLAGSFILE (★ #46 r4, R4-3): SpixiFlags.cs WHOLE — the design answer is to freeze, not to add patterns ── */
-  const FLAGS_FROZEN = 'a580a17e0f29279b4dadfec363f6d40a57d9627e4df0fb2a8832b4830d5eb661';   // ★ merge of photo1b with photo1a (2026-11-18): re-based after a look at the merged diff against redesign/frontend — ONLY photo1b's additions (its key / property block before leaveDevMode, and ONE `readPhoto1b();` as the last statement of init AFTER photo1a's group); photo1a's own re-base f9e1abe4b93a… is superseded; before it: ★ merge with fixb2 (2026-11-18): re-based after a look at the merged diff (fixb2's item-4 block, then photo1a's block; nothing else). Was (photo1a): 71d575ab… · was (fixb2): 8550c50f…
+  const FLAGS_FROZEN = 'f6bbbddb5a0c7078c5dac56c6f8839a768928f6c6e6c58d3fc6b0232f769af86';   // ★ merge defaultsb x photo1b (2026-11-22): re-based after a look at `git diff origin/redesign/frontend -- Spixi/Utils/SpixiFlags.cs` — the merged file = the photo1b base + EXACTLY the 24 defaultsb lines (24 added, 0 deleted: 3 key consts, 3 props, `int da = 1, dp = 1, dl = 1;`, 3 Get reads inside the try, 3 effectiveFlag computes, ONE Logging.info(DefaultsRules.flagsLine(…)) between the photo1a line and `readPhoto1b();`); nothing else. Superseded: a580a17e0f29… (photo1b + photo1a) and ★ defaultsb re-base (2026-11-18): e56a1754a833… (after a look at the same 24-line insertion: pure insertion, no #if). Was (the merge of fixb2 + photo1a, 14ae57f2): f9e1abe4… · was (photo1a): 71d575ab… · was (fixb2): 8550c50f…
   const flagsGot = createHash('sha256').update(readBytes(join(root, 'Spixi/Utils/SpixiFlags.cs'))).digest('hex');
   ok(flagsGot === FLAGS_FROZEN,
     '★ fixb1 item 7 FLAGSFILE (#46 r4 R4-3): Spixi/Utils/SpixiFlags.cs is held WHOLE by SHA-256 of its EXACT bytes — init() reads every switch there, and a statement the keys above do not name (`#if WINDOWS / dev = true; fc = 0; xc = 0; / #endif` before `SecureWalletPass = …`, `if (System.OperatingSystem.IsWindows()) { fc = 0; }`, a comment line-ended by a lone CR / U+0085 / U+2028 / U+2029) would switch the safety flags per platform where the csh harness never looks. A line-end or BOM change also turns this red. Re-base ONLY after a look at the diff (#1596; pins-perfb1toggle/a-extra counts mentions in this file and does not conflict). want ' + FLAGS_FROZEN.slice(0, 12) + '… got ' + flagsGot);

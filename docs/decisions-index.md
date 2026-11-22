@@ -206,10 +206,22 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1765 | The chat.html size ceiling 964 → 995 KB (delta stated). |
 | #1766 | The #46 loop of the batch (verdict in `docs/review-brief-photo1b.md` § 5). |
 | #1767 | Session record. |
+| #1790 | Defaults batch (ruling #1750, main chat): items 1–3 built behind three switches; item 4 (the Android lock flash) stopped with a question; the shell defaults are Fix batch 3's. |
+| #1791 | A NEW or RESTORED account is written with App lock On (`DefaultAppLockOn`; create body + `applyRestorePrefs`, after the verify; readers unchanged, absent = Off; P79). |
+| #1792 | A NEW or RESTORED account is written with Confirm payments On where the row exists (`DefaultPayConfirmOn`; not Windows; `SPayments.cs` / `SConfirm.cs` untouched; P80). |
+| #1793 | The app lock's no-auth window is 60 s on the phone and the Mac (`LockDelayOneMinute`, OFF = 5 s; `DefaultsRules.withinGrace`); a verified unlock clears the leaving stamp (R1-2); Windows unchanged (P81). |
+| #1794 🟡 | The no-credential device: the lock falls back to the Spixi password, a send to the native confirm alone; D-1 (the "Authentication Failed" alert) proposed for a later lock batch. |
+| #1795 🟡 | The Android lock flash: the shell's 3 s belt fires during the absence + an animated pop; the fix needs `lock.html` → a question (A / B / C). |
+| #1796 🟡 | Review round 1: 0 MAJOR; R1-1 (the wall-clock measure, inherited) a question; R1-2 fixed; R1-3 Mac plugin unproven. |
+| #1797 | The walk: a new Windows account through `ixian.cfg`; no safe new account on the test phone (emulator / spare phone / launch walk); the pin re-bases of other batches. |
+| #1798 🟡 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1). |
+| #1799 | The #46 verdict of the batch. |
+| #1800 | Session "Defaults batch" — the record (numbers, models, owed). |
 
 ### Session Fix batch 3 (`fixb3`, 2026-11-18 → 22, #1810–#1818, L257–L260, packets P84–P86)
 | Row | Rule |
 |---|---|
+| #1801 | The merges with the Chat shell batch (`c9d6bf64`: one hand merge, `SpixiFlags.cs` init tail; eight pins re-based; a Fable reader CLEAN) and Fix batch 3 (`1ad3a44e`: no hand merge, no re-base); CSH 806; the `e-header` timing flake. |
 | #1810 | Fix batch 3 item 1: a mini-app action before `ixian:onload` is refused "not ready"; both catches log the command name + exception type only (P84; no switch). |
 | #1811 | Fix batch 3 item 2: chat info re-scans after "Delete history" (both paths), one scan gate, the cache after the gate; chat info's delete runs the Sent sweep (P85; no switch). |
 | #1812 | Fix batch 3 items 3 + 4: the walk step `downloads` scrolls the Account hub (swipe → check → tap); `-HistorySeed <k>` (P86). #1666 ④ moved by #1739 (3). |

@@ -1661,6 +1661,113 @@ Status: ✅ locked · 🟡 provisional (locks after named review) · ❌ superse
 | 1638 | 2026-11-17 | **THE COLD-START WORK STOPS BEFORE THE LAUNCH; V1 ACCEPTS ABOUT 2.0 S AND 2.6 S ON THE GALAXY A52S.** Damir: "Stop here before launch" (of four: marks first, then choose · build "WebView engine early" now · ship full AOT · stop here); asked again after an explanation of the unmarked 530 ms: "keep". Numbers (session `coldstart1`, five runs of five starts, same day, #1680–#1685): today's build `am` TotalTime 2013 ms and start → cover released 2599 ms; full AOT (`-p:AndroidEnableProfiledAot=false`) 1878 ms and 2461 ms (−135 / −138 ms) for +27.7 MB of APK; the 33 marks cost nothing visible (2013 against 2009 ms); the largest part with no mark inside is about 530 ms on the main thread after the navigation start. **Not built before the launch:** a cold-start lever (P-42, CS-06, CS-07, CS-08, CS-04, CS-09), more marks, the walk summary rows for the marks (#1683), the home-shell timing lines of #1625 (4). **Not shipped:** full AOT. **Not made:** a custom AOT profile (under the 150 ms bar of #1626). The budgets of 1800 ms (#1517) and 2400 ms (#1626) stay as the targets for after the launch; for v1 the cold start is accepted as measured, and a batch that touches the start path shows a same-day before-run and after-run (L182) that agree by #1530. The developer-only marks stay in the tree (merged as `06a4845d`). Mission Control: `n-20261116-coldstart-1` → Done; the later work is `n-20261117-coldstart-after-launch` (v1.0.x). | Main chat with Damir, 2026-11-17 18:05 (a clickable answer) and 18:04 ("keep"); the project doc `claude/device-numbers-2026-11-17-coldstart1.md` | ✅ decided (Damir) |
 | 1639 | 2026-11-17 | **THE "UNREAD MESSAGES" MARKER IS THE SAME CENTRED PILL ON EVERY PLATFORM.** Damir: "The same pill everywhere" (the open point of #1629). Android, iPhone, Windows and Mac get one look: a rounded pill in the centre, like the date pill; no bar across the screen on any platform. Walk rows on Windows and Android in Fix batch 2; iPhone and Mac in the Apple phase (#1515). | Main chat with Damir, 2026-11-17 18:05 (a clickable answer). One style to keep and to walk | ✅ decided (Damir) |
 | 1640 | 2026-11-17 | **FIX BATCH 2: OPUS LEADS; FABLE 5.2 BUILDS ONLY THE ONE ITEM WITH PAYMENT CODE.** Damir: "why fable 5.2 can opus do it", then "fable should only do the one item then..". The main chat had proposed Fable 5.2 as the lead of session `fixb2` because its item 4 changes how the payment confirm is shown on Windows (#1633). The lead is Claude Opus (as in #1612). Item 4 (the confirm call in `Spixi/Utils/SPayments.cs` and the three confirm calls in `Spixi/Pages/MiniApps/MiniAppPage.xaml.cs`) is built by a Claude Fable 5.2 sub-agent at high effort; every other item by Opus or Sonnet. The readers stay as #1606: fresh read-only Fable 5.2 instances for the security-only pass and for `SPayments.cs`; the builder of item 4 never reviews it (#1471). An exception to the model list of ★ AGENTS AND MODELS (#1489) for this one item; the rule text is not changed. | Main chat with Damir, 2026-11-17 18:11. The strongest model goes to the part where a wrong result costs most, not to the whole session | ✅ decided (Damir) |
+
+## #1641 (2026-11-17) — "PHOTO OPEN 1": THE QUICK FIXES AND "MADE ONCE", WITH A REAL WALK STEP FOR THE IMAGE CHATS
+Damir, main chat 19:45, clickable answers: "Quick fixes + 'made once'" (of three: the four quick fixes · quick
+fixes + made once · wait) and "Yes, in 'Photo open 1'" (the walk step). Source: the report
+`claude/photo-open-research-2026-11-17.md` (session `photoopen`, read-only; Galaxy A52s, the build of
+`work/filewalk` @ `20ada92`; one fresh Opus reader, 5 MAJOR fixed).
+- The finding: a chat open = a fixed part of about 100 ms + the shell window, which grows with the rows. The photo
+  chat (Seed 56: 50 rows in the first batch, 48 photos) shows `present ms=` 210 / 204 against 133 / 115 for a text
+  chat: the build of 48 photo tiles (+33 ms), 48 thumbnail pushes that land before the first paint (+40 ms,
+  inferred), and the C# read + build (+21–26 ms). Open ≈ 114 + 0.25 × rows + 1.9 × photos ms (30 opens). The voice
+  chat: 125–141 ms is right (three runs agree). The page drops all thumbnails at every open and C# re-sends them
+  as base64 text, encoded twice; C# makes a thumbnail again (a full decode) on every cache miss — always at the
+  first open after an app start.
+- **The batch holds:** PO-0 (the four missing log lines, developer builds) · PO-1 (the thumbnail, waveform and
+  preview pushes start after the first paint) · PO-5 (fewer C# file checks per row) · PO-4 (a lighter photo tile)
+  · PO-3 (the thumbnail is made once, at receive / send, and kept in the app cache; a true LRU in memory) · PO-6
+  (the voice waveform is made once and kept; fewer bar writes in the shell) · one opt-in adb walk step "open chat
+  k by intent, N times" for the image chats. Each change has its OWN switch with the old path as the fallback
+  (#1478), its packet and its gate row (#1312). PO-3 and PO-6 write derived files: C# names them, they are deleted
+  with the file, the chat and the account wipe, and no path comes from the WebView.
+- Expected (estimates of the report): the photo chat about 205 → 130–150 ms; voice 125–141 → about 110–125; the
+  first open after a start shows the pictures with the chat.
+- **The main chat cut the batch in two (Damir's rule of 2026-11-16: cut a batch when only a part shares a file
+  area):** "Photo open 1a" = the C# half and the walk step (PO-0 C# lines, PO-1, PO-5, PO-3, the C# half of PO-6;
+  no file under `src/`, no built html) — it can run beside `fixb2`. "Photo open 1b" = the shell half (PO-4, the
+  shell lines of PO-0, the shell half of PO-6) — after `fixb2` is merged, because both change `chat.html` and
+  `typed-bubbles.js`.
+Status: ✅ decided (Damir).
+
+## #1642 (2026-11-17) — IMAGES BY URL INSTEAD OF BASE64 TEXT (P-25): ITS OWN BATCH BEFORE THE LAUNCH
+Damir, in the chat of session `photoopen` at 19:19 (as that session reported it): "we need that fix from Base to
+something that we discussed"; 19:26: with many images the memory goes above 700 MB. Main chat 19:45, a clickable
+answer: "Own batch before launch (Recommended)" (of three: own batch before the launch · v1.0.x · inside "Photo
+open 1").
+- This changes #1473 for P-25 only (it was v1.0.x).
+- Order: after "Photo open 1". First a memory reading with photo chats (the walk's `mem-*` steps in the sitting of
+  "Photo open 1a"), so that the before-number exists; the 700 MB is Damir's observation, not a walk number yet.
+- The design rule (S17, the research P-25): C# serves the picture from ITS OWN id with a random, revocable grant;
+  the WebView never names a path; a request that the handler does not serve fails and never goes to the network.
+  A new local handler per platform (Android `ShouldInterceptRequest`, the iOS scheme handler, Windows
+  `WebResourceRequested`). The PARAMOUNT isolation invariant holds: a grant of one pane is not valid in another.
+- Security-sensitive: the handler is built by Claude Fable 5.2, with a security-only review pass and a packet for
+  the BE engineer. The lead model is proposed by the main chat in its prompt.
+Status: ✅ decided (Damir).
+
+## #1643 (2026-11-17) — A SECOND CHAT-OPEN BUDGET: 150 MS FOR A PHOTO-HEAVY CHAT
+Damir, main chat 19:45, a clickable answer: "150 ms for photo chats (Recommended)" (of three: 150 ms for photo
+chats · 120 ms for every chat · decide after the batch).
+- On the Galaxy A52s: `present ms=` ≤ 150 ms on the spare page for a chat whose first batch holds 24 or more
+  photos. The budget of #1517 for every other chat stays: ≤ 120 ms on the spare page, ≤ 160 ms after a resume.
+- 120 ms for a photo-heavy chat would need "the newest screen first" (P-30), which stays v1.0.x (#1473).
+- The reference chats: Seed 56 (48 photos in the first batch) and Seed 53 (24 photos).
+Status: ✅ decided (Damir).
+
+## #1644 (2026-11-17) — THE DIALS OF THE CHAT BACKGROUNDS: DAMIR'S PICKS PER APPEARANCE AND THEME; DARK MIST COMES BACK TO `#0C0E10`
+Damir, main chat 20:01, the text of "Copy my picks" from the page "Spixi Chat Backgrounds — dials"
+(https://claude.ai/artifact/MnrGnnuHzCf3JjcvaZFzLf; session `bgrender`, a render of the BUILT chat shell at
+`redesign/frontend` @ `3066e658`; one fresh Opus reader: 2241 numbers checked, CLEAN). This fills the open dials of
+#1604.
+
+| Appearance | Light | Dark |
+|---|---|---|
+| Mist (the default) | Today | Calmer 2 for the bubbles; **the ground `#0C0E10`** (below) |
+| Iris | Calmer 1 | Calmer 1 |
+| Spixi | Calmer 1 | Calmer 2 |
+| Meadow | Calmer 2 | Calmer 2 |
+| Aurora | Calmer 2 | Calmer 2 |
+| Dusk | Calmer 2 | Calmer 2 |
+| Ocean | Calmer 2 | Calmer 2 |
+
+- **The rule of the steps** (one rule, no hand-picked colour; the proposal doc
+  `claude/chat-backgrounds-proposal-2026-11-17.md` gives the exact token strings and the `tokens.css` lines per
+  pick): Calmer 1 = every canvas colour (the ground stops, the pattern ink, the canvas's Auto sent colour, the dark
+  received bubble) at OKLCH chroma × 0.85 with lightness and hue held, the pattern alpha × 0.9; Calmer 2 = chroma
+  × 0.70, alpha × 0.8; then the sent colour takes the smallest lightness drop that keeps white text ≥ 4.6 : 1 and
+  its time and ticks not lower than today. 0 of the 28 calm cells break a floor.
+- **The pattern follows the step** (the default of question 3 of the session; Damir gave no other answer).
+- **Damir, 20:02, on the page:** "it generally all looks the same, but i chose calmer for others" — the steps are
+  small to his eye; the picks stand. So the calm steps are not expected to end the "too saturated" finding on
+  their own; the phone question stays open ("does the same appearance look right on the phone?": not answered).
+  On record from the session: the default of a new Windows user is Mist with Waves; a wide-gamut monitor without a
+  correct colour profile can stretch the same values on a PC.
+- **Dark Mist — the ground goes back to `#0C0E10`.** Damir, 20:02: "mist is much darker in dark mode than the app
+  chrome, so it feels off, maybe fix that a bit based on your view"; 20:04: "can you just make it calmer, the dark
+  mist background.. because the changes i see are in chat bubbles only"; 20:06, after a sketch of three versions
+  (`#040607` today · `#07090B` · `#0C0E10`) in the main chat: **"proposal"** = `#0C0E10`. Facts in the tree
+  (`src/styles/tokens.css`, the block around `:2144` and the table around `:2470`): the dark bars of the app are
+  `#0F1113`; the dark Mist ground was `#0C0E10` (#1058, "a half step lighter, still under the bars"), then went to
+  `#07090B` (S19, every dark ground L × 0.85) and to `#040607` (S20 D, #1377 option 1) — both steps were Damir's
+  picks to set the received bubble apart from the ground (today 1.35 : 1). The calm steps did not show on the
+  ground because dark Mist has no colour to remove (C 0.006). **The build:** the dark Mist ground = `#0C0E10`
+  (its `--gradient-chat`; `--chat-canvas-base` / `ink-950` is that value already); the dark Mist received bubble
+  is lifted by the same ratio so that bubble against ground stays at today's 1.35 : 1 (about `#262A2C`; the batch
+  computes it) and every text floor holds; its quote is re-derived by its rule (1.25 : 1); the pattern alpha is
+  checked again on the lighter ground. This replaces, for Mist only, the two darkening steps of S19 and #1377; the
+  coloured dark grounds keep their S20 lightness and take the calm step. The render of the batch shows the three
+  versions from the built shell; Damir sees it again in the walk.
+- **The build:** token-only (`src/styles/tokens.css` and the generated pattern values, `build-shells`), the pins
+  of `pins-s17`, `pins-s19` and `pins-s20` re-based after a look at the diff, a render in both themes, one walk
+  row per platform. It waits for the merge of `fixb2` (its item 7, the selected-row ring of light Aurora, changes
+  the same token file) and goes into ONE shell batch with "Photo open 1b". **The ring of light Aurora (#1614 (1),
+  `m005`) is measured again on the Calmer 2 ground in that batch** — the 3 : 1 of `fixb2` is computed on today's
+  ground.
+- An update changes the look of a stored appearance a little (less colour, the same hue; dark Mist a little
+  lighter); no chat changes to another appearance. That is intended by the pick.
+Status: ✅ decided (Damir).
+
 | 1550 | 2026-11-13 | **THE ADB WALK GETS SEVEN NEW STEPS, RUN AFTER THE OLD ONES; `scroll-image` IS BUILT BUT NOT IN THE DEFAULT LIST (#1538; `scripts/device/adb-walk.ps1`, `a52s.json`).** Default order: the ten old steps unchanged (coldstart · mem-home · chat-intent · chat-tap · scroll · resume · resume-long · network · mem-end · mem-trim), then **resume-now** and **resume-3s** (60 s in the background, `am start -W`, then the tap on `chatRow1` at once / after 3 s; the old `resume` = after 2 s stays as it is, so its rows keep their meaning and neither new row replaces it) · **chatinfo** (seed chat k-1 by the `fa` intent, then a tap on the chat header → Chat info = `ContactDetails`; BACK twice) · **tab-apps**, **tab-wallet**, **tab-account** (from Chats a tap on the tab, then the tap on Chats; Account pushes the SettingsPage) · **history** (seed chat k+4 = seeds 5..9, opened by no other step, so each rep starts at the newest page; fling swipes `historyOlder` until the chat shell asked for 3 older pages, at most `historyMaxSwipes` = 40; t0 = the first swipe; BACK closes the chat) · **scroll-image** only with `-Steps` (like `scroll`, in the chat named by the optional local key `imageChatAddress`; without the key every rep is `skipped` = "no data", exit 2; it keeps no screenshot until the image seed of batch 1a exists, and the key must name a dev-seed chat). The new steps run after the old ones so that mem-end and mem-trim keep their meaning. **Lines used (all exist today, L170; seen in real pulls on 2026-11-13):** `[P1] open contactdetails present ms=` · `[P1] frames open-contactdetails n= drop= max=` · `[P1] shell send details dt=` · `[P1] shell tab-<apps|wallet|account> first=` · `[P1] shell frames-tab-<name> n= drop= max=` · `[P1] chat load …` (C# answers one page request) · `[P1] shell send loadmore dt=` (counted on the phone only) · the scroll / longtask lines of `scroll`. **Safety (the lens of #1522 holds; the #46 loop added the gates):** one new command class? No — seven count-only pipes (`logcat … | grep -c -e <fixed pattern>`, whole constant strings like the existing boot poll); a screenshot before the input of every new step except resume-now / resume-3s / scroll-image (`shot-<step>-NN-pre.png`, deleted when its probe check fails); the tab steps never photograph Apps, Wallet or Account: the Chats tap waits for the tab's own frames line (Account: also the SettingsPage line), the screenshot waits for the Chats frames line (Account: also `close settingspage done`), a tab screenshot that fails its home check is deleted, and a tab rep that fails after its tab tap restarts the app (`am force-stop` + `am start -W`; a cold start lands on Chats); resume-now / resume-3s delete a failed chat screenshot. **Map:** taps `chatHeader` (500,166) · `tabChats` (151,2268) · `tabApps` (410,2268) · `tabWallet` (670,2268) · `tabAccount` (928,2268); swipe `historyOlder` (540,700 → 540,1900, 150 ms); screen `chatinfo` (four probes, tol 6); timing `tabSettleMs` 1500 · `historySwipeMs` 900 · `historyMaxSwipes` 40 · `resumeLateTapMs` 3000; all read from `-Calibrate` screenshots (`calibrate-20261113-1726`, `-1730`). `-Calibrate` also tries each new tap once (cal-08..13, with the same gates). **Not built (proposals, #1521):** a "visible jump" while older pages load has no log line (a new line is an app change and a gate trigger: a proposal for the session that owns the chat shell) · live message and album arrival (a scripted peer). | Session "Walk steps 2" (#1538); the lines and tap points from operator steps on the A52s, 2026-11-13 | ✅ decided (by #1538 scope) |
 | 1551 | 2026-11-13 | **THE PARSER ROWS OF THE NEW STEPS; THE OLD ROWS ARE BYTE-IDENTICAL (`scripts/device/adb-walk-parse.ps1`).** chatinfo: tap → present · present ms= · frames drop · frames max gap · tap → send dt= (`details`) · tab-apps / tab-wallet / tab-account: tap → tab shown `first=` (the shell's own tap clock) · frames drop · frames max gap (`shell frames-tab-<name>`) · history: older pages loaded (count of `[P1] chat load` in the rep; fewer than 3 = "no data") · first swipe → 3rd page · scroll max gap (max) · scroll drops (sum) · scroll frames n (sum) · long tasks · longest long task · swipes (`run.json`) · resume-now / resume-3s: the rows of `resume` · scroll-image: the rows of `scroll`. The legend says which line each row reads, that a visible jump is not measured, and that resume (2 s) is not replaced by the new resume rows. **Proofs (Windows PowerShell 5.1 on Damir's PC):** the new and the base parser give the same `summary.csv` (SHA256 `4be7c826…`) on a copy of the old run `20261112-1919`; for each of the 7 new steps a copied try-run log with one expected line removed → "no data" in exactly the rows that read that line, exit 2 (`_scratch/ws2/break-*`); without `imageChatAddress`, `scroll-image` → "no data", exit 2 (`20261113-1814`). | Session "Walk steps 2" | ✅ decided |
 | 1552 | 2026-11-13 | **THE RECORDED MINOR r6-1 OF BATCH `tooling` IS FIXED, WITH ITS OWN READERS (#1538): `Protect-Text` REPLACES A FOLDER VALUE ONLY WHEN IT IS ABSOLUTE.** `Test-RootedDir`: a drive letter (`X:\` / `X:/`), a UNC or `\\?\` prefix, or a leading separator; a relative `TEMP` / `USERPROFILE` / `LOCALAPPDATA` or a provider-qualified `-Apk` is no longer replaced, so it can no longer cut the mask of the serial or a seed address. A rooted value always holds `\`, `/` or `:` and so cannot cut a base58 seed. The NITs r6-2 (the texts say "deleted" only when the delete worked) and r6-3 (two header sentences made exact) are fixed too. Read by the readers of rounds 1–4 of `docs/review-brief-walksteps2.md` (focus point 4: closed in every round). The operator rule of `docs/handoff-2026-11-13-tooling.md` § 5 for r6-1 is no longer needed. | Session "Walk steps 2" (#1538) | ✅ decided |
@@ -1749,6 +1856,435 @@ Status: ✅ locked · 🟡 provisional (locks after named review) · ❌ superse
 | 1730 | 2026-11-18 | **THE #46 VERDICT OF ROUNDS 6–9: CLEAN (supersedes "CLEAN NOT CLAIMED" of #1724 for the batch; the loop continues the rounds of #1724).** Every reader of the final code found 0 MAJOR in the code; the open pin gaps are the recorded limits F1 / F2 (#1727). No code changed after the last code readers (r6–r8 code, store r7 for the store files; checked byte-equal). Table (full text: `docs/review-brief-photo1a.md` § 5): **r6 Opus** (correctness: integration, PO-0 / 1 / 5, compile reading) CLEAN, MINOR-1 disk work under the store's `writeLock` is reachable from the main thread (a prune of about 1024 files can block a main-thread delete), MINOR-2 every message delete moves the chat generation and clears the memory LRUs (churn) · **r6 Fable 5.2** (security: the delete-paths table, the log lines, the O-11 re-base, the bridge) CLEAN, m-1…m-6 MINOR (m-3 / m-4 re-arm gaps fixed in store round 3; m-5 the heals recorded; every new log line = fixed words + integers or an exception type) · **r6 Fable 5.2** (the store) NOT CLEAN: 1 MAJOR M-1 → fixed in store round 3 (#1728) · **r7 Fable 5.2** (the one builder, security) no code defect, 1 MAJOR pin gap (the voice path's built text not held whole) + 2 MINOR + 2 NIT pin gaps → fixed · **r7 Opus** (pin re-bases) no code defect, 1 MAJOR pin gap (the A5 decode not held on the store's decode path) + 1 MINOR + NITs → fixed · **store r7 Fable 5.2** CLEAN (0 MAJOR; 6 MINOR m-A…m-F recorded, 7 NIT) · **r8 Fable 5.2** (`pins-s15/c-transport`) no code defect, 2 MAJOR pin gaps F1 / F2 existing at the base → rule 9 stop → #1727 → #1746 (a): recorded limits · **r8 Opus** (the other pins) no code defect, 2 MAJOR pin gaps in a6 (a write of `builtCmd` / `hit` / `plainUri` after the post; `??=`) + 2 MINOR (smoke rows) → fix prepared · **r9 Opus** (the prepared a6 / smoke fixes, #1746) CLEAN (0 MAJOR, 0 MINOR, 3 NIT). Pin work of these rounds (Sonnet): 20 store-shaped keys re-based; new `pins-photo1a/b-store` b1–b16 (b12 noIoThroughLinks, b13 lruOnlyIfCurrent, b14 storeGen0, b15 offNoProbe, b16 readKeys); a6 `voiceHead` and `bodiesWhole` (both push methods held whole by the SHA-256 of the comment-masked, normalised body); a8 `deleteOnce`; s4 / chat A5 `decodeStore`; the smoke rows BUG-2 ① / ② hold both bodies whole, comment-stripped; `b-store` registered in the smoke. | `docs/review-brief-photo1a.md` § 5; the lead skill § 4 | ✅ CLEAN (code); the pin limits are recorded |
 | 1731 | 2026-11-18 | **THE MERGE WITH FIX BATCH 2 AND ITS RE-BASES.** `redesign/frontend` @ `55feaddc` (Session Fix batch 2) merged into `work/photo1a` (merge commit `8681ad1`). `SpixiFlags.cs` = the fixb2 block, then the photo1a block, 0 base lines removed. Pins re-based after a look at each diff: `pins-fixb1/g-sparekeep` (the whole-file hash of `SpixiFlags.cs` is now `f9e1abe4b93a418f2339142c38ba36914de70fce94f8ee99eaf776adf42e2722`, #1653) · `pins-perfb1/f-flags` · `pins-v1am/c-csharp` · `pins-s16/b-l8` (13 `Logging.info` lines) · fixb2's `pins-fixb2/d-pay-confirm` key `oneLineLast` (after the fixb2 line only the exact photo1a group may follow; break: an extra `Logging.info("x")` after the fixb2 line → red) · the merged C# test `FixB2PayTests.pay_flags_defaults_and_dev_mode` (only the photo1a line may follow; break → red). Both are files merged into this branch now (not edited apart from the re-base). Pins on the merged tree: 700 / 0 over every module that reads an edited file + the photo1a, fixb1 and fixb2 sets; CSH 766 / 0; `cs-syntax-check` 284 ✓ (before the merge). | `git --no-optional-locks show 8681ad1`; `docs/handoff-2026-11-17-photo1a.md` | ✅ recorded |
 | 1732 | 2026-11-18 | **SESSION "PHOTO OPEN 1a" — THE RECORD, FINAL STATE (replaces the record of #1725; MC `photo1a`; items `n-20261117-po0-open-log-lines`, `-po1-media-after-paint`, `-po5-fewer-file-checks`, `-po3-thumbnail-once`, `-po6-voice-waveform-once`; DECISIONS #1715–#1732; lessons L231–L236; packets P65–P70).** Damir's rulings #1641–#1643 and #1726; the main chat's #1736, #1737, #1746. **In the branch:** PO-1 (#1715), PO-5 (#1716), PO-0 (#1717), W (#1718), PO-3 / PO-6 the store (#1728), the one builder (#1729), the merge with Fix batch 2 (#1731). **Models:** lead Claude Opus; builders Claude Fable 5.2 (the store, its round-1 / 2 / 3 fixes) and Opus (PO-0 / PO-1 / PO-5, the one builder), Sonnet (the walk step, every pin, the docs); readers by #1606: Fable 5.2 (security, the store) and Opus (correctness, pins). **#46:** CLEAN (#1730; F1 / F2 recorded, #1727). **Numbers:** CSH `pass=766 fail=0` (= base 643 + 123 of this batch); pins on the merged tree 700 / 0; `cs-syntax-check` 284 ✓; the full smoke on the merged tree `BASELINE OK 6660 / the 2 KNOWN` (= 6617 + 43: a-open 11, b-store 16, c-walk 15, c-transport +1; 2026-11-18, cloud twin, jsdom 29.1.1, TZ=America/Los_Angeles) (expected 6617 + the new rows). **Surface:** verbs +0 · pushes +0 · push arguments +0 · `spixi.*` keys +0 · prefs +4 (read only) · log lines +3 dev, +3 all builds · WebView settings +0 · HTML sinks +0 · fetches +0 · files at rest +1 kind (the store, Android only) · walk steps +2 (opt-in). **⚠ C# UNCOMPILED:** `SingleChatPage.xaml.cs`, `SharedItems.cs`, `SpixiFlags.cs`, `PhotoOpenRules.cs`, `ChatMediaStore.cs`, `ChatMediaStoreRules.cs`, `UiCommandText.cs`, `Utils.cs`, `DownloadsPage.xaml.cs`, `SettingsPage.xaml.cs`, `ContactDetails.xaml.cs`, `LaunchPage.xaml.cs`, `SContacts.cs`, `UIHelpers.cs` (the pure rules run in the harness; Windows compiles in `redesign-ci`, Android in the operator block, iOS / Mac in the Apple phase). **Owed:** the operator block A → B → A with the memory rows and the cold-open rows (#1737); it starts only when the main chat gives Damir the step. Next: Photo open 1b (#1721) and images by URL (#1642, #1720). Number block: #1715–#1732 used (#1733–#1734 stay empty) · L231–L236 · P65–P70 used. Handoff `docs/handoff-2026-11-17-photo1a.md`. | Session "Photo open 1a", prompt `claude/session-photo1a-prompt.md`; `docs/handoff-2026-11-17-photo1a.md` | ✅ record |
+
+## #1735 (2026-11-18) — FIX BATCH 2: THE LIMITS OF ITS THREE PIN SCANNERS ARE ACCEPTED; ONE FRESH READER PER SCOPE, THEN THE PUSH
+Damir, main chat 11:20, a clickable answer: "Accept the test limits (Recommended)" — option (a) of the session's
+question #1705.
+- State of session `fixb2` (its status doc, 2026-11-17 23:55): all seven items built (#1695–#1706); the #46 loop
+  stopped at round 3 by rule 9 of the lead skill (MAJOR 3 → 2 → 3, every one a pin or layout-check gap, NO finding
+  in the code in any round); not pushed.
+- The three hand-written pin keys stay as built, with their limits recorded in the session's row #1705, in the
+  packets and in the gate section: `d-pay-confirm` WINDOWS-ONLY (a UTF-16 or lone-CR `.cs` file), the hidden-pill
+  guard of `c-unread-pill` and its sweep (`filter` / `mask` / alpha colours on the pill), the content line of
+  `f-txrow` (a physical `padding-left`). Each needs an unusual edit that the diff review, the Windows compile and
+  the walk see.
+- The session continues: ONE fresh read-only reader per scope over the unchanged tree — Claude Fable 5.2 for the
+  security-only scope (items 3 and 4, `SPayments.cs`), Claude Opus for the rest (#1606). 0 MAJOR in the code →
+  the merge of the newest `redesign/frontend`, the push by #1546, the compare link. A MAJOR in the code → stop and
+  report. One more gap of the same pin class is a recorded limit, not a fix round.
+- The same pattern as #1627 (Cold start 1). It is now the third stop on a hand-written source scanner (#1583,
+  #1684, #1705): the docs batch writes the lesson into the lead skill's rule 9 — a source-text pin states its
+  limits in its first version, and a gap of the stated class is a NIT, not a MAJOR.
+Status: ✅ decided (Damir).
+
+## #1736 (2026-11-18) — PHOTO OPEN 1a: ONE MORE ROUND, DONE RIGHT; THE SINGLE-COMPOSER RULE OF THE COMMAND TEXT STAYS
+Damir, main chat 11:20, a clickable answer: "One more round, done right (Recommended)" — option (a) of the
+session's question #1724. (He gave the same answer in the session's chat at 11:13; the session's row #1726.)
+- State of session `photo1a` (its status doc, 2026-11-18 02:52): PO-0, PO-1, PO-5 and the walk steps `open-seed`
+  / `mem-photos` are built (#1715–#1718); CLEAN not claimed at round 5 (a pin gap; no code defect in rounds 3–5);
+  the final smoke has 2 red rows; not pushed.
+- **The security row is fixed in the code, not by a re-base.** `pins-s15/c-transport` (S15 O-11) says that
+  `sendUiCommand` is the ONLY composer of the `executeUiCommand(` text. PO-1 added a second, byte-identical
+  composer (`PhotoOpenRules.uiCommandText`) to build the push text off the main thread. The fix: ONE shared pure
+  builder that both call (the transport and the off-thread path), so the escaping exists in one place; the pin
+  then holds "one builder" with a deliberate break. A fresh Claude Fable 5.2 security reader reads that change.
+- The other red row (the inline N51 pin: `onLoad` must start with `shellOverlayOpen = false;`): the clock of PO-0
+  moves behind that statement, or the pin is re-based after a look, whichever keeps the meaning of N51.
+- The pin findings of round 5 are fixed; a source-text pin states its limits (#1735, last bullet). Then one fresh
+  reader. CLEAN + `BASELINE OK` → the push by #1546 → the operator block (A, B, A with the memory rows), when the
+  main chat gives Damir the step.
+Status: ✅ decided (Damir).
+
+## #1737 (2026-11-18) — THE KEPT THUMBNAILS AND WAVEFORMS (PO-3, PO-6) ARE FINISHED NOW, IN SESSION `photo1a`, WITH FABLE 5.2
+Damir, main chat 11:20, his own text on the question of #1719 (the options were: inside the images-by-URL batch ·
+its own session now · let Opus finish it): "i have reset the fable limit and it's supposed to end it, it's running
+in photo 1a".
+- Damir reset the Fable 5.2 limit of the account and restarted session `photo1a` in its own chat on 2026-11-18.
+  The session finishes PO-3 and PO-6 there: it applies `docs/parked/photo1a-po3-po6.patch`, a Claude Fable 5.2
+  builder fixes the open findings (G1–G7, F-2, F-3), fresh Fable 5.2 readers review it (#1606, #1640: the builder
+  never reviews its own part). No Opus fallback for the store.
+- The delivery of PO-0, PO-1 and PO-5 (#1736) does not wait for it: if the store is not CLEAN when the rest is, or
+  if the limit stops the work again, the session parks the store again and delivers the rest; the store then goes
+  into the images-by-URL batch (`imgurl`, #1642), which needs it as its base.
+- The operator block: one sitting. With the store in: the cold-open A / B rows as the prompt says.
+Status: ✅ decided (Damir).
+
+## #1738 (2026-11-18) — THE SPEED PLAN BEFORE THE LAUNCH: ONLY WHAT A NUMBER ASKS FOR
+Damir, main chat 12:15, four clickable answers (interview round 1).
+1. **Speed batches 1b and 1c → after the launch (v1.0.x).** "After the launch (Recommended)". No budget fails for
+   them (chat info 103–138 ms against 160 ms, #1614 (5)). This applies "Measured first" (#1534) to the scope of
+   #1513: an idea is eligible before the launch, but it is built only when a device number fails its budget. The
+   single idea items of the two batches move to v1.0.x in Mission Control at the next count.
+2. **The history view (largest frame 218 ms against 100 ms, #1518): research first, then one fix batch.**
+   "Research first, then fix (Recommended)". A read-only session with one phone block, like `photoopen`; the old
+   "step 1" of #1518 is built only if the research names it.
+3. **The memory ideas P-14 (a trim hook that fires on Android 14+) and P-15 → into the images-by-URL batch
+   (`imgurl`, #1642).** "Into the images-by-URL batch (Recommended)". One memory batch, one set of before and
+   after numbers, one sitting.
+4. **The smoothness pass (session `smooth`) → the Apple phase.** "In the Apple phase (Recommended)". It runs with
+   `macfix` and the iPhone and Mac walks; the desktop row shapes of its list are in `fixb2`.
+What remains for speed before the launch: "Photo open 1a" (running), "Photo open 1b" with the chat backgrounds,
+images by URL with P-14 / P-15, the history research and its fix. The cold start is stopped by #1638.
+Status: ✅ decided (Damir).
+
+## #1739 (2026-11-18) — FIX BATCH 2: ITS TWO PROVISIONAL POINTS ARE ACCEPTED; THE DOWNLOADS STEP GETS A SCROLL STEP; THE LOCK FLASH WAITS
+Damir, main chat 12:20, four clickable answers (interview round 2).
+1. **#1696 → ✅.** "Yes, one switch for the dialog (Recommended)": the focus fix of the Windows confirm dialog
+   (item 3 of `fixb2`) has no switch of its own; it lives inside the dialog of Fix batch 1, whose switch
+   `ConfirmSafeDefault` returns the old system dialog. This is the one accepted case beside #1478: a fix INSIDE a
+   switched change needs no second switch.
+2. **#1697 (D-1) → ✅.** "Accept (Recommended)": while a payment confirm or a mini-app confirm is open on Windows,
+   every other alert that wants to open is dropped, and an error of the dialog counts as Cancel. Fail closed; a
+   dropped alert is the accepted cost.
+3. **The walk step `downloads`: build a scroll step.** "Build a scroll step" (of three: check it by hand · build a
+   scroll step · drop it). A small scripts batch teaches the adb walk to scroll in the Account hub to the Downloads
+   row (a fixed swipe from the device map and a screen check; no typed input, no new verb, #1522 stays), with its
+   review and the re-base of the script hashes (#1634). It runs after `photo1a` is merged (both change
+   `scripts/device/adb-walk.ps1`). This replaces the "no data" state of #1674 / #1635 (1).
+4. **The lock-screen flash on Android (`n-20261117-android-applock-screen-cascade`) → after the launch.** "After
+   the launch (Recommended)": v1.0.x; lock code, so a change needs a security review.
+Status: ✅ decided (Damir).
+
+## #1740 (2026-11-18) — FOUR SMALL PLACEMENTS: THE SEED FINDINGS, THE MAC SPARE PAGE, THE PHONE COLOURS, TIC-TAC-TOE
+Damir, main chat 12:25, four clickable answers (interview round 3).
+1. **The two developer-seed findings → after the launch.** "After the launch": `n-20261116-win-devseed-slow-stalls`
+   (seeding is slow and stalls on Windows) and `n-20261117-devseed-unread-no-strip` (a seeded chat with an unread
+   badge shows no marker) move to v1.0.x. On record: the main chat had proposed to read the cause in the next
+   seed batch, because a slow seed can point at a slow message store on Windows; Damir chose not to spend time
+   on it now. `n-20261117-devseed-no-presence-lookup` stays v1.0.x.
+2. **The spare re-arm on the Mac: decided in the Apple phase.** "Decide in the Apple phase (Recommended)": the Mac
+   walk row of batch 1a shows if `SpareRearm` helps or harms there; no blind change now.
+3. **The chat backgrounds, the phone question: "Yes, only the PC looks too strong".** So the values look right on
+   the phone, and the cause of "oversaturated on Windows" is most probably the colour handling of that PC screen
+   (a wide-gamut monitor without a correct profile, #1644). The calm picks and the dark Mist ground of #1644 stay
+   and are built. No further step on the values is planned. The main chat gives Damir the Windows settings to
+   check (the colour profile of the monitor, "Automatically manage color for apps", HDR) when he asks.
+4. **Tic-tac-toe (pack, host, test) and welcome slide 4 → after the launch.** "After the launch" (of three: now ·
+   after the image work · after the launch). This changes #1608 and #1614 (6): v1 ships with the mini apps that
+   exist today; the items move to v1.0.x at the next count. If welcome slide 4 names Tic-tac-toe today, the slide
+   text is a launch item: the main chat checks it at the next count.
+Status: ✅ decided (Damir).
+
+## #1741 (2026-11-18) — PROCESS: THE MAC RE-SYNC REMINDER STAYS; THE CI WATCH TASK IS TURNED OFF; THE LICENCE FOLLOW-UP AFTER FIX BATCH 2; THE BE ASKS GO WITH THE HANDOVER
+Damir, main chat 12:30, four clickable answers (interview round 4).
+1. **The ★ MAC RE-SYNC REMINDER stays in `CLAUDE.md`.** "Not sure" whether every clone is re-synced. The first Mac
+   step of the Apple phase is the check of that reminder (its six steps), before any build there.
+2. **The scheduled task "Spixi CI watch" is turned off.** "Turn it off (Recommended)": on 2026-11-18 it could not
+   reach the PC (no folder connected) and checked nothing; the main chat reads `redesign-ci` at each of Damir's
+   returns. Damir turns it off in the task list of the app. "Mission Control daily sync" stays.
+3. **The follow-up of "Speed lean" (#1625 (1)–(3)) starts after Fix batch 2 is merged.** "After Fix batch 2 is
+   merged (Recommended)": the licence texts of third-party code against what ships (a launch need), the two
+   packaging fixes, the plain packaged smoke and the CI pins. Opus leads; the main chat writes the prompt.
+4. **The asks for the BE engineer go to him with the handover, not now.** "Later, with the handover": `m165` (what
+   the push relay keeps after "Delete account"), the written confirmation of the three claims, the signed Windows
+   installer, CORE-17 (#1722: Core reads the whole messages file per open) and the legacy finding #1668 ④. They
+   are collected in the BE review pack by the strip session.
+Status: ✅ decided (Damir).
+
+## #1742 (2026-11-18) — THE HISTORY VIEW: THE BATCH "HISTORY 1" IS BUILT; THE PHOTO CHAT'S OLDER PAGE IS MEASURED FIRST; THE EARLY LOAD COMES AFTER THE LAUNCH
+Damir, main chat 13:10, three clickable answers on the report `claude/history-research-2026-11-18.md` (session
+`historyres`, read-only; Galaxy A52s, the build of `work/filewalk` @ `20ada92`; runs `20261118-1234` / `-1237`; one
+fresh Opus reader: 2 MAJOR, fixed in the report).
+- **The finding:** the largest frame of the step `history` (204 / 221 ms on 2026-11-18, 218 ms on 2026-11-16;
+  budget: no frame above 100 ms, #1517) comes at the INSERT of a page of older messages: the chat page rebuilds
+  every row of the log, so each page costs more than the one before (long task 96.5 → 132.5 → 165 ms for pages
+  1–3, about 0.65 ms per row of the log; the frame gap = the longest long task + 21–54 ms). A second, smaller
+  stall is on the UI thread in C#: the whole messages file is read again for each page (up to 73.5 ms + 33 ms
+  build for page 1). The request fires in the middle of the fling. The old step 1 of #1518 (the read off the UI
+  thread + the edge rule) alone does not reach 100 ms. A correction to the time line of `photoopen`: the line
+  `[P1] chat load` comes AFTER the read.
+- **(1) "History 1" as the research recommends** ("'History 1' as recommended"; of three: that · only the old
+  step 1 · the windowed log now): HV-0 (the log lines) + HV-1 (insert only the new rows) + HV-5 (the first page
+  holds 50 rows) + HV-4 (the fade pass works from the band, not over the whole log) + P-28 (the read and the
+  build of a page off the UI thread) + HV-3 (the position fix in one task). Expected for text chats: 75–100 ms —
+  at the edge of the budget; one phone sitting decides. P-27 (the windowed log) stays the fallback and v1.0.x.
+  This replaces the two-step plan of #1518 for the time before the launch; Damir's requirement of #1518 stays
+  (scrolling over loaded messages never stutters; no visible jump).
+- **(2) The photo chat's older page: measure first** ("Measure first (Recommended)"): the batch gives the walk
+  step `history` a seed-index option, so that it can run on the photo chat (est. 115–150 ms after HV-1). A fix
+  (PO-4, the lighter photo tile of "Photo open 1b", or HV-2, an insert in parts) is built only if that number
+  fails.
+- **(3) The early load (the next page is asked for before the top is reached; Telegram's behaviour) → after the
+  launch**, with P-55 and the windowed log (v1.0.x).
+- **How the main chat cuts it (file areas):** the shell half (HV-1, HV-5, HV-4, HV-3, the shell lines of HV-0 —
+  `src/shells/chat.html` and its components) goes into ONE shell batch with "Photo open 1b" and the chat-background
+  tokens, after `fixb2` is merged; the C# half (P-28, the C# lines of HV-0) and the seed option of the walk step
+  go into a small C# + scripts batch after `photo1a` is merged (both change `SingleChatPage.xaml.cs` and
+  `scripts/device/adb-walk.ps1`), together with the scroll step of #1739 (3).
+- Mission Control: session `historyres` → Done; item `n-20261118-history-view-research` → Done; the new items of
+  the session stay "To do" for the two batches.
+Status: ✅ decided (Damir).
+
+## #1743 (2026-11-18) — WALK #1743: 10 P · 1 F · 1 N/A — FIX BATCH 2 ON WINDOWS AND ANDROID; THE MISSING FOCUS RING IS ACCEPTED FOR V1
+Damir, 2026-11-18 13:10 (Windows, F5 build) and 13:25 (Galaxy A52s, Release dev build; `Build succeeded`, the
+install `Success` at 13:24), both of `work/fixb2` @ `2c19291f` (pull request 15); sheet `docs/walk-fixb2.md`.
+- **Windows 7 P · 1 F · 1 N/A:** W-BUILD P (`[FLAGS] payconfirmdefault=1 appconfirmdefault=1`) · **W-1 F** (the
+  confirm focus, item 3: Damir: "doesnt show but its ok.. we can close this" — at open the focus ring does not
+  show) · W-2 P (long text) · W-3 P (the payment confirm: every key and the click on Cancel cancel; nothing was
+  sent) · W-4 N/A (no mini app with an action at hand) · W-5 P (the unread pill) · W-6 P (the line on the
+  hairline; the reset width 440) · W-7 P (the sheets in a small window) · W-8 P (the transaction rows).
+- **Android 3 P:** A-1 P (the unread pill) · A-2 P (the Aurora ring) · A-3 P (the phone layouts unchanged).
+  A-BUILD was not marked by Damir; the build on the phone is proven by the build and install output of 13:24 from
+  the clone on `work/fixb2` @ `2c19291f` (read by the main chat) and by row A-1 (the pill exists only in this
+  build).
+- **Damir's ruling on W-1:** "Lets consider it done.. some focus issues but a ok". The missing focus ring of the
+  Windows confirm dialog at open is ACCEPTED for v1. The safety goal holds (W-3: no key confirms a payment; WALK
+  #1631 W-1: Enter alone does not delete). Mission Control: `n-20261117-win-confirm-no-default-focus` → Done as
+  "accepted as it is"; a follow-up for the visible ring is NOT planned before the launch. On record from the
+  session (S4 MINOR-1): the Left arrow moves the focus from Cancel to OK; no single key says yes.
+- **The dials are accepted** with the P rows: the reset and default list width 440 (#1697-area dial, W-6) and the
+  padding of the desktop transaction rows (W-8); the 🟡 marks of those rows become ✅ in the docs commit.
+- W-4 (the mini-app confirms on Windows) was not walked: it shares the dialog code of W-3 and has its own switch
+  `MiniAppConfirmSafeDefault`; a walk row for it goes into the launch walk.
+- Apple rows (Mac: W-5, W-6, W-7, W-8; iPhone: A-1, A-2, A-3) are owed to the Apple phase (#1515).
+- After the merge of pull request 15: session `fixb2` → Done; its seven items → Done.
+Status: ✅ recorded (walk verdict, #663); the acceptance of W-1 ✅ decided (Damir).
+
+## #1744 (2026-11-18) — FOUR OPEN ITEMS PLACED: SIGNATURES IN v1.1; THE OLD SPEED-ROWS ITEM CLOSED; TWO SMALL FIXES BEFORE THE LAUNCH
+Damir, main chat 14:10, four clickable answers (interview round 5; the questions came from the Mission Control
+items with status "Check" or "Waiting on someone").
+1. **Mini-app signature verification → v1.1.** "In v1.1 (Recommended)". It is a new feature (keys, a trust list, a
+   screen for unsigned apps), proposed for v1.1 by Session Safety (#1470). v1 ships with the built and walked
+   sandbox fixes (MAJOR 4 on Android, iPhone and Mac; 6, 9, 10). MAJOR 8 rides with the https origin lever
+   (`m166`, v1.1); the Windows partition stays parked (`n-20261016-win-miniapp-partition`). Item `m167` moves to
+   v1.1 for what is left.
+2. **The item "Write the speed research and feature freeze rulings into DECISIONS" (`n-20261016-decisions-rows`) is
+   closed.** "Close it (Recommended)". The proposed Perf-R rows (#1482–#1487, #1475–#1477; the reserved numbers
+   #1314–#1319) are replaced by the speed plan of #1473, #1513, #1534 and #1738; the freeze is in #1479. The docs
+   batch marks the proposed rows as replaced. No new work.
+3. **"Delete history" on Windows leaves the media and the files in chat info: fixed before the launch.** "Fix
+   before launch (Recommended)". Mechanism first (#294): a stale chat-info page or files that stay on disk. The
+   target: Windows does what Android does — nothing of the deleted history stays visible. It goes into the next
+   small fix batch ("Fix batch 3"). Item `n-20261113-delete-history-chat-info-media`.
+4. **A mini-app action before `ixian:onload`: fixed before the launch.** "Fix before launch (Recommended)". A
+   guard that answers "not ready", and the catch logs the command name only, never the action text (the log can
+   be shared with one tap). A C# change in `Spixi/Pages/MiniApps/MiniAppPage.xaml.cs`: the session decides by
+   #1478 / #1321 if it is a hole-closing fix without a switch; a packet and a gate row. It goes into "Fix batch
+   3". Item `n-20261113-miniapp-action-before-onload`.
+**"Fix batch 3" (after `photo1a` is merged) now holds:** the C# half of "History 1" (P-28, the C# lines of HV-0,
+the seed option of the walk step `history`, #1742), the scroll step for Downloads (#1739 (3)), and the two fixes
+above. The main chat cuts it by file area when it writes the prompt.
+Status: ✅ decided (Damir).
+
+## #1745 (2026-11-18) — SESSION "SPEED LEAN FOLLOW-UP" (`leanfollow`) IS READY; IT RUNS BESIDE THE TWO PHOTO SESSIONS
+Damir, main chat 14:00: "ready and also if we can run anything else in parallel, we should." With #1741 (3) ("the
+follow-up of Speed lean starts after Fix batch 2 is merged"; Fix batch 2 was merged at 13:57, `55feaddc`) this is
+his "go" for the follow-up.
+- Scope: groups (1)–(3) of #1625 — the third-party notices against what ships (a launch need), the two packaging
+  refusals, the repair of the plain packaged smoke, the parser cross-check and the MSBuild harness as CI pins.
+  Group (4) (the home-shell parse and navigation lines) waits with the cold-start work (#1638).
+- Lead Claude Opus; ONE fresh Fable 5.2 reader per round for the security-only pass (#1606); no Fable builder.
+- No app behaviour changes: no switch, no walk, no phone block. Delivered = status "Check"; Done after the merge.
+- File areas: `Spixi/Spixi.csproj` (packaging targets), the packaged-smoke and lean scripts, its pins,
+  `.github/workflows/redesign-ci.yml`, `docs/legal/**`, new licence text files. Disjoint from `photo1a` (chat
+  C#, `scripts/device/**`) and `photo1b` (shells, components, styles); shared only the registration block in
+  `scripts/smoke-test.mjs` and the appended docs.
+- Block: **#1775–#1789 · L247–L250 · P77–P78.** Prompt: `claude/session-leanfollow-prompt.md`.
+- Walk debt (#1472): zero (WALK #1743).
+Status: ✅ decided (Damir).
+
+## #1746 (2026-11-18) — PHOTO OPEN 1a: THE TWO GAPS OF THE S15 TRANSPORT PIN ARE ACCEPTED AS INHERITED LIMITS; THE SESSION PUSHES
+Damir, main chat 14:40, a clickable answer: "Accept, then push (Recommended)" — option (a) of the session's
+question #1727 (the options: (a) accept and push · (b) the same plus harden the S15 pin now with one more Fable
+5.2 reader · (c) stop the batch).
+- State of session `photo1a` (its Mission Control notes, 2026-11-18): the code has no open defect (reviews r6–r8);
+  the kept-thumbnail store is CLEAN (store round 7, a fresh Fable 5.2 reader: 0 MAJOR); the security row O-11 is
+  fixed in the code by ONE shared builder (`UiCommandText`, #1736). The round-8 Fable reader of
+  `pins-s15/c-transport` found two gaps of that source-text pin for ordinary code: F1 (a raw push through
+  `EvaluateJavaScriptAsync` / `evaluateJavascript` / `messageQueue.Enqueue`) and F2 (a new `sendUiCommand`
+  overload or a raw command word). Both gaps exist at the base (`c0a7617`): they are limits of an older pin, not
+  an exposure that this batch introduced.
+- F1 and F2 are written into the LIMITS text of the S15 pin and into the session's row, the packet and the gate
+  section. The pin is hardened in the audit phase: Mission Control item `n-20261118-s15-transport-pin-harden`
+  (the diff review and the #46 security reader stay the control until then).
+- The session merges its prepared fixes of its OWN pins (a6: both push methods held whole by SHA-256; the smoke
+  pin) after one short Opus read, merges the newest `redesign/frontend`, runs the full smoke and pushes by
+  #1546. Then the compare link, CI and the operator block (A, B, A), when the main chat gives Damir the step.
+- This is the fourth stop of a review loop on a hand-written source scanner (#1583, #1684, #1705, #1727). The
+  rule of #1735 holds: a source-text pin states its limits; a gap of a stated class is a NIT.
+Status: ✅ decided (Damir).
+
+## #1747 (2026-11-18) — THE COUNT OF THE LAUNCH BOARD AND FOUR ANSWERS: ONLY BLITZ CHESS IS NAMED; THE iPHONE ALBUM FIXES STAY; THE OTHER SPEED IDEAS GO AFTER THE LAUNCH
+Damir, main chat 14:42: "use a subagent, let's do 1." (the full count of the open launch items). A Claude Opus
+sub-agent of the main chat read every open launch item; report `claude/prelaunch-count-2026-11-18.md`.
+Then four clickable answers at 15:10 (interview round 6).
+1. **Welcome slide 4 names only Blitz Chess.** "Blitz Chess only (Recommended)": the text becomes "Mini apps like
+   Blitz Chess open right in your chats." in all 14 locales and in the fallback of `launch-shell.js` (today it
+   names Split, which is not in v1 by #1608; Tic-tac-toe is after the launch by #1740 (4)). Item
+   `n-20261115-split-ships-slide4`, in "Fix batch 3" after `photo1b` is merged.
+2. **The store screens show only Blitz Chess.** "Blitz Chess only (Recommended)": the mini-app scene of the store
+   screens and videos is rendered again (item `m113`).
+3. **The two iPhone album fixes (P-22, P-23) are built before the launch, in the Apple phase.** "Before launch,
+   Apple phase (Recommended)": session `macfix`, with `n-20261015-iphone-list-anchor`.
+4. **The other speed ideas → after the launch.** "All after the launch (Recommended)": the rule of #1738 (1) for
+   every unbuilt speed idea without a built place. Moved to v1.0.x: 31 idea items (P-08, P-10, P-16, P-17, P-19,
+   P-20, P-24, P-27, P-29, P-30, P-31, P-32, P-35 to P-44, P-47 to P-55) and the umbrella
+   `n-20261016-lazyload-premium`. Kept before the launch: P-14, P-15, P-25 (session `imgurl`), P-28 (`fixb3`),
+   P-22, P-23 (`macfix`), and the photo and history items of the running sessions.
+   **Not moved by the main chat: P-21.** It names defects of the Wallet hero collapse, not a speed idea; it stays
+   before the launch in session `smooth` (Apple phase). Damir can move it.
+
+**Also done by the main chat from earlier rulings:** four cold-start levers → v1.0.x (#1638);
+`n-20261116-coldstart-split-lines` → Done (built and merged by `coldstart1`); `n-20261016-speed-picks` → Done;
+the older P-25 idea item → Parked as a duplicate; P-14, P-15 → session `imgurl` (#1738 (3)); `m151` → session
+`strip`.
+
+**The count:** 215 on 2026-11-15 → 202 before the moves of today → 190 after the sub-agent's moves → **151 open
+launch items** after the moves of this row. Of them 42 are store, website and launch-day tasks, 14 wait only for
+the Apple phase, 10 wait for the BE engineer.
+
+**Still open from the report (the next interview rounds):** `m226` (the desktop invite link) · `m247` (the Split
+test) · the password fields under the keyboard · `m146` (the push load test) · six tool items · "Default
+settings" · the two grant applications · the camera and storage permission at first use · the umbrella items
+that repeat idea items · items that point to closed sessions.
+Status: ✅ decided (Damir).
+
+## #1748 (2026-11-18) — FOUR PLACEMENTS: THE DESKTOP LINK TYPE IN v1.1; THE SPLIT TEST AND THE PUSH LOAD TEST AFTER THE LAUNCH; THE KEYBOARD FIX BEFORE IT
+Damir, main chat 15:08, four clickable answers (interview round 7).
+1. **`m226` (register `spixi://` on Windows and Mac) → v1.1.** "Move to v1.1 (Recommended)": its only use is the
+   invite link, which is v1.1 (#1613).
+2. **`m247` (test Split with real phones and real IXI) → v1.0.x.** "After the launch (Recommended)": Split is not
+   in v1 (#1608). The hosting item `m245` is the Blitz Chess package only for v1.
+3. **The password fields under the keyboard (`n-20261113-protect-account-keyboard`): fixed before the launch, in
+   "Fix batch 3".** "Before launch, Fix batch 3 (Recommended)": every new user sees the protect-account step; a
+   layout fix, mechanism first (#294).
+4. **`m146` (the push-service load test) → v1.0.x.** "After the launch (Recommended)": it must pass before the
+   first marketing push; it needs the BE engineer.
+Status: ✅ decided (Damir).
+
+## #1749 (2026-11-18) — FOUR MORE: TWO TOOL ITEMS STAY; A PAGE FOR THE DEFAULT SETTINGS; THE GRANTS WAIT; THE PERMISSION CHANGE AFTER THE LAUNCH
+Damir, main chat 15:15, four clickable answers (interview round 8).
+1. **Tool items: "Keep two, move four (Recommended)".** Before the launch stay: the early WebKit check
+   (`n-20261112-webkit-early-check`; now for P-22 / P-23 in the Apple phase, session `macfix`) and the fix of the
+   6 smoke rows on the newest jsdom (`n-20261111-jsdom31-smoke-rows`; the docs / housekeeping batch). To v1.0.x:
+   `n-20261111-bridge-trace-replay`, `n-20261111-quixi-delivery-probe`, `n-20261113-windows-walk-script`,
+   `n-20261112-walk-rows-by-log`.
+2. **"Default settings" (`nmvavaex3`): "One page, you pick (Recommended)".** A read-only session (`defaults`,
+   Claude Opus, no Fable instance, no file change) lists the default of every setting of a new account on one
+   Artifact page; Damir marks his picks and pastes them into the main chat; each change he picks becomes an
+   item of a fix batch. With his word of 14:00 ("if we can run anything else in parallel, we should") this is
+   the "go" for that session; a read-only session is exempt from #1472. Prompt:
+   `claude/session-defaults-prompt.md`.
+3. **The grant applications `m183` (NLnet) and `m184` (OTF Security Lab) → Later.** "Move to Later
+   (Recommended)": the October 2026 window is past; they wait for the next window.
+4. **The camera and storage permission at first use (`n-20261116-permissions-first-use`) → v1.0.x.** "After the
+   launch (Recommended)": it belongs to the cold-start work (#1638); permission code and the start path need a
+   security review.
+**"Fix batch 3" now holds:** the C# half of "History 1" (#1742), the Downloads scroll step (#1739 (3)), "Delete
+history" on Windows and the mini-app action guard (#1744), the text of welcome slide 4 (#1747 (1)), and the
+password fields under the keyboard (#1748 (3)). The last two are shell changes: after `photo1b` is merged. The
+main chat cuts it in two batches by file area if that lets one part start earlier.
+**The count:** 151 → **141 open launch items.**
+Status: ✅ decided (Damir).
+
+## #1750 (2026-11-18) — THE DEFAULT SETTINGS OF A NEW ACCOUNT: 35 STAY, FOUR CHANGE, FOR NEW AND RESTORED ACCOUNTS ONLY
+Damir, main chat 15:34: he pasted the picks of the page "Spixi Default settings — picks"
+(https://claude.ai/artifact/X4nrXaAEcjgpCYWJj4b2hy; the inventory with `file:line`:
+`claude/default-settings-2026-11-18.md`; 39 rows, "Not picked: none"). Then three clickable answers at 15:42.
+**The picks — four changes, every other row KEEP:**
+- **P1 "Load pictures and GIFs": On → Off.** A GIF link, a remote picture and a remote mini-app icon in a received
+  message load only after a tap. This replaces the load-by-default ruling #82 (2026-07-07) for new accounts.
+- **A9 "List density" (Windows and Mac): Comfortable → Compact.**
+- **S1 "App lock": Off → On.**
+- **S2 "Confirm payments": Off → On** (Android, iPhone, Mac; Windows has no such row).
+**The three answers:**
+1. **Who gets the new defaults: "New and restored accounts (Recommended)".** The app writes the new defaults when
+   an account is created or restored. An existing account keeps today's behaviour, also when it never stored a
+   choice: no update turns App lock on (a user who forgot the account password would be locked out).
+2. **The lock delay: "1 minute (Recommended)"** on the phone and the Mac (today 5 seconds after Spixi leaves the
+   screen, `Spixi/App.xaml.cs:103`). Windows keeps 10 minutes with no input. This changes row X1 of the picks
+   ("KEEP") by his later answer.
+3. **The Android lock-screen flash: "Fix before launch (Recommended)".** This replaces #1739 (4): with App lock On
+   by default each new Android user would see the flash at each unlock. Item
+   `n-20261117-android-applock-screen-cascade` is back in the launch phase.
+**Where it is built:**
+- **The "Defaults batch" (session `defaultsb`, Planned):** App lock On, the delay of 1 minute, Confirm payments On,
+  the write of the defaults at create / restore, the lock flash. Lock and payment code: a Claude Fable 5.2
+  builder and fresh Fable 5.2 security readers (#1640, #1606); each change its own switch (#1478); the rule
+  "C# touches no risky parts" holds (no password or key crosses the bridge; the native confirm of a payment
+  stays). The batch must state what happens on a device with no screen lock and no fingerprint: the app lock
+  falls back to the Spixi password; a send is never blocked for ever and never sent without a confirm. A walk on
+  Windows + Android is owed after it (L149). It starts after `photo1a` has pushed (the Fable limit).
+- **The shell part of "Fix batch 3":** P1 and A9 (WebView-held keys with three readers each, the rule of #690).
+  For P1 the batch finds how a new account is told apart from an existing one without a new bridge verb, or it
+  writes the question.
+- The adb walk needs App lock OFF on the test phone: its stored value stays.
+**Mission Control:** `nmvavaex3` and session `defaults` → Done. New items: `n-20261118-default-applock-on`,
+`n-20261118-default-confirm-payments-on` (session `defaultsb`), `n-20261118-default-media-autoload-off`,
+`n-20261118-default-list-density-compact` (session `fixb3`). **The count: 141 → 145 open launch items.**
+Status: ✅ decided (Damir).
+
+## #1751 (2026-11-18) — PHOTO OPEN 1a: MEASURED, MERGED, DONE; THE PHOTO CHAT IS UNDER ITS LIMIT; THE DEFAULTS BATCH IS READY
+- **The operator block** (Damir, 16:19–17:41, in the session's chat): builds A = `redesign/frontend` @ `55feaddc`
+  and B = `work/photo1a` @ `95a5d5f3` (dev Release; the first Android compile of the batch's C#: 0 errors); runs
+  A `20261118-1625` · B `20261118-1643` · A `20261118-1726`, all `RESULT: OK`; numbers:
+  `claude/device-numbers-2026-11-18-photo1a.md`.
+- **Warm chat open, `present ms=`, A / B / A (Galaxy A52s):** Seed 56 (48 photos) 211 / **137** / 207 · Seed 53
+  (24 photos) 149 / **104** / 145 · Seeds 51 / 52 105 / 98 / 113 and 105 / 86 / 103 · the voice chat 121 / 113 /
+  140 (inside the noise) · the text chat 104 / 103 / 110 (no change). `glass=` of the photo chat 44 → 5 ms; no
+  preview push lands before the first paint. The two A runs agree within 4–8 ms on the photo rows (#1530).
+- **Against #1643:** the photo-heavy chat is under the limit of 150 ms (137 ms) and over the target of 120 ms;
+  every other chat is under 120 ms. The page half (`photo1b`: the lighter photo tile) targets the rest.
+- **Cold open:** all 48 previews of Seed 56 came from the kept store after a restart (288 / 236 / 264 ms).
+- **Memory (app + renderer PSS, one sample each):** after the photo steps 379.1 MB on B against 406.4 MB (the
+  mean of the two A runs): about 27 MB lower. On B the photo steps add about 0 MB over home, on A about 19 MB.
+  This is the before-number for the images-by-URL batch (#1642).
+- **Not known:** the share of each of the four switches (they were on together); the B numbers are one run; the
+  cold store hit of Seeds 51–53.
+- **Merged:** pull request 16, merge commit `14ae57f2` (Damir, 17:52; "Merge pull request"); `redesign-ci` was
+  green on the pull request (both jobs). No walk is owed (no screen change). Session `photo1a` → Done; items
+  PO-1, PO-3, PO-5 → Done; PO-0 and PO-6 stay open for their shell parts in `photo1b`.
+- **The phone** holds build B (`work/photo1a` @ `95a5d5f3`); the PC clone is on `redesign/frontend`.
+- **Session `defaultsb` ("Defaults batch", #1750) → Ready at 17:55:** its base now holds `photo1a`; Fable 5.2 is
+  free of `photo1a`; walk debt zero (#1472). Block #1790–#1809 · L251–L256 · P79–P83. Damir's "go": his ruling
+  #1750 with his word of 14:00 ("if we can run anything else in parallel, we should").
+- **Now possible (the base holds `photo1a`):** the docs commit of the main chat (#1641–#1644, #1735–#1751), and
+  the C# part of "Fix batch 3".
+Status: ✅ recorded (the main chat; the merge and the block by Damir).
+
+## #1752 (2026-11-18) — "FIX BATCH 3" IS CUT IN TWO BY FILE AREA; THE FIRST PART IS READY
+The main chat's cut (Damir's standing rule: cut a batch when only a part of it shares a file area; his word of
+14:00 "if we can run anything else in parallel, we should" with the rulings below is the "go").
+- **Fix batch 3 (session `fixb3`, Ready 18:15, Claude Opus):** the mini-app action guard and its log line
+  (#1744 (4)) · "Delete history" on Windows (#1744 (3)) · the scroll step of the walk step `downloads`
+  (#1739 (3)) · a seed option for the walk step `history` (#1742). None of them needs `src/**` or the page
+  contract of `photo1b`. One fresh Fable 5.2 reader per round for the security-only pass; no Fable builder. One
+  short phone block at its end, only on the main chat's step. A small walk on Windows + Android. Block
+  **#1810–#1824 · L257–L260 · P84–P86.** Prompt: `claude/session-fixb3-prompt.md`.
+- **Fix batch 4 (session `fixb4`, Planned; after `photo1b` is merged):** the text of welcome slide 4
+  (#1747 (1)) · the password fields under the keyboard (#1748 (3)) · the two shell defaults of #1750 (pictures
+  and GIFs on a tap; the Compact desktop list) · the C# half of "History 1" (P-28 and the C# lines, #1742),
+  which needs what `photo1b` writes for it.
+- **Running at 18:15:** `photo1b`, `leanfollow`, `defaultsb`, `fixb3`. Walk debt zero. When two of them are
+  delivered and unwalked, ★ #1472 stops the start of a further build session until a walk is done.
+Status: ✅ recorded (the main chat).
+
+## #1753 (2026-11-22) — `leanfollow`: ONE MORE FIX ROUND IS PERMITTED (question 1 of its status doc, option (a))
+Damir's click at 13:14 on the main chat's question (options (a) / (b) / (c) of
+`claude/session-leanfollow-status.md`).
+1. The session `leanfollow` gets ONE more fix round, in the same chat, only in
+   `scripts/pins-leanfollow/b-refusals.mjs` and the records: **L-1** (`mkTree` takes the stylesheet from
+   `SPIXI_PACKAGED_FROM` when it is set) and **r5C-1** (rows 3 / 4 / 21 gain the link cases: an inbound link
+   to `Spixi/Other`, a link inside it that points outside, `<link>/Spixi/Other/x` → exit 1).
+2. Then the full smoke and both packaged runs on the final tree BEFORE the reader starts (the session's own
+   lesson of L-1); then one fresh read-only Claude Opus reader (the scope is a pin file, not the security
+   scope). CLEAN → push `work/leanfollow`, delivery by #1546, Damir opens the pull request. Not CLEAN → stop;
+   no further round without a new ruling.
+3. ★ #1472: walk debt is 3, but this round changes no app file and owes no walk; the option text said so and
+   Damir's click is his word for it.
+4. Not ruled by this row: question 2 (r5C-2, the obj / bin exception) and question 3 (the unproven licence
+   facts). Both block nothing and stay open.
+The session records its part in its own block (free: #1783–#1789). Damir pasted the note of the main chat into
+the chat "Speed lean follow-up session" at 13:16.
+Status: ✅ recorded (the main chat).
+
+## #1754 (2026-11-22) — Q-2 OF FIX BATCH 3 (#1815): RECEIVED DOWNLOADS STAY AFTER CHAT INFO › DELETE HISTORY (v1)
+Damir's click at 13:18, option (a) of `claude/session-fixb3-status.md`: for v1 the received files of that chat
+stay in `<spixiUserFolder>/Downloads/` after "Delete history" in the chat-info sheet. No box in the sheet, no
+automatic delete. The item `n-20261122-chatinfo-delete-downloads-q2` is answered (no work for the launch; it
+may come back as an idea after the launch). #1815 → answered by this row.
+Status: ✅ recorded (the main chat).
+
 | 1755 | 2026-11-18 | **CHAT SHELL BATCH, HV-1 (#1742): AN OLDER PAGE INSERTS ONLY ITS OWN ROWS (switch `HistoryInsertOnly`, cap `olderInsert`).** Mechanism (`docs/photo1b-mechanisms.md` § A): each page of older messages ran `renderLogNow()`, which rebuilds every row of the log (A52s: 96 → 132 → 165 ms for pages 1–3). Now `renderOlderInsert()` computes the full render's plan over the model (payment dedup, photo groups, positions), checks that the old rows are the exact tail and the seam is local, builds ONLY the new rows through the same row builders, re-builds the seam row and every old row that quotes a row the model holds, and inserts before the old first row. A render-context key holds every piece of shell state a row builder reads at build time (the audit table above `renderCtxKey`, #46 r1 S-1 / R1 / R3); anything not provably local runs the full render (the old path). No new sink. Pin `pins-photo1b/a-insert` (byte-equal to a full render in its cases; hostile strings; outside them DOM-equal up to inert animation / attribute-order marks — its LIMITS). Harness (headless Chromium, CPU × 4, 412 × 915, medians): text pages 1–3 (100 / 50 / 50 rows) `messagesDone` ON 189 / 81 / 88 and 176 / 93 / 108 ms against OFF 220 / 273 / 490 and 220 / 267 / 408 ms (two runs of 7 on the integrated tree; the OFF path grows with the log, the ON path does not); scaled by the phone / harness ratio of page 1 (96 / 220) that is est. 77–82 / 35–41 / 38–47 ms on the A52s, under the 100 ms budget (#1517) — the phone sitting decides; the photo chat's older page 143 vs 246 ms and 268 vs 333 ms (a loaded run). A page that brings a sender name not seen yet, or my first own row, goes to the full render by design (P71). | #1742; report `claude/history-research-2026-11-18.md` § 6 HV-1; builder Claude Opus | ✅ built (walk owed) |
 | 1756 | 2026-11-18 | **HV-3: THE READER'S ANCHOR IN ONE TASK (switch `HistoryAnchorOneTask`, cap `olderAnchor1`).** The first visible row is taken at `addMessages(prepend)` (as before) AND taken again at `messagesDone` while the page is not painted yet, so a scroll between the two pushes is kept; the fix (`scrollTop +=`) stays in the task of the insert; a page that the 250 ms burst safety timer painted keeps its `addMessages` anchor (#46 r1 R2). Pin `b-anchor` (y ± 1 px on three pages; the safety-timer case; no frame between swap and fix). P72. | #1742 HV-3; builder Claude Opus | ✅ built (walk owed) |
 | 1757 | 2026-11-18 | **HV-4: THE COMPOSER FADE PASS STARTS AT THE BAND (switch `FadeFromBand`, cap `fadeBand`).** A binary search over `box.children` finds the last child above the band's bottom (zero-size runs stepped over); the walk from there writes the old walk's masks; while a rise, a composer slide or a jump pulse runs, the old walk. Pin `c-fade`; the reader fuzzed it against the brute-force walk (300 000 columns, 0 misses) and in Chromium at 9–11 scroll positions. P73. | #1742 HV-4; builder Claude Opus | ✅ built (walk owed) |
@@ -1783,3 +2319,128 @@ Status: ✅ locked · 🟡 provisional (locks after named review) · ❌ superse
 | 1816 | 2026-11-22 | **Q-2 (#1815) ANSWERED: OPTION (a) — RECEIVED DOWNLOADS STAY AFTER CHAT INFO › DELETE HISTORY FOR v1.** Damir's ruling #1754 (a main-chat row, 2026-11-22; relayed to the session by the main chat at 13:20). The chat-info sheet keeps no "Delete media & files" box; the received files of a deleted history stay in `<spixiUserFolder>/Downloads/` and in Account › Downloads, as the chats-list sheet does without its tick (CH3). Chat info itself shows none of them (#1811). No work for the launch. Mission Control: `n-20261122-chatinfo-delete-downloads-q2` → Parked ("answered (a), no work"). | Damir #1754 via the main chat; session `fixb3` | ✅ decided (Damir) |
 | 1817 | 2026-11-22 | **FIX BATCH 3 OPERATOR BLOCK: THE MAP KEYS, ONE RUN-TIME FAULT FIXED (ROUND 5 CLEAN), THE NUMBERS.** On the phone (dev build 0.9.22 / 160009220, installed 2026-11-18 17:41 = the tree of `14ae57f2`; no install): two calibrates fill the four keys of the `downloads` step (`taps.accountDownloads`, `swipes.accountDownloads`, `screens.accountScrolled` from cal-17s; `screens.downloads` from cal-17 of the proof calibrate, six probes); the tripwires `pins-filewalk/b-walk-steps` b6 and `pins-fixb3/c-walk` d2 / d5 re-based. The first walk run stopped before any step (`driver failure: RuntimeException (line 1348)`): the typed script parameter `[string[]]$HistorySeed` IS the script-scope variable, so `$script:HistorySeed = -1` became the text array `@('-1')`, `-ge 0` filtered it with a culture string comparison and the run.json line cast an array to `[int]`. Fix: the state is `$script:HistSeedIdx` (six lines, no other byte); new pin key `pins-fixb3/c-walk` p1 (no `$script:<parameter name>`, no top-level `$<parameter name> =`; self-test with the old spelling); the two whole-file driver hashes re-based after a look at the diff. Review round 5 (the last permitted; one fresh Fable 5.2 reader, read-only): CLEAN, 0 MAJOR / 0 MINOR, the same-class hunt over every added function found nothing. Then two runs `-Steps downloads,history -Repeats 5` (`20261122-1342`, `-1346`: RESULT OK) and two runs `-Steps history -HistorySeed 55 -Repeats 5` (`20261122-1350`, `-1354`: RESULT NO DATA in 1 row, see #1818). Numbers and the #1530 verdicts: the project doc `claude/device-numbers-2026-11-22-fixb3.md`. Smoke expected 6693 = 6660 + 33 (+1 row: p1). | session `fixb3` (operator block, main-chat step 2026-11-22 13:20) | ✅ record |
 | 1818 | 2026-11-22 | **FINDING (RECORDED, NOT CHANGED — after the last permitted round): THE ROW "first swipe -> 1st page" OF `-HistorySeed` GIVES NO DATA ON THE PHONE.** Mechanism (read in the pulled logs of all 10 reps): the C# answer to the page request (`[P1] chat load`, a cached read of about 1 ms) reaches logcat about 50 ms BEFORE the shell's own `[P1] shell send loadmore` line, which the WebView console forwards later; `X-SeedFirstPage` takes only a `chat load` line AFTER the send line, so it finds none. The other rows are right: `pages` = 1 in every rep (Seed 56 has one older page), "older pages loaded" = 1. Fix direction (a later scripts batch, with its own reader round): drop the order condition (the rep window starts at t0, after the chat-open load), or compare the `chat load` stamp with the send's stamp minus its `dt=`. Until then the photo chat's page time is read from the `chat load` stamp minus t0 by hand only when a batch needs it. | session `fixb3` | 🟡 for the main chat (Q-3) |
+
+## #1825 (2026-11-22) — THE FOUR QUESTIONS OF THE DEFAULTS BATCH (`claude/session-defaultsb-status.md`, Q1–Q4)
+Damir's clicks at 13:29 on the main chat's question round.
+1. **Q1, the Android lock flash (#1795): option (A).** A lock batch WITH the shell (`src/shells/lock.html`): the
+   password form stays hidden while C# says that a deferred prompt is pending, and the page closes with an
+   un-animated pop. One switch, the old path as the fallback (#1478). The rule #438 MAJOR-2 ("never cover a
+   lock") stays in force. Item 4 of `defaultsb` moves to this batch.
+2. **Q2, D-1 (#1794): option (A).** No "Authentication Failed" alert when the status is NotAvailable or Denied;
+   the Spixi password form opens directly. No new text. Built in the lock batch of (1).
+3. **Q3, R1-1 the wall clock (#1796): option (A).** The lock delay is measured with a second clock that the
+   user cannot set (Android `SystemClock.ElapsedRealtime`; the twin for iPhone / Mac is a question for the
+   plan). Security code: a Fable 5.2 builder and reader (#1612, #1640). Whether it is its own batch or a part
+   of the lock batch is decided at the plan by file area (both touch the lock timing in C#).
+4. **Q4, a first notice (#1798): a Moment sheet** (Damir did NOT take the session's proposal "none for v1").
+   One short sheet after a new or restored account is made, which says that App lock and payment confirmation
+   are on. New text (copy by the `ux-copy` rules and the claims rules; all locales), a shell change. Its batch
+   is decided at the plan (the lock batch or `fixb4`).
+**Sessions that follow (all Planned; no prompt and no block yet):** a lock batch (working name `lockb`): (1),
+(2), and by the plan (3) and (4). It needs `defaultsb` merged (it builds on its switches) and ★ #1472 (walk
+debt is 3 today): it does not start before the walks.
+Status: ✅ recorded (the main chat).
+
+## #1826 (2026-11-22) — THE GOAL AND THE PACE UNTIL THE LAUNCH OF v0.9.30 (Damir, 13:44, and his click at 13:47)
+Source for the numbers: `claude/launch-split-2026-11-22.md` (149 open launch items; a sub-agent's split).
+1. **The goal (his words):** "the best of what we have planned for launch of this v0.9.30 and then we move
+   on"; "the goal is to have a very easy to review work for our BE and then launch". No date pressure: "no
+   need to rush it if we have stuff to do".
+2. **The pace:** 3 or 4 sessions per day, and 1 or 2 walks per day when they fit.
+3. **★ #1472 stays as it is** (his click: "Keep the rule, mix the sessions"). Each day: 1 or 2 app batches that
+   he walks, plus 1 or 2 sessions that owe no walk (docs, the BE review pack, audit pins, tooling, research).
+   The no-walk sessions are the work that makes the BE review easy.
+4. **Scope of "the work here":** the code and its records. The store listing is done separately. The website
+   waits until after the launch, or runs in parallel (his words: "its not so much work"). The BE answers and
+   the Ixi Labs items are not session work.
+5. **The Mac:** probably from 2026-11-26 (his words: "probably next week 4 days from now"). Not a fixed date.
+   Until then: Windows + Android batches; from then: `macfix` (two batches), `smooth`, the Apple walk legs.
+6. Not ruled: the order of the sessions (his, howto rule 8) and any release date.
+Status: ✅ recorded (the main chat).
+
+## #1827 (2026-11-22) — TWO MERGES, THE WALK PLAN, Q-3 OF FIX BATCH 3, THE HANDOFF COUNT
+1. **Merged by Damir** (he merges before the walk; his call per pull request):
+   - pull request 19 (`work/photo1b` @ `732898d4`) at 14:08 → `redesign/frontend` = `c9d6bf64` (CI green);
+   - pull request 17 (`work/fixb3` @ `a2600566`, with the base merged by the session: only seven record files
+     by hand, no pin re-based, no new reader) at 16:18 → `redesign/frontend` = **`1ad3a44e`**.
+   Mission Control: both sessions hold their merge commit and stay "Walk owed" (howto rule 11).
+2. **The walk plan (Damir's click, 16:22): "Wait, walk all three on one build".** No walk until pull request 18
+   (`defaultsb`) is merged. Then ONE build per platform of the base and all rows of `fixb3` (6), `photo1b`
+   (16) and `defaultsb` (14) in one sitting. Walk debt stays 3 until then; ★ #1472 holds new build sessions.
+3. **Q-3 of Fix batch 3 (#1818): option (a)** (his click, 16:22). The row "first swipe → 1st page" of
+   `history -HistorySeed` stays "no data"; the parser fix goes into a later scripts batch with its own reader.
+4. **`GATE 54 (a4)` is a timing flake on CI** (run 38 of pull request 18: red on attempt 1, green on attempt 2
+   on the same head `545e6eb`; the same row was named a flake in `claude/session-17-early-status.md`,
+   2026-10-11). Rule kept: a miss on a timing pin = re-run first. One run of 45 minutes was lost.
+5. **The handoff count** (Damir, 13:48: "we need a separate count, which has our actual work before we handoff
+   the app"; his click: "A number in my board only"): `claude/handoff-count.md`. 80 open on 2026-11-22.
+6. **Phone blocks done today:** `fixb3` (`claude/device-numbers-2026-11-22-fixb3.md`) and `photo1b`
+   (`claude/device-numbers-2026-11-22-photo1b.md`: history longest long task 170 → 67 ms, largest frame
+   229 → 159 ms, still over the budget of 100 ms; photo chat paint −10 ms against the item's check of −15).
+7. **Work found for a later walk-tooling batch (no session yet):** (a) the device map's chat-screen probe reads
+   a colour that the chat-background picks of #1644 changed: `a52s.json` `screens.chat` (and `viewer`) need a
+   new calibration or a probe that reads no appearance colour (source: the `photo1b` numbers doc, "The screen
+   probe"); (b) the parser fix of (3); (c) the image-chat scroll step of `n-20261112-adbwalk-more-steps`.
+Status: ✅ recorded (the main chat).
+
+## #1828 — WALK Fix batch 3 (`fixb3`): 5 P · 0 F · 1 N/A
+- **Windows: 3 P · 0 F · 1 N/A** — W-BUILD P (log 19:31:06 `MiniAppPage: an action before ixian:onload was
+  refused (getStorage)`) · W-1 P · W-2 N/A (no reason given: the chats-list path of "Delete history" is not
+  walked) · W-3 P (log 19:32:02–19:32:18: five lines, only `refused (setStorage)` / `refused (getStorage)`, no
+  text of the app).
+- **Android: 2 P · 0 F · 0 N/A** — A-BUILD P (log 19:20:11 and 19:20:16, the same line; first N/A because the
+  walk page did not give the commands that make `fixb3-walk-app.zip`) · A-1 P.
+- Open after the walk: W-2 (the second delete path) can be walked with the launch walk. The walk page of a
+  batch must show the set-up commands of its sheet (a lesson for the walk-page pattern).
+Status: ✅ recorded (the main chat). The session `fixb3` is merged (`1ad3a44e`) and walked on Windows + Android.
+
+## #1829 — WALK Chat shell batch (`photo1b`): 14 P · 1 F · 1 N/A
+- **Windows: 7 P · 1 F · 0 N/A** — W-BUILD P · W-1 P · **W-2 F** ("broken jpg shows as tile": a tile with a JPG
+  icon, "0 %", "Keep Spixi open until it's sent", Cancel; the file card was expected) · W-3 P · W-4 P · W-5 P ·
+  W-6 P (with it 🟡 #1763, the moved floors, is confirmed on Windows) · W-7 P.
+- **Android: 7 P · 0 F · 1 N/A** — A-BUILD P · A-1 P · A-2 N/A · A-3 P (in a real chat; in the Seed 55 chat each
+  play is refused: `ixian:voiceplay: the id is not usable`, 9 lines) · A-4 P with the remark "if im very fast at
+  scroll there's stutter. otherwise it's clean" (fits the phone number: largest history frame 159 ms against
+  100 ms; the rest is P-28 in `fixb4`) · A-5 P · A-6 P · A-7 P.
+- **The fail → an item, mechanism first:** `n-20261122-win-broken-picture-tile-stays-sending` (Check). Not known
+  yet: a broken fallback of PO-4, or a row that cannot pass because a Seed contact never takes the file.
+- **Findings logged as items:** `n-20261122-devseed-voice-clips-not-playable` · `n-20261122-win-drag-drop-files-into-chat`
+  (Damir: "I cant drag and drop files into chat.. weirdly..") · `n-20261122-dev-log-window-half-row` (Android).
+Status: ✅ recorded (the main chat). The session `photo1b` is merged (`c9d6bf64`) and walked on Windows + Android.
+
+## #1830 (2026-11-22) — FOUR SESSIONS ARE READY: "FIX BATCH 4" IS CUT BY FILE AREA; TWO SESSIONS WITHOUT A WALK JOIN
+Damir, main chat 19:57: "let's move on Let's start several if we can", and his click at 20:00 on the main chat's
+question (all four options). By his standing rule this is the "go" (#1745, #1749 (2), #1751, #1752).
+1. **The cut (his standing rule: cut a batch when only a part of it shares a file area):** only ONE session at a
+   time may change `src/**` and the built html. "Fix batch 4" keeps the page fixes; its C# half becomes its own
+   session.
+2. **`fixb4` — "Fix batch 4" (app batch, the page code):** welcome slide 4 (#1747 (1)) · the password fields
+   above the keyboard (#1748 (3)) · two defaults of a new or restored account (#1750: pictures on a tap, the
+   Compact desktop list) · three findings of the walk, mechanism first: the broken-picture tile (WALK #1829,
+   W-2 F), the half-row Developer log on Android, drag and drop on Windows (mechanism only). A small walk on
+   Windows + Android. Block **#1845–#1859 · L265–L268 · P87–P89.** Prompt: `claude/session-fixb4-prompt.md`.
+3. **`histcs` — "History C#" (app batch, C# only):** P-28 (older pages off the UI thread), HV-5 (the first page
+   of 50 rows), the C# lines of HV-0; one switch per change; one phone block (A → B → A) and a small walk.
+   Block **#1860–#1874 · L269–L272 · P90–P92.** Prompt: `claude/session-histcs-prompt.md`.
+4. **`walktools` — "Walk tools" (no walk):** the two flaky smoke modules (`GATE 54 (a4)`, `pins-fixb1/e-header`) ·
+   the chat-screen probe of the device map · the parser rows (#1827 (3) and the per-page history rows) · the
+   seed voice clips · the jsdom rows (#1749 (1)). One short phone block. Block **#1875–#1889 · L273–L276 ·
+   P93.** Prompt: `claude/session-walktools-prompt.md`.
+5. **`docsb` — "Docs batch" (no walk, no phone):** the main chat's rows #1641–#1644, #1735–#1754, #1825–… into
+   `DECISIONS.md` word for word; the status cells; the rule texts owed (#1546, #1606, #1735, #1500–#1511 and
+   four lessons of 2026-11-22); the walk kit and the launch walk sheet; `docs/release-readiness.md`. Block
+   **#1890–#1899 · L277–L278 · no packet.** Prompt: `claude/session-docsb-prompt.md`.
+6. **The checks of "Ready":** walk debt 1 (`defaultsb` half-walked; ★ #1472 allows a build session; `walktools`
+   and `docsb` owe no walk) · file areas disjoint between the four and `leanfollow` (shared by one block each:
+   `SpixiFlags.cs`, the registration in `scripts/smoke-test.mjs`, the appended record files) · the words of the
+   three C# log lines are a contract between `histcs` and `walktools` · the rulings that the prompts name are
+   in project docs, not on the base yet (they are quoted or named with their doc; `docsb` writes them) · base
+   `redesign/frontend` @ `338d30f4`, `redesign-ci` run 47 green.
+7. **Models (#1612, #1640, #1606):** Opus leads all four. Fable 5.2: one reader per round in `histcs`; a reader
+   in `fixb4` only when `chat.html` or a component that draws untrusted text changes; one pass on the final tree
+   in `walktools`; none in `docsb`. No Fable builder. The account limit is a known risk with five sessions.
+8. **After them (Planned, no prompt yet):** the lock batch (#1825; it needs `src/shells/lock.html`, so it starts
+   when `fixb4` is merged) · `imgurl` (it needs `SingleChatPage.xaml.cs` and the chat shell, so it starts when
+   `histcs` and `fixb4` are merged) · `macfix` and `smooth` (the Mac, probably from 2026-11-26).
+Status: ✅ recorded (the main chat). Mission Control: the four session docs are "Ready".
+

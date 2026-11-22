@@ -84,8 +84,8 @@ export default async function (h) {
       if (!l || !d || !(lum(d) < lum(l))) darker = false;
     }
     /* ★ Damir's FINAL VALUES v3 (21:50, replaces the 21:24 file): EACH canvas its OWN flat bubble (Auto), both themes */
-    const AUTO = { flat: ['#2160c2', '#1a4a96'], gradient: ['#6145d6', '#4b31b7'], blue: ['#3050bd', '#2d48a3'], green: ['#0e7a55', '#11603f'],
-      aurora: ['#07666b', '#08626a'], dusk: ['#d02b7d', '#a62264'], ocean: ['#0d7aa7', '#13729a'] };
+    const AUTO = { flat: ['#2160c2', '#2d4d81'], gradient: ['#604dc5', '#4a3aa8'], blue: ['#3653ae', '#374d8a'], green: ['#3a755b', '#2e5c45'],
+      aurora: ['#316366', '#2f5f64'], dusk: ['#b74c7a', '#943e63'], ocean: ['#3e7897', '#3b708c'] };   // ★ photo1b (#1644): re-based to the picked Auto sent colours (was flat #1a4a96 dark · #6145d6/#4b31b7 · #3050bd/#2d48a3 · #0e7a55/#11603f · #07666b/#08626a · #d02b7d/#a62264 · #0d7aa7/#13729a); Mist light = Today
     const autoGot = {};
     const auto = Object.keys(AUTO).every((g) => {
       const L = sentFor('light', '', g), D = sentFor('dark', '', g);
@@ -109,30 +109,30 @@ export default async function (h) {
     /* the grounds, v3: today's LIGHT four exact; every DARK canvas FULL COVERAGE (no canvas-base stop inside its gradient) */
     const gr = (theme, g) => { if (theme === 'dark') R2.setAttribute('data-theme', 'dark'); else R2.removeAttribute('data-theme'); R2.setAttribute('data-chat-ground', g); R2.removeAttribute('data-chat-sent'); return norm(tok('--gradient-chat')) + ' | ' + tok('--chat-pattern-ink'); };
     const TODAY = {
-      'light:gradient': 'linear-gradient(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%), var(--chat-canvas-base) | #3A2F66',
+      'light:gradient': 'linear-gradient(180deg, #CDD0E8 0%, #D0CAE7 50%, #D4C4E6 100%), var(--chat-canvas-base) | #3A3160',   // ★ photo1b (#1644 Calmer 1): was #CCD0EC / #D0C9EB / #D5C3EB · #3A2F66
       /* ★ S19 option B RE-BASE (Damir pick, "Dark Bubble Options"): EVERY dark ground stop OKLab L × 0.85, chroma kept (the inks stay).
          Was Iris #1C1645/#0D1030 · Meadow #0F2C23/#0B1A16 · Spixi #0F2349/#0A1430 · Aurora #072F2B/#0C2354/#201358 · Dusk #321933/#161028 ·
          Ocean #08313F/#081831 (S19 F10 A); gaps were #2A3165 · #233867 · #243E4E · #233E7A · #36335C · #203F64. */
-      'dark:gradient': 'linear-gradient(160deg, #0E0433 0%, #050422 100%), var(--chat-canvas-base) | #C6CFFD',   // re-based by S20 R (#1377 D: L × 0.85 again; was #140C3B / #080928)
-      'dark:flat': '#040607 | #C6CFFD',   // re-based by S20 R (#1377 D; was #07090B)   // ★ S19 option B: the dark Mist GROUND is its own #07090B (L × 0.85 of #0C0E10; the canvas-base / ink-950 stays). Was var(--chat-canvas-base)
-      'light:green': 'linear-gradient(160deg, #D6EBC6 0%, #D2EDA8 45%, #CFE9BD 100%), var(--chat-canvas-base) | #2F5A1E',
-      'light:blue': 'linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%), var(--chat-canvas-base) | #1E3A66',
+      'dark:gradient': 'linear-gradient(160deg, #0E072E 0%, #05051E 100%), var(--chat-canvas-base) | #C8D0F7',   // ★ photo1b (#1644 Calmer 1): was #0E0433 / #050422 · #C6CFFD. Re-based by S20 R (#1377 D: L × 0.85 again; was #140C3B / #080928)
+      'dark:flat': '#0C0E10 | #C9D0F0',   // ★ photo1b (#1644): the ground back to #0C0E10 + the Calmer 2 ink (was #040607 | #C6CFFD). Re-based by S20 R (#1377 D; was #07090B)   // ★ S19 option B: the dark Mist GROUND is its own #07090B (L × 0.85 of #0C0E10; the canvas-base / ink-950 stays). Was var(--chat-canvas-base)
+      'light:green': 'linear-gradient(160deg, #DAE9CF 0%, #D6EABA 45%, #D4E6C8 100%), var(--chat-canvas-base) | #3A572F',   // ★ photo1b (#1644 Calmer 2): was #D6EBC6 / #D2EDA8 / #CFE9BD · #2F5A1E
+      'light:blue': 'linear-gradient(180deg, #CCDDEE 0%, #C7D6ED 50%, #C4CFE9 100%), var(--chat-canvas-base) | #233B60',   // ★ photo1b (#1644 Calmer 1): was #C9DDF2 / #C5D6F1 / #C2CFEE · #1E3A66
       /* #46 r1 m5: the light new three too (v3 §1) */
-      'light:aurora': 'linear-gradient(150deg, #7EE0C4 0%, #5FB4EE 48%, #8F80F2 100%), var(--chat-canvas-base) | #FFFFFF',
-      'light:dusk': 'linear-gradient(160deg, #FFD9C4 0%, #E9C9FF 100%), var(--chat-canvas-base) | #7A3F5E',
-      'light:ocean': 'linear-gradient(160deg, #BDEFFF 0%, #C9D6FF 100%), var(--chat-canvas-base) | #0E5770',
-      'dark:green': 'linear-gradient(160deg, #001A12 0%, #020D0A 100%), var(--chat-canvas-base) | #BFE8CB',   // re-based by S20 R (#1377 D; was #05221A / #05130F)
-      'dark:blue': 'linear-gradient(160deg, #021135 0%, #020721 100%), var(--chat-canvas-base) | #C2DDFB',   // re-based by S20 R (#1377 D; was #06193E / #050D28)
+      'light:aurora': 'linear-gradient(150deg, #99DAC6 0%, #7AB2DA 48%, #8F88D7 100%), var(--chat-canvas-base) | #FFFFFF',   // ★ photo1b (#1644 Calmer 2): was #7EE0C4 / #5FB4EE / #8F80F2
+      'light:dusk': 'linear-gradient(160deg, #F7DCCD 0%, #E4CEF3 100%), var(--chat-canvas-base) | #70475C',   // ★ photo1b (#1644 Calmer 2): was #FFD9C4 / #E9C9FF · #7A3F5E
+      'light:ocean': 'linear-gradient(160deg, #CAECF7 0%, #CDD7F3 100%), var(--chat-canvas-base) | #2C5566',   // ★ photo1b (#1644 Calmer 2): was #BDEFFF / #C9D6FF · #0E5770
+      'dark:green': 'linear-gradient(160deg, #071913 0%, #040C0A 100%), var(--chat-canvas-base) | #C8E4D0',   // ★ photo1b (#1644 Calmer 2): was #001A12 / #020D0A · #BFE8CB. Re-based by S20 R (#1377 D; was #05221A / #05130F)
+      'dark:blue': 'linear-gradient(160deg, #07132B 0%, #04091A 100%), var(--chat-canvas-base) | #C9DCF1',   // ★ photo1b (#1644 Calmer 2): was #021135 / #020721 · #C2DDFB. Re-based by S20 R (#1377 D; was #06193E / #050D28)
       /* re-based by S19 F10 (#1371): the dark Aurora / Dusk / Ocean grounds ~10 % darker + less saturated (OKLab L × 0.9, C × 0.9);
          their select-row gaps follow (the 22 % band over the new middle). Was #0A3833/#102A62/#261866 · #3B1F3C/#1B1430 · #0B3A4A/#0B1D3A. */
-      'dark:aurora': 'linear-gradient(150deg, #001B18 0%, #000F3E 52%, #120041 100%), var(--chat-canvas-base) | #FFFFFF',   // re-based by S20 R (#1377 D; was #002421 / #041848 / #18064D)
-      'dark:dusk': 'linear-gradient(160deg, #200821 0%, #0B051B 100%), var(--chat-canvas-base) | #FFC9E4',   // re-based by S20 R (#1377 D; was #281029 / #100921)
-      'dark:ocean': 'linear-gradient(160deg, #001C27 0%, #010B22 100%), var(--chat-canvas-base) | #A6ECFF',   // re-based by S20 R (#1377 D; was #002633 / #031129)
+      'dark:aurora': 'linear-gradient(150deg, #081A17 0%, #051332 52%, #110A33 100%), var(--chat-canvas-base) | #FFFFFF',   // ★ photo1b (#1644 Calmer 2): was #001B18 / #000F3E / #120041. Re-based by S20 R (#1377 D; was #002421 / #041848 / #18064D)
+      'dark:dusk': 'linear-gradient(160deg, #1D0C1D 0%, #0A0716 100%), var(--chat-canvas-base) | #F5CFE1',   // ★ photo1b (#1644 Calmer 2): was #200821 / #0B051B · #FFC9E4. Re-based by S20 R (#1377 D; was #281029 / #100921)
+      'dark:ocean': 'linear-gradient(160deg, #091B23 0%, #040C1C 100%), var(--chat-canvas-base) | #B9E8F5',   // ★ photo1b (#1644 Calmer 2): was #001C27 / #010B22 · #A6ECFF. Re-based by S20 R (#1377 D; was #002633 / #031129)
     };
     const todayGot = Object.fromEntries(Object.keys(TODAY).map((k) => [k, gr(k.split(':')[0], k.split(':')[1])]));
     /* #46 r1 m5: every select-row gap of v3 (§1) — light Iris / Spixi / Meadow keep today's */
-    const GAP = { 'light:gradient': '#B6B6E4', 'light:blue': '#ADC1E9', 'light:green': '#B8D4AB', 'light:aurora': '#57A4E6', 'light:dusk': '#D5BCDC', 'light:ocean': '#ABCBF4',
-      'dark:gradient': '#212659', 'dark:blue': '#1C2C5A', 'dark:green': '#1B3243', 'dark:aurora': '#1A2E68', 'dark:dusk': '#2B2850', 'dark:ocean': '#1A3255' };   // re-based by S20 R (#1377 D: the band over each S20 middle; was #252B5F · #1E3160 · #1E3748 · #1D3570 · #302C55 · #1B385C)   // re-based by S19 option B (the 22 % band opaque over each new middle; was #2A3165 · #233867 · #243E4E · #233E7A · #36335C · #203F64) · re-based by S19 F10 (was #264385 · #3C3762 · #23456C)
+    const GAP = { 'light:gradient': '#B6B6E0', 'light:blue': '#AFC1E5', 'light:green': '#BBD1BA', 'light:aurora': '#6EA2D5', 'light:dusk': '#CFC0DA', 'light:ocean': '#B3CAEC',
+      'dark:gradient': '#212756', 'dark:blue': '#1E2D53', 'dark:green': '#1E3143', 'dark:aurora': '#1E315F', 'dark:dusk': '#292A4C', 'dark:ocean': '#1F3251' };   // ★ photo1b (#1644): re-based to the picked gaps (was #B6B6E4 · #ADC1E9 · #B8D4AB · #57A4E6 · #D5BCDC · #ABCBF4 · dark #212659 · #1C2C5A · #1B3243 · #1A2E68 · #2B2850 · #1A3255)   // re-based by S20 R (#1377 D: the band over each S20 middle; was #252B5F · #1E3160 · #1E3748 · #1D3570 · #302C55 · #1B385C)   // re-based by S19 option B (the 22 % band opaque over each new middle; was #2A3165 · #233867 · #243E4E · #233E7A · #36335C · #203F64) · re-based by S19 F10 (was #264385 · #3C3762 · #23456C)
     const gapGot = {};
     const gaps = Object.keys(GAP).every((k) => { const [th, g] = k.split(':'); gr(th, g); gapGot[k] = tok('--surface-select-row-gap'); return gapGot[k].toUpperCase() === GAP[k]; });
     const chipCss = h.stripCssComments(readFileSync(join(root, 'src/styles/components/settings-screens.css'), 'utf8'));
@@ -158,21 +158,21 @@ export default async function (h) {
     /* v3 (21:57): the pattern alpha −20 % — light 0.128 (Aurora 0.24), dark 0.104. ★ #1351 (S17 walk, Damir 2026-10-12): −20 % again —
        light 0.1024 (Aurora 0.192), dark 0.0832. ★ S19 option B RE-BASE (Damir pick): dark × 1.12 → 0.0932 (the B grounds are L × 0.85;
        the pattern keeps A's ink-over-ground contrast) */
-    const resets = { light: tv(tFlat, '--chat-pattern-alpha-1') === rootAlpha && tv(tIris, '--chat-pattern-alpha-1') === rootAlpha && tv(tAur, '--chat-pattern-alpha-1') === '0.192' && tok('--chat-pattern-alpha-1') === '0.192' && rootAlpha === '0.1024'
+    const resets = { light: tv(tFlat, '--chat-pattern-alpha-1') === rootAlpha && tv(tIris, '--chat-pattern-alpha-1') === '0.09216' /* ★ photo1b (#1644 fix round 1 O2-1, tile = chat): the Iris tile shows Iris's OWN alpha (was: reset to the :root 0.1024) */ && tv(tAur, '--chat-pattern-alpha-1') === '0.1536' && tok('--chat-pattern-alpha-1') === '0.1536' && rootAlpha === '0.1024'   /* ★ photo1b (#1644): light Aurora 0.192 → 0.1536 (Calmer 2); Mist light = Today 0.1024 */
       && tv(tAur, '--chat-pattern-tile-max') === '0.8' && tv(tFlat, '--chat-pattern-tile-max') === '1' && tv(tIris, '--chat-pattern-tile-max') === '1'   /* ★ #1351: only light Aurora caps its Background tiles (alpha × boost > 1 hid every step there) */
-      && tv(tFlat, '--surface-bubble-sent').toLowerCase() === '#2160c2' && tv(tIris, '--surface-bubble-sent').toLowerCase() === '#6145d6' };
+      && tv(tFlat, '--surface-bubble-sent').toLowerCase() === '#2160c2' && tv(tIris, '--surface-bubble-sent').toLowerCase() === '#604dc5' };   // ★ photo1b (#1644): was #6145d6
     R2.setAttribute('data-theme', 'dark'); R2.setAttribute('data-chat-ground', 'green');
-    resets.dark = tv(tFlat, '--chat-pattern-ink') === '#C6CFFD' && tv(tIris, '--chat-pattern-ink') === '#C6CFFD' && tok('--chat-pattern-ink') === '#BFE8CB'   // the root keeps the dark Meadow ink
-      && tv(tFlat, '--surface-bubble-sent').toLowerCase() === '#1a4a96' && tv(tIris, '--surface-bubble-sent').toLowerCase() === '#4b31b7'   // no Meadow green leaks into a tile
-      && tok('--chat-pattern-alpha-1') === '0.101';   // re-based by S20 R (#1377 D: 0.0932 → 0.101, the darker grounds). ★ S19 option B RE-BASE (was 0.0832)
+    resets.dark = tv(tFlat, '--chat-pattern-ink') === '#C9D0F0' && tv(tIris, '--chat-pattern-ink') === '#C8D0F7' /* ★ photo1b (#1644 fix round 1 O2-1, tile = chat): each tile shows its own canvas's ink (was: both reset to #C6CFFD) */ && tok('--chat-pattern-ink') === '#C8E4D0'   // the root keeps the dark Meadow ink (★ photo1b #1644: was #BFE8CB)
+      && tv(tFlat, '--surface-bubble-sent').toLowerCase() === '#2d4d81' && tv(tIris, '--surface-bubble-sent').toLowerCase() === '#4a3aa8'   /* ★ photo1b (#1644): was #1a4a96 / #4b31b7 */   // no Meadow green leaks into a tile
+      && tok('--chat-pattern-alpha-1') === '0.0808';   // ★ photo1b (#1644 Calmer 2): the dark Meadow root's own alpha (was 0.101). Re-based by S20 R (#1377 D: 0.0932 → 0.101, the darker grounds). ★ S19 option B RE-BASE (was 0.0832)
     R2.removeAttribute('data-theme');
     close(s);
     ok(def, '★ S17 C (#1334): DEFAULT UNCHANGED — a chat with no stored key paints Mist (flat) + the waves pattern at level 1, no bubble-colour attribute, no radius override (an update changes nobody\'s chat)');
     ok(head && live && live2 && live3, '★ S17 C (#1334): the NEW keys ride the chat ladders — the head script paints a stored aurora / rings / pink / 10 px / 0.75 BEFORE first paint; the live re-resolve follows a change; an unknown colour = Auto, corners clamp to 4–22, an unknown ground = flat, a removed corners key = the token default — ' + JSON.stringify({ head, live, live2, live3 }));
     ok(contrast && darker && auto, '★ S17 C (#1334): white text ≥ 4.5 : 1 on EVERY sent colour (6 picks + the new canvases\' own) in BOTH themes, each dark step DARKER than its light value, the gradient + card tint follow; Auto = EACH canvas its OWN flat colour (values v3 21:50) — ' + JSON.stringify({ pairs, autoGot }));
     ok(meta && metaSwap, '★ S17 C (values v3 §2–3): the sent META ink (time + ticks) holds ≥ 4.5 : 1 on every sent colour in both themes — #f9fafb on light violet / teal / pink / orange and the Meadow / Dusk / Ocean Auto (today\'s #e9ecf3 fails or sits too close there), today\'s ink everywhere else — ' + JSON.stringify(metaPairs));
-    ok(resets.light && resets.dark, '★ S17 C (values v3 §1, §7): the preview tiles inherit nothing from another canvas — under a light Aurora root the Mist / Iris tiles keep the :root pattern strength (#1351 −20 % again: 0.1024, Aurora alone 0.192) and their own bubble; under a dark Meadow root (0.0932, S19 option B; was 0.0832) the Mist / Iris tiles keep the periwinkle ink and their own bubble — ' + JSON.stringify(resets));
-    ok(today && edge, '★ S17 C (values v3 §1): the LIGHT grounds of Iris / Meadow / Spixi stay exactly today\'s; every DARK canvas has its v3 full-coverage ground + ink at the S20 D values (every stop L × 0.85 twice since S17 v3, Mist #040607 — re-based by S20 R #1377; no canvas-base stop inside the gradient — Mist alone is the plain ground); the received glass edge tokens are untouched (dark 4.5 % hairline + 4 % top light, none in light) — ' + JSON.stringify({ todayGot, gapGot, chip, edgeL, topL, edgeD, topD }));
+    ok(resets.light && resets.dark, '★ S17 C (values v3 §1, §7): the preview tiles inherit nothing from another canvas — under a light Aurora root the Mist tile keeps the :root pattern strength (0.1024) and the Iris tile its OWN 0.09216 (= the chat; photo1b #1644 fix round 1 — was 0.1024 for both; Aurora alone 0.1536), each with its own bubble; under a dark Meadow root (0.0808) the Mist / Iris tiles show their OWN ink (#C9D0F0 / #C8D0F7 = the chat; was the periwinkle #C6CFFD for both) and their own bubble — ' + JSON.stringify(resets));
+    ok(today && edge, '★ S17 C (values v3 §1): the LIGHT grounds of Iris / Meadow / Spixi are the picked Calmer values (photo1b #1644; Mist light = today\'s); every DARK canvas has its v3 full-coverage ground + ink at the picked Calmer 1 / 2 values (Mist #0C0E10 + #C9D0F0 — re-based by photo1b #1644, S20 R #1377 before it; no canvas-base stop inside the gradient — Mist alone is the plain ground); the received glass edge tokens are untouched (dark 4.5 % hairline + 4 % top light, none in light) — ' + JSON.stringify({ todayGot, gapGot, chip, edgeL, topL, edgeD, topD }));
     ok(radius, '★ S17 C (#1334, values file §4): no stored corners = today\'s 18 / 4 / 4 tokens; a stored r sets --bubble-radius = r and BOTH small corners = max(2, round(r × 0.22)) inline (asserted in the ladder clause: 10 → 2, 18 → 4)');
   } catch (e) { ok(false, '★ S17 C chat threw: ' + e.message); }
 

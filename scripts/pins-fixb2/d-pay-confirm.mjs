@@ -338,6 +338,8 @@ export default async function (h) {
         + '(?:\\s*' + ['PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);', 'PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);',
           'PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;', 'VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;',
           'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));'].map(esc).join('\\s*') + ')?'
+        /* ★ re-based by photo1b (flags): after the photo1a group ONLY `readPhoto1b();` (SpixiFlags' photo1b block call, the very last statement of init) may follow — exact text, exact place */
+        + '(?:\\s*readPhoto1b\\(\\);)?'
         + '\\s*\\}$').test(init),
     olderLinesKept: count(SF, FIX1_LINE) === 1 && count(SF, 'Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));') === 1,
     lineWords: /public static string flagsLine\(bool payConfirmDefault, bool appConfirmDefault\)\s*\{\s*return "\[FLAGS\] payconfirmdefault=" \+ \(payConfirmDefault \? "1" : "0"\) \+ " appconfirmdefault=" \+ \(appConfirmDefault \? "1" : "0"\);\s*\}/.test(FR),

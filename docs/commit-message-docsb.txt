@@ -1,0 +1,34 @@
+Docs batch: the commits of work/docsb (documents only; no app file, no built html, no test)
+
+1. Docs batch: the main chat's rows 1641-1644, 1735-1754 and 1825-1830 in DECISIONS.md word for word
+
+   The 30 rows of the project docs claude/talk-rulings-*.md (2026-11-17 to 2026-11-22), byte for byte, as heading
+   blocks; each run right after the highest table row with a lower number (1640, 1732, 1818), one empty line around
+   it. scripts/docs/insert-main-chat-rows.mjs inserts them; scripts/docs/compare-main-chat-rows.mjs proves them (line
+   count and SHA-256 per row from the manifest, a byte compare with the project docs, the places, the rest of the file
+   = the base). Decision 1890.
+
+2. Docs batch: the status cells of older rows that the main chat's rows rule (old text kept)
+
+   26 cells extended with " -> <text>": 1696, 1697, 1700, 1703, 1719, 1724, 1608, 1614, 1518, 1473, 1513,
+   1475-1477, 1482-1487, 1794, 1795, 1796, 1798, 1818, 1763; the Status line of 1739 (4). Not changed: 1705, 1727,
+   1815 (they say it already) and 82 (a question). docs/decisions-index.md: a section for the 30 rows. Decision 1891.
+
+3. Docs batch: the rule texts follow rulings 1546, 1606, 1612, 1735 and 1500-1511
+
+   CLAUDE.md, docs/orchestration.md, docs/templates/: the session pushes its branch and gives the compare link, Damir
+   opens the pull request (1546, quoted in full once in the template); the review readers (1606); the lead model per
+   prompt (1612); a source-text pin states its limits (1735); the smoke rule (1503), the merge commit (1505), the
+   operator exception (1510) and the other rows of 2026-11-12; four walk lessons of 2026-11-22. Decision 1892.
+
+4. Docs batch: the walk kit, the Safety sheet, the launch walk sheet and the readiness rows
+
+   docs/walk-safety-app: icon.png, the load signal and onInit in app.js, config.js, a geotagged test photo;
+   docs/walk-safety.md: the pack line and the kick, ban and name rows of 1542; docs/walk-launch.md (new): the rows
+   owed to the launch walk; docs/release-readiness.md: section S12w (walks 1743, 1751, 1828, 1829 and the merges
+   c9d6bf64, 1ad3a44e, 338d30f4). Decision 1893.
+
+5. Docs batch: the record (decisions 1890-1895, lessons L277-L278, handoff, status log, review brief)
+
+   DECISIONS.md rows 1890-1895, docs/decisions-index.md, docs/lessons.md, docs/status-log.md, CLAUDE.md "Where we are
+   now", docs/handoff-2026-11-22-docsb.md, docs/review-brief-docsb.md (the verdict), docs/contract-docsb.md, this file.

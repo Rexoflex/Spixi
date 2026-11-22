@@ -267,3 +267,13 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1828 | WALK Fix batch 3: 5 P · 0 F · 1 N/A (W-2 owed to the launch walk). |
 | #1829 | WALK Chat shell batch: 14 P · 1 F · 1 N/A (W-2 F, the broken-picture tile; #1763 confirmed). |
 | #1830 | Four sessions Ready: `fixb4`, `histcs`, `walktools`, `docsb`; Fix batch 4 cut by file area. |
+
+### Session Docs batch (`docsb`, 2026-11-22, #1890–#1895, L277–L278, no packet)
+| Row | Rule |
+|---|---|
+| #1890 | The main chat's rows are in `DECISIONS.md` word for word as heading blocks (one empty line around each run); the insert and compare scripts in `scripts/docs/`. |
+| #1891 🟡 | The status cells extended (26); three already said it; Q-1 (#82 against #190 / #206) and Q-2 (#1642 on #1513) for the main chat. |
+| #1892 🟡 | The rule texts follow #1546, #1606, #1612, #1735, #1500–#1511 and four walk lessons; `docs/process.md`, two project docs and four skills owed; Q-3 (#1546 for the main chat's own pull requests). |
+| #1893 🟡 | The walk kit (icon, the load signal), the #1542 rows of the Safety sheet, the new launch walk sheet, the readiness section S12w; the two Artifacts and the `fixb3` sheet pointer owed. |
+| #1894 | The #46 verdict of the batch (readers: Opus only). |
+| #1895 | Session "Docs batch" — the record. |

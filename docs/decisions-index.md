@@ -189,6 +189,27 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1730 | The #46 verdict of rounds 6–9: CLEAN (F1 / F2 recorded). |
 | #1731 | The merge with Fix batch 2 (`55feaddc`) and its pin re-bases. |
 | #1732 | Session "Photo open 1a" — the record, final state (CSH 766; models; owed: the operator block, compiles). |
+
+### Session Chat shell batch (`photo1b`, 2026-11-18, #1755–#1767, L241–L246, packets P71–P76)
+| Row | Rule |
+|---|---|
+| #1755 | HV-1 (P71, switch `HistoryInsertOnly`, cap `olderInsert`): an older page inserts only its own rows through the same row builders; a render-context key over every build-time read; the full render otherwise. |
+| #1756 | HV-3 (P72, `HistoryAnchorOneTask` / `olderAnchor1`): the anchor at `addMessages` and again at `messagesDone` until painted; the fix in one task. |
+| #1757 | HV-4 (P73, `FadeFromBand` / `fadeBand`): the composer fade pass starts at the band (binary search); the old walk while a transform runs. |
+| #1758 | The developer lines of HV-0 / PO-0 (shell): `[P1] shell older insert …`, `… older frames …`, `[CDPERF] chat-shell late …`, `… build= …` (`data-p1` only). |
+| #1759 | HV-5 is C# (`onLoadMore`), not in this batch; the spec for the later C# batch (P-28, HV-5, the C# lines). |
+| #1760 | PO-4 (P74, `PhotoTileLite` / `photoTileLite`): the lighter photo tile; the file face made when needed. |
+| #1761 | PO-6 shell half (P75, `VoiceWaveLite` / `voiceWaveLite`): fewer wave writes; the one-element wave not built (reason). |
+| #1762 | The chat backgrounds of #1644 built; dark Mist `#0C0E10` / `#272B2D` / `#151819`; the light Aurora ring stays (3.024 : 1); the Settings preview = the chat. |
+| #1763 🟡 | The floors that moved by the picks of #1644 (recorded; the main chat confirms). |
+| #1764 | The five switches (int prefs), their cap words, one `[FLAGS] photo1b` line (P76). |
+| #1765 | The chat.html size ceiling 964 → 995 KB (delta stated). |
+| #1766 | The #46 loop of the batch (verdict in `docs/review-brief-photo1b.md` § 5). |
+| #1767 | Session record. |
+
+### Session Fix batch 3 (`fixb3`, 2026-11-18 → 22, #1810–#1818, L257–L260, packets P84–P86)
+| Row | Rule |
+|---|---|
 | #1810 | Fix batch 3 item 1: a mini-app action before `ixian:onload` is refused "not ready"; both catches log the command name + exception type only (P84; no switch). |
 | #1811 | Fix batch 3 item 2: chat info re-scans after "Delete history" (both paths), one scan gate, the cache after the gate; chat info's delete runs the Sent sweep (P85; no switch). |
 | #1812 | Fix batch 3 items 3 + 4: the walk step `downloads` scrolls the Account hub (swipe → check → tap); `-HistorySeed <k>` (P86). #1666 ④ moved by #1739 (3). |

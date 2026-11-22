@@ -10,9 +10,12 @@
  *   · the select-row gap = the dark band rgba(118,157,255,.22) made opaque over the new middle (± 1 per channel);
  *   · the dark pattern keeps A's visibility on the deeper grounds (per canvas the mean ink-over-stop excess contrast at the
  *     computed alpha is 0.97–1.15 × A's at 0.0832 — the S19 rule; 0.0932 measured 0.90–0.96 on the S20 grounds, 0.101 1.02–1.08);
- *   · LIGHT is unchanged: every light ground = its S19 value.
+ *   · LIGHT (re-based by photo1b #1644): every light ground = the PICKED value (Mist = today's S19 value).
  * ★ re-based by S20G N-1 (Damir 21:50 "even darker still, still too close to outgoing"): the bubble clause now expects the S20 bubble
  *   moved OKLCH L −0.06 (Mist −0.04) and ≥ 1.15 off every stop (r1 NIT: was 1.10; measured min 1.158) (was ≥ 1.34 and further off than S19); pins-s20g/c-n1 holds the N-1 relations.
+ * ★ re-based by photo1b (#1644, Damir's picks "Calmer 1 / 2" + dark Mist ground back to #0C0E10): the RELATIONS of S20 (every stop L × 0.85, bubble = S19 bubble at C × 0.85 / L − 0.06) no longer hold — the calm step re-picked every ground, bubble and quote, and
+ *   dark Mist's ground is back at A's #0C0E10 — so the clauses hold the PICKED values: `grounds` = every stop exactly the picked string (same stop count + angle; hue within 12° of the S20 stop where it has chroma), `bubbles` = the picked bubble + quote exactly,
+ *   the quote 1.2 ≤ q < 1.3, ≥ 1.15 : 1 off every stop, text ≥ 7, meta ≥ 4.5; dark Mist bubble : ground 1.35 ± 0.01 and quote 1.25 ± 0.01; `gap` = the band over the new middle (unchanged rule); `pattern` = Mist 0.97–1.15 × A, the six coloured canvases ≥ 0.75 × A (lowering the pattern is the PURPOSE of the pick; measured 0.77–0.86); `light` = the picked light grounds.
  * Deliberate breaks (S20 R report): the Dusk bubble back to the S19 #3B224A → bubbles fails (#1403); the dark Ocean rule's stops back to the S19 #002633 / #031129 → grounds fails (Ocean L ratio 1);
  * the dark pattern alpha back to 0.0932 → pattern fails (Iris 0.895). */
 export default async function (h) {
@@ -58,14 +61,20 @@ export default async function (h) {
     dusk: { name: 'Dusk', stops: ['#281029', '#100921'], bubble: '#3B224A', quote: '#24132F', A: ['#321933', '#161028'] },
     ocean: { name: 'Ocean', stops: ['#002633', '#031129'], bubble: '#053655', quote: '#02243B', A: ['#08313F', '#081831'] },
   };
+  /* ★ photo1b (#1644): the S20 stops / bubbles (the build before the calm step) and the PICKED ones (exact strings of the proposal) */
+  const S20 = { flat: { stops: ['#040607'], bubble: '#1A1D1F' }, gradient: { stops: ['#0E0433', '#050422'], bubble: '#1D194F' }, blue: { stops: ['#021135', '#020721'], bubble: '#0C1F4B' }, green: { stops: ['#001A12', '#020D0A'], bubble: '#0B2920' },
+    aurora: { stops: ['#001B18', '#000F3E', '#120041'], bubble: '#0D2353' }, dusk: { stops: ['#200821', '#0B051B'], bubble: '#2E193A' }, ocean: { stops: ['#001C27', '#010B22'], bubble: '#032A43' } };
+  const PICK = { flat: { stops: ['#0C0E10'], bubble: '#272B2D', quote: '#151819' }, gradient: { stops: ['#0E072E', '#05051E'], bubble: '#1D1C49', quote: '#07061B' }, blue: { stops: ['#07132B', '#04091A'], bubble: '#13213F', quote: '#040817' },
+    green: { stops: ['#071913', '#040C0A'], bubble: '#142721', quote: '#050E0A' }, aurora: { stops: ['#081A17', '#051332', '#110A33'], bubble: '#152546', quote: '#071023' }, dusk: { stops: ['#1D0C1D', '#0A0716'], bubble: '#2B1D34', quote: '#0E0813' },
+    ocean: { stops: ['#091B23', '#040C1C'], bubble: '#122A3B', quote: '#071520' } };
   const LIGHT = {
-    gradient: 'linear-gradient(180deg, #CCD0EC 0%, #D0C9EB 50%, #D5C3EB 100%), var(--chat-canvas-base)',
-    green: 'linear-gradient(160deg, #D6EBC6 0%, #D2EDA8 45%, #CFE9BD 100%), var(--chat-canvas-base)',
-    blue: 'linear-gradient(180deg, #C9DDF2 0%, #C5D6F1 50%, #C2CFEE 100%), var(--chat-canvas-base)',
-    aurora: 'linear-gradient(150deg, #7EE0C4 0%, #5FB4EE 48%, #8F80F2 100%), var(--chat-canvas-base)',
-    dusk: 'linear-gradient(160deg, #FFD9C4 0%, #E9C9FF 100%), var(--chat-canvas-base)',
-    ocean: 'linear-gradient(160deg, #BDEFFF 0%, #C9D6FF 100%), var(--chat-canvas-base)',
-  };
+    gradient: 'linear-gradient(180deg, #CDD0E8 0%, #D0CAE7 50%, #D4C4E6 100%), var(--chat-canvas-base)',
+    green: 'linear-gradient(160deg, #DAE9CF 0%, #D6EABA 45%, #D4E6C8 100%), var(--chat-canvas-base)',
+    blue: 'linear-gradient(180deg, #CCDDEE 0%, #C7D6ED 50%, #C4CFE9 100%), var(--chat-canvas-base)',
+    aurora: 'linear-gradient(150deg, #99DAC6 0%, #7AB2DA 48%, #8F88D7 100%), var(--chat-canvas-base)',
+    dusk: 'linear-gradient(160deg, #F7DCCD 0%, #E4CEF3 100%), var(--chat-canvas-base)',
+    ocean: 'linear-gradient(160deg, #CAECF7 0%, #CDD7F3 100%), var(--chat-canvas-base)',
+  };   // ★ photo1b (#1644 Calmer 1 / 2): was #CCD0EC… / #D6EBC6… / #C9DDF2… / #7EE0C4… / #FFD9C4… / #BDEFFF…
   const BAND = [118, 157, 255];
   const fail = { grounds: [], bubbles: [], gap: [], pattern: [], light: [] };
   const table = {};
@@ -80,10 +89,10 @@ export default async function (h) {
       const refAngle = { gradient: '160', blue: '160', green: '160', aurora: '150', dusk: '160', ocean: '160' }[g] || null;
       const t = { got, ratios: [], dh: [] };
       const okStops = got.length === ref.stops.length && angle === refAngle && got.every((x, i) => {
-        const n = lab(hex(x)), o = lab(hex(ref.stops[i]));
+        const n = lab(hex(x)), o = lab(hex(S20[g].stops[i]));
         const ratio = n.L / o.L; t.ratios.push(r2(ratio));
         let dh = Math.abs(n.h - o.h); if (dh > 180) dh = 360 - dh; t.dh.push(Math.round(dh));
-        return Math.abs(n.L - 0.85 * o.L) <= 0.004 && (o.C < 0.02 || dh <= 12);   // ± 0.004 L ≈ half an 8-bit step near black
+        return x === PICK[g].stops[i] && (o.C < 0.02 || dh <= 12);   // ★ photo1b (#1644 RE-BASE): the PICKED stop exactly, hue within 12° of the S20 stop (was: L × 0.85 of the S19 B stop ± 0.004)
       });
       if (!okStops) fail.grounds.push(ref.name + JSON.stringify(t));
       const bub = resolve('--surface-bubble-received').toUpperCase(), q = resolve('--surface-bubble-received-quote').toUpperCase();
@@ -94,7 +103,8 @@ export default async function (h) {
       t.bubble = bub; t.quote = q; t.dL = nb && r2(nb.L - ob.L); t.cK = nb && r2(nb.C / ob.C); t.q = nq && hex(bub) ? r2(cr(nq, hex(bub))) : 0;
       t.vsS19 = got.map((x) => r2(cr(hex(ref.bubble), hex(x))));
       const dN1 = g === 'flat' ? -0.04 : -0.06;   // ★ S20G N-1 re-base (Damir 21:50 "even darker still"): the S20 bubble then OKLCH L −0.06 (Mist −0.04), C + h kept
-      const shift = !!nb && Math.abs(nb.L - ob.L - 0.015 - dN1) <= 0.004 && Math.abs(nb.C - 0.85 * ob.C) <= 0.004 && (ob.C < 0.02 || dhB <= 8);
+      const shift = bub === PICK[g].bubble && q === PICK[g].quote;   // ★ photo1b (#1644 RE-BASE): the PICKED bubble + quote exactly (was: the S19 bubble at C × 0.85, L + 0.015 − 0.06 / Mist − 0.04; dN1 kept above for the record)
+      if (g === 'flat') { t.vsGround = r2(cr(hex(bub), got.map(hex)[0])); if (!(Math.abs(t.vsGround - 1.35) <= 0.01 && Math.abs(t.q - 1.25) <= 0.01)) fail.bubbles.push('Mist-ratio' + JSON.stringify({ vsGround: t.vsGround, q: t.q })); }   // ★ photo1b (#1644): dark Mist bubble : ground 1.35 ± 0.01, quote : bubble 1.25 ± 0.01
       const quoteOk = !!nq && lum(nq) < lum(hex(bub)) && t.q >= 1.2 && t.q < 1.3;
       const rises = t.vs.every((v) => v >= 1.15);   // ★ S20G N-1 re-base (r1 NIT 1.10 → 1.15): ≥ 1.15 off every stop (measured 1.16–1.32; Spixi 1.158 the lowest). Was ≥ 1.34 and further off than the S19 bubble (S20 #1403)
       t.text = text && hex(bub) ? r2(cr(text, hex(bub))) : 0; t.meta = meta && hex(bub) ? r2(cr(meta, hex(bub))) : 0;
@@ -109,7 +119,7 @@ export default async function (h) {
       const alpha = parseFloat(W.getComputedStyle(el).getPropertyValue('--chat-pattern-alpha-1')), ink = hex(resolve('--chat-pattern-ink'));
       const excess = (ss, a) => ss.reduce((acc, x) => acc + cr(over(x, ink, a), x) - 1, 0) / ss.length;
       t.pattern = ink && alpha > 0 ? r2(excess(got.map(hex), alpha) / excess(ref.A.map(hex), 0.0832)) : 0;
-      if (!(t.pattern >= 0.97 && t.pattern <= 1.15)) fail.pattern.push(ref.name + ':' + t.pattern + '@' + alpha);
+      if (!(t.pattern >= (g === 'flat' ? 0.97 : 0.75) && t.pattern <= 1.15)) fail.pattern.push(ref.name + ':' + t.pattern + '@' + alpha);
       table[ref.name] = t;
     }
     el.setAttribute('data-theme', 'light');
@@ -119,10 +129,10 @@ export default async function (h) {
   } catch (e) { r.threw = e.message; }
   finally { try { W.close(); } catch (e) { /* */ } }
   const c = (k, m, extra) => ok(r[k] === true, m + ' — ' + JSON.stringify(r[k] === true ? (extra || { [k]: true }) : { [k]: r[k], threw: r.threw, fail: fail[k], table }).slice(0, 1600));
-  c('grounds', '★ S20 D (#1377 option 1): DARK — every ground stop of all 7 canvases is the S19 B stop at OKLab L × 0.85 (± 0.004 L), hue kept, the same stops and angle (computed on the built chat)', { L: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, t.got.join('/')])) });
-  c('bubbles', '★ S20 #1403 + ★ S20G N-1 (re-based): each dark received bubble = the S19 bubble at C × 0.85, L + 0.015 − 0.06 (Mist − 0.04; hue kept), its quote the S19 rule on it (1.2–1.3 darker); it sits ≥ 1.15 : 1 off every darker stop; text ≥ 7, meta ink ≥ 4.5', { b: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, [t.bubble, t.quote, t.vs, t.text, t.meta]])) });
+  c('grounds', '★ S20 D (#1377 option 1), re-based by ★ photo1b (#1644): DARK — every ground stop of all 7 canvases is the PICKED stop (Calmer 1 / 2; dark Mist back at #0C0E10), hue within 12° of the S20 stop, the same stop count and angle (computed on the built chat)', { L: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, t.got.join('/')])) });
+  c('bubbles', '★ photo1b (#1644 re-base): each dark received bubble + quote is the PICKED value (the S20 relation — the S19 bubble at C × 0.85, L + 0.015 − 0.06, Mist − 0.04 — no longer holds); dark Mist bubble : ground 1.35 ± 0.01, quote 1.25 ± 0.01; each quote is the S19 rule on its bubble (1.2–1.3 darker); the bubble sits ≥ 1.15 : 1 off every darker stop; text ≥ 7, meta ink ≥ 4.5', { b: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, [t.bubble, t.quote, t.vs, t.text, t.meta]])) });
   c('gap', '★ S20 D: each dark select-row gap = the 22 % band made opaque over the new middle (± 1)');
-  c('pattern', '★ S20 D: the dark pattern keeps A\'s visibility on the darker grounds (0.97–1.15 × A per canvas, the S19 rule)', { pattern: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, t.pattern])) });
-  c('light', '★ S20 D: LIGHT unchanged — every light ground keeps its value');
+  c('pattern', '★ S20 D, re-based by ★ photo1b (#1644): the dark pattern keeps A\'s visibility (dark Mist 0.97–1.15 × A on its #0C0E10 ground, the six coloured canvases ≥ 0.75 × A at the calm alpha — lowering it is the pick; the S19 rule was 0.97–1.15 for all)', { pattern: Object.fromEntries(Object.entries(table).map(([k, t]) => [k, t.pattern])) });
+  c('light', '★ S20 D, re-based by ★ photo1b (#1644): LIGHT — every light ground is the PICKED value (Mist = today; Iris / Spixi Calmer 1; Meadow / Aurora / Dusk / Ocean Calmer 2)');
   c('noErr', '★ S20 D: no page error');
 }

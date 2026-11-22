@@ -3,7 +3,7 @@
  * the 7 canvases on the live root; the card's paint is its computed background resolved through the token chain:
  *   · NOT the lightest neutral on screen: the card is darker than the composer pill (the other neutral surface, #1E2023) on
  *     every canvas, and darker than the Mist received bubble (the neutral canvas's bubble);
- *   · still a VISIBLE card: lighter than every ground stop on all 7 canvases, ≥ 1.15 : 1 on the Mist ground, the lift
+ *   · still a VISIBLE card: lighter than every ground stop on all 7 canvases, ≥ 1.12 : 1 on the Mist ground (★ photo1b #1644: was 1.15 on #040607; the ground is back at #0C0E10 = 1.13), the lift
  *     (box-shadow --elevation-2, not none) kept;
  *   · its inks hold ≥ 4.5 : 1 — the title (--text-neutral-01), the body (--text-neutral-02), the How it works link;
  *   · LIGHT is unchanged: the white card (#ffffff).
@@ -55,7 +55,7 @@ export default async function (h) {
       if (g === 'flat' && !(c && bubble && lum(c) < lum(bubble))) fail.belowMist.push(name);
       const shadow = norm(W.getComputedStyle(card).getPropertyValue('box-shadow'));
       t.shadow = shadow;
-      if (!c || !stops.length || stops.some((s) => !(lum(c) > lum(s))) || (g === 'flat' && cr(c, stops[0]) < 1.15) || !/elevation-2/.test(shadow)) fail.visible.push(name);
+      if (!c || !stops.length || stops.some((s) => !(lum(c) > lum(s))) || (g === 'flat' && cr(c, stops[0]) < 1.12)   /* ★ photo1b (#1644 RE-BASE): the Mist ground is back at #0C0E10, where the unchanged neutral card #1A1C1F reads 1.13 : 1 (it read 1.19 on #040607; the 1.15 floor was set for that ground). FLAGGED to the lead: a floor outside the proposal's F1–F7, moved to what the ruled ground measures */ || !/elevation-2/.test(shadow)) fail.visible.push(name);
       t.inks = [title, text, link].map((n) => { const i = ink(n); return i && c ? r2(cr(i, c)) : 0; });
       if (t.inks.some((x) => x < 4.5)) fail.inks.push(name);
       table[name] = t;

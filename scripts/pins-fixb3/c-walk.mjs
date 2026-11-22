@@ -87,17 +87,17 @@ export const NEW_DRV_FNS = ['Invoke-HistorySeedStep', 'Invoke-HistorySeedRestart
 export const DRV_BLOCKS = ["if ($PSBoundParameters.ContainsKey('HistorySeed')) {", "if (-not (Get-ScreenGap 'accountScrolled') -and -not (Get-TapGap 'accountDownloads')) {"];   // the -HistorySeed usage block; the load-time refusal of a weak accountScrolled (review round 1 m4)
 export const ADDED_DRV = [   // single driver lines (found by their start, so a mutated added line is still removed: o1 is about the OLD statements)
   '[string[]]$HistorySeed',
-  '$script:HistorySeed = -1',
+  '$script:HistSeedIdx = -1',
   "$script:HistorySeedStep = ''",
   "$script:CalHubSwipe = ",
   '$script:CalHubReady = $false',
   "if ($Step -eq 'downloads') { $need = @($need)",
   "if ($Step -cmatch '\\Ahistory-seed-k",
-  "if ($script:HistorySeed -ge 0) { $doc['historySeed']",
+  "if ($script:HistSeedIdx -ge 0) { $doc['historySeed']",
   "if ($Rec.ContainsKey('pages')) { $out['pages']",   // review round 1 m3: the page count of a history-seed rep reaches run.json
   "elseif ($s -cmatch '\\Ahistory-seed-k",
-  "elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { $sum",
-  "elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { Invoke-HistorySeedStep }",
+  "elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { $sum",
+  "elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { Invoke-HistorySeedStep }",
   'elseif (-not (Invoke-CalAccountScroll $Cal))',
   'elseif (-not $script:CalHubReady)',
   "if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') 'accountScrolled')",
@@ -158,7 +158,7 @@ export function oldView(drv, par) { const t = stripText(drv, par); return { drv:
 const BASE_DRV_VIEW_SHA = 'a5d38ee1c0d1405860e99b7a55ace2ed4951576f011363c9fd71b66ea756f2cd';
 const BASE_PAR_VIEW_SHA = '6278daa717a5df1b7b16db0f28c855bbd48e1296806a10115e6c575d43cff193';
 const BASE_DEVADDR_SHA = '62dc3e08437c570d9f286f89de3f4e8399c650650981945999b51a6d46b8a00e';
-const HELD_BLOCKS = { usage: 'b55588dab83f0498470934f0e2507037584c3067993931b4f1cb9e73fc26543b', legend: 'd910369342b7e91e2e354b9fa1f599749071692299479947d83d0cae4aa0219f', defs: '165d5f386cfadad852f8da6c500ec5fd858c8e875f12509a6b551cb6724dcac8' };   // m1: SHA-256 of the statements of the added blocks (round 2)
+const HELD_BLOCKS = { usage: '3179a74a115e7f90fd751db739449a626cefc0ffd0b4bb68eb8abb71aa7a5557', legend: 'd910369342b7e91e2e354b9fa1f599749071692299479947d83d0cae4aa0219f', defs: '165d5f386cfadad852f8da6c500ec5fd858c8e875f12509a6b551cb6724dcac8' };   // m1: SHA-256 of the statements of the added blocks (round 2)
 const BASE_LOGRE_SHA = 'a22d2dbaa96566788330114cca740fed5851d4ba7dafe55b115fea6195bfde3b';
 const BASE_FN_SHA = { 'Initialize-Allowlist': 'b083355a9f0ab001d9766e4096b381e8c7237e2e58c1796f2bb8f327c10026ab', 'Test-ShellAllowed': '1645be543b1068a00d68c9ad40ca27a9ea225a66684e84b687764f21f22f58f5', 'Assert-AdbCommand': '6907f808b2b25b6d46feb2973ad67a10649c48b724df88a17ebb69cf548e3ca6', 'Get-LogPullCmd': '11401bdd230fe9d0245955048f6d99162e4a75fb17b2646b4f8d89fb7dcc56e1', 'Invoke-FileShot': 'd83c6fa809657089c4cc0891fba848ba7a1723d272fd7bea907a3ddaf27a15a9', 'Invoke-FileReset': '19fbc7f9194ae92b1a852445769781b5c83db461f803130a840c4fd767ec0e1c' };
 const fnSha = (t, n) => sha(fnStm(code(t), n).join('\n'));
@@ -350,7 +350,7 @@ export default async function (h) {
     range: hb.includes("if ($histNum -lt 0 -or $histNum -gt 55) { Exit-Usage '-HistorySeed takes ONE whole number 0..55 (the dev-seed index, 0 = Seed 01, 55 = Seed 56)' }") && hb.includes('$histNum = [int]::Parse($histText, $script:Inv)'),
     needsHistory: hb.some((l) => l === "if ($want -notcontains 'history') { Exit-Usage '-HistorySeed needs the step history named in -Steps' }"),
     noFlags: hb.some((l) => l.startsWith('if ($script:FlagsAsked) { Exit-Usage ') && l.includes('-HistorySeed cannot be combined with -Flags')),
-    assignedLast: hb.indexOf('$script:HistorySeed = $histNum') > lastUsage && lastUsage > 0 && count(D, '$script:HistorySeed = ') === 2 && hb.includes("$script:HistorySeedStep = 'history-seed-k' + $histNum.ToString('00', $script:Inv)"),
+    assignedLast: hb.indexOf('$script:HistSeedIdx = $histNum') > lastUsage && lastUsage > 0 && count(D, '$script:HistSeedIdx = ') === 2 && hb.includes("$script:HistorySeedStep = 'history-seed-k' + $histNum.ToString('00', $script:Inv)"),
     exitOne: stm(fnD('Exit-Usage')).join('\n').includes('exit 1'),
     beforeAdb: hsStart > at("if ($KillRenderer) { $script:StepsReq = @($script:StepsReq) + @('killrenderer') }") && at("if ($KillRenderer)") > 0
       && hsStart < at('\nInitialize-Allowlist\n') && hsStart < at('$ok = $false\ntry {') && hsStart < D.lastIndexOf('Invoke-Preflight') && hsStart < at('Enter-Lock\n'),
@@ -358,7 +358,7 @@ export default async function (h) {
     wantIsExplicitList: D.includes('$want = New-Object System.Collections.Generic.List[string]') && D.indexOf('$want = New-Object') < hsStart,
   };
   ok(F(h1).length === 0,
-    '★ fixb3 walk (h1 usage): `-HistorySeed` is a `[string[]]` (a -File comma list is joined and refused), exactly `\\A[0-9]{1,2}\\z` then 0..55; refused (Exit-Usage, exit 1) with -Calibrate, with -Flags, without `history` named in -Steps, and for 56, -1, "5,6", text, a blank, a fraction; the block stands after the -Flags and -SeedIndex blocks and before Initialize-Allowlist, the lock, the pre-flight and any adb command; $script:HistorySeed is assigned only after the last check (behaviour of the extracted regex run in JavaScript) — failing: ' + JSON.stringify(F(h1)));
+    '★ fixb3 walk (h1 usage): `-HistorySeed` is a `[string[]]` (a -File comma list is joined and refused), exactly `\\A[0-9]{1,2}\\z` then 0..55; refused (Exit-Usage, exit 1) with -Calibrate, with -Flags, without `history` named in -Steps, and for 56, -1, "5,6", text, a blank, a fraction; the block stands after the -Flags and -SeedIndex blocks and before Initialize-Allowlist, the lock, the pre-flight and any adb command; $script:HistSeedIdx is assigned only after the last check (behaviour of the extracted regex run in JavaScript) — failing: ' + JSON.stringify(F(h1)));
 
   /* ── h2 · the address is derived; one proven restart per rep ── */
   const repFnT = fnD('Invoke-HistorySeedRep');
@@ -370,7 +370,7 @@ export default async function (h) {
   const iRst = rep.indexOf('Invoke-HistorySeedRestart $Rec $K'), iLc = rep.indexOf("[void](Invoke-ShellReq 'logcat -c')"), iFa = rep.indexOf(FA);
   const h2 = {
     found: rep.length > 0 && rst.length > 0,
-    derived: rep[1] === '$K = $script:HistorySeed' && rep[2] === '$addr = Get-DevSeedAddress $K' && rep[3] === '$script:OpenSeedAddr[[string]$K] = $addr',
+    derived: rep[1] === '$K = $script:HistSeedIdx' && rep[2] === '$addr = Get-DevSeedAddress $K' && rep[3] === '$script:OpenSeedAddr[[string]$K] = $addr',
     faOnce: iFa > 0 && count(newBody, '--es fa') === 1 && count(newBody, 'am start') === 1 && count(repFnT, '$addr') === 3,
     noFileRead: !/Get-Seed\b|Read-JsonFile|Get-Content|ReadAllText|walk\.local|\$script:Seeds|Get-Field|\$script:FileSeed|\$script:ImageSeed|ConvertFrom-Json|Test-Path/.test(newBody),
     noTypedInput: !/input\s+text/i.test(D) && !/\bRead-Host\b|\$args\b|\$env:/.test(newBody),
@@ -384,10 +384,10 @@ export default async function (h) {
     noInputBeforeRestart: !rep.slice(0, iRst).some((l) => /Invoke-Shell|Invoke-Back|Get-TapText|Get-SwipeText|am start/.test(l)),
     checkAndSwipes: rep.includes("Invoke-PreCheck $Rec 'chat'") && rep.indexOf("Invoke-PreCheck $Rec 'chat'") > iFa && rep.indexOf("Invoke-PreCheck $Rec 'chat'") < rep.findIndex((l) => l.includes("Get-SwipeText 'historyOlder'")),
     maskedLike: D.includes("$t = $t.Replace($sa, '<seed-index ' + $sk + '>')") || /\.Replace\(\$sa, '<seed-index ' \+ \$sk \+ '>'\)/.test(stm(fnD('Protect-Text')).join('\n')),
-    stepRoutes: stm(fnD('Invoke-RepBody')).includes("elseif ($s -cmatch '\\Ahistory-seed-k[0-9]{2}\\z') { Invoke-HistorySeedRep $Rec }") && stm(fnD('Invoke-Walk')).some((l) => l === "elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { Invoke-HistorySeedStep }")
-      && stm(fnD('Invoke-Walk')).indexOf("elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { Invoke-HistorySeedStep }") < stm(fnD('Invoke-Walk')).indexOf("elseif ($s -eq 'history') {"),
+    stepRoutes: stm(fnD('Invoke-RepBody')).includes("elseif ($s -cmatch '\\Ahistory-seed-k[0-9]{2}\\z') { Invoke-HistorySeedRep $Rec }") && stm(fnD('Invoke-Walk')).some((l) => l === "elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { Invoke-HistorySeedStep }")
+      && stm(fnD('Invoke-Walk')).indexOf("elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { Invoke-HistorySeedStep }") < stm(fnD('Invoke-Walk')).indexOf("elseif ($s -eq 'history') {"),
     stepNeeds: fnD('Get-StepGap').includes("$need = @('swipe:historyOlder', 'screen:chat', 'screen:home', 'count:historyMaxSwipes')"),
-    runJson: D.includes("if ($script:HistorySeed -ge 0) { $doc['historySeed'] = [int]$script:HistorySeed }"),
+    runJson: D.includes("if ($script:HistSeedIdx -ge 0) { $doc['historySeed'] = [int]$script:HistSeedIdx }"),
   };
   ok(F(h2).length === 0,
     '★ fixb3 walk (h2 address): the address of a history-seed rep is `Get-DevSeedAddress $K` — derived by the script (never read from a file, never typed), stored in the mask table (`<seed-index k>`), used in the ONE `--es fa` command; Get-DevSeedAddress is byte-identical to the base; each rep starts with ONE proven restart (the app brought to Chats as open-seed does, then the pid read before -> Invoke-FileReset, not proven = Halted + HaltNote + throw) before `logcat -c` and the intent, with no input before it; the chat check follows the intent and precedes the swipes — failing: ' + JSON.stringify(F(h2)));
@@ -402,7 +402,7 @@ export default async function (h) {
     boundedByMax: loopAt > 0 && rep.includes("Wait-Ms $script:Tm['historySwipeMs'] 'historySwipeMs'") && count(repFnT, 'while (') === 1,
     zeroIsNote: rep.includes("if ($got -lt 1) { Add-Note $Rec ('no page request after ' + $sw + ' swipes: a chat with no older page cannot measure this') }") && !/throw[^\n]*no page request/.test(repFnT),
     thenAsHistory: rep.slice(rep.findIndex((l) => l.startsWith('if ($got -lt 1)')) + 1).join('|') === ["Wait-Ms $script:Tm['scrollSettleMs'] 'scrollSettleMs'", "Invoke-ShotCheck $Rec 'chat'", 'Invoke-LogPull $Rec', 'Invoke-BackReq', "Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'", '}'].join('|'),
-    swipesRecorded: rep.includes("$Rec['swipes'] = $sw") && !rep.some((l) => /^\$k\b/.test(l)) && count(repFnT, '$K = ') === 1 && !/\$k\s*(=|\+\+)/.test(repFnT.replace('$K = $script:HistorySeed', '')),   // n3: PowerShell names ignore case, so a swipe counter `$k` would overwrite the index `$K`
+    swipesRecorded: rep.includes("$Rec['swipes'] = $sw") && !rep.some((l) => /^\$k\b/.test(l)) && count(repFnT, '$K = ') === 1 && !/\$k\s*(=|\+\+)/.test(repFnT.replace('$K = $script:HistSeedIdx', '')),   // n3: PowerShell names ignore case, so a swipe counter `$k` would overwrite the index `$K`
     pagesRecorded: rep[rep.findIndex((l) => l.startsWith('if ($got -lt 1)')) - 1] === "$Rec['pages'] = [int]$got" && rep[rep.findIndex((l) => l.startsWith('if ($got -lt 1)')) - 2] === '}' && count(repFnT, "$Rec['pages']") === 1
       && stm(fnD('Complete-Rep')).includes("if ($Rec.ContainsKey('pages')) { $out['pages'] = [int]$Rec['pages'] }") && stm(fnD('Complete-Rep')).indexOf("if ($Rec.ContainsKey('pages')) { $out['pages'] = [int]$Rec['pages'] }") > stm(fnD('Complete-Rep')).findIndex((l) => l.startsWith("foreach ($k in @('t0', 'stamp2'")) && stm(fnD('Complete-Rep')).indexOf("if ($Rec.ContainsKey('pages')) { $out['pages'] = [int]$Rec['pages'] }") < stm(fnD('Complete-Rep')).findIndex((l) => l.startsWith("$out['note']")),
     oldHistoryKept: stm(fnD('Invoke-HistoryRep')).includes('if ($got -ge 3) { break }') && stm(fnD('Invoke-HistoryRep')).includes("Invoke-OpenSeedChat ($Rec.rep + 4)"),
@@ -556,17 +556,17 @@ export default async function (h) {
   const HELD = {
     drv: [
     ["[string[]]$HistorySeed", ["5844618caabc25b7"]],
-    ["$script:HistorySeed = -1", ["b8217b09e50647e3"]],
-    ["$script:HistorySeedStep = ''", ["a4780e972fe5b2aa"]],
+    ["$script:HistSeedIdx = -1", ["b8217b09e50647e3"]],
+    ["$script:HistorySeedStep = ''", ["21ff2ca24b381945"]],
     ["$script:CalHubSwipe = 'input swipe 540 2000 540 400 150'", ["820aa6c84588e30c"]],
     ["$script:CalHubReady = $false", ["91a82bad67cc069c","f476acb2286b2a82"]],
     ["if ($Step -eq 'downloads') { $need = @($need) + @('swipe:accountDownloads', 'screen:accountScrolled') }", ["0bb4dbe2a7db52d0"]],
     ["if ($Step -cmatch '\\Ahistory-seed-k[0-9]{2}\\z') { $need = @('swipe:historyOlder', 'screen:chat', 'screen:home', 'count:historyMaxSwipes') }", ["cfcac9668ba400e2"]],
-    ["if ($script:HistorySeed -ge 0) { $doc['historySeed'] = [int]$script:HistorySeed }", ["b1a4af7313989c81"]],
+    ["if ($script:HistSeedIdx -ge 0) { $doc['historySeed'] = [int]$script:HistSeedIdx }", ["b1a4af7313989c81"]],
     ["if ($Rec.ContainsKey('pages')) { $out['pages'] = [int]$Rec['pages'] }", ["60cb44e5e84656c9"]],
     ["elseif ($s -cmatch '\\Ahistory-seed-k[0-9]{2}\\z') { Invoke-HistorySeedRep $Rec }", ["0f2ffb21cc558130"]],
-    ["elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { $sum += $n * ($t['coldStartSettleSec'] + 12 + ($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 6 * ($t['historySwipeMs'] / 1000 + 1) + 8) }", ["ad5d21add9db57c6"]],
-    ["elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { Invoke-HistorySeedStep }", ["3e9e2795431fd87b"]],
+    ["elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { $sum += $n * ($t['coldStartSettleSec'] + 12 + ($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 6 * ($t['historySwipeMs'] / 1000 + 1) + 8) }", ["ad5d21add9db57c6"]],
+    ["elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { Invoke-HistorySeedStep }", ["3e9e2795431fd87b"]],
     ["elseif (-not (Invoke-CalAccountScroll $Cal)) { $why = 'the accountDownloads swipe was not sent' }", ["98b07241b9db1513"]],
     ["elseif (-not $script:CalHubReady) { $gateOk = $true; $why = Invoke-CalHubBack $Cal $to $bcl $bc }", ["46b8992a40305efd"]],
     ["if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') 'accountScrolled') 'probes').Count -gt 16) { Exit-Usage 'a52s.json screens.accountScrolled has more than 16 probes' }", ["67cf3bfcee068036"]],
@@ -616,7 +616,7 @@ export default async function (h) {
 
   /* ── n1 · review round 1 (m1): the new functions are frozen statement by statement ── */
   const NEW_FN_SHA = {
-    drv: { 'Invoke-HistorySeedStep': 'ce29888a8297cc6be5250dfc907df9e95105dbc15c3ca010b6ec2e469e2d66d5', 'Invoke-HistorySeedRestart': '9122a8497d85179a693af138db808b0ea11e416178ae30ecc6a257effbdec49a', 'Invoke-HistorySeedRep': '792ea7b13a628dad276f715326b56b5464e8956a3cbf02b11927488e1284bbec', 'Invoke-CalAccountScroll': '7d23c29b22f5aa2ab1ea7a1b926b55ee869c5632aab185746fcc54515a9db0bc', 'Invoke-CalHubBack': '11c9c1d3c33d1e83d3145690052f96ec5fa539c20baa7aa9e11983e8e6fc526d', 'Clear-CalAccountPng': '4c71ea1e053a9a3a3259ac0dadb06e5af8303c23dea5a8eeeee1023bcefedda2' },
+    drv: { 'Invoke-HistorySeedStep': 'ce29888a8297cc6be5250dfc907df9e95105dbc15c3ca010b6ec2e469e2d66d5', 'Invoke-HistorySeedRestart': '9122a8497d85179a693af138db808b0ea11e416178ae30ecc6a257effbdec49a', 'Invoke-HistorySeedRep': '714bc2323e1669ed71abb277e40452b89f87f19ba634ab4adce3839585aae670', 'Invoke-CalAccountScroll': '7d23c29b22f5aa2ab1ea7a1b926b55ee869c5632aab185746fcc54515a9db0bc', 'Invoke-CalHubBack': '11c9c1d3c33d1e83d3145690052f96ec5fa539c20baa7aa9e11983e8e6fc526d', 'Clear-CalAccountPng': '4c71ea1e053a9a3a3259ac0dadb06e5af8303c23dea5a8eeeee1023bcefedda2' },
     par: { 'Test-HistorySeedName': 'dc58c9c80c0dd9d0809aad7b6c8e38926b957730040da91ae6d7ea080cbd6653', 'Get-HistorySeedIndex': '34696f786f00556a174e6ed8426dc67893f7a419837c6d33a80c5cad291fc163', 'X-SeedPagesGate': '8af99715aca7d0da38994997d836f99283af22705c9d79654af5361af5768e46', 'X-SeedPage': '5f0a539648bbea8ed8e8875bc30a415a0d1c57bffc38b8f473619ca92fedafce', 'X-SeedGated': '7bc362b1df5f20064135cd47dde41631e1eb1284c12b47801670e9702ac81783', 'X-SeedFirstPage': 'b5701ebe6ea095bcadd64036dd667179ae09e83a1c4eb815e47b26cbe75d1f7f' },
   };
   const n1 = { found: Object.keys(NEW_FN_SHA.drv).every((n) => fnD(n).length > 0) && Object.keys(NEW_FN_SHA.par).every((n) => fnP(n).length > 0) };
@@ -672,4 +672,23 @@ export default async function (h) {
   };
   ok(F(o3).length === 0,
     '★ fixb3 walk (o3 allowlist): NO new adb command shape — Initialize-Allowlist, Test-ShellAllowed, Assert-AdbCommand and Get-LogPullCmd are byte-identical to the base (SHA-256 of their statements), the shapes the new code sends (logcat -c, the stamped / plain input swipe and tap, BACK, the fa intent with a derived address, the existing loadmore count poll) pass the extracted allowlist run in JavaScript, and `input text`, `pm clear` and a short swipe are refused — failing: ' + JSON.stringify(F(o3)));
+  /* ── p1 · operator block 2026-11-22: no script-scope variable has the name of a script parameter ── */
+  // The first walk run of the operator block stopped at once ("driver failure: RuntimeException (line 1348)"): the script parameter
+  // `[string[]]$HistorySeed` IS the script-scope variable `$script:HistorySeed`, so `$script:HistorySeed = -1` kept the [string[]] type
+  // (@('-1')); `@('-1') -ge 0` compares as text with the culture rules (the hyphen is ignored: '1' -ge '0' = true), so the run.json line
+  // took the int cast of an array. The state variable is now `$script:HistSeedIdx` (an untyped int). This key reads the param blocks of
+  // both scripts and refuses any `$script:<parameter name>` (names ignore case) and any top-level assignment `$<parameter name> =`.
+  // LIMITS (#1735): it does not run PowerShell; `Set-Variable -Scope Script` and `Get-Variable` are not read (neither script uses them).
+  const paramNames = (t) => { const i = t.indexOf('\nparam('); if (i < 0) return []; const e = t.indexOf('\n)\n', i); return [...t.slice(i, e < 0 ? undefined : e).matchAll(/^\s*\[[A-Za-z.]+(?:\[\])?\]\s*\$([A-Za-z_][A-Za-z0-9_]*)/gm)].map((m) => m[1]); };
+  const shadows = (raw, txt) => paramNames(raw).filter((n) => new RegExp('\\$script:' + n + '(?![A-Za-z0-9_])', 'i').test(txt) || new RegExp('^\\$' + n + '\\s*=', 'im').test(txt));
+  const p1 = {
+    driverParams: paramNames(DRV).join() === 'Serial,Apk,Steps,Repeats,Calibrate,KillRenderer,Flags,SeedIndex,HistorySeed',
+    parserParams: paramNames(PAR).join() === 'RunDir',
+    driverNoShadow: shadows(DRV, D).length === 0,
+    parserNoShadow: shadows(PAR, P).length === 0,
+    stateUntyped: count(D, '$script:HistSeedIdx = -1') === 1 && count(D, '$script:HistSeedIdx = $histNum') === 1 && count(D, '$script:HistSeedIdx = ') === 2,
+    oldBugRed: shadows(DRV, D.split('$script:HistSeedIdx').join('$script:HistorySeed')).join() === 'HistorySeed' && shadows(DRV, D + '\n$Flags = 1\n').join() === 'Flags',
+  };
+  ok(F(p1).length === 0,
+    '★ fixb3 walk (p1 paramShadow): no script-scope variable of adb-walk.ps1 or adb-walk-parse.ps1 has the name of a script parameter (names ignore case) — a typed parameter IS the script-scope variable, so `$script:HistorySeed = -1` kept [string[]] and the first walk of 2026-11-22 stopped at the run.json line; the -HistorySeed state is `$script:HistSeedIdx`, assigned exactly twice (-1, then the checked number); the old spelling and a top-level `$Flags = 1` turn the key red (self-test) — failing: ' + JSON.stringify(F(p1)));
 }

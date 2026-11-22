@@ -253,7 +253,7 @@ $script:OpenSeedWarmKey = ''
 $script:OpenSeedSkipIdx = $false
 # Batch fixb3 (item 4): -HistorySeed = the dev-seed index (0..55) the step history runs on (-1 = not asked) and the step name its reps
 # get (history-seed-kNN, NN = the two-digit index). The address is derived by Get-DevSeedAddress and masked <seed-index k>.
-$script:HistorySeed = -1
+$script:HistSeedIdx = -1
 $script:HistorySeedStep = ''
 # Batch fixb3 (item 3): the fixed swipe of -Calibrate on the Account hub (a fling from the lower part of the hub to the upper part, 150 ms;
 # the hub scroller is about 1300 CSS px tall, 1 CSS px = 2.8125 px, so this fling ends at the bottom of the hub whatever its speed). It is
@@ -1345,7 +1345,7 @@ function Save-RunJson([bool]$Finished) {
     $doc['repeats'] = $script:RepeatsN
     $doc['stepsRequested'] = [string[]]$script:StepsReq
     if ($script:SeedIdx.Count -gt 0) { $doc['seedIndex'] = [int[]]$script:SeedIdx }
-    if ($script:HistorySeed -ge 0) { $doc['historySeed'] = [int]$script:HistorySeed }
+    if ($script:HistSeedIdx -ge 0) { $doc['historySeed'] = [int]$script:HistSeedIdx }
     $doc['reps'] = $script:Reps
     $doc['memory'] = $script:Mem
     $doc['finished'] = $Finished
@@ -1818,7 +1818,7 @@ function Invoke-HistorySeedRep($Rec) {
     # <seed-index k>) after a proven restart, the chat check, then swipes to older messages until ONE page request is counted or
     # historyMaxSwipes. t0 = the first swipe (as history). No page request = a chat with no older page cannot measure this: the rep
     # still ends (settle, shot check, log pull, BACK) and the parser says "no data" for the missing page lines. The rep ends with BACK.
-    $K = $script:HistorySeed
+    $K = $script:HistSeedIdx
     $addr = Get-DevSeedAddress $K
     $script:OpenSeedAddr[[string]$K] = $addr
     Invoke-HistorySeedRestart $Rec $K
@@ -2703,7 +2703,7 @@ function Get-EstimateSec {
         elseif ($s -eq 'resume-3s') { $sum += $n * ($t['resumeWaitSec'] + ($t['resumeLateTapMs'] + $t['chatSettleMs'] + $t['backSettleMs']) / 1000 + 8) }
         elseif ($s -eq 'chatinfo') { $sum += $n * ((2 * $t['chatSettleMs'] + 2 * $t['backSettleMs']) / 1000 + 10) }
         elseif ($script:TabNames.ContainsKey($s)) { $sum += $n * (2 * $t['tabSettleMs'] / 1000 + 7) }
-        elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { $sum += $n * ($t['coldStartSettleSec'] + 12 + ($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 6 * ($t['historySwipeMs'] / 1000 + 1) + 8) }
+        elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { $sum += $n * ($t['coldStartSettleSec'] + 12 + ($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 6 * ($t['historySwipeMs'] / 1000 + 1) + 8) }
         elseif ($s -eq 'history') { $sum += $n * (($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 10 * ($t['historySwipeMs'] / 1000 + 1) + 8) }
         elseif ($s -eq 'scroll-image') { $sum += 5 + $n * (2 * $t['scrollSettleMs'] / 1000 + 6) }
         elseif ($script:FileChatKeys.ContainsKey($s)) { $sum += $n * (($t['chatSettleMs'] + 2 * $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 10) }
@@ -2729,7 +2729,7 @@ function Invoke-Walk {
         elseif ($s -eq 'chat-tap') { Invoke-Step 'chat-tap' $script:RepeatsN $true }
         elseif ($s -eq 'scroll') { Invoke-ScrollStep 'scroll' 0 'the chat of seed 0' }
         elseif ($s -eq 'resume-now' -or $s -eq 'resume-3s' -or $s -eq 'chatinfo' -or $script:TabNames.ContainsKey($s)) { Invoke-Step $s $script:RepeatsN $true }
-        elseif ($s -eq 'history' -and $script:HistorySeed -ge 0) { Invoke-HistorySeedStep }
+        elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { Invoke-HistorySeedStep }
         elseif ($s -eq 'history') {
             Invoke-Step 'history' $script:RepeatsN $true
             # The step leaves the chat closed: after a failed rep, one bounded recovery.
@@ -3434,7 +3434,7 @@ if ($PSBoundParameters.ContainsKey('HistorySeed')) {
     if ($histNum -lt 0 -or $histNum -gt 55) { Exit-Usage '-HistorySeed takes ONE whole number 0..55 (the dev-seed index, 0 = Seed 01, 55 = Seed 56)' }
     if ($want -notcontains 'history') { Exit-Usage '-HistorySeed needs the step history named in -Steps' }
     if ($script:FlagsAsked) { Exit-Usage '-HistorySeed cannot be combined with -Flags (every rep restarts the app: the new process has no proven switch state)' }
-    $script:HistorySeed = $histNum
+    $script:HistSeedIdx = $histNum
     $script:HistorySeedStep = 'history-seed-k' + $histNum.ToString('00', $script:Inv)
     $script:OpenSeedAddr[[string]$histNum] = Get-DevSeedAddress $histNum
 }

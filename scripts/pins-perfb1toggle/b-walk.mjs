@@ -48,6 +48,9 @@
  * 2026-11-18 (fixb3, review round 1, scope C-walk): the two whole-file hashes re-based again after a look at the diff (driver a39d8dc2... -> 3e407de2...: cal-17s kept only while screens.accountScrolled is not set, the load-time refusal of a weak accountScrolled, the estimate of downloads, `pages` in run.json, -HistorySeed last in the param block, the sweep counter 2..4 digits, comments; parser 1314d8e1... -> cf42f078...: X-SeedPage, Pages in the rep context); logPullSites stays 16, every frozen body key stayed green
  * 2026-11-18 (fixb3, review round 2, scope C-walk): the two whole-file hashes re-based again after a look at the diff (driver 3e407de2... -> eca79886...: Invoke-CalAccountScroll in a try / finally, the new Clear-CalAccountPng called at the end of Clear-FileStepPngs, Clear-FileStepPngs at the end of Invoke-HistorySeedStep, the load-time usage error of a present but invalid screens.accountScrolled, the one-row-offset limit in the headers and the calibrate note; parser cf42f078... -> 826f74d1...: X-SeedFirstPage, the SendLoadMore line definition, the legend and header text); logPullSites stays 16, every frozen body key stayed green
  * 2026-11-18 (fixb3, review round 3, scope C-walk): the two whole-file hashes re-based again after a look at the diff (driver eca79886... -> acd8ed6e...: the swipe note of Invoke-CalAccountScroll names the gap of a PRESENT but invalid swipes.accountDownloads; parser 826f74d1... -> 4a80770b...: X-SeedPagesGate / X-SeedGated, every row of history-seed-kNN behind pages >= 1, the legend and header text); logPullSites stays 16, every frozen body key stayed green
+ * 2026-11-22 (fixb3, operator block; after a look at the diff, #1596): the driver hash re-based again (acd8ed6e... -> 44ebb3b9...): the -HistorySeed
+ *   state variable is renamed $script:HistorySeed -> $script:HistSeedIdx in six lines (a typed script parameter IS the script-scope variable; the
+ *   first walk run stopped at the run.json line). No other byte changed; the parser is unchanged.
  * Deliberate breaks (#802): see the builder's report of batch perfb1toggle item 2. */
 import { createHash } from 'node:crypto';
 export default async function (h) {
@@ -355,7 +358,7 @@ export default async function (h) {
   for (const [, key, body, want] of frozen) fz[key] = body !== null && sha(body) === want;
   // R4-A: the two scripts WHOLE. R4-B: no function / filter / workflow name is defined twice in a script (comment-stripped text,
   // case-insensitive, optional scope prefix).
-  fz['file:adb-walk.ps1'] = sha(DN) === 'acd8ed6e9fb4055160c97dce81c57d478a3c10b4556d3dfb573275bff2e0c623';
+  fz['file:adb-walk.ps1'] = sha(DN) === '44ebb3b92ea1b2e75641d70884ca188108816e91def2f5cf6d9ad6d302e40d1b';
   fz['file:adb-walk-parse.ps1'] = sha(PN) === '4a80770bf20ba5f350a7eb289df961ab26fb483ead233fe8985b9dc0c52210a0';
   for (const [sn, txt] of [['adb-walk.ps1', D], ['adb-walk-parse.ps1', P]]) {
     const seen = new Map();

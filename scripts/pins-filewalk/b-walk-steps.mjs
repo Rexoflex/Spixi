@@ -67,6 +67,9 @@
  * 2026-11-18 (fixb3, review round 1, scope C-walk; after a look at the diff): b8 (m2: exactly ONE Invoke-CalAccountScroll call between the tabAccount tap and the gate of Invoke-CalFileTaps, and exactly ONE Save-CalShot (cal-17s) in the bodies of Invoke-CalAccountScroll + Invoke-CalHubBack, none in the way back), b15 (the history-seed reset counter is 2..4 digits), b24 re-based again (raw hashes a39d8dc2... -> 3e407de2..., 1314d8e1... -> cf42f078...; the moved functions: Clear-FileStepPngs, Invoke-DownloadsRep and Invoke-CalFileTaps (comments), Complete-Rep (`pages`), Get-EstimateSec (the downloads estimate), parser New-Ctx / New-RepCtx / Invoke-Main (Pages, the legend)).
  * 2026-11-18 (fixb3, review round 2, scope C-walk; after a look at the diff, #1596): b15 callSites 6 -> 7 (Invoke-HistorySeedStep ends with Clear-FileStepPngs, NIT 5), b22 callSets Clear-FileStepPngs + Clear-CalAccountPng (m2 b: the sweep deletes cal-17s-account-scrolled.png once screens.accountScrolled is set), b24: the two whole-file hashes, the script-level hashes of both scripts, Clear-FileStepPngs and the parser Invoke-Main (the legend text) re-based (the other function hashes are unchanged).
  * 2026-11-18 (fixb3, review round 3, scope C-walk; after a look at the diff, #1596): b24 re-based again (driver eca79886... -> acd8ed6e...: the swipe note of Invoke-CalAccountScroll adds the gap text of a present but invalid swipes.accountDownloads; parser 826f74d1... -> 4a80770b...: X-SeedPagesGate / X-SeedGated, every row of history-seed-kNN gated on pages >= 1; moved: the script-level remainders of both files and Invoke-Main (legend))
+ * 2026-11-22 (fixb3, operator block; after a look at the diff, #1596): the driver hash re-based again (acd8ed6e... -> 44ebb3b9...): the -HistorySeed
+ *   state variable is renamed $script:HistorySeed -> $script:HistSeedIdx in six lines (a typed script parameter IS the script-scope variable; the
+ *   first walk run stopped at the run.json line). No other byte changed; the parser is unchanged.
  * Deliberate breaks (#802, the filewalk pins report): one-token mutations in a full copy of the tree, each red for the named key(s). */
 import { createHash } from 'node:crypto';
 export default async function (h) {
@@ -789,7 +792,7 @@ export default async function (h) {
   const CHGP = ['New-Ctx', 'New-RepCtx', 'Invoke-Main'];
   const OLDP = ['Get-Hits', 'Test-Ready', 'Get-Tok', 'Get-MissingTok', 'Get-MissingLine', 'X-Scroll', 'X-Long', 'X-Send', 'X-SendLine', 'Convert-T0'];
   const dgD = diag(bufD, [...NEWD, ...CHGD, ...OLDD]), dgP = diag(bufP, [...NEWP, ...CHGP, ...OLDP]);
-  const B24_DRIVER_SHA = 'acd8ed6e9fb4055160c97dce81c57d478a3c10b4556d3dfb573275bff2e0c623', B24_PARSER_SHA = '4a80770bf20ba5f350a7eb289df961ab26fb483ead233fe8985b9dc0c52210a0', B24_DRIVER_REST = 'd16e78cb719d477f402663d0e6c30739b56a0622bf449c10c0116e493fe93f0f', B24_PARSER_REST = '988f1969edf851530bb3bd90896e9bbc033d3d4ecfa0463bf27c971b453d7212';   // the guard (…_SHA) and the diagnostics
+  const B24_DRIVER_SHA = '44ebb3b92ea1b2e75641d70884ca188108816e91def2f5cf6d9ad6d302e40d1b', B24_PARSER_SHA = '4a80770bf20ba5f350a7eb289df961ab26fb483ead233fe8985b9dc0c52210a0', B24_DRIVER_REST = 'd16e78cb719d477f402663d0e6c30739b56a0622bf449c10c0116e493fe93f0f', B24_PARSER_REST = '988f1969edf851530bb3bd90896e9bbc033d3d4ecfa0463bf27c971b453d7212';   // the guard (…_SHA) and the diagnostics
   const B24_DRIVER_FN = {
     "Set-RepStamp2": "b810fbc48072ef35d08d2ad824f4e6b32b4ec4ee9d169ea01ce27580003a56c7",
     "ConvertTo-Base58": "607782670e7e397d660daaca5f441110ec9e8366c0a8d87ecd05073e3977faa9",

@@ -192,9 +192,13 @@ export default async function (h) {
 
   /* ───────────────────────── the three mini-app confirms ───────────────────────── */
   const APP_F = 'Spixi/Pages/MiniApps/MiniAppPage.xaml.cs';
-  const APP_BASE_BYTES = '4250a1e3bb9d07c37b4ae339f3c9995e0248c3a16529066496d789358dc0adfb';   // MiniAppPage.xaml.cs at 06a4845d, the exact bytes (a BOM)
-  const APP_HA_REST = '982be72c1c9cdf81a7483d2426e821f6f82ecc4f0ca676289c57ead348559825';      // base handleAction body, its three conditions as <CONFIRM>
-  const APP_FILE_REST = '315ab9128c58c6d7b569b3b9a2dea909e7396223bb9fdc1bad86d3e281a21f60';    // base file (stripped, normalised), its three conditions as <CONFIRM>
+  /* ★ fixb3 item 1 re-base (#1744 (4), P84; #1596 / #1634, after a look at the diff): handleAction gained ONE first statement (the
+   * guard FixB3Rules.refuseBeforeOnload) and its two catch log lines became FixB3Rules.responseFailedLine / actionFailedLine;
+   * nothing else in the file changed (pins-fixb3/a-miniapp-guard k4 / k5 hash the rest against 14ae57f2). The three values
+   * were 4250a1e3…dc0adfb (APP_BASE_BYTES), 982be72c…48559825 (APP_HA_REST), 315ab912…a21f60 (APP_FILE_REST) at 06a4845d. */
+  const APP_BASE_BYTES = '1bce4043d4cf014a3c4d08b4f668ef1ef145c9607cd1a2be351270a9e6569f76';   // MiniAppPage.xaml.cs at 06a4845d + fixb3 item 1, the exact bytes (a BOM)
+  const APP_HA_REST = 'd9413ab5b0bf32cde31b136b539fd8dfcd64f3cdd724565e2b0ee1638e47c154';      // that handleAction body, its three conditions as <CONFIRM>
+  const APP_FILE_REST = 'd573a46080ec847482f3fe46b5b22ad27b0844dbe231ccb77bcc8e063894efde';    // that file (stripped, normalised), its three conditions as <CONFIRM>
   const HA_SIG = 'private async void handleAction(string action)';
   const T_OK_CANCEL = 'SpixiLocalization._SL("global-dialog-ok"), SpixiLocalization._SL("global-dialog-cancel")';
   const A_DATA = 'SpixiLocalization._SL("app-action-title"), string.Format(SpixiLocalization._SL("app-action-response-confirmation"), actionResponse), ' + T_OK_CANCEL;

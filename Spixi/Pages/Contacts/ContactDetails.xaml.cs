@@ -76,8 +76,12 @@ namespace SPIXI
         // volatile like homeShellOverlayOpen (nav thread writes, back path reads).
         public volatile bool shellOverlayOpen = false;
         // ★ #1166 V-3 (#46 r1 A-M2): the token of the LATEST sharedView tap — an older tap still queued at the decode gate
-        // decodes and pushes nothing. Written on the UI thread, read on the pool thread.
+        // decodes and pushes nothing. Written on the UI thread, read on the pool thread (and again on the main thread before the
+        // push). ★ fixb3 (#46 r1 S m-2): a history delete sets it to null — a decode of the deleted history pushes nothing.
         private volatile string? viewerLatest = null;
+        // ★ fixb3 item 2 (#1744 (3)): the generation of this page's shared-items scans — only the LATEST scan pushes
+        // setSharedItems (a late boot scan cannot repaint a deleted history after the re-scan). FixB3ChatInfoRules.cs.
+        private readonly SharedScanGate sharedScanGate = new SharedScanGate();
 
 		public ContactDetails (Friend lfriend, bool customChatButton = false, string paneColumn = null, bool chat_context = false)
 		{
@@ -627,27 +631,7 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:sharedItems", StringComparison.Ordinal))
             {
-                /* ★★ #1106 (be-cutover CI6): the shared media / files / links of this conversation. 1:1 + groups; a bot
-                 * room gets no answer (v1, Damir) and the shell keeps the section hidden. The scan reads history from
-                 * disk, so it runs OFF the UI thread; the answer is ONE push (ids, kinds, labels, sizes, times, small
-                 * data: thumbs — never a path). */
-                if (!friend.bot)
-                {
-                    Friend scanned = friend;
-                    ContactDetails page = this;
-                    System.Threading.Tasks.Task.Run(() =>
-                    {
-                        try
-                        {
-                            string json = SharedItems.toJson(page.p1NoteShared(SharedItems.scan(scanned)));   // ★ #1194 probe — TEMPORARY
-                            MainThread.BeginInvokeOnMainThread(() => Utils.sendUiCommand(page, "setSharedItems", json));
-                        }
-                        catch (Exception ex)
-                        {
-                            Logging.warn("ixian:sharedItems: " + ex.GetType().Name);   // the type only — no path, name or address
-                        }
-                    });
-                }
+                pushSharedItems();   // ★★ #1106 — the body is pushSharedItems (★ fixb3 item 2: the delete re-scan shares it)
             }
             else if (current_url.StartsWith("ixian:sharedShow:", StringComparison.Ordinal))
             {
@@ -753,7 +737,7 @@ namespace SPIXI
                         }
                         MainThread.BeginInvokeOnMainThread(() =>
                         {
-                            if (page.isDisposed)
+                            if (!stillWanted())   // ★ fixb3 (#46 r1 S m-2): read AGAIN on the main thread — a history delete (viewerLatest = null) or a newer tap that ran while this push was queued wins
                             {
                                 return;
                             }
@@ -781,6 +765,7 @@ namespace SPIXI
                     Friend scanned = friend;
                     ContactDetails page = this;
                     bool deleted = false;   // ★ #1190: set on the task, read on the main thread below (after the scan)
+                    int scanToken = sharedScanGate.begin();   // ★ fixb3 item 2 (#46 r1): this re-scan takes a token too — only the LATEST scan of the page pushes
                     System.Threading.Tasks.Task.Run(() =>
                     {
                         try
@@ -794,7 +779,8 @@ namespace SPIXI
                                 deleted = true;
                             }
                             if (deleted) { ChatMediaStore.deleteSource(item.path); }   // ★ photo1a PO-3 / PO-6 · review round 1 (F6): the FILE left this device (the message stays) — what was kept from that path goes; a later re-download is kept again (C#'s own path, the one deleteLocal deleted; never throws)
-                            string json = SharedItems.toJson(page.p1NoteShared(SharedItems.scan(scanned)));   // ★ #1194 probe — TEMPORARY
+                            List<SharedItem> items = page.p1NoteShared(SharedItems.scan(scanned, remember: false));   // ★ #1194 probe — TEMPORARY · ★ fixb3 (#46 r1 S m-1): the cache is written below, after the gate
+                            string json = SharedItems.toJson(items);
                             MainThread.BeginInvokeOnMainThread(() =>
                             {
                                 /* ★★ #1190 (#1173 (3)): the OPEN chat learns of the delete. Before, nothing told it — the row kept
@@ -818,10 +804,11 @@ namespace SPIXI
                                         Logging.warn("ixian:sharedDeleteLocal: chat row " + ex.GetType().Name);   // the type only
                                     }
                                 }
-                                if (page.isDisposed)
+                                if (page.isDisposed || !page.sharedScanGate.isLatest(scanToken))   // ★ fixb3 item 2: an older scan never paints over a newer one (a history delete's re-scan)
                                 {
                                     return;
                                 }
+                                SharedItems.remember(scanned, items);   // ★ fixb3 (#46 r1 S m-1): the cache = the list of this push, written only after the gate
                                 Utils.sendUiCommand(page, "setSharedItems", json);
                             });
                         }
@@ -1287,19 +1274,21 @@ namespace SPIXI
          * The verb above uses the shared helper, which also knows how to LEAVE the
          * blocking groups first, which is the whole point of the sheet. */
 
+        /* ★ fixb3 item 2 (#1744 (3), P85): ONE body for "Delete history" — SContacts.removeHistory, the chats-list path's
+         * body (HomePage.onRemoveHistoryFor). It deletes the history (Core), clears the local stores (reaction flags,
+         * declined invites, the peer-local stores), runs the Sent sweep (my Sent copies this history named go too — this
+         * page did NOT run it before: fixb3 mechanisms § 0), deletes the kept thumbnails / peaks (ChatMediaStore.deleteChat),
+         * forgets the arrivals, flushes the contacts and repaints an OPEN conversation (iOS-24, #283: clearMessages + the
+         * empty reload). Then this page tells its own shell and re-scans its shared items: before, nothing asked for them
+         * again, so a pane that stays open (Windows: chat info beside the chat) kept showing the deleted media and files. */
         private void onRemoveHistory()
         {
-            // Remove history file
-            if(friend.deleteHistory())
+            if (SContacts.removeHistory(friend))
             {
-                SReactionFlags.clear(friend.walletAddress.ToString());    // #46 r1 A-M2 (#1148 (4)): the reacted-to messages are gone, so is the heart
-                SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
-                SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
-                ChatMediaStore.deleteChat(friend.walletAddress);   // ★ photo1a PO-3 / PO-6: the kept thumbnails and peaks of the deleted history go too (never throws)
-                CoreMessageWriter.arrivals.forgetAddress(friend.walletAddress.ToString());   // ★ P0 #1155: a cleared chat gets nothing put back
-                UIHelpers.shouldRefreshContacts = true;
+                viewerLatest = null;   // ★ fixb3 (#46 r1 S m-2): a viewer decode of the deleted history still in flight pushes nothing (stillWanted reads it)
+                SharedItems.remember(friend, new List<SharedItem>());   // ★ fixb3 (#46 r2 S n-1): the cache is emptied at the delete — resolve() answers no token of the deleted history before the re-scan's push writes the new list
                 /* ★ #46 loop B, MAJOR-1 — THE CONVERSATION IS GONE ON DISK, SO SAY SO.
-                 * This method pushed nothing, so the shell kept the user's own unsent DRAFT
+                 * Without this push the shell kept the user's own unsent DRAFT
                  * and the per-conversation markers for a chat that no longer exists.
                  * `removeHistoryResult` is the command name HomePage.onRemoveHistoryFor
                  * already uses for this outcome — a second call site, not a new push.
@@ -1307,17 +1296,65 @@ namespace SPIXI
                  * the two contact-STATE markers (hidereq · hsstage) and the pin.
                  * This page does not pop here, so the WebView is live when the sweep runs. */
                 try { Utils.sendUiCommand(this, "removeHistoryResult", friend.walletAddress.ToString(), "ok"); } catch (Exception) { }
-                // iOS-24 (#283): the OPEN conversation kept rendering the wiped history —
-                // deleteHistory() clears storage + the in-memory list but the chat WebView's
-                // DOM was never told, so the messages only disappeared on the next chat
-                // entry (loadMessages). Re-render the live chat page now: clearMessages +
-                // the (empty) reload paints the emptied conversation immediately.
-                var chat_page = Utils.getChatPage(friend);
-                if (chat_page != null)
-                {
-                    chat_page.loadMessages();
-                }
+                pushSharedItems();   // ★ fixb3 item 2: the re-scan of the emptied history pushes [] — the shared section goes
                 displaySpixiAlert(SpixiLocalization._SL("contact-details-deletedhistory-title"), SpixiLocalization._SL("contact-details-deletedhistory-text"), SpixiLocalization._SL("global-dialog-ok"));
+            }
+        }
+
+        /* ★★ #1106 (be-cutover CI6): the shared media / files / links of this conversation. 1:1 + groups; a bot
+         * room gets no answer (v1, Damir) and the shell keeps the section hidden. The scan reads history from
+         * disk, so it runs OFF the UI thread; the answer is ONE push (ids, kinds, labels, sizes, times, small
+         * data: thumbs — never a path).
+         * ★ fixb3 item 2 (#1744 (3)): the boot ask (ixian:sharedItems) and the re-scan after a delete share this body. Each
+         * scan takes a token BEFORE its task; on the main thread, right before the push, only the LATEST scan of a live
+         * page pushes (SharedScanGate) — a late boot scan cannot paint the deleted history again after the re-scan.
+         * ★ fixb3 (#46 r1 S m-1): the scan does NOT write SharedItems' cache itself (remember: false); the push that passed the gate
+         * writes it (SharedItems.remember) — so resolve() (sharedView / sharedShow / sharedOpen / …) answers from the list the
+         * shell holds, and a slow older scan cannot put the deleted history's items back after the re-scan. */
+        private void pushSharedItems()
+        {
+            if (!friend.bot)
+            {
+                Friend scanned = friend;
+                ContactDetails page = this;
+                int scanToken = sharedScanGate.begin();
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        List<SharedItem> items = page.p1NoteShared(SharedItems.scan(scanned, remember: false));   // ★ #1194 probe — TEMPORARY · ★ fixb3 (#46 r1 S m-1): the cache is written below, by the scan that may push
+                        string json = SharedItems.toJson(items);
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            if (!page.sharedScanGate.isLatest(scanToken) || page.isDisposed)
+                            {
+                                return;
+                            }
+                            SharedItems.remember(scanned, items);   // ★ fixb3 (#46 r1 S m-1): resolve() answers from the list this push gives the shell — an older scan the gate dropped never writes it
+                            Utils.sendUiCommand(page, "setSharedItems", json);
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.warn("ixian:sharedItems: " + ex.GetType().Name);   // the type only — no path, name or address
+                    }
+                });
+            }
+        }
+
+        /** ★ fixb3 item 2: HomePage.onRemoveHistoryFor (the chats-list "Delete chat") tells an OPEN chat-info page of that
+         *  contact to re-scan — the pane beside the chat (Windows) would keep the deleted media otherwise. Never throws. */
+        public void refreshSharedItemsAfterDelete()
+        {
+            try
+            {
+                viewerLatest = null;   // ★ fixb3 (#46 r1 S m-2): a viewer decode of the deleted history still in flight pushes nothing (stillWanted reads it)
+                SharedItems.remember(friend, new List<SharedItem>());   // ★ fixb3 (#46 r2 S n-1): the cache is emptied at the delete; the re-scan's push writes the new list
+                pushSharedItems();
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("refreshSharedItemsAfterDelete: " + ex.GetType().Name);   // the type only
             }
         }
 

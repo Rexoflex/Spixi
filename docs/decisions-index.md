@@ -217,3 +217,16 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1798 🟡 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1). |
 | #1799 | The #46 verdict of the batch. |
 | #1800 | Session "Defaults batch" — the record (numbers, models, owed). |
+
+### Session Fix batch 3 (`fixb3`, 2026-11-18 → 22, #1810–#1818, L257–L260, packets P84–P86)
+| Row | Rule |
+|---|---|
+| #1810 | Fix batch 3 item 1: a mini-app action before `ixian:onload` is refused "not ready"; both catches log the command name + exception type only (P84; no switch). |
+| #1811 | Fix batch 3 item 2: chat info re-scans after "Delete history" (both paths), one scan gate, the cache after the gate; chat info's delete runs the Sent sweep (P85; no switch). |
+| #1812 | Fix batch 3 items 3 + 4: the walk step `downloads` scrolls the Account hub (swipe → check → tap); `-HistorySeed <k>` (P86). #1666 ④ moved by #1739 (3). |
+| #1813 | Fix batch 3: the #46 verdict. |
+| #1814 | Session "Fix batch 3" — the record. |
+| #1815 | Question Q-2: received downloads after chat info › Delete history (answered by #1816). |
+| #1816 | Q-2 answered (Damir #1754): option (a), received downloads stay after chat info › Delete history for v1. |
+| #1817 | Fix batch 3 operator block: the four map keys, the `-HistorySeed` state renamed (`$script:HistSeedIdx`; round 5 CLEAN), the device runs. |
+| #1818 | Finding: the `-HistorySeed` row "first swipe -> 1st page" gives no data (log order); recorded, fix direction in a later scripts batch (Q-3). |

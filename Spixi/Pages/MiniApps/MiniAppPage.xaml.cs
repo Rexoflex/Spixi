@@ -260,6 +260,12 @@ namespace SPIXI
 
         private async void handleAction(string action)
         {
+            // ★ fixb3 item 1 (#1744 (4), P84): no handler before ixian:onload → refused as "not ready" (one fixed-word line with the
+            // command NAME only, the existing SpixiAppSdk.ar reply); no dialog, no exception, no call into the handler.
+            if (FixB3Rules.refuseBeforeOnload(miniAppActionHandler != null, () => { var p = JsonConvert.DeserializeObject<MiniAppActionBase>(action); return (p?.c, p?.id); }, sendActionRejected))
+            {
+                return;
+            }
             MiniAppActionBase? jsonResult = null;
             try
             {
@@ -390,7 +396,7 @@ namespace SPIXI
                     }
                     catch (Exception e)
                     {
-                        Logging.error("Exception occured in handleActionPageResponse while sending response to service: " + e);
+                        Logging.error(FixB3Rules.responseFailedLine(jsonResult.c, e));
                     }
                 }
                 if (response != null)
@@ -404,7 +410,7 @@ namespace SPIXI
             }
             catch (Exception e)
             {
-                Logging.error("Exception while processing Mini App action '{0}': {1}", action, e);
+                Logging.error(FixB3Rules.actionFailedLine(jsonResult?.c, e));
                 if (jsonResult != null)
                 {
                     sendActionRejected(jsonResult.c, jsonResult.id, e.Message);

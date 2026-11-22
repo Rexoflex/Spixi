@@ -5,6 +5,7 @@
  * extracted from the script text and run in a JavaScript RegExp (PowerShell `\A` -> `^`, `\z` -> `$`). What they cannot prove (a
  * fake-adb dry run on PowerShell 7.4.6 did: the command sequence of the old steps, the new steps, the refusals, the masks) is said
  * in the builder's report, not here. Nothing ran on a phone or on Windows PowerShell 5.1.
+ * 2026-11-18 (fixb3, scope C-walk; re-based after a look at the diff): c6 tableUses 5 -> 7 ($script:OpenSeedAddr: the history-seed rep and the -HistorySeed block), c11 haltSetters 3 -> 4 (the unproven restart of a history-seed rep), c15 sweepFrozen (Clear-FileStepPngs 081b8903... -> 89d28c9e...: the third pattern for the history-seed reset PNG; round 2 (m2 b): 89d28c9e... -> 918f3c91...: + the last statement `Clear-CalAccountPng`, which deletes cal-17s-account-scrolled.png once screens.accountScrolled is set; the three patterns are unchanged), c8 oldRows: the statements are first taken through pins-fixb3/c-walk stripText (this batch's parts out), the frozen SHAs of this pin are UNCHANGED.
  *   c1 paramRefusal — `-SeedIndex` is `[string[]]` (a `-File` comma list reaches `[int[]]` as ONE number 0,50,51 -> 05051), split and
  *                     checked by the script: 1 to 8 values, each `\A[0-9]{1,2}\z`, 0..55, no repeat, not with -Calibrate / -Flags,
  *                     only with open-seed in -Steps; every refusal is an Exit-Usage BEFORE the allowlist, the lock and any adb command;
@@ -38,6 +39,7 @@
  *   c15 sweepAtEnd (F6)        — Invoke-OpenSeedStep ends with Clear-FileStepPngs; the sweep pattern covers every PNG name of the step
  * Deliberate breaks (#802): see the builder's report of batch photo1a (item B3) and of the fix round 1, one per key. */
 import { createHash } from 'node:crypto';
+import { stripText as fixb3Strip } from '../pins-fixb3/c-walk.mjs';   // fixb3 (2026-11-18): c8 first takes this batch's parts out (its own re-base: the old statements are compared as before)
 
 const sha = (x) => createHash('sha256').update(x).digest('hex');
 const code = (t) => t.replace(/<#[\s\S]*?#>/g, '').split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');   // block + whole-line comments
@@ -347,7 +349,8 @@ export default async function (h) {
     found: prot.length > 0 && pAt > 0,
     maskLoop: prot.slice(pAt, pAt + 4).join('\n').replace("'<seed-index ' + $sk", "'<LABEL> ' + $sk").replace("'<seed ' + $sk", "'<LABEL> ' + $sk") === ["foreach ($sk in @($script:OpenSeedAddr.Keys)) {", '$sa = [string]$script:OpenSeedAddr[$sk]', "if ($sa) { $t = $t.Replace($sa, '<LABEL> ' + $sk + '>') }", '}'].join('\n'),   // the label itself is c12's (fix round 1)
     // (round 2: the ORDER of the two mask loops is c12's: sameAddressBoth)
-    tableUses: count(D, '$script:OpenSeedAddr') === 5 && count(D, '$script:OpenSeedAddr = @{}') === 1,
+    tableUses: count(D, '$script:OpenSeedAddr') === 7 &&   // fixb3 item 4: + the mask entry of a history-seed rep (Invoke-HistorySeedRep) and the one filled before any adb command (-HistorySeed block)
+      count(D, '$script:OpenSeedAddr = @{}') === 1,
     filledBeforeAdb: D.indexOf('foreach ($seedNum in $script:SeedIdx) { $script:OpenSeedAddr[') > 0 && D.indexOf('foreach ($seedNum in $script:SeedIdx) { $script:OpenSeedAddr[') < D.indexOf('\nInitialize-Allowlist\n'),
     writersMask: ['Get-Cut', 'Get-SafeNote', 'ConvertTo-MaskedObject', 'Write-WalkLog', 'Say', 'Write-TextFile', 'Add-Note'].every((n) => fnD(n).includes('Protect-Text')) && count(D, 'Protect-Text') === 9,
     addrOnlyInCommand: newBody.split('\n').filter((l) => l.includes('$addr')).length === 3 && !newBody.split('\n').some((l) => l.includes('$addr') && /Say|Add-Note|Write-WalkLog|throw|Write-Host|Out-File/.test(l)),
@@ -412,7 +415,8 @@ export default async function (h) {
     '★ photo1a walk (c7 parserRows): per index k of run.json seedIndex the rows `open-seed k=<k>` of contract § 3.2 — intent -> present · present ms= · attach spare= (required, the old lines) and onload-main ms= · read ms= / passes / rows · batch json= · shell paint= / glass= (chat-shell, `…ms` tokens) · media thumbs / hit / pre / voice / vpre (all NOT required: n/a on a build without the line, never "no data", never exit 2) — warm rows n = Repeats from open-seed-kNN, the same rows prefixed `cold ` n = 1 from open-seed-kNN-cold; no seedIndex = one "no data" row; the line regexes read the three new lines and the chat-shell line and refuse the near misses; the old table entries keep their place — failing: ' + JSON.stringify(F(c7)));
 
   /* ── c8 · the old steps and old rows are byte-identical ── */
-  const ov = oldView(DRV, PAR);
+  const s3 = fixb3Strip(DRV, PAR);   // fixb3: the statements of the batch after photo1a, without fixb3 (pins-fixb3/c-walk o1 guards that step)
+  const ov = oldView(s3.drv, s3.par);
   const drvSha = sha(ov.drv.join('\n')), parSha = sha(ov.par.join('\n'));
   const allSteps = psList(D, '$script:AllSteps = ') || [], optIn = psList(D, '$script:OptInSteps = ') || [];
   const BASE23 = ['coldstart', 'mem-home', 'chat-intent', 'chat-tap', 'scroll', 'resume', 'resume-long', 'network', 'mem-end', 'mem-trim', 'resume-now', 'resume-3s', 'chatinfo', 'tab-apps', 'tab-wallet', 'tab-account', 'history', 'scroll-image', 'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads'];
@@ -501,7 +505,7 @@ export default async function (h) {
     noInput: !blk.some((l) => IOCMD.test(l)),
     beforeRestart: sp < restart.findIndex((l) => l.startsWith('if (-not (Invoke-FileReset')),
     haltedSkips: one[1] === 'if ($script:Halted) {' && one[3] === 'Add-Note $Rec $script:HaltNote',
-    haltSetters: nLine('$script:Halted = $true') === 3,
+    haltSetters: nLine('$script:Halted = $true') === 4,   // fixb3 item 4: + the unproven restart of a history-seed rep (pins-fixb3/c-walk h2)
   };
   ok(F(c11).length === 0,
     '★ photo1a walk (c11 haltNoPid, F2): when the app pid cannot be read before the planned restart (none or several) the restart is NOT proven and the run HALTS exactly as Invoke-FileReset does — `$script:Halted = $true` and the same `$script:HaltNote` text (so the warm reps and every later index are skipped with that note, no further input), a note and a console line, then the old throw; no adb command in that branch — failing: ' + JSON.stringify(F(c11)));
@@ -579,7 +583,7 @@ export default async function (h) {
     afterEveryIndex: step.indexOf('Clear-FileStepPngs') > step.lastIndexOf('}', step.indexOf('Clear-FileStepPngs') - 1) - 99 && step.indexOf('Clear-FileStepPngs') > step.indexOf('foreach ($k in $script:SeedIdx) {'),
     sweepCoversNames: ['shot-open-seed-k05-cold-01.png', 'shot-open-seed-k05-01.png', 'shot-open-seed-k05-cold-01-pre.png', 'shot-open-seed-k05-cold-reset-01.png', 'shot-open-seed-k55-warmup-00.png', 'shot-open-seed-k05-warmup-reset-01.png', 'shot-open-seed-k05-02.png'].every((n) => sj.test(n)),
     sweepRefuses: ['shot-open-seed-k05.txt', 'shot-chat-intent-01.png', 'android-walk-open-seed-k05-01.txt', 'shot-open-seed-' + 'k'.repeat(41) + '.png', 'xshot-open-seed-k05-01.png'].every((n) => !sj.test(n)),
-    sweepFrozen: fnSha(DRV, 'Clear-FileStepPngs') === '081b89034bd12d5c63426a214fd95916b43c6dee52d03d6d7acb543d4e3caef3',
+    sweepFrozen: fnSha(DRV, 'Clear-FileStepPngs') === '918f3c9130fcf47d6586f33f7b7cc69ddeb3f26fd6086df6d16db5964ad973dd',   // fixb3 item 4: + `-or $f.Name -cmatch '^shot-history-seed-k[0-9]{2}-reset-[0-9]{2,4}\\.png\\z'` (081b8903... -> 89d28c9e...; review round 1 n4: the counter is 2..4 digits); review round 2 (m2 b): 89d28c9e... -> 918f3c91... (+ the last statement `Clear-CalAccountPng`)
     mainFinallyKept: D.includes('try { Clear-FileStepPngs } catch { }') && count(D, 'Clear-FileStepPngs') >= 5,
   };
   ok(F(c15).length === 0,

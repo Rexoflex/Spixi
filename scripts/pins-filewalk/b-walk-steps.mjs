@@ -314,16 +314,19 @@ export default async function (h) {
     '★ filewalk walk steps (b5 gaps): a missing a52s.json key is a gap read before any input — Get-StepGap (simulated over the need list of the script and the real a52s.json) names taps.photoTile and screens.viewer for `viewer`, taps.accountDownloads and screens.downloads for `downloads`; a missing local key names fileChatAddress / voiceChatAddress / photoChatAddress; Invoke-Step skips every rep with the gap before Invoke-RepBody — failing: ' + JSON.stringify(F(b5)));
 
   /* ── b6 · a52s.json: the calibrated file (photoTile + viewer; the two Downloads keys stay absent) ── */
-  const CAL_A52_SHA = 'c69474965f8f28aefa5c49314c36082e935f6a241abee1b9f56701228240f43f';
+  // ★ fixb3 operator block 2026-11-22 (re-base after the map commit, as planned in #1812 / P86): calibrate-20261122-1324 gave
+  // taps.accountDownloads, swipes.accountDownloads and screens.accountScrolled; screens.downloads stays absent until the proof run.
+  // Was c69474965f8f28aefa5c49314c36082e935f6a241abee1b9f56701228240f43f (the map of 2026-11-17).
+  const CAL_A52_SHA = '2a6071966dd9f973243b417fd2fa7e84d368acb3eec855f10c25e0a5e2637be6';
   const b6 = {
     found: !!cfgReal.taps,
     sha: sha(A52) === CAL_A52_SHA,
-    tapKeys: Object.keys(cfgReal.taps || {}).join() === 'chatRow1,chatHeader,tabChats,tabApps,tabWallet,tabAccount,photoTile',
-    screenKeys: Object.keys(cfgReal.screens || {}).join() === 'home,chat,chatinfo,viewer',
-    noDownloadsKeys: !/accountDownloads|"downloads"/.test(A52),
-    swipeKeys: Object.keys(cfgReal.swipes || {}).join() === 'chatOlder,chatNewer,historyOlder',
+    tapKeys: Object.keys(cfgReal.taps || {}).join() === 'chatRow1,chatHeader,tabChats,tabApps,tabWallet,tabAccount,photoTile,accountDownloads',
+    screenKeys: Object.keys(cfgReal.screens || {}).join() === 'home,chat,chatinfo,viewer,accountScrolled',
+    noDownloadsKeys: !/"downloads"/.test(A52),   // fixb3: screens.downloads still absent (the proof calibrate gives it)
+    swipeKeys: Object.keys(cfgReal.swipes || {}).join() === 'chatOlder,chatNewer,historyOlder,accountDownloads',
     realViewerNoGap: gapOf('viewer', cfgReal, true) === '',
-    realDownloadsGap: gapOf('downloads', cfgReal, true) === 'a52s.json has no taps.accountDownloads',
+    realDownloadsGap: gapOf('downloads', cfgReal, true) === 'a52s.json has no screens.downloads',
   };
   ok(F(b6).length === 0,
     '★ filewalk walk steps (b6 a52sCalibrated): scripts/device/a52s.json is the calibrated file (SHA-256 c6947496…): taps.photoTile and screens.viewer from the calibrate runs of 2026-11-17, taps.accountDownloads and screens.downloads absent (the Downloads row is below the first screen of the Account hub) — the real file gives `viewer` no gap and `downloads` the gap taps.accountDownloads; a later edit re-bases this key — failing: ' + JSON.stringify(F(b6)));

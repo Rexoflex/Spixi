@@ -9,10 +9,12 @@
   "taps": { "chatRow1": { "x": 540, "y": 654 }, "chatHeader": { "x": 500, "y": 166 },
             "tabChats": { "x": 151, "y": 2268 }, "tabApps": { "x": 410, "y": 2268 },
             "tabWallet": { "x": 670, "y": 2268 }, "tabAccount": { "x": 928, "y": 2268 },
-            "photoTile": { "x": 450, "y": 1560 } },
+            "photoTile": { "x": 450, "y": 1560 },
+            "accountDownloads": { "x": 540, "y": 1284 } },
   "swipes": { "chatOlder": { "x1": 540, "y1": 900, "x2": 540, "y2": 1700, "ms": 350 },
               "chatNewer": { "x1": 540, "y1": 1700, "x2": 540, "y2": 900, "ms": 350 },
-              "historyOlder": { "x1": 540, "y1": 700, "x2": 540, "y2": 1900, "ms": 150 } },
+              "historyOlder": { "x1": 540, "y1": 700, "x2": 540, "y2": 1900, "ms": 150 },
+              "accountDownloads": { "x1": 540, "y1": 2000, "x2": 540, "y2": 400, "ms": 150 } },
   "screens": { "home": { "probes": [ { "x": 60, "y": 2300, "rgb": "#C9D5ED", "tol": 28 },
                                      { "x": 840, "y": 318, "rgb": "#EDF0F2", "tol": 28 },
                                      { "x": 912, "y": 2020, "rgb": "#3050BD", "tol": 28 } ], "minMatch": 3 },
@@ -25,5 +27,11 @@
                "viewer": { "probes": [ { "x": 540, "y": 2240, "rgb": "#646565", "tol": 16 },
                                        { "x": 20, "y": 1000, "rgb": "#434A3C", "tol": 16 },
                                        { "x": 20, "y": 1900, "rgb": "#424A3B", "tol": 16 },
-                                       { "x": 954, "y": 2278, "rgb": "#102D24", "tol": 16 } ], "minMatch": 4 } }
+                                       { "x": 954, "y": 2278, "rgb": "#102D24", "tol": 16 } ], "minMatch": 4 },
+               "accountScrolled": { "probes": [ { "x": 95, "y": 1258, "rgb": "#21CF5B", "tol": 16 },
+                                                { "x": 95, "y": 1420, "rgb": "#BF7FFE", "tol": 16 },
+                                                { "x": 95, "y": 1575, "rgb": "#00C9F3", "tol": 16 },
+                                                { "x": 95, "y": 1735, "rgb": "#FF6B12", "tol": 16 },
+                                                { "x": 95, "y": 1960, "rgb": "#FD4E4B", "tol": 16 },
+                                                { "x": 540, "y": 1864, "rgb": "#F3F5F7", "tol": 16 } ], "minMatch": 6 } }
 }

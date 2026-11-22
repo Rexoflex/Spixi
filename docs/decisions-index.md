@@ -221,6 +221,7 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 ### Session Fix batch 3 (`fixb3`, 2026-11-18 → 22, #1810–#1818, L257–L260, packets P84–P86)
 | Row | Rule |
 |---|---|
+| #1801 | The merges with the Chat shell batch (`c9d6bf64`: one hand merge, `SpixiFlags.cs` init tail; eight pins re-based; a Fable reader CLEAN) and Fix batch 3 (`1ad3a44e`: no hand merge, no re-base); CSH 806; the `e-header` timing flake. |
 | #1810 | Fix batch 3 item 1: a mini-app action before `ixian:onload` is refused "not ready"; both catches log the command name + exception type only (P84; no switch). |
 | #1811 | Fix batch 3 item 2: chat info re-scans after "Delete history" (both paths), one scan gate, the cache after the gate; chat info's delete runs the Sent sweep (P85; no switch). |
 | #1812 | Fix batch 3 items 3 + 4: the walk step `downloads` scrolls the Account hub (swipe → check → tap); `-HistorySeed <k>` (P86). #1666 ④ moved by #1739 (3). |

@@ -23,6 +23,8 @@ empty). The main chat writes the next prompt.
 - Definition of done: no row of `docs/release-readiness.md` names these defaults; none changed.
 - Still owed: the walk on Windows + Android (`docs/walk-defaultsb.md`); the first compiles; the answers to the questions of § 4.
 
+- **2026-11-22 merges (#1801):** `redesign/frontend` @ `c9d6bf64` (photo1b; ONE hand merge: the tail of `SpixiFlags.init`, the defaultsb group before `readPhoto1b();`; eight pins re-based; a fresh Fable 5.2 reader on the merged code: CLEAN; smoke BASELINE OK 6741) and then @ `1ad3a44e` (fixb3; no hand merge, no re-base). Final tree: CSH 806 · smoke 6774 rows = 6768 pass + 6 flake rows of `pins-fixb1/e-header` (green alone 3 / 3) + the 2 KNOWN.
+
 ## 1 · What this session did
 | Item | Result | Evidence | Switch |
 |---|---|---|---|

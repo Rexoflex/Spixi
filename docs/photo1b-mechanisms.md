@@ -15,7 +15,7 @@ Base `55feaddc` (Fix batch 2 merged). The two reports read the code at `20ada92`
 | H6 | The fade pass also runs on every scroll frame (`scheduleComposerFade` on `scroll`) and once per render | `:8933` (`box.addEventListener('scroll', scheduleComposerFade …)`); `composerFadeNow()` at the end of `renderLogNow` `:5989` | yes |
 | H7 | `orderInsert` is O(n) per row (filter + walk) → O(page · n) per page | `:6398-6404` | yes |
 | H8 | The request fires within max(160 px, one screen) of the top, no fling gate | `attachLazyHistory` `:6378-6385`, `LAZY_HISTORY_MIN_PX = 160` `:6235`; `lazy-history.js:54-58` | yes |
-| H9 | HV-5: the first page steps over 100 rows (50 → 150) | C#, NOT the page: `SCP:1084-1103` (`if (messagesToShow == 100) messagesToShow += Config.messagesToLoad;`) — the page takes any page size. Out of this batch (contract § 7 / § 8) | yes (C#) |
+| H9 | HV-5: the first page steps over 100 rows (50 → 150) | C#, NOT the page: `SCP:1084-1103` at the base (`:1179-1198` after the merge with photo1a) (`if (messagesToShow == 100) messagesToShow += Config.messagesToLoad;`) — the page takes any page size. Out of this batch (contract § 7 / § 8) | yes (C#) |
 | H10 | Missing lines: no per-page insert line, no frames line per page | `lastPaintMs` is set for a prepend (`:7013`) but printed only on the open (`:7457`); `p1.js` has `p1Shown` | yes |
 
 ## B · The photo / voice open (`claude/photo-open-research-2026-11-17.md` § 2, § 3, § 6)
@@ -39,6 +39,6 @@ The `tokens` agent finds each token by its rule, not by the line number. The alp
 (--chat-pattern-alpha-*) and the per-canvas ink stay the only dials") — so the generator and its output do not change.
 
 ## D · The cap path (the switches)
-The chat page's caps are pushed ONCE per `onLoad` from `SCP:1648` (`Utils.sendUiCommand(this, "setCaps", caps)`),
+The chat page's caps are pushed ONCE per `onLoad` from `SCP:1648` at the base (`:1750` after the merge with photo1a; our cap line `:1749`) (`Utils.sendUiCommand(this, "setCaps", caps)`),
 before the load task; the shell's `setCaps` only adds (`chat.html:7395-7405`). So the caps are in before the first
 `messagesDone`; a render before them (the 500 ms fallback `:6015`) takes the old path.

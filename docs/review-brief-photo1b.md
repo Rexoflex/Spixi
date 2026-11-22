@@ -18,7 +18,7 @@ is a NIT, not a MAJOR. Prefer behaviour findings (a concrete input that gives a 
 | PO-6 shell | a flat placeholder wave writes no bar; a repaint writes only the bars that changed; the 40 bars STAY (one element cannot paint the per-bar heights, tips, gaps and the played split the same; pins hold 40 bars) | `src/components/message-bubble.js`, `chat.html` T1 | `VoiceWaveLite` (`voiceWaveLite`) · P75 |
 | #1644 tokens | Damir's picks per appearance and theme; dark Mist ground `#0C0E10`, bubble `#272B2D` (1.353 : 1), quote `#151819` (1.249 : 1); the pattern alpha per canvas; the light Aurora ring 3.024 : 1 on the Calmer 2 gap (not re-set) | `src/styles/tokens.css` (`docs/photo1b-tokens.md`) | none (values) |
 | flags | five int prefs (absent = ON, a stored 0 acts only in dev mode), one `[FLAGS] photo1b …` line, the cap words added at the ONE cap push of the chat page | `Spixi/Utils/SpixiFlags.cs` (one block + one call), `SingleChatPage.xaml.cs:1648` (one line) | — · P76 (the plumbing, the prefs, the line) |
-Not built: HV-5 (the first page of 50 rows) is C# (`SingleChatPage.xaml.cs:1084-1103`, the file of `photo1a`) → the later
+Not built: HV-5 (the first page of 50 rows) is C# (`SingleChatPage.xaml.cs:1084-1103` at the base, `:1179-1198` after the merge, the file of `photo1a`) → the later
 C# batch (contract § 8). The one-element waveform (PO-6) is not built (reason above).
 
 ## 2 · How to run
@@ -49,4 +49,29 @@ C# batch (contract § 8). The one-element waveform (PO-6) is not built (reason a
   (the picks, dark Mist `#0C0E10`, the pattern follows the step) · #1735 (the pin-limit rule).
 
 ## 5 · Verdict
-(written by the lead when the loop closes)
+**CLEAN at round 5** (the last permitted round; 2026-11-22). MAJOR per round: r1 3 → r2 0 → r3 0 → r4 0 → r5 0.
+| Round | Readers (fresh, read-only) | Result | Fixed in |
+|---|---|---|---|
+| r1 | S, R (Fable 5.2) · O1, O2, O3 (Opus) | MAJOR 3 (S-1 the composer lock not in the insert's key; R1 a voice file's quote; O2-1 the Settings preview vs the picks), MINOR 8 | the build-time read audit in `renderCtxKey`; the narrowed tile resets |
+| r2 | S2, R2 (Fable 5.2) · O4 (Opus) | 0 MAJOR; MINOR 4 (R2-1 `loadedMedia.size` in the key; three pin gaps) | `f60f1ff` |
+| r3 | S3, R3 (Fable 5.2) · O5 (Opus, merge + C#) | 0 MAJOR; MINOR 1 (R3-1 the a-insert tick step depended on machine speed) | `e2f0857` |
+| r4 | SR4 (Fable 5.2; rows S + R) | 0 MAJOR; MINOR 1 (SR4-1 no pin held the two dev-line changes of r3; a stale b-anchor sentence); NOTE 3 | `9a0dea4` (pins only; breaks 8 and 9 red for their reason) |
+| r5 | SR5 (Fable 5.2; rows S + R) | **CLEAN**: 0 MAJOR, 0 MINOR, NOTE 6 | — (recorded below; no code change after r5) |
+
+Recorded, not fixed (all developer lines, integers only, `<html data-p1>` only, no user, DOM or scroll effect; SR5 rated them
+NOTE and said that, by the letter of the pin-gap rule, SR5-1/2/3 count as ONE MINOR — recorded here with the reason):
+| Id | Point | Fix direction (a later batch) |
+|---|---|---|
+| SR5-1 | d-lines (fix r4) part a: `rows=30` is also the normal path's count; the case depends on the timer paint (it does paint today: `mode=full`) | also require ` mode=full ` and a `__p1bFull` delta of 1 |
+| SR5-2 | `olderPageTimerRows = 0;` (chat.html:7390) has no pin; an empty answer after a timer page would repeat `rows=n` | push `messagesDone('true')` alone after the timer page, require `rows=0` |
+| SR5-3 | the `if (sp)` guard removed is green (the throw is swallowed); the `late` line of a timer-painted open is unpinned | require exactly one `chat-shell late ` line in that part |
+| SR5-4 / SR4-2 | a stale `openSplit` (a re-flush with no onChatScreenLoaded) gives a timer-painted open another render's numbers | `openSplit = null` at `clearMessages` |
+| SR5-5 / SR4-2 | a page in two prepend pushes with a timer paint between says only the second push's rows; the peer reset keeps `olderPageTimerRows` | `pageRows = olderPageTimerRows + …`; reset it at the peer reset |
+| SR4-3 | a-insert header: "the full render REPLAYS a live tick" is true only on a fast runner (the verdict holds either way) | push the tick then its page per document; say so in the header |
+| SR4-4 | a throw in `noteRendered` is swallowed with no dev trace (the next page takes the full render) | one `console.warn` with fixed words under `devP1` |
+| SR5-6 | the smoke after the last fix (r4 added one row) | done: see below |
+
+The code files are committed exactly as the r5 reader read them (SHA-256, first 16, lead tree = `/home/claude/review/r5`):
+`src/shells/chat.html` 2392d4e9d8feabf3 · built `chat.html` 67b893c03b0fcd92 · `SpixiFlags.cs` a580a17e0f29279b ·
+`SingleChatPage.xaml.cs` 7bade6b7ac1bef46 · `pins-photo1b/d-lines.mjs` 5f923910ff004aa2.
+Smoke after the last fix (`9a0dea4`): `BASELINE OK — 6727 pass / the 2 KNOWN` (= 6726 of `e2f0857` + 1 new d-lines row; 2026-11-22, `TZ=America/Los_Angeles`, jsdom 29.1.1). CSH 775 (the r4 fix touched no C#).

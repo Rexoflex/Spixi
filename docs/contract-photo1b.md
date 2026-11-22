@@ -83,7 +83,7 @@ the computed dark Mist bubble / quote, the floors per cell, the ring.
 `Spixi/VoIP/**`, `Spixi/Utils/SharedItems.cs`, the photo1a store files, `scripts/device/**`, `scripts/pins-photo1a/**`,
 `Spixi/Utils/SConfirm.cs`, `SPayments.cs`, the start path, `Spixi/Utils/SDevSeed*.cs`, `Spixi/Spixi.csproj`,
 `Spixi/Meta/**`, Ixian-Core, `.github/**`, the bridge protocol. HV-5 (the first page of 50 rows) is a C# change in
-`onLoadMore` (`SingleChatPage.xaml.cs:1084-1103`) — NOT in this batch (§ 8).
+`onLoadMore` (`SingleChatPage.xaml.cs:1084-1103` at the base; `:1179-1198` after the merge with photo1a) — NOT in this batch (§ 8).
 
 ## 8 · What the later C# batch (P-28, HV-5, the C# lines of HV-0) may rely on
 - The shell accepts an older page of ANY size and inserts it by HV-1 (no assumption of 50 or 100 rows).

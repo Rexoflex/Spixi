@@ -7005,6 +7005,7 @@ namespace SPIXI
         {
             string status = "fail";
             string addr = "";
+            string? deleted = null;   // ★ fixb3 item 2: the friend's own address text (the openContactDetails comparison)
             try
             {
                 bool media = takeMediaFlag(ref address);
@@ -7016,6 +7017,7 @@ namespace SPIXI
                     if (SContacts.removeHistory(f))
                     {
                         status = "ok";
+                        deleted = f.walletAddress?.ToString();
                         if (media)
                         {
                             schedulePurge("removehistory", files, f.walletAddress);
@@ -7028,6 +7030,27 @@ namespace SPIXI
                 Logging.error("ixian:removehistory failed (malformed payload or address)");   // loop r1: no ex.Message (carries the token)
             }
             try { Utils.sendUiCommand(this, "removeHistoryResult", addr, status); } catch (Exception) { }
+            /* ★ fixb3 item 2 (#1744 (3), P85): an OPEN chat-info page of that contact (Windows: the pane beside the chat, or
+             * the detail slot — both are overlays) re-scans its shared items, so it stops showing the deleted media and
+             * files. Only on "ok". Runs on the main thread: onNavigating (the ixian:removehistory: branch) is the WebView
+             * Navigating handler (SpixiContentPage.cs, the spare-attach note); never throws (a type-only line). */
+            if (status == "ok" && deleted != null)
+            {
+                try
+                {
+                    foreach (SpixiContentPage p in SpixiContentPage.getOverlayPages())
+                    {
+                        if (p is ContactDetails open && open.friendAddressString() == deleted)
+                        {
+                            open.refreshSharedItemsAfterDelete();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.warn("onRemoveHistoryFor: chat info " + ex.GetType().Name);   // the type only
+                }
+            }
             UIHelpers.shouldRefreshContacts = true;   // loop r2 R2-3: a REFUSAL must re-flush too (the shell un-tombstones)
             updateScreen();
         }

@@ -21,6 +21,14 @@ Steps added in batch photo1a: open-seed (per index k of run.json seedIndex the r
          old chat batch / chat-shell lines are OPTIONAL rows: a build that has no such line gives n/a, never "no data" and
          never exit 2; intent -> present, present ms= and attach spare= stay required) and mem-photos (the rows of mem-end).
 
+Steps added in batch fixb3: history-seed-kNN (history run with -HistorySeed k: the reps carry that step name, run.json has the integer
+         historySeed; the rows are the rows of history with the page rows asking for the FIRST page request, because a dev-seed
+         chat has one older page; first swipe -> 1st page is the stamp of the first `[P1] chat load` line AFTER the first
+         `[P1] shell send loadmore` line of the window minus t0, no such pair = "no data" with the reason; a rep with no page
+         line is "no data"; review round 3: EVERY row of the step, the scroll, long-task and swipes rows too, is "no data" for a rep
+         whose run.json `pages` is missing, not a whole number or 0, because such a rep may have hit historyMaxSwipes and skews a
+         median). A run without historySeed reads history as before.
+
 Safety rules (this script is read by a security reviewer):
 - Reads ONLY files named by run.json inside -RunDir (plain file names; any name with a path part is refused).
 - Writes ONLY summary.md and summary.csv into -RunDir. No network, no adb, no other process, no other file.
@@ -118,6 +126,13 @@ function Test-OpenSeedName {
     return [regex]::IsMatch($Name, '\Aopen-seed-k(?:[0-4][0-9]|5[0-5])(?:-cold)?\z', [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
 }
 
+function Test-HistorySeedName {
+    # Batch fixb3 (item 4): the step name the driver gives the reps of history with -HistorySeed (case-sensitive, anchored, the index 00..55).
+    param($Name)
+    if ($Name -isnot [string]) { return $false }
+    return [regex]::IsMatch($Name, '\Ahistory-seed-k(?:[0-4][0-9]|5[0-5])\z', [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+}
+
 function Get-StepKey {
     # The step table's OWN key for a manifest step name, or $null. Print the key, never the manifest string.
     param($Name)
@@ -127,6 +142,8 @@ function Get-StepKey {
     }
     # Batch photo1a: the per-index names of open-seed (open-seed-kNN, open-seed-kNN-cold; NN = 00..55).
     if (Test-OpenSeedName $Name) { return $Name }
+    # Batch fixb3 (item 4): history-seed-kNN (the reps of history on a named dev-seed chat).
+    if (Test-HistorySeedName $Name) { return $Name }
     return $null
 }
 
@@ -152,6 +169,7 @@ function Test-SafeName {
     $keys = New-Object System.Collections.Generic.List[string]
     foreach ($k in $script:StepTable.Keys) { $keys.Add([regex]::Escape([string]$k)) }
     $alt = ($keys.ToArray() -join '|') + '|open-seed-k(?:[0-4][0-9]|5[0-5])(?:-cold)?'
+    $alt = $alt + '|history-seed-k(?:[0-4][0-9]|5[0-5])'
     $re = '^(shot-(' + $alt + ')-[0-9]{2}\.png|android-walk-(' + $alt + ')-[0-9]{2}\.txt|meminfo-(home|end|trim|photos)-(app|renderer)\.txt)\z'
     return [regex]::IsMatch($Name, $re)
 }
@@ -206,6 +224,7 @@ $script:L = @{
     TabWalletFr = @{ Gram = $true; Label = 'shell frames-tab-wallet';          Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-tab-wallet(?=\s)')) }
     TabAccountFr = @{ Gram = $true; Label = 'shell frames-tab-account';        Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-tab-account(?=\s)')) }
     Load        = @{ Gram = $true; Label = 'chat load';                        Rx = (New-Rx ($script:Cm + '\[P1\] chat load(?=\s|$)')) }
+    SendLoadMore = @{ Gram = $true; Label = 'shell send loadmore';             Rx = (New-Rx ($script:Cm + '\[P1\] shell send loadmore(?=\s|$)')) }
     SendViewImage   = @{ Gram = $true; Label = 'shell send viewimage';            Rx = (New-Rx ($script:Cm + '\[P1\] shell send viewimage(?=\s)')) }
     OverlayOpen     = @{ Gram = $true; Label = 'shell overlay-open';              Rx = (New-Rx ($script:Cm + '\[P1\] shell overlay-open(?=\s)')) }
     OverlayOpenFr   = @{ Gram = $true; Label = 'shell frames-overlay-open';       Rx = (New-Rx ($script:Cm + '\[P1\] shell frames-overlay-open(?=\s)')) }
@@ -507,6 +526,50 @@ function X-Field {
         return (New-Res 'value' ([double]$C.Swipes) '')
     }
     return (New-Res 'missing' $null ($C.Label + ': unknown field in run.json'))
+}
+
+function X-SeedPagesGate {
+    # Batch fixb3 (item 4, review round 3 m1): the gate of EVERY row of history-seed-kNN. $null when the rep counts: the driver counted at least
+    # ONE page request (pages in run.json is a whole number >= 1). Otherwise the "missing" result with the reason: zero pages = a chat with no
+    # older page cannot measure anything (the scroll, long-task and swipes rows of such a rep may hit historyMaxSwipes and skew a median), a
+    # missing or other value = no data too, whatever a stray log line says.
+    param($C)
+    if (-not $C.Usable) { return (New-Res 'missing' $null $C.Why) }
+    if (($null -eq $C.Pages) -or ($C.Pages -lt 1)) { return (New-Res 'missing' $null ($C.Label + ': no page request was counted (pages in run.json is missing, not a whole number, or 0): a chat with no older page cannot measure this')) }
+    return $null
+}
+
+function X-SeedPage {
+    # Batch fixb3 (item 4): a page row of history-seed-kNN, behind the gate above. Kind = count | first.
+    param($C, [string]$Kind)
+    $g = X-SeedPagesGate $C
+    if ($null -ne $g) { return $g }
+    if ($Kind -eq 'count') { return (X-Count $C $script:L.Load 1) }
+    return (X-SeedFirstPage $C)
+}
+
+function X-SeedGated {
+    # Batch fixb3 (item 4, review round 3 m1): any other row of history-seed-kNN (the scroll rows, the long-task rows, swipes): the gate first, then
+    # the old extractor $Fn ($C, $Arg), unchanged. The old history rows do not use this.
+    param($C, [string]$Fn, [string]$Arg)
+    $g = X-SeedPagesGate $C
+    if ($null -ne $g) { return $g }
+    return (& $Fn $C $Arg)
+}
+
+function X-SeedFirstPage {
+    # Batch fixb3 (item 4, review round 2 NIT 2): first swipe -> 1st page of history-seed-kNN = the stamp of the FIRST `[P1] chat load` line
+    # AFTER the first `[P1] shell send loadmore` line of the window, minus t0. A chat load that comes before the page request (the open of
+    # the chat) is not the page; no loadmore line, or no chat load after it = "no data" with the reason. The old history rows do not use this.
+    param($C)
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    $req = (Get-Hits $C $script:L.SendLoadMore).Items
+    if ($req.Count -eq 0) { return (Get-MissingLine $C $script:L.SendLoadMore) }
+    foreach ($ld in (Get-Hits $C $script:L.Load).Items) {
+        if ($ld.Stamp -ge $req[0].Stamp) { return (New-Res 'value' (($ld.Stamp - $C.T0).Ticks / 10000.0) '') }
+    }
+    return (New-Res 'missing' $null ($C.Label + ': no "' + $script:L.Load.Label + '" line after the first "' + $script:L.SendLoadMore.Label + '" line in ' + $C.LogName))
 }
 
 function X-Scroll {
@@ -827,6 +890,23 @@ $script:StepTable = [ordered]@{
     'open-seed'   = @{ Kind = 'open-seed' }
 }
 
+# Batch fixb3 (item 4): the rows of history-seed-kNN = the rows of history with their own step name. The dev-seed chat has ONE older page
+# (Seed 56: 100 messages), so the page rows ask for the FIRST page request (history asks for three): older pages loaded needs at least
+# one `[P1] chat load` line, first swipe -> 1st page is the stamp of the first chat load line after the first `shell send loadmore` line minus t0.
+# Review round 3 (m1): EVERY row is behind the gate pages >= 1 (X-SeedPagesGate: the page rows through X-SeedPage, the others through
+# X-SeedGated): a rep with no page request (zero pages, or no `pages` in run.json) is "no data" in every row, not only in the two page rows.
+# The scroll and long-task rows repeat the old defs by name, unit and flag (the old defs are not shared: they have no gate).
+$script:HistorySeedDefs = @(
+    (New-Def 'older pages loaded' 'count' $true 'log' { param($c) X-SeedPage $c 'count' }),
+    (New-Def 'first swipe -> 1st page' 'ms' $true 'log' { param($c) X-SeedPage $c 'first' }),
+    (New-Def 'scroll max gap (max)' 'ms' $true 'log' { param($c) X-SeedGated $c 'X-Scroll' 'gap' }),
+    (New-Def 'scroll drops (sum)' 'count' $true 'log' { param($c) X-SeedGated $c 'X-Scroll' 'drops' }),
+    (New-Def 'scroll frames n (sum)' 'count' $true 'log' { param($c) X-SeedGated $c 'X-Scroll' 'frames' }),
+    (New-Def 'long tasks' 'count' $false 'log' { param($c) X-SeedGated $c 'X-Long' 'count' }),
+    (New-Def 'longest long task' 'ms' $false 'log' { param($c) X-SeedGated $c 'X-Long' 'longest' }),
+    (New-Def 'swipes' 'count' $true 'run' { param($c) X-SeedGated $c 'X-Field' 'swipes' })
+)
+
 $script:MemDefs = @(
     (New-Def 'app PSS' 'kB' $true 'memapp' { param($c) X-Mem $c 'app' }),
     (New-Def 'renderer PSS' 'kB' $true 'memrend' { param($c) X-Mem $c 'rend' }),
@@ -836,6 +916,14 @@ $script:MemDefs = @(
 # ---------------------------------------------------------------------------------------------------------------
 # Statistics and rows
 # ---------------------------------------------------------------------------------------------------------------
+function Get-HistorySeedIndex {
+    # Batch fixb3 (item 4): run.json historySeed = ONE whole number 0..55 (the dev-seed index of -HistorySeed); anything else = -1 (none).
+    param($M)
+    $n = Get-Num (Get-Prop $M 'historySeed')
+    if (($null -eq $n) -or ($n -ne [Math]::Floor($n)) -or ($n -lt 0) -or ($n -gt 55)) { return -1 }
+    return [int]$n
+}
+
 function Get-SeedIndexes {
     # Batch photo1a: run.json seedIndex = 1 to 8 distinct whole numbers 0..55 (round 1 F4: a negative number is none too); anything else = none (the step shows "no data").
     param($M)
@@ -871,6 +959,8 @@ function Get-StepDef {
         if ($k.EndsWith('-cold', [StringComparison]::Ordinal)) { return @{ Kind = 'reps'; Reps = 'one'; Defs = $script:OpenSeedColdDefs } }
         return @{ Kind = 'reps'; Reps = 'repeats'; Defs = $script:OpenSeedWarmDefs }
     }
+    # Batch fixb3 (item 4): history-seed-kNN has the metric rows of history, its own step name (page threshold 1, see HistorySeedDefs).
+    if (Test-HistorySeedName $k) { return @{ Kind = 'reps'; Reps = 'repeats'; Defs = $script:HistorySeedDefs } }
     return $script:StepTable[$k]
 }
 
@@ -956,6 +1046,7 @@ function New-Ctx {
         Label = $Label; Present = $Present; Usable = $Usable; Why = $Why
         Am = $null
         Swipes = $null
+        Pages = $null
         T0 = $null; T0Why = ''
         T2 = $null; T2Why = ''
         LogName = ''; LogWhy = $null; Window = @()
@@ -1001,6 +1092,10 @@ function New-RepCtx {
     $sw = Get-Num (Get-Prop $Entry 'swipes')
     if (($null -ne $sw) -and (($sw -gt 1000) -or ($sw -ne [Math]::Floor($sw)))) { $sw = $null }
     $c.Swipes = $sw
+    # Batch fixb3 (item 4): pages = the page requests the driver counted in a history-seed rep (a whole number 0..1000, else $null).
+    $pg = Get-Num (Get-Prop $Entry 'pages')
+    if (($null -ne $pg) -and (($pg -gt 1000) -or ($pg -ne [Math]::Floor($pg)))) { $pg = $null }
+    $c.Pages = $pg
     $c.T0 = $T0
     $c.T0Why = $T0Why
     # stamp2 (filewalk steps): the device time of the second stamp, same format as t0; only read when a row asks for it.
@@ -1303,6 +1398,9 @@ function Invoke-Main {
         $name = [string]$s
         if (-not $steps.Contains($name)) { $steps.Add($name) }
     }
+    # Batch fixb3 (item 4): a run with -HistorySeed (run.json historySeed): the step history is read from the reps named history-seed-kNN.
+    $histSeedK = Get-HistorySeedIndex $m
+    if (($histSeedK -ge 0) -and $steps.Contains('history')) { $steps[$steps.IndexOf('history')] = 'history-seed-k' + $histSeedK.ToString('00', $script:Inv) }
     $reps = New-Object System.Collections.Generic.List[object]
     foreach ($r in @(Get-Prop $m 'reps')) { if ($null -ne $r) { $reps.Add($r) } }
     $memEntries = New-Object System.Collections.Generic.List[object]
@@ -1592,6 +1690,9 @@ function Invoke-Main {
     }
     foreach ($k in $legendNew.Keys) {
         if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }
+    }
+    if ($histSeedK -ge 0) {
+        [void]$md.Append('- history-seed-k' + $histSeedK.ToString('00', $script:Inv) + ': history on the dev-seed chat of index ' + $histSeedK.ToString($script:Inv) + ' (-HistorySeed; the address is derived by the script), after a proven restart of the app in every rep; t0 = the first swipe to older messages; the swipes stop at the FIRST page request (a seed chat has ONE older page), so older pages loaded needs one `[P1] chat load` line AND pages >= 1 in run.json, and first swipe -> 1st page is the stamp of the first `[P1] chat load` line after the first `[P1] shell send loadmore` line minus t0 (history asks for three pages); a rep with no page line, or with pages 0 / missing in run.json (the driver counted no page request) = "no data" in EVERY row of the step (the scroll, long-task and swipes rows too: such a rep may have hit historyMaxSwipes); the scroll and long-task rows as for history.' + "`n")
     }
     [void]$md.Append("`nFiles`n`n")
     $seen = New-Object System.Collections.Generic.List[string]

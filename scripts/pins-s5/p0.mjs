@@ -100,7 +100,10 @@ export default async function (h) {
     const clears = (set.match(/CoreMessageWriter\.arrivals\.clear\(\)/g) || []).length;
     const r = {
       deletes: del.length === 2 && del.every((s) => s.endsWith(':true')),
-      histories: hist.length === 2 && hist.every((s) => s.endsWith(':true')),
+      /* ★ fixb3 re-base (item 2, #1744 (3), P85; after a look at the diff): chat info › Delete history now runs SContacts.removeHistory
+         (one body; pins-fixb3/b-delete-history k1 holds that ContactDetails calls `.deleteHistory(` nowhere), so ONE history clear calls
+         deleteHistory() — and it still forgets the address right after it. Was: 2 (ContactDetails.onRemoveHistory + SContacts.removeHistory). */
+      histories: hist.length === 1 && hist[0].startsWith('Spixi/Utils/SContacts.cs:') && hist.every((s) => s.endsWith(':true')),
       wipes: entire === 3 && clears === 3,
       removals: rm.length === 6 && rm.every((s) => s.endsWith(':true')),
       sentAndReactions: (cs('Spixi/Network/SpixiPendingMessageProcessor.cs').match(/setMessageSent\([^;]*\);\s*CoreMessageWriter\.arrivals\.markDirty\(/g) || []).length === 2

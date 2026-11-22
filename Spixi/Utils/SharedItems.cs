@@ -329,8 +329,10 @@ namespace SPIXI
             return disk;
         }
 
-        /** Off the UI thread. Newest first, at most ItemCap; remembered per conversation for resolve(). */
-        public static List<SharedItem> scan(Friend friend)
+        /** Off the UI thread. Newest first, at most ItemCap; remembered per conversation for resolve() — unless the caller passes
+         *  remember: false and writes the cache itself with remember(friend, items) (★ fixb3 #46 r1 S m-1: chat info's gated scans
+         *  write it on the main thread ONLY when their gate passes, so a slow OLDER scan cannot put a deleted history's items back). */
+        public static List<SharedItem> scan(Friend friend, bool remember = true)
         {
             System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
             List<SharedItem> all = new List<SharedItem>();
@@ -412,12 +414,40 @@ namespace SPIXI
                     }
                 }
             }
-            lock (cacheLock)
+            if (remember)
             {
-                lastScan[friend.walletAddress.ToString()] = items;
+                lock (cacheLock)
+                {
+                    lastScan[friend.walletAddress.ToString()] = items;
+                }
             }
             Logging.info("[SHARED] n={0} read={1} thumbs={2} ms={3}", items.Count, read, thumbs, sw.ElapsedMilliseconds);   // counts only
             return items;
+        }
+
+        /** ★ fixb3 (#46 r1 S m-1): the cache write of scan(), for a caller that scanned with remember: false — the SAME key and the
+         *  SAME lock as scan's own write, so resolve() reads it the same way. ContactDetails calls it on the main thread right after
+         *  its scan gate passed, before the setSharedItems push: the cache then always holds the list the shell was last given.
+         *  The list must not change after this call (scan's thumbnails are done before it returns). Never throws (it runs inside a
+         *  main-thread callback): a null friend, address or list writes nothing. */
+        public static void remember(Friend friend, List<SharedItem> items)
+        {
+            try
+            {
+                if (friend == null || friend.walletAddress == null || items == null)
+                {
+                    return;
+                }
+                string key = friend.walletAddress.ToString();
+                lock (cacheLock)
+                {
+                    lastScan[key] = items;
+                }
+            }
+            catch (Exception)
+            {
+                // the cache keeps its last list; resolve() answers from it as before (no log: this file logs counts only, #1106)
+            }
         }
 
         public static string toJson(List<SharedItem> items)

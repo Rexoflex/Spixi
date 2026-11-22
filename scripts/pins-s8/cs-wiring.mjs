@@ -324,7 +324,7 @@ export default async function (h) {
         if (m[2].trim() !== 'SAppDeclines.clear(' + m[1] + ');') miss.push(f + ': ' + m[1]);
       }
     }
-    ok(sites.length >= 8 && miss.length === 0 && declineCalls === sites.length,
+    ok(sites.length >= 7 && miss.length === 0 && declineCalls === sites.length,   // ★ fixb3 re-base (item 2, P85): 8 → 7 — ContactDetails.onRemoveHistory runs SContacts.removeHistory now (one body), so its own clear pair is gone; that path still clears both through SContacts
       'S8 A4 per-contact declines (#46 r4 MINOR-3): each per-contact SReactionFlags.clear statement is followed by SAppDeclines.clear of the same address — ' + JSON.stringify({ sites: sites.length, declineCalls, miss }));
   });
 }

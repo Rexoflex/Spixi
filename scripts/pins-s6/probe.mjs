@@ -62,7 +62,7 @@ export default async function (h) {
     const cd = stripCode(readFileSync(join(root, 'Spixi/Pages/Contacts/ContactDetails.xaml.cs'), 'utf8'));
     const r = {
       line: /P1Perf\.line\("infopane " \+ \(open \? "open" : "close"\)[^;]*\+ " from=" \+ \(long\)Math\.Round\(from\)\s*\+ " tiles=" \+ \(pane != null \? pane\.p1MediaTiles : -1\) \+ " previews=" \+ \(pane != null \? pane\.p1MediaPreviews : -1\)\s*\+ " shown=" \+ \(pane != null \? pane\.p1MediaShown : -1\) \+ " shownPreviews=" \+ \(pane != null \? pane\.p1MediaShownPreviews : -1\)\);/.test(hp),
-      bothScans: (cd.match(/SharedItems\.toJson\(page\.p1NoteShared\(SharedItems\.scan\(scanned\)\)\)/g) || []).length === 2,
+      bothScans: (cd.match(/List<SharedItem> items = page\.p1NoteShared\(SharedItems\.scan\(scanned, remember: false\)\);\s*string json = SharedItems\.toJson\(items\);/g) || []).length === 2,   /* ★ fixb3 re-base (fixer-12, #46 r1 S m-1; after a look at the diff): `SharedItems.toJson(page.p1NoteShared(SharedItems.scan(scanned)))` ×2 → the counter still wraps BOTH scans (remember: false; the list kept for the cache write after the gate) */
       counts: /if \(it\.kind == "media"\)\s*\{\s*tiles\+\+;\s*if \(it\.thumb != null\) previews\+\+;/.test(cd) && /p1MediaTiles = tiles;\s*p1MediaPreviews = previews;/.test(cd),
       /* ★ #46 r4 m3: shown= / shownPreviews= — the first 9 media rows in push order (the shell keeps C#'s order, reads 200 rows, slices 9) */
       shown: /if \(row < P1ShellRowsRead && shown < P1InlineMax\)\s*\{\s*shown\+\+;\s*if \(it\.thumb != null\) shownPreviews\+\+;\s*\}\s*\}\s*row\+\+;/.test(cd)

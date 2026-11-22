@@ -31,7 +31,8 @@
  *                             // to unfurl — the SENDER composes the preview
  *                             // into the message (Signal-style), bridge carries it
  *   voice: { durMs, peaks, state, posMs, onPlay,     // ★ #1208 (S7): a VOICE bubble —
- *            who, heard, sending, sendPct, sendStill },  // ★ S8 (#1239 / #1240): the face + mic badge, the send ring
+ *            who, heard, sending, sendPct, sendStill,    // ★ S8 (#1239 / #1240): the face + mic badge, the send ring
+ *            lite },                                     // ★ photo1b PO-6: true = only changed bars are written (voiceWaveLite); absent / false = old path
  *                             // play / pause + a 40-bar waveform + the time replace
  *                             // the text body (`text` is ignored); live updates via
  *                             // setVoiceBubble(row, voice). No audio here: onPlay
@@ -816,6 +817,16 @@ function voiceBarHeights(peaks) {
   return out;
 }
 
+/* ★ photo1b PO-6 (`voiceWaveLite`) — what a LITE wave last wrote: the heights (0 = nothing written: `.c-voice__bar` reads
+   `var(--voice-h, 0)`, so an unwritten bar IS a height-0 bar, the flat 2 px dot) and how many leading bars carry data-played.
+   WHY the 40 bars stay 40 spans (the "one element instead of 40" question, decided here): the played progress marks bars ONE
+   BY ONE (data-played, a colour step each) and the bar heights are the clip's own peaks — one element would have to paint 40
+   different heights and a played / unplayed colour split by a gradient or a mask, which is NOT what the 40 round-ended 2 px
+   spans paint (the gap rhythm, the rounded tips, the 1.5 px floor on a narrow box, the sent / received inks, the forced-colours
+   branch), and the pins of S7 / S7b / S8p / S17 hold the 40 bars (their count, --voice-h, data-played). So the DOM keeps its 40
+   bars and the saving is in the WRITES: none for a flat placeholder, only the changed bars on a repaint. */
+const voiceWaveMemo = new WeakMap();   // .c-voice__wave → { hs: number[40], played: number }
+
 function buildVoiceBody(voice, strings) {
   const wrap = document.createElement('span');
   wrap.className = 'c-voice';
@@ -967,9 +978,26 @@ function paintVoice(wrap, voice, strings = getStrings()) {
   if (known) delete wave.dataset.placeholder; else wave.dataset.placeholder = '';
   const played = live && dur ? Math.round(pos / dur * VOICE_BARS) : 0;
   const bars = wave.children;
-  for (let i = 0; i < bars.length; i++) {
-    bars[i].style.setProperty('--voice-h', String(hs[i]));
-    if (i < played) bars[i].dataset.played = ''; else delete bars[i].dataset.played;
+  if (v.lite) {
+    /* ★ photo1b PO-6 (`voiceWaveLite`): write only what CHANGED since this wave's last paint (see voiceWaveMemo). A flat
+       placeholder writes nothing (an unwritten bar already reads --voice-h 0); a played tick writes the bars between the old
+       and the new played count; a repaint with the same peaks and position writes nothing. The painted result equals the old
+       loop's. Old path (lite false): the loop below, 40 setProperty + 40 data-played writes at every paint. */
+    let m = voiceWaveMemo.get(wave);
+    if (!m) { m = { hs: new Array(bars.length).fill(0), played: 0 }; voiceWaveMemo.set(wave, m); }
+    for (let i = 0; i < bars.length; i++) {
+      if (hs[i] !== m.hs[i]) { bars[i].style.setProperty('--voice-h', String(hs[i])); m.hs[i] = hs[i]; }
+    }
+    if (played !== m.played) {
+      const lo = Math.min(played, m.played), hi = Math.min(Math.max(played, m.played), bars.length);
+      for (let i = lo; i < hi; i++) { if (i < played) bars[i].dataset.played = ''; else delete bars[i].dataset.played; }
+      m.played = played;
+    }
+  } else {
+    for (let i = 0; i < bars.length; i++) {
+      bars[i].style.setProperty('--voice-h', String(hs[i]));
+      if (i < played) bars[i].dataset.played = ''; else delete bars[i].dataset.played;
+    }
   }
 
   const time = wrap.querySelector('.c-voice__time');

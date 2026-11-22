@@ -26,6 +26,7 @@
  * ★ re-based by S20G N-1 (Damir 21:50 "even darker still, still too close to outgoing"): the bubbles moved OKLCH L −0.06 (Mist −0.04),
  *   so the bubble-vs-stop floor drops 1.25 → 1.15 (measured 1.158–1.32; r1 NIT: 1.10 → 1.15, just under the measured min); every other
  *   relation still holds (Mist's quote lands on #000, 1.24).
+ * ★ re-based by photo1b (#1644, Damir's picks): the dark grounds, bubbles, quotes, inks and alphas follow the picked Calmer 1 / 2 step per canvas; dark Mist's ground is back at #0C0E10 with the bubble lifted to bubble : ground 1.35 (#272B2D) and the quote #151819 (1.249); the option-B 'darker ground' reads 'not lighter than A' for Mist; the pattern floor of the six coloured canvases is 0.75 × A (Mist keeps 0.97–1.15).
  * Deliberate breaks (S19 F10 report): the Ocean rule's bubble line deleted (canvas fails: Ocean falls back to #1E2023, darker
  * than its light stop) · hue 0's dark name lightness back to 60 % (names fails) · the dark quote rule back to
  * --surface-neutral-04 (quote fails) · the dark played voice disc back to --neutral-500 (voice fails) · #46 S19 M3: the track
@@ -136,13 +137,14 @@ export default async function (h) {
       /* ★ S19 option B: every stop darker than A's, the bubble darker AND more saturated than A's */
       const wasStops = A[g].stops.map(hex), wasB = hex(A[g].bubble);
       t.bubbleC = Math.round(okC(b) * 10000) / 10000; t.bubbleCWas = Math.round(okC(wasB) * 10000) / 10000;
-      if (gs.length !== wasStops.length || gs.some((x, i) => !(lum(x) < lum(wasStops[i]))) || !(lum(b) < lum(wasB)) || !(okC(b) > okC(wasB))) fail.optionB.push(name + JSON.stringify({ ground, bubble: t.bubble, C: [t.bubbleCWas, t.bubbleC] }));
-      /* ★ S19 option B: the pattern keeps A's visibility — mean (ink-over-stop contrast − 1), B at the computed alpha vs A at 0.0832 */
+      if (gs.length !== wasStops.length || gs.some((x, i) => (g === 'flat' ? !(lum(x) <= lum(wasStops[i])) : !(lum(x) < lum(wasStops[i])))) ||   /* ★ photo1b (#1644 RE-BASE): Mist's ground is BACK at A's #0C0E10 (the ruling replaces, for Mist only, the S19 / S20 darkening steps), so for flat 'darker' reads 'not lighter than A' (equal); the six coloured canvases stay strictly darker (the calm step keeps them darker than A) */ !(lum(b) < lum(wasB)) || !(okC(b) > okC(wasB))) fail.optionB.push(name + JSON.stringify({ ground, bubble: t.bubble, C: [t.bubbleCWas, t.bubbleC] }));
+      /* ★ S19 option B: the pattern keeps A's visibility — mean (ink-over-stop contrast − 1), B at the computed alpha vs A at 0.0832.
+         ★ photo1b (#1644 RE-BASE): the picked pattern FOLLOWS THE CALM STEP (alpha 0.0808 / Iris 0.0909 and lighter, less saturated grounds), so lowering it is the point of the pick — the six coloured canvases keep ≥ 0.75 × A (measured 0.77–0.86; was 0.97–1.15); dark Mist keeps 0.97–1.15 on its lighter #0C0E10 ground (measured in docs/photo1b-tokens.md) */
       const alpha = parseFloat(W.getComputedStyle(el).getPropertyValue('--chat-pattern-alpha-1')), ink = hex(resolve('--chat-pattern-ink'));
       const excess = (ss, a) => ss.reduce((acc, x) => acc + cr(over(x, ink, a), x) - 1, 0) / ss.length;
       t.alpha = alpha;
       t.patternVsA = ink && alpha > 0 ? Math.round(excess(gs, alpha) / excess(wasStops, A_ALPHA) * 1000) / 1000 : 0;
-      if (!(t.patternVsA >= 0.97 && t.patternVsA <= 1.15)) fail.pattern.push(name + ':' + t.patternVsA + '@' + alpha);
+      if (!(t.patternVsA >= (g === 'flat' ? 0.97 : 0.75) && t.patternVsA <= 1.15)) fail.pattern.push(name + ':' + t.patternVsA + '@' + alpha);
       table[name] = t;
     }
     r.canvas = Object.keys(table).length === 7 && fail.canvas.length === 0 && new Set(Object.values(table).map((t) => t.bubble)).size === 7;

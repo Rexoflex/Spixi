@@ -1746,6 +1746,7 @@ namespace SPIXI
                 caps += ",camera";
             }
 #endif
+            caps += SpixiFlags.Photo1bChatCaps;   // ★ photo1b (#1641 / #1742): the shell switches (contract-photo1b § 4)
             Utils.sendUiCommand(this, "setCaps", caps);
             SMoments.pushTo(this);   // ★ S17 F (#1340): the moment state (no-op with the flag OFF)
 

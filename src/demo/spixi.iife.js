@@ -6685,7 +6685,8 @@ function renderFormat(text, { onText = fmtDefaultOnText } = {}) {
  *                             // to unfurl — the SENDER composes the preview
  *                             // into the message (Signal-style), bridge carries it
  *   voice: { durMs, peaks, state, posMs, onPlay,     // ★ #1208 (S7): a VOICE bubble —
- *            who, heard, sending, sendPct, sendStill },  // ★ S8 (#1239 / #1240): the face + mic badge, the send ring
+ *            who, heard, sending, sendPct, sendStill,    // ★ S8 (#1239 / #1240): the face + mic badge, the send ring
+ *            lite },                                     // ★ photo1b PO-6: true = only changed bars are written (voiceWaveLite); absent / false = old path
  *                             // play / pause + a 40-bar waveform + the time replace
  *                             // the text body (`text` is ignored); live updates via
  *                             // setVoiceBubble(row, voice). No audio here: onPlay
@@ -7470,6 +7471,16 @@ function voiceBarHeights(peaks) {
   return out;
 }
 
+/* ★ photo1b PO-6 (`voiceWaveLite`) — what a LITE wave last wrote: the heights (0 = nothing written: `.c-voice__bar` reads
+   `var(--voice-h, 0)`, so an unwritten bar IS a height-0 bar, the flat 2 px dot) and how many leading bars carry data-played.
+   WHY the 40 bars stay 40 spans (the "one element instead of 40" question, decided here): the played progress marks bars ONE
+   BY ONE (data-played, a colour step each) and the bar heights are the clip's own peaks — one element would have to paint 40
+   different heights and a played / unplayed colour split by a gradient or a mask, which is NOT what the 40 round-ended 2 px
+   spans paint (the gap rhythm, the rounded tips, the 1.5 px floor on a narrow box, the sent / received inks, the forced-colours
+   branch), and the pins of S7 / S7b / S8p / S17 hold the 40 bars (their count, --voice-h, data-played). So the DOM keeps its 40
+   bars and the saving is in the WRITES: none for a flat placeholder, only the changed bars on a repaint. */
+const voiceWaveMemo = new WeakMap();   // .c-voice__wave → { hs: number[40], played: number }
+
 function buildVoiceBody(voice, strings) {
   const wrap = document.createElement('span');
   wrap.className = 'c-voice';
@@ -7621,9 +7632,26 @@ function paintVoice(wrap, voice, strings = getStrings()) {
   if (known) delete wave.dataset.placeholder; else wave.dataset.placeholder = '';
   const played = live && dur ? Math.round(pos / dur * VOICE_BARS) : 0;
   const bars = wave.children;
-  for (let i = 0; i < bars.length; i++) {
-    bars[i].style.setProperty('--voice-h', String(hs[i]));
-    if (i < played) bars[i].dataset.played = ''; else delete bars[i].dataset.played;
+  if (v.lite) {
+    /* ★ photo1b PO-6 (`voiceWaveLite`): write only what CHANGED since this wave's last paint (see voiceWaveMemo). A flat
+       placeholder writes nothing (an unwritten bar already reads --voice-h 0); a played tick writes the bars between the old
+       and the new played count; a repaint with the same peaks and position writes nothing. The painted result equals the old
+       loop's. Old path (lite false): the loop below, 40 setProperty + 40 data-played writes at every paint. */
+    let m = voiceWaveMemo.get(wave);
+    if (!m) { m = { hs: new Array(bars.length).fill(0), played: 0 }; voiceWaveMemo.set(wave, m); }
+    for (let i = 0; i < bars.length; i++) {
+      if (hs[i] !== m.hs[i]) { bars[i].style.setProperty('--voice-h', String(hs[i])); m.hs[i] = hs[i]; }
+    }
+    if (played !== m.played) {
+      const lo = Math.min(played, m.played), hi = Math.min(Math.max(played, m.played), bars.length);
+      for (let i = lo; i < hi; i++) { if (i < played) bars[i].dataset.played = ''; else delete bars[i].dataset.played; }
+      m.played = played;
+    }
+  } else {
+    for (let i = 0; i < bars.length; i++) {
+      bars[i].style.setProperty('--voice-h', String(hs[i]));
+      if (i < played) bars[i].dataset.played = ''; else delete bars[i].dataset.played;
+    }
   }
 
   const time = wrap.querySelector('.c-voice__time');
@@ -9972,13 +10000,26 @@ function createImageFileBubble({
   onThumbError,        // #46 r1 B-1: the preview failed to decode → the tile dropped it; the shell forgets it too
   quietKey = null,     // ★ #1147 (5): the message id — the quiet wait is per message, not per re-built tile
   size = 0,            // ★ S20 Q (#1376): the byte count — on the offer's call-to-action line and in the name (no other tile text)
+  lite = false,        // ★ photo1b PO-4 (`photoTileLite`): the lighter tile — see ensureFace below; false = the old path, byte-equal
   strings = getStrings(),
 } = {}) {
   const bytes = fileBytes(size);
   const pic = tileShowsPicture(state, direction) && thumb ? String(thumb) : '';   // #46 r2 R2-1
   let tileEl = null;
+  /* ★ photo1b PO-4: the file face of a LITE tile is made WHEN IT IS NEEDED (the picture failed · the quiet wait ended with no
+     picture) — at the same place in the tile the old path put it (before the sent stamp). Its quiet fade is kept: the face
+     goes in while `data-quiet` still holds (opacity 0), its style is read once, THEN the quiet drops → the opacity
+     transition runs from 0 exactly as for the always-built face. Old path: never called (the face is built below). */
+  const ensureFace = () => {
+    if (!tileEl || tileEl.querySelector(':scope > .c-mbubble__file')) return;
+    const f = fileFace(tileEl.dataset.file || state, name, progress, strings, direction, bytes);
+    /* the old path's order: [preview? img overlay badge? time] face [stamp · offer mark · "+N" label] */
+    const after = tileEl.querySelector(':scope > .c-mbubble__stamp, :scope > .c-mbubble__pvmark, :scope > .c-mgrid__more');
+    if (after) tileEl.insertBefore(f, after); else tileEl.append(f);
+    try { void getComputedStyle(f).opacity; } catch (_) {}
+  };
   /* #1147 (5): the face comes back (it fades in — the --duration-200 opacity transition) */
-  const unquiet = () => { if (tileEl) delete tileEl.dataset.quiet; };
+  const unquiet = () => { if (!tileEl) return; if (lite) ensureFace(); delete tileEl.dataset.quiet; };
   const row = createMediaBubble({
     direction, kind: 'image', src: pic, alt: name, autoload: !!pic, timestamp, gutter, strings,
     /* #46 r1 B-M2 · #46 r2 R2-m1: EVERY photo-file tile (offered, downloading, failed, complete, mine sending) is square
@@ -9986,7 +10027,12 @@ function createImageFileBubble({
     width: PHOTO_TILE_PX, height: PHOTO_TILE_PX,   // fixed: no refit on the JPEG / on load / at the final flip
     /* #1147 (5): a picture on MY sending tile carries its face (ring, %) on a scrim — that face fades in with it */
     onLoad: () => { if (tileEl && tileEl.dataset.file === 'progress') unquiet(); if (onLoad) onLoad(); },
-    sizeHint: pic ? jpegSize(pic) : null,   // #46 r1 B-6: sized from the JPEG before it lands (no jump on a re-render)
+    /* #46 r1 B-6: sized from the JPEG before it lands (no jump on a re-render). ★ photo1b PO-4: the tile is FIXED at
+       PHOTO_TILE_PX (width / height above), so createMediaBubble never reads the hint — a lite tile skips the JPEG head decode. */
+    sizeHint: pic && !lite ? jpegSize(pic) : null,
+    /* ★ photo1b PO-4: no overlay icon / spinner on a COMPLETE tile (its overlay is display:none like every file tile's). An offered /
+       downloading / failed / sending tile is built as before — "unchanged", byte-equal — there are only a few of them. */
+    lite: lite && state === 'complete',
     /* #46 r1 B-1: a preview that will not decode is DROPPED — the tile goes back to its file face and a tap opens the
        FILE (the CTA says "Open file"); no media retry loop on a bad picture. #1147 (5): its face comes back. */
     onSrcError: () => { unquiet(); if (onThumbError) { try { onThumbError(); } catch (_) {} } },
@@ -10007,7 +10053,7 @@ function createImageFileBubble({
       setTimeout(() => { if (el.dataset.state === 'idle') unquiet(); }, left);
     }
   }
-  fileTileCtl.set(el, { name, strings, direction, bytes });
+  fileTileCtl.set(el, { name, strings, direction, bytes, lite, ensureFace });   // ★ photo1b PO-4: ensureFace — setImageFileThumb makes the face before a NEW picture decodes
   // ONE dispatcher keyed on the LIVE file state (the card's rule). While the picture LOADS a tap does nothing (it is
   // a frame or two for a local data: URI) — never two actions for one tap; a failed picture is dropped (above).
   const handlers = {
@@ -10021,7 +10067,14 @@ function createImageFileBubble({
     if (h) h(e);
   });
   if (state === 'progress') el.disabled = true;
-  el.append(fileFace(state, name, progress, strings, direction, bytes));
+  /* ★ photo1b PO-4: a LITE tile that is COMPLETE (it shows a picture — tileShowsPicture) and either waits QUIET (data-quiet:
+     the face is opacity 0 anyway) or is already LOADED (the r3 "seen" path: the face is visibility hidden) builds NO face now;
+     ensureFace() makes it if the picture fails (onSrcError → unquiet), the quiet wait ends with no picture (the timer above), or
+     — for a state change — setImageFileProgress (it appends a fresh face when there is none). Every other tile keeps its face:
+     offered / downloading / failed (they show it), my own SENDING photo (ring on a scrim), a complete tile that is neither
+     quiet nor loaded (it shows its face while the picture decodes, as today). */
+  const lazyFace = lite && state === 'complete' && (el.hasAttribute('data-quiet') || el.dataset.state === 'loaded');
+  if (!lazyFace) el.append(fileFace(state, name, progress, strings, direction, bytes));
   const tick = direction === 'sent' && status ? createStatusIcon(status) : null;
   if (tick) {
     tick.setAttribute('width', 14);
@@ -10085,7 +10138,12 @@ function setImageFileThumb(rowEl, uri) {
   if (!tile || !uri || !tileShowsPicture(tile.dataset.file, ctl ? ctl.direction : 'received')) return;
   const img = tile.querySelector('.c-mbubble__img');
   if (img && tile.dataset.state === 'loaded' && img.getAttribute('src') === String(uri)) return;
-  setMediaSrc(rowEl, String(uri), jpegSize(uri));
+  /* ★ photo1b PO-4: a lite tile that is loaded with NO face (it was built lazily) and is NOT quiet gets a DIFFERENT picture: while that one
+     decodes (data-state loading) the old path SHOWS its face (visibility hidden only at loaded) — so the face is made now, before the new
+     src. A quiet tile keeps its face hidden by opacity anyway (and unquiet makes it if the picture fails). Old path: the face is there. */
+  if (ctl && ctl.lite && ctl.ensureFace && !tile.hasAttribute('data-quiet')) ctl.ensureFace();
+  /* ★ photo1b PO-4: a lite tile is FIXED (PHOTO_TILE_PX), the hint is never read — no JPEG head decode */
+  setMediaSrc(rowEl, String(uri), ctl && ctl.lite ? null : jpegSize(uri));
 }
 
 /** Update a progress-state file bubble in place (bridge updateFile).
@@ -11227,6 +11285,7 @@ function createMediaBubble({
   sizeHint = null,         // #46 r1 B-6: { w, h } of a src not loaded yet (the shell read it from the JPEG header)
   onSrcError = null,       // #46 r1 B-1: a src that fails to decode is dropped (idle, no retry) and this is told
   instantIfShown = false,  // #46 r3 R3-m1: a src this document already showed appears at once on a re-built tile
+  lite = false,            // ★ photo1b PO-4: the overlay icon / spinner are not built (see setState); false = the old path, byte-equal
 } = {}) {
   const row = document.createElement('div');
   row.className = 'c-bubble-row';
@@ -11308,6 +11367,11 @@ function createMediaBubble({
     el.dataset.state = s;
     el.setAttribute('aria-label', typeof ariaFor === 'function' ? ariaFor(s, el) : mediaAria(s, kind, alt, strings));
     overlay.textContent = '';
+    /* ★ photo1b PO-4 (`photoTileLite`): a tile that passes `lite` is an image-FILE tile (createImageFileBubble), whose CSS hides
+       the whole overlay (`.c-mbubble[data-file] .c-mbubble__overlay { display: none }` — "the face says what a tap does"). Its
+       download / retry icon (an `icon()` innerHTML parse) and its spinner span were built for nothing: the overlay stays an
+       EMPTY span and the three states keep their data-state and aria-label. Old path (lite false): built as before. */
+    if (lite) return;
     if (s === 'idle') overlay.append(icon(kind === 'gif' ? 'player-play' : 'download', { size: 22 }));
     else if (s === 'loading') {
       const sp = document.createElement('span');

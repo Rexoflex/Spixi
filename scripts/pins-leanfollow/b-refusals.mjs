@@ -5,6 +5,10 @@
  *   Spixi/Resources-sibling, ResourcesX/x, Platforms-sibling, PlatformsX/x -> Spixi/obj/Resources-sibling, obj/ResourcesX/x, bin/PlatformsX/x; Spixi/Resources-sibling is refused by the packed test, the other three are 'project' rows).
  *   Row 15: a HARD link at the out file is replaced, never written through. Row 16: the stamp-link Error. Row 17: the harness scenario ids and its FAILED: block (source). Row 18: outPreflight on a synthetic list, run.
  *
+ * ROUND 6 (L-1, r5C-1): (L-1) mkTree copies its small Raw/html from the ORIGINAL committed folder named by SPIXI_PACKAGED_FROM when that is set and is a folder (smoke-packaged runs this pin in a copy whose spixi.tokens.css is already stripped, so rows 4 and 15 saw "not stripped" / "not the committed bytes"), else from Spixi/Resources/Raw/html of the tree; row 5 compares with that same source.
+ *   (r5C-1) the project-folder rule (r2S-2) is now decided THROUGH A LINK: row 3 and row 4 (--in-place) gain an INBOUND link (outside the project folder, points to Spixi/Other) and an OUTBOUND link (inside Spixi/Other, points outside the project folder), each as `--out <link>` and `--out <link>/x`;
+ *   row 21 gains `<link>/Spixi/Other/x`. The rule cut down to the as-written view only, or to the real view only, now turns a row red (see the DELIBERATE BREAKS, round 6).
+ *
  * WHAT IT PINS
  *   The script rule (BEHAVIOUR: the real scripts/strip-release.mjs is run, in a scratch tree that holds a copy of the script, scripts/lib and a small Spixi/Resources/Raw/html, plus
  *   Resources/Fonts, Resources/Images, Platforms/Android/Assets and Raw/html/sub with a file each). Every --out of the plain strip and of the lean strip (--lean-css) refuses
@@ -50,6 +54,9 @@
  *   round 4: the exception made strict again (a real-path-and-as-written `under` test) -> 20 21 (and the harness linked-tmp run); renameRetry replaced by a bare renameSync -> 20; the `made` flag removed -> 20; ContinueOnError="true" on any lean Error -> 19;
  *   a name added to or removed from FAKE_ONLY / REAL_ONLY, the FAILED print commented out -> 17.
  *   a harness scenario id removed (r1late, linklean, hardlinkoff) or its FAILED: print removed -> 17; the stamp-link Error removed -> 16.
+ *   round 6 (r5C-1, L-1): in the project-folder rule of outFolderRefusal (`const proj = join(root, 'Spixi'), at = standing(proj);`): `at` taken from the path AS WRITTEN only (`relative(resolve(proj), outAbs)`) -> 3 4 21 (the INBOUND link cases and <link>/Spixi/Other/x; the outbound cases stay refused);
+ *     `at` taken from the REAL path only (`relative(realOf(proj), outReal)`) -> 3 4 (the OUTBOUND link cases; row 21 stays green: the real path of <link>/Spixi/Other/x is inside); `at = 'outside'` (the rule removed) -> 1 2 3 4 21;
+ *     mkTree reading Spixi/Resources/Raw/html of the tree instead of SPIXI_PACKAGED_FROM, in a packaged run (a copy with the stylesheet already stripped, SPIXI_PACKAGED_FROM = the committed folder) -> 4 15.
  *   csproj: R1 removed -> 8; the guard R2 Error removed -> 9 13; the belt R2 removed -> 10 13; the belt Condition changed (OrdinalIgnoreCase -> Ordinal) -> 10 13; the guard packed Error removed -> 13; its Platforms half removed -> 13;
  *   the packed belt removed -> 13 14; a link Error removed (either) -> 14; the first link Error moved after RemoveDir -> 14; a link Condition changed (ReparsePoint -> Hidden) -> 14. */
 import { spawnSync } from 'node:child_process';
@@ -60,11 +67,15 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join as pjoin, dirname as pdirname, resolve as presolve } from 'node:path';
 
+/* round 6 (L-1): the source of the small Raw/html of every scratch tree. smoke-packaged sets SPIXI_PACKAGED_FROM to the ORIGINAL committed folder and runs the suite in a copy whose stylesheet is already stripped; read at module start (children get an env without it, see `env` below) */
+const PKG_FROM = (() => { const v = process.env.SPIXI_PACKAGED_FROM; try { return v && statSync(v).isDirectory() ? presolve(v) : null; } catch (_) { return null; } })();
+
 export default async function (h) {
   const { ok, root } = h;
   const T = '★ leanfollow packaging refusals';
   const SR = 'scripts/strip-release.mjs';
   const HTML = 'Spixi/Resources/Raw/html';
+  const SRC_HTML = PKG_FROM || pjoin(root, HTML);   // round 6 (L-1): the committed html folder the scratch trees are copied from
   const tmp = mkdtempSync(pjoin(tmpdir(), 'spixi-b-refusals-'));
   process.on('exit', () => { try { rmSync(tmp, { recursive: true, force: true }); } catch (_) { /* best effort */ } });
   const row = (n, title, problems) => ok(problems.length === 0, T + ' (' + n + ') ' + title + (problems.length ? ' — ' + problems.slice(0, 4).join(' | ') + (problems.length > 4 ? ' | … +' + (problems.length - 4) : '') : ''));
@@ -82,7 +93,7 @@ export default async function (h) {
     mkdirSync(pjoin(t, 'scripts'), { recursive: true });
     cpSync(pjoin(root, SR), pjoin(t, SR));
     cpSync(pjoin(root, 'scripts/lib'), pjoin(t, 'scripts/lib'), { recursive: true });
-    const src = pjoin(root, HTML);
+    const src = SRC_HTML;
     cpSync(src, pjoin(t, HTML), { recursive: true, filter: (p) => !(pdirname(p) === src && p.endsWith('.html') && !KEEP_HTML.includes(p.slice(src.length + 1))) });
     mkdirSync(pjoin(t, 'Spixi/Resources/Raw/lang'), { recursive: true });
     writeFileSync(pjoin(t, 'Spixi/Resources/Raw/lang/en.txt'), 'a language file\n');
@@ -166,6 +177,23 @@ export default async function (h) {
     return out;
   };
 
+  /* round 6 (r5C-1): the project-folder rule THROUGH A LINK. INBOUND: a link OUTSIDE the project folder that points to Spixi/Other (a project folder that is not obj / bin / Resources / Platforms): as written outside, real path inside.
+   * OUTBOUND: a link INSIDE Spixi/Other that points to a folder outside the project folder: as written inside, real path outside. Each as `--out <link>` and `--out <link>/x`; every case is REFUSED (kind 'project'). Spixi/Other gets a file (a write there shows in the snapshot). */
+  const tmpLinked = (() => { try { return realpathSync(tmp) !== tmp; } catch (_) { return false; } })();
+  const projectLinks = (t) => {
+    if (!linkOk) return [];
+    const other = pjoin(t.dir, 'Spixi/Other'), away = pjoin(t.dir, 'away-target');
+    mkdirSync(other, { recursive: true }); mkdirSync(away, { recursive: true });
+    if (!existsSync(pjoin(other, 'o.txt'))) writeFileSync(pjoin(other, 'o.txt'), 'a file\n');
+    if (!existsSync(pjoin(away, 'a.txt'))) writeFileSync(pjoin(away, 'a.txt'), 'a file\n');
+    const inb = pjoin(t.dir, 'in-other'), outb = pjoin(other, 'out-link');
+    if (!existsSync(inb)) symlinkSync(other, inb, 'junction');
+    if (!existsSync(outb)) symlinkSync(away, outb, 'junction');
+    // LIMIT (as r4S-2): when the temp folder is itself reached through a linked parent, the path as written is not inside the REAL project folder, so the outbound class cannot be told from a plain outside folder: those two cases are SKIPPED then (printed in row 3)
+    return [['a link outside the project folder that points into Spixi/Other (--out <link>)', inb, 'project'], ['a link outside the project folder that points into Spixi/Other (--out <link>/x)', pjoin(inb, 'x'), 'project'],
+      ...(tmpLinked ? [] : [['a link inside Spixi/Other that points outside the project folder (--out <link>)', outb, 'project'], ['a link inside Spixi/Other that points outside the project folder (--out <link>/x)', pjoin(outb, 'x'), 'project']])];
+  };
+
   /* row 1 / row 2: every refused folder, plain and lean */
   for (const [n, flags, what] of [[1, PLAIN, 'plain'], [2, LEAN, 'lean (--lean-css)']]) {
     const t = mkTree();
@@ -178,8 +206,7 @@ export default async function (h) {
    * folders (the path as written is outside, the real path inside), `--out <link>` and `--out <link>/x`; and Raw/HTML on a case-insensitive file system */
   {
     const problems = [];
-    const tmpLinked = (() => { try { return realpathSync(tmp) !== tmp; } catch (_) { return false; } })();
-    if (tmpLinked) console.log('  note: ' + T + ' (3) — the temp folder is reached through a linked parent: case (a), a link inside Raw that points outside, is SKIPPED (r4S-2: recorded, not fixed; as at the base for the lean path)');
+    if (tmpLinked) console.log('  note: ' + T + ' (3) — the temp folder is reached through a linked parent: case (a), a link inside Raw that points outside, and (round 6) the two OUTBOUND project-folder link cases are SKIPPED (r4S-2: recorded, not fixed; as at the base for the lean path)');
     if (linkOk) {
       for (const [what, flags] of [['plain', PLAIN], ['lean (--lean-css)', LEAN]]) {
         if (!tmpLinked) {
@@ -194,6 +221,8 @@ export default async function (h) {
         // (b) inbound links: the tree is the same before and after (a link is a 'name -> link' entry in the snapshot); nothing new appears under any target
         const t2 = mkTree();
         for (const [label, p] of inboundLinks(t2)) refusedCall(t2, p, flags, p, problems, what + ' --out <' + label + '>');
+        // (c) round 6 (r5C-1): the project-folder rule through a link, inbound (the real path is inside the project folder) and outbound (the path as written is inside it)
+        for (const [label, p, kind] of projectLinks(t2)) refusedCall(t2, p, flags, p, problems, what + ' --out <' + label + '>', [], kind);
       }
     }
     // Raw/HTML names the source folder on a file system that ignores letter case (macOS, Windows): the same folder under another spelling
@@ -202,7 +231,7 @@ export default async function (h) {
     const caseBlind = existsSync(pjoin(ci.raw, 'CI-PROBE'));
     if (!caseBlind) console.log('  note: ' + T + ' (3) — this file system is case-sensitive: the case Raw/HTML is SKIPPED (there Raw/HTML is another, new folder inside Raw, refused by row 1 like Raw/x)');
     else for (const [what, flags] of [['plain', PLAIN], ['lean (--lean-css)', LEAN]]) refusedCall(ci, pjoin(ci.raw, 'HTML'), flags, pjoin(ci.raw, 'HTML'), problems, what + ' --out Raw/HTML (the source folder, another spelling, no --in-place)');
-    row(3, 'LINKS: a link inside Raw that points outside (and a folder under it), and — round 1, r1C-1 — a link OUTSIDE that points INTO Raw/lang, Raw, Raw/html/sub, Resources/Fonts, Platforms (as `--out <link>` and `--out <link>/x`: only the real-path test sees them), plus Raw/HTML where the file system ignores letter case (' + (linkOk ? 'links run' : 'links SKIPPED') + ', case ' + (caseBlind ? 'run' : 'SKIPPED: case-sensitive') + '): plain and lean → exit 1, the folder named, nothing written (the tree equal before and after), nothing written through a link', problems);
+    row(3, 'LINKS: a link inside Raw that points outside (and a folder under it), and — round 1, r1C-1 — a link OUTSIDE that points INTO Raw/lang, Raw, Raw/html/sub, Resources/Fonts, Platforms (as `--out <link>` and `--out <link>/x`: only the real-path test sees them), plus — round 6, r5C-1 — the project-folder rule through a link: a link OUTSIDE the project folder that points to Spixi/Other, and a link INSIDE Spixi/Other that points outside the project folder (each as `--out <link>` and `--out <link>/x`, REFUSED with the sentence of the project folder), plus Raw/HTML where the file system ignores letter case (' + (linkOk ? 'links run' : 'links SKIPPED') + ', case ' + (caseBlind ? 'run' : 'SKIPPED: case-sensitive') + '): plain and lean → exit 1, the folder named, nothing written (the tree equal before and after), nothing written through a link', problems);
   }
 
   /* row 4: the ONE exception, and its BOUNDARY (round 1, r1C-2). (a) Raw/html without --in-place is refused; with it, allowed (the folder is stripped). (b) --in-place opens NOTHING else: EVERY refused case of row 1 and
@@ -225,9 +254,9 @@ export default async function (h) {
       else if (sha(tok) === sha0 || statSync(tok).size >= size0) problems.push(what + ' --out Raw/html --in-place: exit 0 but spixi.tokens.css was not stripped (' + size0 + ' → ' + statSync(tok).size + ' bytes)');
       // (b) the boundary: every refused case and every inbound link with --in-place
       const t2 = mkTree();
-      for (const [label, p, kind] of [...refusedList(t2), ...inboundLinks(t2)]) { nCases++; refusedCall(t2, p, flags, p, problems, what + ' --out ' + label + ' --in-place', ['--in-place'], kind || null); }
+      for (const [label, p, kind] of [...refusedList(t2), ...inboundLinks(t2), ...projectLinks(t2)]) { nCases++; refusedCall(t2, p, flags, p, problems, what + ' --out ' + label + ' --in-place', ['--in-place'], kind || null); }
     }
-    row(4, 'the ONE exception and its BOUNDARY: --out Raw/html is refused without --in-place ("is the source folder … needs --in-place", nothing written) and allowed with it (exit 0, spixi.tokens.css stripped), plain and lean; and EVERY refused case of row 1 and every inbound link of row 3 run WITH --in-place (' + nCases + ' calls) → exit 1 REFUSED each, the tree unchanged — widening the exception to Raw itself or to Raw/html/sub fails here', problems);
+    row(4, 'the ONE exception and its BOUNDARY: --out Raw/html is refused without --in-place ("is the source folder … needs --in-place", nothing written) and allowed with it (exit 0, spixi.tokens.css stripped), plain and lean; and EVERY refused case of row 1 and every inbound link of row 3 and the four project-folder link cases of round 6 (inbound and outbound, `<link>` and `<link>/x`) run WITH --in-place (' + nCases + ' calls) → exit 1 REFUSED each, the tree unchanged — widening the exception to Raw itself or to Raw/html/sub fails here', problems);
   }
 
   /* row 5: a folder outside Resources and Platforms is allowed (plain and lean), also the neighbours that only share a name prefix */
@@ -241,7 +270,7 @@ export default async function (h) {
       }
       // and the source folder is the same as before (the allowed runs wrote only into the out folders)
       const tok = pjoin(t.html, 'spixi.tokens.css');
-      if (sha(tok) !== sha(pjoin(root, HTML, 'spixi.tokens.css'))) problems.push(what + ': the source spixi.tokens.css changed by a run with another out folder');
+      if (sha(tok) !== sha(pjoin(SRC_HTML, 'spixi.tokens.css'))) problems.push(what + ': the source spixi.tokens.css changed by a run with another out folder');
     }
     row(5, 'allowed: --out outside the project folder Spixi/ (a folder beside the tree, Spixi-sibling/x) or under Spixi/obj or Spixi/bin (obj itself, bin/x, obj/Resources-sibling, obj/ResourcesX/x, bin/PlatformsX/x, obj/spixi-strip/html), plain and lean → exit 0, the file written there, the source folder untouched', problems);
   }
@@ -603,10 +632,13 @@ export default async function (h) {
       symlinkSync(t.dir, lk, 'junction');
       const ok1 = run(t, ['--out', lk + '/Spixi/obj/Release/net10.0-android/spixi-strip/html/.', ...flags]);
       if (ok1.code !== 0 || !existsSync(pjoin(t.dir, 'Spixi/obj/Release/net10.0-android/spixi-strip/html/spixi.tokens.css'))) problems.push(what + ' --out <link>/Spixi/obj/…/spixi-strip/html/.: ' + brief(ok1) + ' (want exit 0 and the file written)');
-      const before = snap(t.dir);
-      const bad = run(t, ['--out', lk + '/Spixi/Resources/Raw/x', ...flags]);
-      if (bad.code !== 1 || !bad.stderr.includes('REFUSED') || snap(t.dir) !== before) problems.push(what + ' --out <link>/Spixi/Resources/Raw/x: ' + brief(bad) + ' (want exit 1 REFUSED, tree unchanged)');
+      // round 6 (r5C-1): the project-folder rule through the linked checkout too (the path as written is outside the project folder, the real path inside)
+      for (const rel of ['/Spixi/Resources/Raw/x', '/Spixi/Other/x']) {
+        const before = snap(t.dir);
+        const bad = run(t, ['--out', lk + rel, ...flags]);
+        if (bad.code !== 1 || !bad.stderr.includes('REFUSED') || snap(t.dir) !== before) problems.push(what + ' --out <link>' + rel + ': ' + brief(bad) + ' (want exit 1 REFUSED, tree unchanged)');
+      }
     }
-    row(21, 'a checkout reached through a LINKED folder (r4S-9): --out <link>/Spixi/obj/Release/net10.0-android/spixi-strip/html/. → exit 0 and <link>/Spixi/Resources/Raw/x → exit 1 REFUSED, plain and lean (' + (linkOk ? 'links run' : 'links SKIPPED') + ')', problems);
+    row(21, 'a checkout reached through a LINKED folder (r4S-9): --out <link>/Spixi/obj/Release/net10.0-android/spixi-strip/html/. → exit 0 and <link>/Spixi/Resources/Raw/x and (round 6) <link>/Spixi/Other/x → exit 1 REFUSED, plain and lean (' + (linkOk ? 'links run' : 'links SKIPPED') + ')', problems);
   }
 }

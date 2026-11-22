@@ -66,9 +66,11 @@ public class Photo1bFlagsTests
         int lastFlags = L.FindLastIndex(l => l.StartsWith("[FLAGS] ", StringComparison.Ordinal));
         Assert.IsTrue(lastFlags == L.IndexOf(mine[0]), why + ": it is the last [FLAGS] line of init — " + string.Join("|", L));
         // ★ merge with photo1a: the order of init is …fixb2 line, photo1a line, photo1b line (readPhoto1b is the last call)
+        // ★ merge defaultsb x photo1b (2026-11-22): …fixb2 line, photo1a line, defaultsb line, photo1b line — the defaultsb line sits EXACTLY between the photo1a and the photo1b line
         int fixb2 = L.FindIndex(l => l.StartsWith("[FLAGS] payconfirmdefault=", StringComparison.Ordinal));
         int p1a = L.FindIndex(l => l.StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal));
-        Assert.IsTrue(fixb2 >= 0 && p1a == fixb2 + 1 && L.IndexOf(mine[0]) == p1a + 1, why + ": right after the photo1a line, which follows the fixb2 line — " + string.Join("|", L));
+        int dfb = L.FindIndex(l => l.StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal));
+        Assert.IsTrue(fixb2 >= 0 && p1a == fixb2 + 1 && dfb == p1a + 1 && L.IndexOf(mine[0]) == dfb + 1, why + ": right after the defaultsb line, which follows the photo1a line, which follows the fixb2 line — " + string.Join("|", L));
         Assert.IsTrue(Regex.IsMatch(mine[0], "^\\[FLAGS\\] photo1b tilelite=[01] voicelite=[01] olderinsert=[01] olderanchor=[01] fadeband=[01]$"),
             why + ": fixed words and 0|1 only");
     }

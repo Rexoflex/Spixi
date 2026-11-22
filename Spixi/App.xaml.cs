@@ -99,8 +99,8 @@ public partial class App : Application
     /* ONE constant for both grace tests below. They were two separately-written `5`s, and
      * the second one had already been wrong once (#229: `ts.Seconds` is the 0-59 component,
      * so 63 seconds away read as 3 and never locked). Two dials that must agree should not
-     * be two literals. */
-    private const double LOCK_GRACE_SECONDS = 5;
+     * be two literals.
+     * ★ defaultsb (ruling 1750): the bound now lives in DefaultsRules.withinGrace — 5 s on the old path, 60 s with SpixiFlags.LockDelayOneMinute. */
 
     /* ★★ #505 — THE DESKTOP LOCK MODEL. Damir, W-4.6/W-4.7: the app locked him out
      * mid-sentence while he was typing in another window, and an unlock could leave a
@@ -484,12 +484,7 @@ public partial class App : Application
     // Check if the lock is enabled
     public bool isLockEnabled()
     {
-        bool locked = false;
-        if (Preferences.Default.ContainsKey("lockenabled"))
-        {
-            locked = (bool)Preferences.Default.Get("lockenabled", false);
-        }
-        return locked;
+        return DefaultsRules.lockEnabledStored();
     }
 
 
@@ -513,6 +508,7 @@ public partial class App : Application
         }
         isLockScreenActive = false;
         unlockedDate = DateTime.Now;
+        backgroundedDate = DefaultsRules.stampAfterUnlock(backgroundedDate, SpixiFlags.LockDelayOneMinute);   // ★ defaultsb (#1750): a verified unlock clears the leaving stamp
         /* ★ #438 break-my-verdict MAJOR-2: AUTH IS THE DEFINITIVE RELEASE. Background
          * while the lock is on screen and OnSleep raised a shield that nothing else
          * would ever take down: the resume skips the lock branch (a lock is already up)
@@ -1201,8 +1197,7 @@ public partial class App : Application
         DateTime? wentAway = backgroundedDate;
         backgroundedDate = null;
         TimeSpan sinceBackground = wentAway.HasValue ? (DateTime.Now - wentAway.Value) : sinceUnlock;
-        bool withinGrace = sinceBackground.TotalSeconds >= 0
-            && sinceBackground.TotalSeconds <= LOCK_GRACE_SECONDS;
+        bool withinGrace = DefaultsRules.withinGrace(sinceBackground.TotalSeconds, SpixiFlags.LockDelayOneMinute);
         /* ★ F3 (audit MINOR): log the resume UNCONDITIONALLY. Instrumented only inside the
          * branch, silence was ambiguous between "OnResume never ran" and "no pause lock was
          * held" — and that exact ambiguity, a lifecycle callback not firing where it was

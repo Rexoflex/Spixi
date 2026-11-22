@@ -104,6 +104,7 @@
     <Compile Include="../../Spixi/Utils/ChatMediaStoreRules.cs" /><Compile Include="../../Spixi/Utils/ChatMediaStore.cs" />   <!-- ★ photo1a (PO-3 / PO-6): the thumbnail + peaks store (engine + glue), the LRU, the delete paths' calls (tests: ChatMediaStoreTests.cs, with its own harness stubs of FileSystem / WalletStorage / IxianHandler) -->
     <Compile Include="../../Spixi/Utils/FixB3Rules.cs" />   <!-- ★ fixb3 item 1 (#1744 (4), P84): the mini-app action guard before ixian:onload + the two catch lines — fixed words, the command NAME from a list, the exception TYPE word (tests: FixB3GuardTests.cs; MiniAppPage.handleAction calls it) -->
     <Compile Include="../../Spixi/Utils/FixB3ChatInfoRules.cs" />   <!-- ★ fixb3 (item 2, P85): the chat-info shared-items scan gate — only the latest scan pushes setSharedItems (tests: FixB3ChatInfoTests.cs; ContactDetails.pushSharedItems calls it) -->
+    <Compile Include="../../Spixi/Utils/DefaultsRules.cs" />   <!-- ★ defaultsb (ruling 1750): the new-account defaults (App lock, Confirm payments), the lock delay bound, the [FLAGS] line (tests: DefaultsTests.cs; SpixiFlags.init calls it) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

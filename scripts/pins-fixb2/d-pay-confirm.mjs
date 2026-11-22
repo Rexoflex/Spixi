@@ -341,8 +341,11 @@ export default async function (h) {
       && new RegExp(esc(FIX1_LINE) + '\\s*PayConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fp\\);\\s*MiniAppConfirmSafeDefault = S16PassRules\\.effectiveFlag\\(dev, fm\\);\\s*' + esc(FIX2_LINE)
         + '(?:\\s*' + ['PhotoMediaAfterPaint = S16PassRules.effectiveFlag(dev, qa);', 'PhotoFewerFileChecks = S16PassRules.effectiveFlag(dev, qf);',
           'PhotoThumbStore = S16PassRules.effectiveFlag(dev, qt) && ChatMediaStore.platformOn;', 'VoicePeaksStore = S16PassRules.effectiveFlag(dev, qv) && ChatMediaStore.platformOn;',
-          'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));'].map(esc).join('\\s*') + ')?'
-        /* ★ re-based by photo1b (flags): after the photo1a group ONLY `readPhoto1b();` (SpixiFlags' photo1b block call, the very last statement of init) may follow — exact text, exact place */
+          'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));'].map(esc).join('\\s*')
+        /* ★ defaultsb re-base (2026-11-18, after a look at `git diff -- Spixi/Utils/SpixiFlags.cs`: a pure insertion, 24 lines added, 0 deleted, no #if — 3 key consts, 3 `{ get; private set; } = false` props, `int da = 1, dp = 1, dl = 1;`, 3 `Preferences.Default.Get(…, 1)` reads inside the try, 3 `effectiveFlag` computes and ONE `Logging.info(DefaultsRules.flagsLine(…))` after the photo1a line): after the photo1a group ONLY the exact defaultsb group may follow (pins-defaultsb/a-defaults d11 holds it in full) */
+        + '(?:\\s*' + ['DefaultAppLockOn = S16PassRules.effectiveFlag(dev, da);', 'DefaultPayConfirmOn = S16PassRules.effectiveFlag(dev, dp);', 'LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl);', 'Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute));'].map(esc).join('\\s*') + ')?' + ')?'
+        /* ★ re-based by photo1b (flags): after the photo1a group ONLY `readPhoto1b();` (SpixiFlags' photo1b block call, the very last statement of init) may follow — exact text, exact place
+         * ★ merge defaultsb x photo1b (2026-11-22): the exact defaultsb group (only after the photo1a group) sits between the photo1a group and `readPhoto1b();`; nothing else */
         + '(?:\\s*readPhoto1b\\(\\);)?'
         + '\\s*\\}$').test(init),
     olderLinesKept: count(SF, FIX1_LINE) === 1 && count(SF, 'Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));') === 1,

@@ -267,7 +267,7 @@ export default async function (h) {
       countBeforeBadge: iCount > 0 && iMissed > iCount && iReset > iMissed,
       /* A-M2: the three delete-history paths clear the heart */
       histOne: /if \(!friend\.deleteHistory\(\)\)\s*\{\s*return false;\s*\}\s*SReactionFlags\.clear\(friend\.walletAddress\?\.ToString\(\)\);/.test(rmHist),
-      histDetails: /if\(friend\.deleteHistory\(\)\)\s*\{\s*SReactionFlags\.clear\(friend\.walletAddress\.ToString\(\)\);/.test(cdHist),
+      histDetails: /^private void onRemoveHistory\(\)\s*\{\s*if \(SContacts\.removeHistory\(friend\)\)\s*\{/.test(cdHist),   /* ★ fixb3 re-base (item 2, P85): contact details runs SContacts.removeHistory (one body) — its clear is histOne's */
       histAll: /public void onDeleteHistory\(\)\s*\{\s*FriendList\.deleteEntireHistory\(\);\s*SReactionFlags\.clearAll\(\);/.test(spHist),
       /* A-M3: leaving a group, and both pendingDeletion heals (a re-added contact), clear it */
       leaveGroup: /else\s*\{[^}]*SReactionFlags\.clear\(group\.walletAddress\?\.ToString\(\)\);/.test(leave),

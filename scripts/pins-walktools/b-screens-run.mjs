@@ -130,7 +130,12 @@ const harnessPath = join(tmp, 'harness.ps1');
 writeFileSync(harnessPath, HARNESS);
 
 // ───────────────────────────────────────────── the cases
-const REAL = JSON.parse(readFileSync(join(root, 'scripts', 'device', 'a52s.json'), 'utf8'));
+// ★ walktools operator block 2026-11-23 (#1879): the repo map now holds chat / viewer in the `sets` form. The old-form parity
+// (group 1) and the old-form cases run on the map of the BASE (git 338d30f4), which the base script can read; the CURRENT map is
+// checked in group 2 ('sets/real map/...').
+const CUR = JSON.parse(readFileSync(join(root, 'scripts', 'device', 'a52s.json'), 'utf8'));
+const gm = spawnSync('git', ['-C', root, 'show', '338d30f4:scripts/device/a52s.json'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+const REAL = gm.status === 0 ? JSON.parse(gm.stdout) : CUR;
 const P = (x, y, rgb, tol = 2) => ({ x, y, rgb, tol });
 const img = (pts, color, extra = {}) => ({ ...Object.fromEntries(pts.map(([x, y]) => [x + ',' + y, color])), default: '#808080', ...extra });
 const pill = [[380, 2278], [560, 2278], [760, 2278]];
@@ -205,6 +210,12 @@ nc('sets/validator/sets on home (another screen)', { screen: 'home', screens: wi
 nc('sets/validator/sets on downloads', { screen: 'downloads', screens: withScreens({ downloads: { sets: [CHAT_L] } }) }, (r) => /may not use sets/.test(r.gap));
 nc('sets/validator/accountScrolled with sets', { screen: 'accountScrolled', screens: withScreens({ accountScrolled: { sets: [CHAT_L] } }) }, (r) => /may not use sets/.test(r.gap));
 nc('sets/validator/accountScrolled old form still valid', { screen: 'accountScrolled', screens: REAL.screens }, (r) => r.gap === '');
+nc('sets/real map/chat sets of the repo map valid', { screen: 'chat', screens: CUR.screens }, (r) => r.gap === '');
+nc('sets/real map/viewer sets of the repo map valid', { screen: 'viewer', screens: CUR.screens }, (r) => r.gap === '');
+nc('sets/real map/chat light values pass', { screen: 'chat', screens: CUR.screens, image: Object.fromEntries(CUR.screens.chat.sets[0].probes.map((q) => [q.x + ',' + q.y, q.rgb]).concat([['default', '#808080']])) }, (r) => r.screen.ok === true);
+nc('sets/real map/chat dark values pass', { screen: 'chat', screens: CUR.screens, image: Object.fromEntries(CUR.screens.chat.sets[1].probes.map((q) => [q.x + ',' + q.y, q.rgb]).concat([['default', '#808080']])) }, (r) => r.screen.ok === true);
+nc('sets/real map/home colour at the chat points fails', { screen: 'chat', screens: CUR.screens, image: { default: '#F9FAFB' } }, (r) => r.screen.ok === false);
+nc('sets/real map/viewer light values pass, fail the chat', { screen: 'viewer', screens: CUR.screens, image: Object.fromEntries(CUR.screens.viewer.sets[0].probes.map((q) => [q.x + ',' + q.y, q.rgb]).concat([['default', '#808080']])) }, (r) => r.screen.ok === true);
 
 const CH = chatMap({ sets: [CHAT_L, CHAT_D] });
 nc('sets/decision/chat pill #FFFFFF -> light passes', { screen: 'chat', screens: CH, image: img(pill, '#FFFFFF') }, (r) => r.probes.ok && r.probes.set === 'light' && r.probes.matched === 3 && r.probes.of === 3 && r.screen.ok && r.screen.set === 'light' && r.screen.note === '');

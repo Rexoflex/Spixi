@@ -320,7 +320,9 @@ export default async function (h) {
   // ★ fixb3 operator block 2026-11-22 (re-base after the map commit, as planned in #1812 / P86): calibrate-20261122-1324 gave
   // taps.accountDownloads, swipes.accountDownloads and screens.accountScrolled; screens.downloads stays absent until the proof run.
   // Was c69474965f8f28aefa5c49314c36082e935f6a241abee1b9f56701228240f43f (the map of 2026-11-17).
-  const CAL_A52_SHA = '898fad4002ce485602e4574eae0912aef0e3093caf14c67e78274aea7e029ce8';
+  // ★ walktools operator block 2026-11-23 (#1879; re-based after a look at the diff): screens.chat and screens.viewer in the `sets`
+  // form (light / dark, chrome-only probes, minMatch = the probe count); every other key unchanged. Was 898fad40…29ce8 (fixb3).
+  const CAL_A52_SHA = '9e1ece07e2e2c7dbb2ad6b78318783cf3dbb38985a4b5ceaa6372660424ca461';
   const b6 = {
     found: !!cfgReal.taps,
     sha: sha(A52) === CAL_A52_SHA,

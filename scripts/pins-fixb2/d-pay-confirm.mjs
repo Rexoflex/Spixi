@@ -346,7 +346,8 @@ export default async function (h) {
         + '(?:\\s*' + ['DefaultAppLockOn = S16PassRules.effectiveFlag(dev, da);', 'DefaultPayConfirmOn = S16PassRules.effectiveFlag(dev, dp);', 'LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl);', 'Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute));'].map(esc).join('\\s*') + ')?' + ')?'
         /* ★ re-based by photo1b (flags): after the photo1a group ONLY `readPhoto1b();` (SpixiFlags' photo1b block call, the very last statement of init) may follow — exact text, exact place
          * ★ merge defaultsb x photo1b (2026-11-22): the exact defaultsb group (only after the photo1a group) sits between the photo1a group and `readPhoto1b();`; nothing else */
-        + '(?:\\s*readPhoto1b\\(\\);)?'
+        /* ★ fixb4 re-base (2026-11-22, after a look at `git diff -- Spixi/Utils/SpixiFlags.cs`: a pure insertion, 36 lines added, 0 deleted, no #if — 2 key consts, 2 `{ get; private set; } = false` props, the private readFixb4() and ONE call `readFixb4();` directly after `readPhoto1b();`): then ONLY the optional `readFixb4();` (pins-fixb4/b-defaults d1 holds it) */
+        + '(?:\\s*readPhoto1b\\(\\);(?:\\s*readFixb4\\(\\);)?)?'
         + '\\s*\\}$').test(init),
     olderLinesKept: count(SF, FIX1_LINE) === 1 && count(SF, 'Logging.info(PerfB1Rules.flagsLine(WarmOnIdle, SpareRearm, SpareKeepShortSleep, PhoneNoEmptyDetail));') === 1,
     lineWords: /public static string flagsLine\(bool payConfirmDefault, bool appConfirmDefault\)\s*\{\s*return "\[FLAGS\] payconfirmdefault=" \+ \(payConfirmDefault \? "1" : "0"\) \+ " appconfirmdefault=" \+ \(appConfirmDefault \? "1" : "0"\);\s*\}/.test(FR),

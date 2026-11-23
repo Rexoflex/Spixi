@@ -64,7 +64,9 @@ public class Photo1bFlagsTests
         Assert.AreEqual(1, mine.Count, why + ": the photo1b line is logged exactly once — " + string.Join("|", L));
         Assert.AreEqual(want, mine[0], why + ": the line matches the state");
         int lastFlags = L.FindLastIndex(l => l.StartsWith("[FLAGS] ", StringComparison.Ordinal));
-        Assert.IsTrue(lastFlags == L.IndexOf(mine[0]), why + ": it is the last [FLAGS] line of init — " + string.Join("|", L));
+        // ★ fixb4 re-base (2026-11-22, after a look at init's diff: + `readFixb4();` right after `readPhoto1b();`): the photo1b line is the last [FLAGS] line
+        // but ONE — only the [FLAGS] fixb4 line follows it.
+        Assert.IsTrue(lastFlags == L.IndexOf(mine[0]) + 1 && L[lastFlags].StartsWith("[FLAGS] fixb4 ", StringComparison.Ordinal), why + ": only the fixb4 line follows it — " + string.Join("|", L));
         // ★ merge with photo1a: the order of init is …fixb2 line, photo1a line, photo1b line (readPhoto1b is the last call)
         // ★ merge defaultsb x photo1b (2026-11-22): …fixb2 line, photo1a line, defaultsb line, photo1b line — the defaultsb line sits EXACTLY between the photo1a and the photo1b line
         int fixb2 = L.FindIndex(l => l.StartsWith("[FLAGS] payconfirmdefault=", StringComparison.Ordinal));

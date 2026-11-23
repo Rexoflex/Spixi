@@ -243,6 +243,41 @@ namespace SPIXI
             Logging.info(photo1bFlagsLine(PhotoTileLite, VoiceWaveLite, HistoryInsertOnly, HistoryAnchorOneTask, FadeFromBand));
         }
 
+        /* ★ fixb4 (Fix batch 4, items 3 + 4; ruling 1750, PageDefaultsRules.cs; contract-fixb4 § 3): one switch per default, OFF =
+         * the old path (no push, the WebView store as the create / restore left it). Same rule as the blocks above: absent = ON, a
+         * stored 0 acts ONLY in dev mode (S16PassRules.effectiveFlag), read ONCE (readFixb4, right after readPhoto1b in init), start
+         * value `false` until init. No Developer-screen control. An existing account is not touched: only the three new-account
+         * sites of LaunchPage read these two. */
+        public const string DefaultMediaTapKey = "flagDefaultMediaTap";             // int pref; absent = default (1) — ★ fixb4 item 3
+        public const string DefaultListCompactKey = "flagDefaultListCompact";       // int pref; absent = default (1) — ★ fixb4 item 4
+
+        /** Item 3: a NEW account's launch shell writes `spixi.media.autoload = 'off'` (P1 Off = tap to load). OFF = the old path. */
+        public static bool DefaultMediaTapToLoad { get; private set; } = false;
+        /** Item 4: a NEW account on the desktop writes `spixi.chat.listdensity = 'compact'` (A9 Compact). OFF = the old path. */
+        public static bool DefaultListCompact { get; private set; } = false;
+
+        /** Read ONCE, right after readPhoto1b: the two int preferences, absent = ON, a stored 0 acts only in dev mode. A read that
+         *  throws keeps the defaults (both ON) and logs nothing of its own; the one [FLAGS] fixb4 line is the block's only line. */
+        private static void readFixb4()
+        {
+            bool dev = false;
+            int mt = 1, lc = 1;
+            try
+            {
+                dev = Preferences.Default.Get("devMode", false);
+                mt = Preferences.Default.Get(DefaultMediaTapKey, 1);
+                lc = Preferences.Default.Get(DefaultListCompactKey, 1);
+            }
+            catch (Exception)
+            {
+                dev = false;
+                mt = lc = 1;
+            }
+            DefaultMediaTapToLoad = S16PassRules.effectiveFlag(dev, mt);
+            DefaultListCompact = S16PassRules.effectiveFlag(dev, lc);
+            Logging.info(PageDefaultsRules.flagsLine(DefaultMediaTapToLoad, DefaultListCompact));
+        }
+
         /** ★ perfb1 #46 r1 B-1 / S-5: leaving dev mode (HomePage `ixian:disableDevMode`, which also removes the four
          *  PerfB1DevKeys) turns SpareKeepShortSleep off in THIS process — it falls to the old path (the drop at sleep) until
          *  the next start. ★ fixb1 item 7: the switch is ON by default now; leaving dev mode removes the keys, so the NEXT
@@ -355,6 +390,7 @@ namespace SPIXI
             LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl);
             Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute));
             readPhoto1b();   // ★ photo1b (contract-photo1b § 4): the five chat-shell switches, their own read + [FLAGS] line
+            readFixb4();   // ★ fixb4 (contract-fixb4 § 3): the two new-account page defaults, their own read + [FLAGS] line
         }
 
 #if SPIXI_DEV_COEXIST

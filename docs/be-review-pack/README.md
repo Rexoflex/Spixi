@@ -123,6 +123,8 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P81](P81-lock-delay-one-minute.md) | Defaults batch item 2: the no-auth window of the app lock is 60 s on the phone and the Mac (flag `LockDelayOneMinute`, OFF = 5 s); Windows unchanged | MEDIUM | no | none | built · ⚠ uncompiled | 5 min |
 | [P77](P77-licence-texts.md) | Speed lean follow-up: 49 third-party licence texts in `Spixi/Resources/Raw/licenses/` + one inventory; UNPROVEN facts are questions for Damir | LOW | no | none | built · CLEAN (#1783) | 3 min |
 | [P78](P78-packaging-refusals-and-ci.md) | Speed lean follow-up: the P-07 park inside the lean target, no strip out folder in the project folder but under obj / bin, the plain packaged smoke, two CI steps; recorded limits r5C-2, r5C-3, R6-1 | LOW | no | none | built · CLEAN (#1783) | 4 min |
+| [P87](P87-new-account-media-tap-to-load.md) | Fix batch 4 item 3 (#1750 P1): a NEW or RESTORED account starts with "Load pictures and GIFs" Off — ONE new C# → JS push `setNewAccountDefaults` to the launch shell from the three new-account sites (flag `DefaultMediaTapToLoad`) + the C# mirror `photoAutoDlLoadPictures` Off; existing accounts and every reader unchanged | LOW | no | +1 push (no verb) | built · ⚠ uncompiled | 5 min |
+| [P88](P88-new-account-list-compact.md) | Fix batch 4 item 4 (#1750 A9): the same push writes the Compact chat list on Windows / Mac only (flag `DefaultListCompact`) | NONE | no | the push of P87 | built · ⚠ uncompiled | 2 min |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

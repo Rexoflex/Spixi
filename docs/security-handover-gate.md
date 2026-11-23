@@ -2379,6 +2379,24 @@ Packets: [P77](be-review-pack/P77-licence-texts.md) (the licence texts) · [P78]
 
 Surface counts: verbs **+0** · pushes **+0** · `spixi.*` keys **+0** · prefs **+0** · log lines **+0** · WebView settings **+0** · HTML sinks **+0** · fetches **+0** · shell changes **+0** · C# files **+0** · files in the package **+49** (plain text) · CI steps **+2**.
 
+
+## Session Fix batch 4 (`fixb4`, #1845–#1859) — welcome slide 4, the protect-account fields on Android, two page defaults of a new account, the Developer log, three walk findings (2026-11-22)
+
+Packets: [P87](be-review-pack/P87-new-account-media-tap-to-load.md) (item 3) · [P88](be-review-pack/P88-new-account-list-compact.md) (item 4). Files: `Spixi/Utils/PageDefaultsRules.cs` (new), `Spixi/Utils/SpixiFlags.cs` (one block + `readFixb4()`), `Spixi/Pages/Launch/LaunchPage.xaml.cs` (one helper + three call lines), `src/shells/launch.html` (the push handler; the keyboard reveal), `src/components/launch-shell.js` (one string line), `src/strings/**`, `src/styles/components/settings-app.css` (one rule). `chat.html` is not touched.
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| 🟡 the push `setNewAccountDefaults(media, density)` (C# → the launch shell only) from the three new-account sites | +1 push; two arguments, C# literals `"1"` / `"0"` from two switches and the desktop test; no WebView input; not sent when both are `"0"` | baseline: **no**. Ours, safe: no verb; the launch document loads no remote content; a lost push = the old screen value with the C# mirror Off (more private; r2 MINOR-2); never sent by `proceed`, `onLoad`, the retry view or a start path (r1 S Q2) |
+| 🟡 `spixi.media.autoload = 'off'` and `spixi.chat.listdensity = 'compact'` written at create / restore | two EXISTING `spixi.*` keys get a value; the values the Settings screens write | baseline: the keys are ours (earlier batches); the new-account write is **ours**. Ours, safe: a more private and a cosmetic default; an existing account is not touched; the density only on Windows / Mac |
+| 🟡 the C# mirror `photoAutoDlLoadPictures = false` at create / restore (r1 S MINOR-1) | one EXISTING native pref gets the fixed `false` with the media default | baseline: the mirror is ours (S11); the write is **ours**. Ours, safe: it only stops auto-download while pictures are off |
+| 🟡 2 int prefs `flagDefaultMediaTap`, `flagDefaultListCompact` | read once at start; no writer; no WebView reach | baseline: **no**. Ours, safe: absent = ON; a stored 0 acts only in dev mode; OFF = the old path |
+| 🟡 log lines `[FLAGS] fixb4 mediatap=<0\|1> listcompact=<0\|1>` · `[DEFAULTS] new account page: mediatap=<0\|1> compact=<0\|1>` · `[DEFAULTS] new account page failed (<Type>)` | `ixian.log` | baseline: **no**. Ours, safe: fixed words, digits, an exception TYPE |
+| the keyboard reveal (`launch.html`, Android UA) and the dev-log floor (`settings-app.css`) | layout only: one element's `scrollTop`; one CSS declaration | ours, safe: no sink, no key, no verb |
+| the slide-4 text (14 locales) | static strings | ours, safe: the claims rules hold |
+| FILE-NAV: a `file:` navigation allowed in the page WebViews; no `AllowExternalDrop` (a dropped file may replace the chat document) | — | baseline: **yes** (the allow and `IsAllowedURL` at `0e85a4b8`). NOT ours; recorded in `legacy-not-ours.md`; drag and drop is a question (#1852) |
+
+Surface counts: verbs **+0** · pushes **+1** · push arguments **+2** (fixed digits) · caps **+0** · `spixi.*` keys **+0** (2 existing written at create / restore) · prefs **+2** (read only) · existing prefs written at create / restore **+1** · log lines **+3** (fixed) · WebView settings **+0** · HTML sinks **+0** · fetches **+0** · files at rest **+0**.
+
 ## Session Walk tools (`walktools`, #1875–#1889) — two timing flakes, the screen probe sets, the parser rows, the seed voice ids, the jsdom rows (2026-11-22)
 
 Packet: [P93](be-review-pack/P93-walktools-seed-voice-ids-walk-scripts.md) (items 2–4). Files: `Spixi/Utils/SDevSeedPlan.cs` (`rowIdFor`, `chatComplete`), `Spixi/Utils/SDevSeed.cs` (one writer line), `scripts/device/adb-walk.ps1`, `scripts/device/adb-walk-parse.ps1`; test code only otherwise (`scripts/smoke-test.mjs`, `scripts/pins-*`, `scripts/csh/*`).

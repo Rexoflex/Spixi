@@ -63,7 +63,7 @@ export default async function (h) {
       keyOf((sl.querySelector('.c-launch__slide-copy') || {}).textContent).join('/'),
     ]);
     const WANT = [['welcome2', 'slide1Title2', 'slide1Copy3'], ['welcome1', 'slide2Title2', 'slide2Copy2'],
-      ['welcome3', 'slide3Title', 'slide3Copy'], ['welcome4', 'slide4Title2', 'slide4Copy2']];
+      ['welcome3', 'slide3Title', 'slide3Copy'], ['welcome4', 'slide4Title2', 'slide4Copy3']];
     g = await boot({ ua: 'phone', query: 'lang=de-de' });
     const de = JSON.parse(readFileSync(join(root, 'src/strings/de-de.json'), 'utf8'));
     const dePainted = [...g.d.querySelectorAll('.c-launch__slide')].map((sl) => [sl.querySelector('.c-launch__slide-title').textContent, sl.querySelector('.c-launch__slide-copy').textContent]);

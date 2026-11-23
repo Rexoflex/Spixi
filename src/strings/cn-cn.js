@@ -969,7 +969,7 @@ export const cncn = {
   slide2Title2: "隐私源于设计。",
   slide3Copy: "每个聊天都内置私密的 IXI 钱包。轻点一下，即可发送和请求 IXI。",
   slide3Title: "像发消息一样发送 IXI。",
-  slide4Copy2: "Blitz Chess 和 Split 等迷你应用，直接在聊天中打开。",
+  slide4Copy3: "Blitz Chess 等迷你应用，直接在聊天中打开。",
   slide4Title2: "一起玩，一起规划。",
   source: "来源",
   splitPasteAction: "拆分为 {n} 条消息发送",

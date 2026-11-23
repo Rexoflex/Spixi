@@ -101,7 +101,15 @@
  * ★ #46 round 2 deliberate breaks (#802; each ONE mutation in a copy of the tree, run with --root): the line
  * `[System.Diagnostics.Conditional("SPIXI_DEV_COEXIST")]` above writeNewAccount in DefaultsRules.cs → red d9 + d14 (every other key
  * and the CSH tests stay green: that was the hole); the first `catch (Exception ex)` → `catch (ArgumentNullException ex)` → red d14
- * + d10; a comment-only edit of DefaultsRules.cs → red d14 only. */
+ * + d10; a comment-only edit of DefaultsRules.cs → red d14 only.
+ * ★ lockb re-base (2026-11-23, #1634, after a look at `git diff 462ba3e4 -- Spixi/App.xaml.cs Spixi/Pages/Launch/LockPage.xaml.cs`; the lines are held by pins-lockb/b-csharp b1–b7 by place and shape): the merged lock batch
+ * adds to App.xaml.cs the second-clock twins and the one `if (secondClock && withinGrace) { withinGrace = LockClockRules.withinGrace(…); }` after the grace statement, and to LockPage.xaml.cs the hold pushes, the
+ * un-animated pop, promptWindowOpens() and the R4 alert rule. What changed here: d3 (withinGraceCall / DefaultsRules: + the two wall-rule calls inside LockClockRules.cs; LockDelayOneMinute: App 2 → 3); d5 (`assignedOnce`: the base
+ * assignment + EXACTLY the one lockb `if` directly after the grace statement and its three locals; the base statement and its place are unchanged); d6 / d7 (resumeRest / appRest: the two frozen values = the view functions over the lockb App.xaml.cs,
+ * the base values 4c4e5345… / 31be087b… are superseded); d13 (the body: + the two twin statements after the stampAfterUnlock statement); d8 (the LockPage hash: 20e6d1f3… → 462f1e5b…).
+ * Breaks run 2026-11-23 in a tree copy (red exactly as listed): `return DefaultsRules.withinGrace((now - stamp) / 1000.0, oneMinute);` + `&& DefaultsRules.withinGrace(0, oneMinute)` in LockClockRules → d3 only; `if (secondClock && withinGrace)` → `||` → d5 + d6 + d7;
+ * `withinGrace = false;` after `bool secondClock = …;` → d5 + d6 + d7; the stampMono operands swapped → d5 + d6 + d7; markBackgrounded's `backgroundedMono = LockClockRules.nowMs();` → `= null;` → d7 only; onUnlock's `unlockedMono = …` line deleted → d7 + d13;
+ * LockPage `private bool builtDeferred = false;` → `= true;` → d8 only. */
 import { createHash } from 'node:crypto';
 import { readFileSync as readBytes } from 'node:fs';   // the file as it is on disk (no CRLF normalisation; a BOM kept)
 
@@ -191,7 +199,7 @@ const UNLOCK_NEW = 'backgroundedDate = DefaultsRules.stampAfterUnlock(background
 const UNLOCK_LINE = UNLOCK_NEW + '   // ★ defaultsb (#1750): a verified unlock clears the leaving stamp';
 const UNLOCK_PREV = 'unlockedDate = DateTime.Now;';
 const UNLOCK_GUARD = '{ if (!S16SecRules.unlockReleases(e)) { Logging.error("onUnlock: not a verified unlock - the lock stays"); return; } isLockScreenActive = false; ';
-const UNLOCK_BODY = UNLOCK_GUARD + UNLOCK_PREV + ' ' + UNLOCK_NEW + ' SpixiContentPage.hidePrivacyShield(); pauseLock = null; pendingForegroundAuth = null; UIHelpers.refreshAppRequests = true; }';
+const UNLOCK_BODY = UNLOCK_GUARD + UNLOCK_PREV + ' ' + UNLOCK_NEW + ' unlockedMono = LockClockRules.nowMs(); backgroundedMono = LockClockRules.keepTwin(backgroundedDate, backgroundedMono); SpixiContentPage.hidePrivacyShield(); pauseLock = null; pendingForegroundAuth = null; UIHelpers.refreshAppRequests = true; }';   // ★ lockb re-base (2026-11-23): + the two twin statements directly after the stampAfterUnlock statement (after the verified-unlock guard); the base's eight statements + the defaultsb one are unchanged and in their order
 const STAMP_SIG = 'public static DateTime? stampAfterUnlock(DateTime? stamp, bool oneMinute)';
 
 /* App.xaml.cs reduced to "everything but the four edits". The body of isLockEnabled, the ONE `bool withinGrace = …;` statement and
@@ -231,13 +239,13 @@ export const appViews = (text, now) => {
 /* FROZEN from the base 14ae57f2 (see the header; launchBytes: 14ae57f2 + fixb4, re-based) */
 const BASE = {
   launchBytes: '0cd5610a284865d03b493e1ddc158b2de67ce727e34323c23002c9b18de38efe',   /* ★ fixb4 review round 1 re-base (2026-11-22): d51b3eb4… → 0cd5610a… after a look at the diff (+5 lines, 0 deleted, all in pushNewAccountPageDefaults: the mirror write behind PageDefaultsRules.mirrorLoadPicturesOff and its comment; pins-fixb4/b-defaults b3 / b5) */   // LaunchPage.xaml.cs, the exact bytes (a BOM) — ★ fixb4 re-base (2026-11-22): a8e3754b… (14ae57f2) → d51b3eb4… after a look at `git diff -- Spixi/Pages/Launch/LaunchPage.xaml.cs` (30 lines added, 0 deleted: the three `pushNewAccountPageDefaults();` call lines and the one helper method; pins-fixb4/b-defaults b1–b3 hold them)
-  resumeRest: '4c4e5345c24792894ff0fe188d6682b94a5505d3e1b6d75e9d9cc9a75eecc02b',   // appViews(base, false).resumeRest
-  appRest: '31be087bdb199c72b7bcc67af4ddcfb608d4e2f00182715eccf2d0487452727c',       // appViews(base, false).fileRest
+  resumeRest: '121eda08bf1cf39290d7e1f013be07b9aaf2dad2aa33eacbe735aa8bd98d1378',   // appViews(base, false).resumeRest — ★ lockb re-base (2026-11-23): 4c4e5345… (the base 462ba3e4) → 121eda08… = appViews(the lockb App.xaml.cs, true).resumeRest, after a look at `git diff 462ba3e4 -- Spixi/App.xaml.cs` (OnResume: + 2 read/clear statements `long? wentAwayMono = backgroundedMono; backgroundedMono = null;` after the wall read/clear, + the 4 second-clock statements after the grace statement (`bool secondClock …; long? nowMono …; long? stampMono …; if (secondClock && withinGrace) { withinGrace = LockClockRules.withinGrace(…); }`), the diag operand `+ LockClockRules.diagSuffix(secondClock, nowMono, stampMono)`, `backgroundedMono = wentAwayMono;` before the #500 re-stamp and `held.promptWindowOpens();` before `pendingForegroundAuth = held;` (inside #if ANDROID); the rest of OnResume = the base; comments masked) — pins-lockb/b-csharp b1 / b2 / b3 / b7 hold the same lines by their place and shape
+  appRest: '689945694728993b186fe0a5489c6301467e843b57acbd7dbe10ab487160299e',       // ★ lockb review r2 re-base (2026-11-23, after a look at `diff -u` of the r2 tree against this one: App.xaml.cs + 3 code statements in lockOnPause — `lockPage.releaseHold("not-presented");` last in the ContinueWith handler, `LockPage? failed = pauseLock;` after the catch's log line (before `pauseLock = null;`), `failed?.releaseHold("not-presented");` last in the catch; the rest comments, masked; pins-lockb/b-csharp b10 holds them by place): 6e993fad… → 68994569…; previous: ★ lockb review r1 re-base (2026-11-23, after a look at `diff -u` of the r1 tree against this one: App.xaml.cs + 2 code statements in releaseDeferredAuth's `if (held == null)` block before its `return;` (`LockPage? up = pauseLock; if (up != null) { up.releaseHold("post-resume"); }`) and 1 in dismissPauseLock's pop-failed catch (`lp.releaseHold("pop-failed");`); the rest comments, masked; pins-lockb/b-csharp b10 holds both by place): 68545a66… → 6e993fad…; previous: appViews(base, false).fileRest — ★ lockb re-base (2026-11-23): 31be087b… (the base 462ba3e4) → 68545a66… = appViews(the lockb App.xaml.cs, true).fileRest, after a look at `git diff 462ba3e4 -- Spixi/App.xaml.cs` (57 lines added, 0 code lines deleted: the two twin field initialisers, markBackgrounded's `backgroundedMono = LockClockRules.nowMs();`, onUnlock's two twin statements after the stampAfterUnlock line, the OnResume lines of resumeRest above; one line changed: the diag operand `+ " withinGrace=" + withinGrace);` lost its `);` to the lockb suffix) — every other member = the base
   whole: {
     'Spixi/Utils/SPayments.cs': 'a43f7fa143366a994ae68536fcdc107892600bcbc6db8468cd4a728b0c2c8851',
     'Spixi/Utils/SConfirm.cs': '6b76e4a7e7ec7b93390de84b229a52115c29f9294b67fec1d8d5a4dc368a7e8f',
     'Spixi/Platforms/Windows/SDesktopIdle.cs': '008747db82b5319e1eaf803494eb41f1eb6aac4f04298fba576164a343186103',
-    'Spixi/Pages/Launch/LockPage.xaml.cs': '20e6d1f3cfe24a53bf361b37b8ec175301ebfd0c782d0504941100703b89a1e5',
+    'Spixi/Pages/Launch/LockPage.xaml.cs': '3656f1b5a6f291b3bc9aea55a36b22d5553d5d28e831bdaad6471019c7999337',   // ★ lockb review r2 re-base (2026-11-23, after a look at `diff -u` of the r2 tree against this one: releaseHold's R5 call takes a third argument `authDeferred`, the fixed `why` set gains "not-presented"; the rest comments; pins-lockb/b-csharp b10 holds both): cc1d7c0f… → 3656f1b5…; previous: ★ lockb review r1 re-base (2026-11-23, after a look at `diff -u` of the r1 tree against this one: + the field `holdReleased`, R1's argument `promptWindowOpened || holdReleased`, the method `releaseHold(string why)` (R5 gate, holdReleased, revealPasswordForm, the fixed `why` set, one diag line, its own catch); pins-lockb/b-csharp b4 / b10 hold them by place): 462f1e5b… → cc1d7c0f…; previous: ★ lockb re-base (2026-11-23): 20e6d1f3… (the base 462ba3e4) → 462f1e5b… after a look at `git diff 462ba3e4 -- Spixi/Pages/Launch/LockPage.xaml.cs` (72 added, 6 deleted: the two fields, the R1 push in onLoad, the R2 push at the PROMPT, popOwnModal's R3 if/else, builtDeferred in deferAuthentication, promptWindowOpens(), sendAuthPending(), SetResultAsync's R4 if around the unchanged alert line; the deleted lines are the one `Navigation.PopModalAsync();` and the alert line + its closing brace re-indented); pins-lockb/b-csharp b4 / b5 / b7 hold the lines by their place; d8 now names the file as the lockb base, byte for byte
     'Spixi/Pages/Settings/SettingsPage.xaml.cs': '1a4a7b068c99944cbdb7a61a9756279501005e014e3baa1b077716dbc086839d',
   },
 };
@@ -250,12 +258,12 @@ const RULES_WHOLE = '3184bb273b182e4d3e203144e69b162a8db9ddd7bc29255319710b2163b
 const NAMES = {
   writeNewAccount: { [LAUNCH_F]: 2, [RULES_F]: 1 },                       // the two call sites; the declaration
   lockEnabledStored: { [APP_F]: 1, [RULES_F]: 1 },
-  withinGraceCall: { [APP_F]: 1 },                                        // `DefaultsRules.withinGrace(` (counted as text)
+  withinGraceCall: { [APP_F]: 1, 'Spixi/Utils/LockClockRules.cs': 2 },    // `DefaultsRules.withinGrace(` (counted as text); ★ lockb re-base (2026-11-23): + the two calls of LockClockRules.withinGrace (step 1, the wall rule; step 5, the second-clock difference) — pins-lockb/b-csharp b8 holds the file
   stampAfterUnlock: { [APP_F]: 1, [RULES_F]: 1 },                         // ★ #46 r1 (R1-2): ONE caller (App.onUnlock); the declaration
-  DefaultsRules: { [APP_F]: 3, [LAUNCH_F]: 2, [FLAGS_F]: 1, [RULES_F]: 1 },
+  DefaultsRules: { [APP_F]: 3, [LAUNCH_F]: 2, [FLAGS_F]: 1, [RULES_F]: 1, 'Spixi/Utils/LockClockRules.cs': 2 },   // ★ lockb re-base (2026-11-23): + the same two calls in LockClockRules.cs
   DefaultAppLockOn: { [LAUNCH_F]: 2, [FLAGS_F]: 3 },                      // the two reads; the property, its compute, the [FLAGS] argument
   DefaultPayConfirmOn: { [LAUNCH_F]: 2, [FLAGS_F]: 3 },
-  LockDelayOneMinute: { [APP_F]: 2, [FLAGS_F]: 3 },                       // the grace statement (d5) and the unlock statement (d13)
+  LockDelayOneMinute: { [APP_F]: 3, [FLAGS_F]: 3 },                       // the grace statement (d5) and the unlock statement (d13); ★ lockb re-base (2026-11-23): + the argument of the second-clock `LockClockRules.withinGrace(…, SpixiFlags.LockDelayOneMinute)` call in OnResume (d5)
   DefaultAppLockOnKey: { [FLAGS_F]: 2 },                                  // declared + read; nothing stores it
   DefaultPayConfirmOnKey: { [FLAGS_F]: 2 },
   LockDelayOneMinuteKey: { [FLAGS_F]: 2 },
@@ -364,7 +372,9 @@ export default async function (h) {
   const d5 = {
     found: av.found,
     oneStatement: count(av.fileN, GRACE_NEW) === 1 && count(av.resumeN, GRACE_NEW) === 1 && av.graceCuts === 1 && av.graceCutsInResume === 1,
-    assignedOnce: (norm(av.bare).match(/(?<![A-Za-z0-9_.])withinGrace\s*(?:[-+*/|&^]?=)(?!=)/g) || []).length === 1,   // string contents blanked: the log text `" withinGrace="` is no assignment
+    assignedOnce: (norm(av.bare).match(/(?<![A-Za-z0-9_.])withinGrace\s*(?:[-+*/|&^]?=)(?!=)/g) || []).length === 2   // string contents blanked: the log text `" withinGrace="` is no assignment
+      && count(av.resumeN, 'if (secondClock && withinGrace) { withinGrace = LockClockRules.withinGrace(sinceBackground.TotalSeconds, nowMono, stampMono, SpixiFlags.LockDelayOneMinute); }') === 1
+      && count(av.resumeN, GRACE_NEW + ' bool secondClock = LockbFlags.SecondClock; long? nowMono = secondClock ? LockClockRules.nowMs() : null; long? stampMono = wentAway.HasValue ? wentAwayMono : unlockedMono; if (secondClock && withinGrace) {') === 1,   // ★ lockb re-base (2026-11-23): the key is `assignedOnce` still, now "the base's one assignment + the ONE lockb `if` directly after it" (it can only keep a true or turn it false; pins-lockb/b-csharp b1 holds the shape; LockClockRules.withinGrace repeats the wall rule as its first step)
     inOnResume: graceAt > av.resumeAt && av.resumeAt > 0,
     outsideEveryIf: graceAt > 0 && regionsAt(av.code, graceAt).length === 0,
     constGone: av.oneConst,

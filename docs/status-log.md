@@ -548,3 +548,11 @@ Built from Damir's rulings #1629, #1630, #1633, #1639 (WALK #1631) and #1614; le
   as the state) → fixed (`$script:HistSeedIdx`, pin key p1), review round 5 CLEAN. Runs `20261122-1342`, `-1346` (`downloads,history`)
   OK; runs `-1350`, `-1354` (`history -HistorySeed 55`) one row no data (#1818, recorded). Numbers: `claude/device-numbers-2026-11-22-fixb3.md`.
   Smoke expected 6693 = 6660 + 33.
+- 2026-11-22 / 23: **Session Walk tools (`walktools`, #1875–#1887, L273–L276, packet P93) — DELIVERED, NO WALK (test code, walk scripts,
+  dev-only seed data).** Lead Claude Opus; base `redesign/frontend` @ `338d30f4`. (1) `GATE 54 (a4)` and `pins-fixb1/e-header` wait for
+  states, never a time (a loaded event loop: base 20 / 20 misses → 0 / 20; #1875, #1876); the app defect behind `(a5)` recorded (#1877).
+  (2) The device map takes one probe set per theme; chat / viewer probes read chrome colours only; the map values wait for the operator
+  block (#1878, #1879). (3) The parser: "first swipe -> 1st page" of `-HistorySeed` (10982 ms on the real run, was no data) and 17
+  optional rows per older page (#1880, #1881). (4) The dev seed's voice rows get 16-byte ids (#1882). (5) The six jsdom-31 rows (#1883); but the full smoke on jsdom 31.0.1 is red in 200 other rows (#1886, a question: keep the 29.1.1 pin + a lockfile, or a follow-up batch).
+  Smoke `BASELINE OK 6791 / the 2 KNOWN` (= 6774 + 17; cloud twin, jsdom 29.1.1, `TZ=America/Los_Angeles`) · CSH 812 (= 806 + 6).
+  Handoff `docs/handoff-2026-11-22-walktools.md`.

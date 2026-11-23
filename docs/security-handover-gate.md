@@ -2364,3 +2364,15 @@ Packets: [P84](be-review-pack/P84-miniapp-action-before-onload.md) (item 1) · [
 | the adb walk: `downloads` swipe + a check of the scrolled Account hub; `-HistorySeed` | developer tooling on Damir's PC; no app file; no new adb command shape; `$script:LogRe` unchanged; one Account-hub screenshot per rep for its probes, deleted at once; the calibrate keeps cal-17s only while its key is absent | baseline: **no** (the walk is ours). Ours, safe (#1522 holds; #1666 ④ moved by Damir's #1739 (3): no Account picture is KEPT by the walk) |
 
 Surface counts: verbs **+0** · pushes **+0** (call sites +2) · caps **+0** · `spixi.*` keys **+0** · prefs **+0** · log lines **3 changed + 2 new** (fixed words / type names) · files deleted on a new path **+1** (the Sent sweep, an existing rule) · network fetches **+0** · walk steps **+1** (`history-seed-kNN`, opt-in). Legacy seen and NOT changed: the error alert shows the action text; `e.Message` to the same mini app (P61 (6)); Core's `writeMessages` copies before its lock (CORE-18, `core-asks.md`). Pin limits: stated in each module (#1735).
+
+## Session Walk tools (`walktools`, #1875–#1889) — two timing flakes, the screen probe sets, the parser rows, the seed voice ids, the jsdom rows (2026-11-22)
+
+Packet: [P93](be-review-pack/P93-walktools-seed-voice-ids-walk-scripts.md) (items 2–4). Files: `Spixi/Utils/SDevSeedPlan.cs` (`rowIdFor`, `chatComplete`), `Spixi/Utils/SDevSeed.cs` (one writer line), `scripts/device/adb-walk.ps1`, `scripts/device/adb-walk-parse.ps1`; test code only otherwise (`scripts/smoke-test.mjs`, `scripts/pins-*`, `scripts/csh/*`).
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| the dev seed's voice rows get 16-byte ids (`SDevSeedPlan.rowIdFor`; the writer and the top-up test use it) | none: no verb, push, key, fetch, log line or file path; the same rows and files, only the id bytes of 20 voice rows; both files wholly inside `#if SPIXI_DEV_COEXIST` (`Spixi/Spixi.csproj:40`, `:43`; the store gate `:428` unchanged) | baseline: **no** (the dev seed is ours, #1665). Ours, safe: developer builds only; the play check of the chat page is unchanged |
+| the adb walk: `sets` of screen probes (chat, viewer), chrome-only probe values (operator block) | developer tooling on Damir's PC; no app file; no new adb command shape; the allowlist functions byte-identical (pin `pins-walktools/b-screens` k6); no new screenshot, no kept picture; no typed input (#1522 ②) | baseline: **no** (the walk is ours). Ours, safe |
+| the walk parser: the first-page rule I-3a, 17 optional rows per older page | reads the pulled log of the run folder; writes only its summary files; the raw-line guard unchanged (only `key=<int>` and one `[a-z]{1,16}` word are read from a line) | baseline: **no**. Ours, safe |
+
+Surface counts: verbs **+0** · pushes **+0** · caps **+0** · `spixi.*` keys **+0** · prefs **+0** · log lines **+0** · files written or deleted on a new path **+0** · network fetches **+0** · adb commands **+0** · walk steps **+0** (rows +17 per older page, optional). Pin limits: stated in each module (#1735).

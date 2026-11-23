@@ -231,3 +231,20 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1816 | Q-2 answered (Damir #1754): option (a), received downloads stay after chat info › Delete history for v1. |
 | #1817 | Fix batch 3 operator block: the four map keys, the `-HistorySeed` state renamed (`$script:HistSeedIdx`; round 5 CLEAN), the device runs. |
 | #1818 | Finding: the `-HistorySeed` row "first swipe -> 1st page" gives no data (log order); recorded, fix direction in a later scripts batch (Q-3). |
+
+### Session Walk tools (`walktools`, 2026-11-22 / 23, #1875–#1887, L273–L276, packet P93)
+| Row | Rule |
+|---|---|
+| #1875 | `GATE 54 (a4)` waits for states (the chooser presented, the exit premise checked, one fresh chooser on the stack, its `data-open` awaited), never for a time. |
+| #1876 | `pins-fixb1/e-header` waits for the page's own `ixian:onload` (jsdom 29.1.1) or window `load` (jsdom 31); no sleep left. |
+| #1877 🟡 | Finding: the add-contact chooser's `onDismiss` clears the NEW chooser's handle (`src/bridge/contacts-page.js:295`); `GATE 54 (a5)` can miss under a long block; fix in the batch that owns `src/**`. |
+| #1878 | The device map: one probe set per theme (`sets`, chat and viewer only); chrome-only probes (the message field, its "Aa", the viewer's close button and scrims). |
+| #1879 | The map values move only with the operator block: the proposed sets first, then ONE calibrate confirms (the calibrate needs a passing chat check for cal-14 / cal-15). |
+| #1880 | The parser: "first swipe -> 1st page" of `-HistorySeed` by rule I-3a (the C# `chat loadmore in` pair, else equal counts in the window, else no data). |
+| #1881 | 17 OPTIONAL rows per older page; a page value only when the line counts equal the page requests ("cannot pair" otherwise). |
+| #1882 | The dev seed's voice rows get 16-byte ids (`SDevSeedPlan.rowIdFor`); a fresh seed on the phone; the reply / edit / quote gap on 32-byte seed rows recorded. |
+| #1883 | The six `#346` / `N19` rows read the same values on jsdom 29.1.1 and 31.0.1 (the real token sheet in the probe, `sub()` through the probe's own custom properties). |
+| #1884 | The re-bases of the hashed walk pins after a look at the diff (fixb3 h4d rewritten to I-3a). |
+| #1885 | The #46 verdict of the batch. |
+| #1886 🟡 | Finding + question: on jsdom 31.0.1 the full smoke is red in 200 more rows (the `ixian:` capture of the shared pin kits, token-less probes); options: keep the 29.1.1 pin + a lockfile (recommended) / a follow-up batch / both. |
+| #1887 | Session "Walk tools" — the record (numbers, models, owed, the operator block). |

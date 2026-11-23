@@ -1,0 +1,12 @@
+{
+  "name": "spixi-redesign-test-tools",
+  "private": true,
+  "description": "Pinned test tools of the Spixi redesign (smoke, CSH, gates); installed with npm ci, ruling 1831.",
+  "devDependencies": {
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "jsdom": "29.1.1",
+    "tree-sitter": "0.25.1",
+    "tree-sitter-c-sharp": "0.23.5"
+  }
+}

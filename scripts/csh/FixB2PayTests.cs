@@ -63,10 +63,12 @@ public class FixB2PayTests
         // ★ defaultsb re-base (2026-11-18, after a look at init's diff: + the three defaultsb computes and its ONE [FLAGS] line, after the photo1a line).
         // ★ merge defaultsb x photo1b (2026-11-22): init now ends photo1a line, defaultsb line, photo1b line (readPhoto1b, the very last call) — so this
         // line is FOURTH from the end: exactly those three lines follow it, in that order, and nothing else.
-        Assert.AreEqual(L.Count - 4, at, why + ": the last line of init but the photo1a, the defaultsb and the photo1b ones — " + string.Join("|", L));
-        Assert.IsTrue(L[L.Count - 3].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal), why + ": the photo1a line right after this one");
-        Assert.IsTrue(L[L.Count - 2].StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal), why + ": the defaultsb line right before the last");
-        Assert.IsTrue(L[L.Count - 1].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": the photo1b line is the very last line");
+        // ★ fixb4 re-base (2026-11-22, after a look at init's diff: + `readFixb4();` after `readPhoto1b();`, its ONE [FLAGS] fixb4 line) — FIFTH from the end.
+        Assert.AreEqual(L.Count - 5, at, why + ": the last line of init but the photo1a, the defaultsb, the photo1b and the fixb4 ones — " + string.Join("|", L));
+        Assert.IsTrue(L[L.Count - 4].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal), why + ": the photo1a line right after this one");
+        Assert.IsTrue(L[L.Count - 3].StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal), why + ": then the defaultsb line");
+        Assert.IsTrue(L[L.Count - 2].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": then the photo1b line");
+        Assert.IsTrue(L[L.Count - 1].StartsWith("[FLAGS] fixb4 ", StringComparison.Ordinal), why + ": the fixb4 line is the very last line");
     }
 
     [TestMethod]

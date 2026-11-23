@@ -24,11 +24,14 @@
  * BASE = 14ae57f2 ("Merge pull request #16 from Rexoflex/work/photo1a"). The SHA-256 values below are FROZEN CONSTANTS, computed
  * from `git show 14ae57f2:<path>` when this pin was written (the pin runs in CI and on tree copies with no git): the five whole
  * files and LaunchPage.xaml.cs by `sha256sum` of the exact bytes; the two App.xaml.cs values by this module's own `appViews`
- * (exported for that) over the base text.
+ * (exported for that) over the base text. ★ fixb4 re-base (#1634, after a look at the diff): the LaunchPage value is no longer the
+ * 14ae57f2 bytes — it is 14ae57f2 + the fixb4 helper `pushNewAccountPageDefaults` (with its review-round-1 mirror write) and its
+ * three call lines (pins-fixb4/b-defaults b1 / b3 / b5 hold those).
  *   d1 sites        — the two call sites: ONE statement each, the exact text, on its own line directly after the
  *                     `Preferences.Default.Remove("lockenabled");` line — in the create body (`if (Node.generateWallet(pass))`, before
  *                     `Remove("walletpass")`) and as the second statement of applyRestorePrefs; outside every `#if`
- *   d2 sitesRest    — LaunchPage.xaml.cs with those two LINES taken out is the base file BYTE FOR BYTE (nothing moved, nothing else)
+ *   d2 sitesRest    — LaunchPage.xaml.cs with those two LINES taken out is the base file BYTE FOR BYTE (nothing moved, nothing else);
+ *                     ★ fixb4 re-base: the base = 14ae57f2 + the fixb4 helper and its three call lines (#1634)
  *   d3 names        — an exact table name → file → count over every C# file of Spixi/ (comments masked): writeNewAccount has TWO
  *                     callers and no other; lockEnabledStored / withinGrace / stampAfterUnlock ONE each (App.xaml.cs); each switch
  *                     is read only at its site(s) (LockDelayOneMinute: the grace statement and the unlock statement); the three keys and their strings only in SpixiFlags.cs (declared + read: nothing stores them);
@@ -225,9 +228,9 @@ export const appViews = (text, now) => {
   };
 };
 
-/* FROZEN from the base 14ae57f2 (see the header) */
+/* FROZEN from the base 14ae57f2 (see the header; launchBytes: 14ae57f2 + fixb4, re-based) */
 const BASE = {
-  launchBytes: 'a8e3754b38cad494e5874119b0e9344cf449abfd285ab5f3e23428b9fc5f4acc',   // LaunchPage.xaml.cs, the exact bytes (a BOM)
+  launchBytes: '0cd5610a284865d03b493e1ddc158b2de67ce727e34323c23002c9b18de38efe',   /* ★ fixb4 review round 1 re-base (2026-11-22): d51b3eb4… → 0cd5610a… after a look at the diff (+5 lines, 0 deleted, all in pushNewAccountPageDefaults: the mirror write behind PageDefaultsRules.mirrorLoadPicturesOff and its comment; pins-fixb4/b-defaults b3 / b5) */   // LaunchPage.xaml.cs, the exact bytes (a BOM) — ★ fixb4 re-base (2026-11-22): a8e3754b… (14ae57f2) → d51b3eb4… after a look at `git diff -- Spixi/Pages/Launch/LaunchPage.xaml.cs` (30 lines added, 0 deleted: the three `pushNewAccountPageDefaults();` call lines and the one helper method; pins-fixb4/b-defaults b1–b3 hold them)
   resumeRest: '4c4e5345c24792894ff0fe188d6682b94a5505d3e1b6d75e9d9cc9a75eecc02b',   // appViews(base, false).resumeRest
   appRest: '31be087bdb199c72b7bcc67af4ddcfb608d4e2f00182715eccf2d0487452727c',       // appViews(base, false).fileRest
   whole: {
@@ -302,7 +305,8 @@ export default async function (h) {
     exactLines: callLines.length === 2 && callLines.every(([l]) => l.trim() === CALL_LINE),
     rightAfterTheRemove: callLines.length === 2 && callLines.every(([, i]) => i > 0 && rawLines[i - 1].trim() === REMOVE_LOCK)
       && count(lN, REMOVE_LOCK + ' ' + CALL) === 2 && count(lN, REMOVE_LOCK) === 2,
-    inCreate: count(createN, CALL) === 1 && createN.includes(REMOVE_LOCK + ' ' + CALL + ' Preferences.Default.Remove("walletpass");'),
+    inCreate: count(createN, CALL) === 1 && (createN.includes(REMOVE_LOCK + ' ' + CALL + ' Preferences.Default.Remove("walletpass");')
+      || createN.includes(REMOVE_LOCK + ' ' + CALL + ' pushNewAccountPageDefaults(); Preferences.Default.Remove("walletpass");')),   // ★ fixb4 re-base (2026-11-22): fixb4's ONE call may follow directly (pins-fixb4/b-defaults b1)
     inRestore: count(restoreN, CALL) === 1 && restoreN.startsWith('{ ' + REMOVE_LOCK + ' ' + CALL + ' Preferences.Default.Set("backupReminderTimestamp", Clock.getTimestamp().ToString());'),
     fixedArguments: !/writeNewAccount\((?!SpixiFlags\.DefaultAppLockOn, SpixiFlags\.DefaultPayConfirmOn, SPayments\.paymentAuthSupported\(\), SPayments\.PAYMENT_AUTH_PREF\);)/.test(lN),
     outsideEveryIf: siteAt[0] > 0 && siteAt[1] > siteAt[0] && regionsAt(lCode, siteAt[0]).length === 0 && regionsAt(lCode, siteAt[1]).length === 0,
@@ -317,7 +321,7 @@ export default async function (h) {
     sameBytesAsBase: sha(launchBack) === BASE.launchBytes,
   };
   ok(F(d2).length === 0,
-    '★ defaultsb d2 sitesRest: Spixi/Pages/Launch/LaunchPage.xaml.cs with its two inserted lines taken out is the base file BYTE FOR BYTE (SHA-256 of the exact bytes at 14ae57f2): nothing moved, nothing else changed — the wipe of the old keys, the password store, the verify-before-write order of both restore paths — failing: ' + JSON.stringify(F(d2)) + ' got ' + sha(launchBack));
+    '★ defaultsb d2 sitesRest: Spixi/Pages/Launch/LaunchPage.xaml.cs with its two inserted lines taken out is the base file BYTE FOR BYTE (SHA-256 of the exact bytes at 14ae57f2 + the fixb4 helper and its three call lines, the #1634 re-base): nothing moved, nothing else changed — the wipe of the old keys, the password store, the verify-before-write order of both restore paths — failing: ' + JSON.stringify(F(d2)) + ' got ' + sha(launchBack));
 
   /* ───────────────────────── d3 — who names what ───────────────────────── */
   const csFiles = walk('Spixi', /\.cs$/i, ['bin', 'obj']);
@@ -462,7 +466,7 @@ export default async function (h) {
   const afterCatch = (s) => count(init, s) === 1 && iCatchEnd > 0 && init.indexOf(s) > iCatchEnd;
   const PHOTO_LINE = 'Logging.info(PhotoOpenRules.flagsLine(PhotoMediaAfterPaint, PhotoFewerFileChecks, PhotoThumbStore, VoicePeaksStore));';
   const TAIL = PHOTO_LINE + ' DefaultAppLockOn = S16PassRules.effectiveFlag(dev, da); DefaultPayConfirmOn = S16PassRules.effectiveFlag(dev, dp); '
-    + 'LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl); Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute)); readPhoto1b(); }';
+    + 'LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl); Logging.info(DefaultsRules.flagsLine(DefaultAppLockOn, DefaultPayConfirmOn, LockDelayOneMinute)); readPhoto1b(); readFixb4(); }';   // ★ fixb4 re-base (2026-11-22): + `readFixb4();` directly after `readPhoto1b();` (pins-fixb4/b-defaults d1)
   /* ★ merge defaultsb x photo1b (2026-11-22): the defaultsb group is now followed by EXACTLY the one statement `readPhoto1b();` (photo1b's own block call; its comment is masked) — the very last statement of init; nothing between, nothing after */
   const devPage = mask(text('Spixi/Pages/Dev/DevPage.xaml.cs'));
   const lineAt = fCode.indexOf('Logging.info(DefaultsRules.flagsLine(');
@@ -478,7 +482,7 @@ export default async function (h) {
       && afterCatch('LockDelayOneMinute = S16PassRules.effectiveFlag(dev, dl);')
       && count(fN, 'DefaultAppLockOn = ') === 1 && count(fN, 'DefaultPayConfirmOn = ') === 1 && count(fN, 'LockDelayOneMinute = ') === 1,
     localsNotWrittenAgain: (init.match(/\b(?:da|dp|dl) = /g) || []).length === 6,   // the declaration and the read, three times
-    oneLineLast: count(fN, 'DefaultsRules.flagsLine(') === 1 && init.endsWith(TAIL),
+    oneLineLast: words(fN, 'DefaultsRules.flagsLine') === 1 && init.endsWith(TAIL),   // ★ fixb4 re-base (2026-11-22): a WHOLE-word count — `PageDefaultsRules.flagsLine(` (readFixb4's line) holds the old substring
     outsideEveryIf: lineAt > 0 && regionsAt(fCode, lineAt).length === 0,
     noDevControl: devPage.length > 0 && !/DefaultAppLockOn|DefaultPayConfirmOn|LockDelayOneMinute|defaultsb|paydefault|lockdelay/.test(devPage),
   };

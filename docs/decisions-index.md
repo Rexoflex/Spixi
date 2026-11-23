@@ -212,9 +212,9 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1793 | The app lock's no-auth window is 60 s on the phone and the Mac (`LockDelayOneMinute`, OFF = 5 s; `DefaultsRules.withinGrace`); a verified unlock clears the leaving stamp (R1-2); Windows unchanged (P81). |
 | #1794 | The no-credential device: the lock falls back to the Spixi password, a send to the native confirm alone; D-1 (the "Authentication Failed" alert): answered by #1825 (2). |
 | #1795 | The Android lock flash: the shell's 3 s belt fires during the absence + an animated pop; the fix needs `lock.html` → answered by #1825 (1) (A, a lock batch). |
-| #1796 | Review round 1: 0 MAJOR; R1-1 (the wall-clock measure, inherited): answered by #1825 (3); R1-2 fixed; R1-3 Mac plugin unproven. |
+| #1796 | Review round 1: 0 MAJOR; R1-1 (the wall-clock measure, inherited): answered by #1825 (3); R1-2 fixed; R1-3 Mac plugin unproven. → the clock placed in `lockb` by #1838 (2). |
 | #1797 | The walk: a new Windows account through `ixian.cfg`; no safe new account on the test phone (emulator / spare phone / launch walk); the pin re-bases of other batches. |
-| #1798 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1): a Moment sheet by #1825 (4). |
+| #1798 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1): a Moment sheet by #1825 (4) → placed by #1838 (2): the next page batch. |
 | #1799 | The #46 verdict of the batch. |
 | #1800 | Session "Defaults batch" — the record (numbers, models, owed). |
 
@@ -278,25 +278,39 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1829 | WALK Chat shell batch: 14 P · 1 F · 1 N/A (W-2 F, the broken-picture tile; #1763 confirmed). |
 | #1830 | Four sessions Ready: `fixb4`, `histcs`, `walktools`, `docsb`; Fix batch 4 cut by file area. |
 
+### The main chat's rows of 2026-11-23 (#1831–#1838; written word for word by session `docsb2`, #1950)
+These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #NNNN ' DECISIONS.md`).
+
+| Row | Rule |
+|---|---|
+| #1831 | Q1 of `walktools` (#1886), option (A): jsdom stays at 29.1.1 in CI, the skills and the smoke hints; all test tools pinned by a committed lockfile + `npm ci` (owed). |
+| #1832 | Q-DD of `fixb4` (#1852), option (B): drag and drop of files into a chat in v1.0.x, not before the launch; a drop guard in a later batch. |
+| #1833 | Q-T of `fixb4` (#1853), option (A): the title of welcome slide 4 becomes "Play together."; a new text key in 14 locales in a batch that owns `src/**`. |
+| #1834 | The merge chain of 2026-11-23 is stacked: pull requests 21 → 22 → 23 → 24, one merge commit each; Damir merges in that order when each run is green. |
+| #1835 | WALK `fixb4`: 12 P · 1 F · 0 N/A (W-4, a restored account on Windows, F and not confirmed: to walk again). |
+| #1836 | WALK `histcs`: 10 P · 0 F · 2 N/A (W-5 / A-5, the quote jump, not walked: no seed chat holds a reply with a quote). |
+| #1837 | The password step of a new account: with the keyboard open the round picture hides and the title gets small, so both fields and the button show above the keyboard; in the next page batch. |
+| #1838 | Four sessions Ready: `voicefix`, `lockb`, `walktools2`, `docsb2`; the page batch `fixb5` is planned after them. |
+
 ### Session Fix batch 4 (`fixb4`, 2026-11-22 / 23, #1845–#1855, L265–L268, packets P87–P88)
 | Row | Rule |
 |---|---|
-| #1845 | The two page defaults of a new account: ONE push `setNewAccountDefaults` to the launch shell from the three new-account sites of LaunchPage (no new verb; a lost push = the old defaults); `PageDefaultsRules.cs`; `readFixb4`. |
-| #1846 | Item 3: "Load pictures and GIFs" Off for a new or restored account (switch `DefaultMediaTapToLoad`); the C# mirror `SAutoDownload.loadPictures` Off at the same site (P87). |
-| #1847 | Item 4: the Compact chat list for a new or restored DESKTOP account (switch `DefaultListCompact`; Windows / Mac only) (P88). |
-| #1848 | Item 1: welcome slide 4 names only Blitz Chess; the key renamed `slide4Copy2` → `slide4Copy3` (no stale value can ship). |
-| #1849 | Item 2: the protect-account fields above the keyboard on Android (adjustResize): the focused field box + ring into the body by `scrollTop` only; no switch. |
-| #1850 | Item 6: the Developer log floor `min-height: 60vh`; no switch. |
+| #1845 | The two page defaults of a new account: ONE push `setNewAccountDefaults` to the launch shell from the three new-account sites of LaunchPage (no new verb; a lost push = the old defaults); `PageDefaultsRules.cs`; `readFixb4`. → compiled and walked in WALK #1835 (W-BUILD P, A-BUILD P); W-4 to walk again |
+| #1846 | Item 3: "Load pictures and GIFs" Off for a new or restored account (switch `DefaultMediaTapToLoad`); the C# mirror `SAutoDownload.loadPictures` Off at the same site (P87). → WALK #1835: W-3 P, A-4 P, A-5 P; W-4 (a restored account on Windows) F, not confirmed |
+| #1847 | Item 4: the Compact chat list for a new or restored DESKTOP account (switch `DefaultListCompact`; Windows / Mac only) (P88). → WALK #1835: W-3 P; W-4 (a restored account on Windows) F, not confirmed |
+| #1848 | Item 1: welcome slide 4 names only Blitz Chess; the key renamed `slide4Copy2` → `slide4Copy3` (no stale value can ship). → walked by WALK #1835 (W-3 P, A-4 P); the slide-4 title changes by #1833 |
+| #1849 | Item 2: the protect-account fields above the keyboard on Android (adjustResize): the focused field box + ring into the body by `scrollTop` only; no switch. → walked by WALK #1835 (A-3 P); #1837 follows it (both fields above the keyboard) |
+| #1850 | Item 6: the Developer log floor `min-height: 60vh`; no switch. → walked by WALK #1835 (W-2 P, A-2 P) |
 | #1851 | Item 5: the "sending" broken-picture tile = an unsent file (a Seed contact never takes a file); W-2 / A-2 of `docs/walk-photo1b.md` corrected. |
-| #1852 | Item 7: drag and drop into a chat was never built; question Q-DD; the inherited `file:` navigation (FILE-NAV, legacy). |
-| #1853 | Question Q-T: the slide-4 title "Play and plan together." |
+| #1852 | Item 7: drag and drop into a chat was never built; question Q-DD; the inherited `file:` navigation (FILE-NAV, legacy). → answered by #1832 (B): v1.0.x, not before the launch |
+| #1853 | Question Q-T: the slide-4 title "Play and plan together." → answered by #1833 (A): the title becomes "Play together." |
 | #1854 | Fix batch 4: the #46 verdict. |
 | #1855 | Session "Fix batch 4" — the record (numbers, models, owed). |
 
 ### Session History C# (`histcs`, 2026-11-22 / 23, #1860–#1868, L269–L272, packets P90–P92)
 | Row | Rule |
 |---|---|
-| #1860 | History C#: P-28, HV-5 and the HV-0 C# lines built, each change behind its own switch; both OFF = `onLoadMore` of the base. |
+| #1860 | History C#: P-28, HV-5 and the HV-0 C# lines built, each change behind its own switch; both OFF = `onLoadMore` of the base. → walked by WALK #1836 (10 P · 0 F · 2 N/A) |
 | #1861 🟡 | P-28: an older page read and built on a pool thread; the busy guard, the push gate, the dropped-page rule, the delivery order behind a kept page (P90). |
 | #1862 🟡 | HV-5: the first older page holds 50 rows; the D-18 step over 100 is not needed on this path (P91). |
 | #1863 | HV-0 (C#): the three contract lines + `chat older drop why=` (dev) + `[FLAGS] histcs` (every build, once) (P92). |
@@ -311,7 +325,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 |---|---|
 | #1875 | `GATE 54 (a4)` waits for states (the chooser presented, the exit premise checked, one fresh chooser on the stack, its `data-open` awaited), never for a time. |
 | #1876 | `pins-fixb1/e-header` waits for the page's own `ixian:onload` (jsdom 29.1.1) or window `load` (jsdom 31); no sleep left. |
-| #1877 🟡 | Finding: the add-contact chooser's `onDismiss` clears the NEW chooser's handle (`src/bridge/contacts-page.js:295`); `GATE 54 (a5)` can miss under a long block; fix in the batch that owns `src/**`. |
+| #1877 🟡 | Finding: the add-contact chooser's `onDismiss` clears the NEW chooser's handle (`src/bridge/contacts-page.js:295`); `GATE 54 (a5)` can miss under a long block; fix in the batch that owns `src/**`. → placed by #1838 (2), (7): the next page batch (`fixb5`) |
 | #1878 | The device map: one probe set per theme (`sets`, chat and viewer only); chrome-only probes (the message field, its "Aa", the viewer's close button and scrims). |
 | #1879 | The map values move only with the operator block: the proposed sets first, then ONE calibrate confirms (the calibrate needs a passing chat check for cal-14 / cal-15). |
 | #1880 | The parser: "first swipe -> 1st page" of `-HistorySeed` by rule I-3a (the C# `chat loadmore in` pair, else equal counts in the window, else no data). |
@@ -320,7 +334,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1883 | The six `#346` / `N19` rows read the same values on jsdom 29.1.1 and 31.0.1 (the real token sheet in the probe, `sub()` through the probe's own custom properties). |
 | #1884 | The re-bases of the hashed walk pins after a look at the diff (fixb3 h4d rewritten to I-3a). |
 | #1885 | The #46 verdict of the batch. |
-| #1886 🟡 | Finding + question: on jsdom 31.0.1 the full smoke is red in 200 more rows (the `ixian:` capture of the shared pin kits, token-less probes); options: keep the 29.1.1 pin + a lockfile (recommended) / a follow-up batch / both. |
+| #1886 ✅ | Finding + question: on jsdom 31.0.1 the full smoke is red in 200 more rows (the `ixian:` capture of the shared pin kits, token-less probes); options: keep the 29.1.1 pin + a lockfile (recommended) / a follow-up batch / both. → answered by #1831 (A): jsdom stays at 29.1.1; the lockfile + `npm ci` are owed |
 | #1887 | Session "Walk tools" — the record (numbers, models, owed, the operator block). |
 
 ### Session Docs batch (`docsb`, 2026-11-22, #1890–#1895, L277–L278, no packet)
@@ -332,3 +346,14 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1893 🟡 | The walk kit (icon, the load signal), the #1542 rows of the Safety sheet, the new launch walk sheet, the readiness section S12w; the two Artifacts and the `fixb3` sheet pointer owed. |
 | #1894 | The #46 verdict of the batch (readers: Opus only). |
 | #1895 | Session "Docs batch" — the record. |
+
+### Session Docs batch 2 (`docsb2`, 2026-11-23, #1950–#1956, L293–L294, no packet)
+| Row | Rule |
+|---|---|
+| #1950 | The main chat's rows #1831–#1838 in `DECISIONS.md` word for word, right after #1830; the scripts take `--manifest` and a heading row as a run's predecessor. |
+| #1951 | 13 status cells extended (#1886, #1852, #1853, #1849, #1848, #1850, #1846, #1847, #1845, #1860, #1877, #1796, #1798); the rest listed as not changed. |
+| #1952 🟡 | `docs/process.md` follows #1503, #1606, #1735, #1546, #1507 (13 proposals of `docsb` + three contradicting sentences); Q-2: is branch protection set? |
+| #1953 | The readiness rows of 2026-11-23; the Windows walk set-up: the page store and `ixian.cfg` beside `Spixi.exe`, the store copied after the first start, full PowerShell lines. |
+| #1954 🟡 | The doubled numbers #1420–#1423 are two sets (ON-1 and S20G), not a copy; Q-1: keep both and cite with the session (recommended) / renumber / mark. |
+| #1955 | The #46 verdict of the batch (readers: Opus only): CLEAN at r4; the compare script's relaxed cell check stays a stated limit (rule 9). |
+| #1956 | Session "Docs batch 2" — the record. |

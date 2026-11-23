@@ -1,0 +1,117 @@
+{
+  "about": "The main chat's rows of 2026-11-23 (#1831 to #1838), inserted into DECISIONS.md word for word (session docsb2, DECISIONS 1950). Each row = the heading block of its project doc claude/<doc>, byte for byte. The run goes right after the block of the heading row #1830 (the highest row with a lower number, a table row or a heading row), with one empty line before the run, one between two rows and one after the run (the separation that a heading block needs in a file of table lines). cells = the status cells of older table rows, extended by ' → <text>' (old text kept, 215). statusLines = a suffix added to the Status line of an inserted heading row (none in this batch). lines = the number of lines of each source block; sha256 = the SHA-256 of each source block (its lines joined with a newline, no final newline, before a statusLines suffix).",
+  "runs": [
+    {
+      "first": 1831,
+      "rows": [
+        [
+          1831,
+          "talk-rulings-2026-11-23.md"
+        ],
+        [
+          1832,
+          "talk-rulings-2026-11-23.md"
+        ],
+        [
+          1833,
+          "talk-rulings-2026-11-23.md"
+        ],
+        [
+          1834,
+          "talk-rulings-2026-11-23.md"
+        ],
+        [
+          1835,
+          "talk-rulings-2026-11-23-walk.md"
+        ],
+        [
+          1836,
+          "talk-rulings-2026-11-23-walk.md"
+        ],
+        [
+          1837,
+          "talk-rulings-2026-11-23-walk.md"
+        ],
+        [
+          1838,
+          "talk-rulings-2026-11-23-evening.md"
+        ]
+      ]
+    }
+  ],
+  "cells": [
+    {
+      "row": 1886,
+      "add": "answered by #1831: (A) jsdom stays at 29.1.1 in CI, the skills and the smoke hints; all test tools pinned by a committed lockfile + `npm ci` (owed; session `walktools2`, #1838 (3)); item 5 of `walktools` is done with its six rows"
+    },
+    {
+      "row": 1852,
+      "add": "answered by #1832: (B) v1.0.x, not before the launch: paperclip › Send file until then; a drop guard (one switch) in a later batch, not chosen yet; FILE-NAV stays listed for the BE engineer"
+    },
+    {
+      "row": 1853,
+      "add": "answered by #1833: (A) the title becomes \"Play together.\" (with the full stop); a new text key in the 14 locales in a batch that owns `src/**` (the next page batch, #1838 (2), (7)); until then the title of `fixb4` ships as it is"
+    },
+    {
+      "row": 1849,
+      "add": "walked by WALK #1835 (A-3 P); #1837 follows it: with the keyboard open the step hides the round picture and makes the title small, so both password fields and the button show above the keyboard (the next page batch, #1838 (2), (7))"
+    },
+    {
+      "row": 1848,
+      "add": "walked by WALK #1835 (W-3 P, A-4 P); the slide-4 title changes by #1833"
+    },
+    {
+      "row": 1850,
+      "add": "walked by WALK #1835 (W-2 P, A-2 P)"
+    },
+    {
+      "row": 1846,
+      "add": "WALK #1835: W-3 P, A-4 P, A-5 P; W-4 (a restored account on Windows) F, not confirmed: to walk again"
+    },
+    {
+      "row": 1847,
+      "add": "WALK #1835: W-3 P; W-4 (a restored account on Windows) F, not confirmed: to walk again"
+    },
+    {
+      "row": 1845,
+      "add": "compiled and walked in WALK #1835 (W-BUILD P on Windows, A-BUILD P on Android); W-4 to walk again"
+    },
+    {
+      "row": 1860,
+      "add": "walked by WALK #1836 (10 P · 0 F · 2 N/A; W-5 / A-5, the quote jump, N/A: no seed chat holds a reply with a quote, item `n-20261123-devseed-no-quote-reply`)"
+    },
+    {
+      "row": 1877,
+      "add": "placed by #1838 (2), (7): the next page batch (working name `fixb5`), with #1837 and #1833"
+    },
+    {
+      "row": 1796,
+      "add": "placed in session `lockb` by #1838 (2) (Ready, not built yet): the second clock for the lock delay on Android, a Fable 5.2 builder and reader; the twin for iPhone and Mac stays a question (Apple phase)"
+    },
+    {
+      "row": 1798,
+      "add": "placed by #1838 (2): the first-notice Moment sheet of #1825 (4) is not in `lockb`; it goes to the next page batch (working name `fixb5`, #1838 (7))"
+    }
+  ],
+  "statusLines": [],
+  "lines": {
+    "1831": 8,
+    "1832": 8,
+    "1833": 8,
+    "1834": 21,
+    "1835": 13,
+    "1836": 13,
+    "1837": 12,
+    "1838": 42
+  },
+  "sha256": {
+    "1831": "28323a9187a5babebbec91a8cc69774a7c1df8194457239a08ce7ad6b341857d",
+    "1832": "bc4edc84a39ffc8c144bfe0f4a1c8bca6fd085960351c94c74113c85f3a2f4e3",
+    "1833": "698661caaf2ae1feb5f644b7211b4689539dba52054f90822bc51bdb783ba359",
+    "1834": "59e47e8411257d24da131cf88e8080ac805c5bc08d88e59aaf9da1154ec23159",
+    "1835": "01278defa33520a37e3dc0865efb45f960e07d8b4625e3a0b0465714c072451e",
+    "1836": "76f48aa352a118f427ad5bcfd6a616452feb8e46fc9f5f7465ae3753303cc678",
+    "1837": "4cb79063ab0095fe6c5e91dc39c78af52f76f3beb1d3468c04a81d86a79a0f3b",
+    "1838": "362558bf63414fe2b9d48006fe0d6fe5e6cf1a55022b03753740daaa0fffe02d"
+  }
+}

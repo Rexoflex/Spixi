@@ -1,41 +1,68 @@
 #!/usr/bin/env node
-// Use: node scripts/docs/compare-main-chat-rows.mjs [<folder with the project docs claude/talk-rulings-*.md>] [--base <git rev>] [--own <a>-<b>]
+// Use: node scripts/docs/compare-main-chat-rows.mjs [<folder with the project docs claude/talk-rulings-*.md>] [--manifest <path>] [--base <git rev>] [--own <a>-<b>]
+//      (default manifest: scripts/docs/main-chat-rows-2026-11-22.json; the 2026-11-23 batch:
+//       --manifest scripts/docs/main-chat-rows-2026-11-23.json --base 462ba3e4 --own 1950-1959)
 //
-// Session docsb (DECISIONS 1890): proves what insert-main-chat-rows.mjs did, with its own reading (no code shared).
+// Session docsb (DECISIONS 1890), extended by session docsb2 (DECISIONS 1950): proves what insert-main-chat-rows.mjs
+// did, with its own reading (no code shared).
 // Per row: the block in DECISIONS.md = its heading line and the next (manifest `lines` − 1) lines; the line after it
 // is empty. With the statusLines suffix of the manifest taken off, the block has the SHA-256 of the manifest and —
 // when a folder is given — is byte-equal to its source block (a folder that does not exist = a miss). Then: the rows
-// stand in number order; each run is right after the highest table row with a lower number, with one empty line
-// before it, one between two rows and one after it, and then a table row or the end of the file; every listed
-// status cell ends with " → <text> |"; the file ends with one newline. With --base: DECISIONS.md minus the runs (and
-// their empty lines), minus the cell suffixes and minus the table rows numbered in --own (this session's own rows)
-// equals DECISIONS.md of that git revision — nothing else changed. On a tree merged with a newer base, give that
-// base. With a folder: every "## #<n> " row of the docs in that folder is either in the manifest or a table row of
-// the file (no row of the docs is left out of both). The expected totals are fixed: 30 rows, 26 cells, 1 status line.
+// stand in number order; each run follows its predecessor = the highest row with a lower number among the TABLE rows
+// ("| n |" / "| #n |") and the HEADING rows ("## #n ") of the file that are not in the manifest's own runs (scanned
+// back from the empty line before the run to the nearest heading-row or table-row line: that line must be the
+// predecessor's table line or heading line), with one empty line before the run, one between two rows and one after
+// it, and then one empty line and a table row, OR a heading row "## #m " with m greater than the run's last row,
+// OR the end of the file; every listed status cell ends with " → <text> |"; the file ends with one newline.
+// With --base: DECISIONS.md minus the runs (and their empty lines), minus the cell suffixes and minus the table rows
+// numbered in --own (this session's own rows) equals DECISIONS.md of that git revision — nothing else changed. On a
+// tree merged with a newer base, give that base. With a folder: every "## #<n> " row of the docs in that folder with
+// a number up to the manifest's highest row is either in the manifest, or a table row of the file, or a heading row
+// of the file (a row that the main chat writes later than the manifest is not this batch's).
+// The expected totals are fixed per manifest, by its file name: main-chat-rows-2026-11-22.json = 30 rows, 26 cells,
+// 1 status line; main-chat-rows-2026-11-23.json = 8 rows, 13 cells, 0 status lines; any other name: exit 2.
 // The own rows of --own must be one block at the end of the file, each number once. Exit 1 on any miss; exit 2 on a
 // wrong argument.
 // LIMITS (stated in the first version that a reader can attack, #1735): it proves the bytes of the manifest's rows,
 // their places, the listed cells and "the rest = the base"; it does NOT judge whether a cell's added text says what
 // the newer row says (a reader does that), whether the manifest lists every row a prompt names (the totals fix only the COUNT of rows, cells and status lines;
-// the folder check covers the rows of the docs in that folder), which rows carry the cells, the order of the own rows,
-// --own without --base (then the own rows are not checked), or the content of the own rows (a reader reads them). A gap of
-// these classes is a NIT, not a MAJOR (#1735).
+// the folder check covers the rows of the docs in that folder up to the manifest's highest row), which rows carry the cells, the order of the own rows,
+// --own without --base (then the own rows are not checked), or the content of the own rows (a reader reads them).
+// New limits (docsb2): the scan back to the heading predecessor trusts that a body line of a row never starts like a
+// table row ("| 12 |") or like a row heading ("## #12 "); the "rest = base" of the OLD manifest (2026-11-22) holds only
+// against the base it was inserted on (ff5cd4d3) and a tree with nothing added since: on a later tree (the rows of
+// 2026-11-23, own rows) that proof is not expected equal, and the old manifest is then run without --base.
+// A run after a HEADING predecessor: the block of a heading row may hold empty lines, so a stray line between that
+// block and the run counts as a part of the block; only --base (the rest = the base) catches it. After a TABLE
+// predecessor the run must start two lines after it (review docsb2 r1, finding A-1).
+// A cell of an older manifest that a later manifest extends again passes when its own suffix is followed by " → "
+// (the later suffix is the later manifest's to prove); the old manifest's "rest = base" then does not hold (see above).
+// That check looks for " → <add> → " ANYWHERE in the row's line (any column), for every manifest, and does not check
+// that a later manifest names the cell: without --base (the old manifest on a later tree) a stray " → <add> → x" or a
+// garbage text after the add passes; with --base it is red ("the rest … differs"). Review docsb2 r2 MINOR-1; by rule 9
+// of the lead skill (a new class in two rounds) the checker got no third fix round: the limit is stated (#1735).
+// A gap of these classes is a NIT, not a MAJOR (#1735).
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const args = process.argv.slice(2);
-let base = null, own = null, srcDir = null;
+let base = null, own = null, srcDir = null, manifestArg = null;
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--base') { base = args[++i]; if (!base || base.startsWith('--')) { console.error('--base wants a git revision'); process.exit(2); } }
+  else if (args[i] === '--manifest') { manifestArg = args[++i]; if (!manifestArg || manifestArg.startsWith('--')) { console.error('--manifest wants a path'); process.exit(2); } }
   else if (args[i] === '--own') { const r = /^(\d+)-(\d+)$/.exec(args[++i] || ''); if (!r) { console.error('--own wants <a>-<b>'); process.exit(2); } own = [+r[1], +r[2]]; }
   else if (srcDir === null) srcDir = args[i];
   else { console.error('one folder only'); process.exit(2); }
 }
-const m = JSON.parse(readFileSync(join(root, 'scripts', 'docs', 'main-chat-rows-2026-11-22.json'), 'utf8'));
+const manifestPath = manifestArg ? resolve(manifestArg) : join(root, 'scripts', 'docs', 'main-chat-rows-2026-11-22.json');
+const EXPECTED = { 'main-chat-rows-2026-11-22.json': { rows: 30, cells: 26, statusLines: 1 }, 'main-chat-rows-2026-11-23.json': { rows: 8, cells: 13, statusLines: 0 } };
+const EXPECT = EXPECTED[basename(manifestPath)];
+if (!EXPECT) { console.error('unknown manifest ' + basename(manifestPath) + ': the expected totals are fixed per manifest name (' + Object.keys(EXPECTED).join(', ') + ')'); process.exit(2); }
+const m = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const sha = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 let bad = 0;
 const miss = (msg) => { bad++; console.log('DIFFERENT  ' + msg); };
@@ -61,16 +88,16 @@ function sourceText(n, doc) {
   return b.join('\n');
 }
 
-const EXPECT = { rows: 30, cells: 26, statusLines: 1 };
 const nRows = m.runs.reduce((a, r) => a + r.rows.length, 0);
 if (nRows !== EXPECT.rows || m.cells.length !== EXPECT.cells || (m.statusLines || []).length !== EXPECT.statusLines)
   miss('the manifest holds ' + nRows + ' rows, ' + m.cells.length + ' cells, ' + (m.statusLines || []).length + ' status lines; expected ' + EXPECT.rows + ', ' + EXPECT.cells + ', ' + EXPECT.statusLines);
 if (srcDir !== null && existsSync(srcDir)) {
   const inManifest = new Set(m.runs.flatMap((r) => r.rows.map(([n]) => n)));
+  const maxRow = Math.max(...inManifest);
   for (const f of readdirSync(srcDir).filter((x) => /talk-rulings-.*\.md$/.test(x)))
     for (const l of readFileSync(join(srcDir, f), 'utf8').split('\n')) {
       const h = /^## #(\d+) /.exec(l);
-      if (h && !inManifest.has(+h[1]) && !dec.some((x) => tableNum(x) === +h[1])) miss('#' + h[1] + ' of ' + f + ' is neither in the manifest nor a table row of the file');
+      if (h && +h[1] <= maxRow && !inManifest.has(+h[1]) && !dec.some((x) => tableNum(x) === +h[1] || x.startsWith('## #' + h[1] + ' '))) miss('#' + h[1] + ' of ' + f + ' is neither in the manifest nor a table row nor a heading row of the file');
     }
 }
 
@@ -110,15 +137,25 @@ for (const run of m.runs) {
     if (where[ns[k]] !== prevEnd + 1) { ok = false; miss('#' + ns[k] + ': not right after #' + ns[k - 1] + ' with one empty line'); }
   }
   const first = where[ns[0]];
-  const below = dec.map((l, i) => [tableNum(l), i]).filter(([n]) => n !== null && n < run.first);
-  const max = Math.max(...below.map(([n]) => n));
-  const maxAt = below.filter(([n]) => n === max).map(([, i]) => i);
-  if (dec[first - 1] !== '' || maxAt.length !== 1 || maxAt[0] !== first - 2) { ok = false; miss('run ' + run.first + ': not right after the table row ' + max + ' (the highest lower number) with one empty line'); }
+  const own0 = new Set(m.runs.flatMap((r) => r.rows.map(([n]) => n)));
+  const below = dec.map((l, i) => { const t = tableNum(l); if (t !== null) return [t, i, 'table row']; const h = /^## #(\d+) /.exec(l); return h ? [+h[1], i, 'heading row'] : null; })
+    .filter((x) => x && x[0] < run.first && !own0.has(x[0]));
+  const max = Math.max(...below.map((x) => x[0]));
+  const at = below.filter((x) => x[0] === max);
+  let k = first - 2;
+  while (k >= 0 && tableNum(dec[k]) === null && !isRowHead(dec[k])) k--;
+  // a table predecessor must stand right before the empty line (as in the first version); a heading predecessor is
+  // found by the scan back (its block may hold empty lines, so a stray line inside it is caught only by --base: LIMITS)
+  const tableHere = at.length === 1 && at[0][2] === 'table row';
+  if (dec[first - 1] !== '' || (first >= 2 && dec[first - 2] === '') || at.length !== 1 || at[0][1] !== k || (tableHere && at[0][1] !== first - 2)) { ok = false; miss('run ' + run.first + ': not right after the ' + (at.length === 1 ? at[0][2] : 'row') + ' ' + max + ' (the highest lower number) with one empty line'); }
   const last = ns[ns.length - 1];
   const end = where[last] + m.lines[String(last)];   // the empty line after the run
-  if (end < dec.length && (dec[end] !== '' || (end + 1 < dec.length && tableNum(dec[end + 1]) === null))) { ok = false; miss('run ' + run.first + ': after #' + last + ' comes not one empty line and a table row (or the end)'); }
-  runSpan.push([first - 1, Math.min(end, dec.length - 1)]);
-  if (ok) console.log('place      run #' + ns[0] + '–#' + last + ': after table row ' + max + '; one empty line before, between and after');
+  const afterOk = end >= dec.length || (dec[end] === '' && (end + 1 >= dec.length || tableNum(dec[end + 1]) !== null || (isRowHead(dec[end + 1]) && +dec[end + 1].match(/^## #(\d+) /)[1] > last)));
+  if (!afterOk) { ok = false; miss('run ' + run.first + ': after #' + last + ' comes not one empty line and a table row or a later row heading (or the end)'); }
+  // the span of the run for "the rest": after a table row it holds the empty line before the run too; after a heading row it holds the run and the empty line after it
+  const hp = at.length === 1 && at[0][2] === 'heading row';
+  runSpan.push(hp && end < dec.length ? [first, end] : [first - 1, Math.min(end, dec.length - 1)]);
+  if (ok) console.log('place      run #' + ns[0] + '–#' + last + ': after ' + (at.length === 1 ? at[0][2] : 'row') + ' ' + max + '; one empty line before, between and after');
 }
 const heads = dec.filter(isRowHead).map((l) => +l.match(/^## #(\d+) /)[1]);
 if (heads.some((n, i) => i && n <= heads[i - 1])) miss('the row headings are not in number order');
@@ -126,7 +163,9 @@ if (heads.some((n, i) => i && n <= heads[i - 1])) miss('the row headings are not
 // 3 · status cells
 for (const c of m.cells) {
   const l = dec.filter((x) => tableNum(x) === c.row);
-  if (l.length !== 1 || !l[0].endsWith(' → ' + c.add + ' |')) miss('cell #' + c.row + ': not extended as the manifest says');
+  // a later batch may extend the same cell again (" → <older> → <newer> |", docsb2: #1796, #1798): the suffix of this
+  // manifest is then followed by " → " instead of " |"
+  if (l.length !== 1 || !(l[0].endsWith(' → ' + c.add + ' |') || l[0].includes(' → ' + c.add + ' → '))) miss('cell #' + c.row + ': not extended as the manifest says');
   else console.log('cell       #' + c.row + ' → ' + c.add.slice(0, 70) + (c.add.length > 70 ? '…' : ''));
 }
 

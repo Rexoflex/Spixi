@@ -1,0 +1,8 @@
+History C#: an older page of chat history is read and built off the UI thread, the first older page holds 50 rows, the C# history lines
+
+Session History C# (histcs), DECISIONS 1860-1868, packets P90-P92, ruling 1742 (History 1).
+
+- P-28 (switch LoadMoreOffUi): ixian:loadmore reads and builds an older page on a pool thread; an owner-aware busy guard; a push gate with the dropped-page rule (closed, another channel, another load, a replaced anchor); a main-thread load waits behind a kept page's queued pushes. Both switches OFF = onLoadMore of the base, byte for byte.
+- HV-5 (switch FirstOlderPage50): the first older page asks for 50 rows; the D-18 cache rule is proven not to bite (docs/histcs-mechanisms.md section 6).
+- HV-0: [P1] chat loadmore in / chat older read / chat older push / chat older drop (developer builds) and [FLAGS] histcs (every build, once).
+- Tests: scripts/csh/HistcsTests.cs (43); pins scripts/pins-histcs/a-path.mjs, b-lines.mjs; re-based: pins-fixb1/g-sparekeep, pins-photo1a/a-open, pins-s4/chat, pins-s6/rows, two smoke rows (907 r4, 1106 Part 5).

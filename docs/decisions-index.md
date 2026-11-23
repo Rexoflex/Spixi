@@ -293,6 +293,19 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1854 | Fix batch 4: the #46 verdict. |
 | #1855 | Session "Fix batch 4" — the record (numbers, models, owed). |
 
+### Session History C# (`histcs`, 2026-11-22 / 23, #1860–#1868, L269–L272, packets P90–P92)
+| Row | Rule |
+|---|---|
+| #1860 | History C#: P-28, HV-5 and the HV-0 C# lines built, each change behind its own switch; both OFF = `onLoadMore` of the base. |
+| #1861 🟡 | P-28: an older page read and built on a pool thread; the busy guard, the push gate, the dropped-page rule, the delivery order behind a kept page (P90). |
+| #1862 🟡 | HV-5: the first older page holds 50 rows; the D-18 step over 100 is not needed on this path (P91). |
+| #1863 | HV-0 (C#): the three contract lines + `chat older drop why=` (dev) + `[FLAGS] histcs` (every build, once) (P92). |
+| #1864 🟡 | The two switches are read lazily (not from `SpixiFlags.init()`); the rules live in the histcs block of `SpixiFlags.cs`. |
+| #1865 | The re-bases of other batches' rows (named). |
+| #1866 | The #46 verdict; the rule: the push gate must order the DELIVERIES (a main-thread send runs inline, a pool-thread send posts). |
+| #1867 | Session "History C#" — the record. |
+| #1868 🟡 | Proposed follow-up "History C# 2": the peer updates of a row while a background page is in flight (the round-5 records). |
+
 ### Session Walk tools (`walktools`, 2026-11-22 / 23, #1875–#1887, L273–L276, packet P93)
 | Row | Rule |
 |---|---|

@@ -125,6 +125,9 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P78](P78-packaging-refusals-and-ci.md) | Speed lean follow-up: the P-07 park inside the lean target, no strip out folder in the project folder but under obj / bin, the plain packaged smoke, two CI steps; recorded limits r5C-2, r5C-3, R6-1 | LOW | no | none | built · CLEAN (#1783) | 4 min |
 | [P87](P87-new-account-media-tap-to-load.md) | Fix batch 4 item 3 (#1750 P1): a NEW or RESTORED account starts with "Load pictures and GIFs" Off — ONE new C# → JS push `setNewAccountDefaults` to the launch shell from the three new-account sites (flag `DefaultMediaTapToLoad`) + the C# mirror `photoAutoDlLoadPictures` Off; existing accounts and every reader unchanged | LOW | no | +1 push (no verb) | built · ⚠ uncompiled | 5 min |
 | [P88](P88-new-account-list-compact.md) | Fix batch 4 item 4 (#1750 A9): the same push writes the Compact chat list on Windows / Mac only (flag `DefaultListCompact`) | NONE | no | the push of P87 | built · ⚠ uncompiled | 2 min |
+| [P90](P90-older-page-off-ui-thread.md) | History C# P-28: an older page of chat history is read and built on a pool thread (flag `LoadMoreOffUi`); the busy guard, the push gate, the dropped-page rule, the delivery order behind a kept page | MEDIUM | no | none | built · ⚠ uncompiled | 8 min |
+| [P91](P91-first-older-page-50.md) | History C# HV-5: the first older page holds 50 rows (flag `FirstOlderPage50`); the D-18 cache rule proven not to bite | LOW | no | none | built · ⚠ uncompiled | 3 min |
+| [P92](P92-history-csharp-lines.md) | History C# HV-0: four developer lines, one `[FLAGS] histcs` line, three type-only warns | LOW | no | none | built · ⚠ uncompiled | 2 min |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

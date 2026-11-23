@@ -229,7 +229,7 @@ export default async function (h) {
     mediaScheduled: preload.startsWith('{ cdperf("present", "t=" + openClock.ElapsedMilliseconds); scheduleMediaLine();') && count(SCP.m, 'scheduleMediaLine();') === 1,
     intsOnly: realArgs.every((r) => r !== '?') && argIds.every((id) => allowed.has(id) || /^\d+$/.test(id))
       && typed(onLoad, 'onloadT0', 'long') && typed(loadM, 'readT0', 'long') && typed(loadM, 'readRows', 'int') && typed(loadM, 'readPasses', 'int')
-      && /readPasses\+\+;/.test(loadM) && count(loadM, 'readPasses') === 3 && /int readRows = messages != null \? messages\.Count : 0;/.test(loadM)
+      && /readPasses\+\+;/.test(loadM) && count(loadM, 'readPasses') === 4 /* ★ histcs re-base (2026-11-22): 3 → 4 — the fourth is the argument of histcs's own `[P1] chat older read` line (HistoryOlderRules.olderReadBody, an int; pins-histcs/b-lines b1) */ && /int readRows = messages != null \? messages\.Count : 0;/.test(loadM)
       && /private readonly ConcurrentQueue<ThumbJob> thumbQueue/.test(SCP.m) && /private int voiceInfoQueued/.test(SCP.m),
     onlyP1Line: treeCount('"chat onload-main').length === 1 && treeCount('"chat onload-main')[0][0] === RULES_F
       && treeCount('"chat read ').length === 1 && treeCount('"chat read ')[0][0] === RULES_F
@@ -415,7 +415,9 @@ export default async function (h) {
     refreshFirst: norm(refresh).startsWith('{ Interlocked.Increment(ref fileDeleteGen); if (message == null'),
     heldFirst: norm(heldRows).startsWith('{ Interlocked.Increment(ref fileDeleteGen); List<string> held;'),
     /* ★ photo1a #46 r7 (2026-11-18) NIT-1: deleteMessage's body = the BASE body (c0a7617, masked + whitespace-normalised, frozen here: no git read) + EXACTLY the batch's two statements — the generation increment, then the store call (b-store b1 holds the store call) — so a third statement (`ChatMediaStore.wipe();` before the increment, any other) is red */
-    deleteOnce: incs(delMsg) === 1 && norm(delMsg) === BASE_DELETE_OPEN + ' Interlocked.Increment(ref fileDeleteGen); ChatMediaStore.deleteMessage(friend?.walletAddress, msg_id); }',
+    /* ★ histcs re-base (#46 r4, 2026-11-23): admits EXACTLY ONE new statement inside the `if (channel == selectedChannel)` block, after the push — histcs's repeat of the delete behind a background older page
+       (`if (HistcsFlags.LoadMoreOffUi && olderBusy.held) { string lateId = …; olderLatePushes.Enqueue(() => Utils.sendUiCommand(this, "deleteMessage", lateId)); }`; pins-histcs/a-path a5 / a11 hold it whole). The generation increment and the store delete are unchanged. */
+    deleteOnce: incs(delMsg) === 1 && norm(delMsg) === BASE_DELETE_OPEN.slice(0, -2) + ' if (HistcsFlags.LoadMoreOffUi && olderBusy.held) { string lateId = Crypto.hashToString(msg_id); olderLatePushes.Enqueue(() => Utils.sendUiCommand(this, "deleteMessage", lateId)); } }' + ' Interlocked.Increment(ref fileDeleteGen); ChatMediaStore.deleteMessage(friend?.walletAddress, msg_id); }',
     onlyFour: incs(SCP.m) === 4 && incs(refresh) === 1 && incs(heldRows) === 1 && incs(noteBody) === 1 && !/fileDeleteGen\s*(\+\+|--|=[^=]|\+=|-=)/.test(SCP.m.replace(/private static int fileDeleteGen = 0;/, '')),
     noteStatic: norm(noteBody) === '{ Interlocked.Increment(ref fileDeleteGen); }' && /public static void noteFileDeleted\(\)/.test(SCP.m),
     noteCalls: noteCallSites === 'Spixi/Pages/Chat/SingleChatPage.xaml.cs:0,Spixi/Pages/Downloads/DownloadsPage.xaml.cs:1,Spixi/Pages/Settings/SettingsPage.xaml.cs:3'

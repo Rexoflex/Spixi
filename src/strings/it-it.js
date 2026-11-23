@@ -969,7 +969,7 @@ export const itit = {
   slide2Title2: "Pensata per la privacy.",
   slide3Copy: "Un portafoglio IXI privato vive in ogni chat. Invia e richiedi IXI con un tocco.",
   slide3Title: "Invia IXI come un messaggio.",
-  slide4Copy2: "Le mini app come Blitz Chess e Split si aprono direttamente nelle tue chat.",
+  slide4Copy3: "Le mini app come Blitz Chess si aprono direttamente nelle tue chat.",
   slide4Title2: "Gioca e organizza insieme.",
   source: "Sorgente",
   splitPasteAction: "Invia come {n} messaggi separati",

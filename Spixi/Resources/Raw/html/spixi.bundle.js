@@ -34637,7 +34637,7 @@ function buildWelcome(st) {
     {
       art: illoWelcome4,
       title: strings.slide4Title2 || 'Play and plan together.',
-      copy: strings.slide4Copy2 || 'Mini apps like Blitz Chess and Split open right in your chats.',
+      copy: strings.slide4Copy3 || 'Mini apps like Blitz Chess open right in your chats.',
     },
   ];
   const slides = defs.map((s, i) => {

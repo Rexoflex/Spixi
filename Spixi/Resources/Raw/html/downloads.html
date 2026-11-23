@@ -2766,7 +2766,11 @@ html:root .c-account .c-settings__row[aria-current][data-pressfade]::before {
    `> * { flex:none }` guard without !important) */
 .c-settings-dev__log.u-scroll {
   flex: 1 1 auto;
-  min-height: 0;
+  /* ★ fixb4 item 6 (mechanism doc § 6): the switch cards above the log (Flash · Container on Android · Release flags) are taller
+     than the screen, and this is the body's ONLY shrinkable child — `min-height: 0` let flexbox squeeze it to its own padding
+     (half a row). A FLOOR instead: it still fills the body when there is room; below that the body scrolls to it and the log
+     scrolls itself. vh is safe here: the screen has no text field, so no keyboard resizes it. */
+  min-height: 60vh;
   margin: 0;
   padding: var(--spacing-12);
   background: var(--surface-settings-card);   /* ★ #1013 (r3): the hub card pair on the hub ground (dark = --surface-card, unchanged) */

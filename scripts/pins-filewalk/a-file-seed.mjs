@@ -17,7 +17,7 @@
  *   a10 hooks          — exactly ONE added statement in seed(profile), unseed() and status(), each where the contract says
  *   a11 logsTypesOnly  — every new log line starts with [DEVSEED] and carries indexes and exception TYPE names only
  *   a12 nicks          — the three nicks, built by the "Seed NN " shape
- *   a13 rows           — addressFor(i) / messageIdFor(i, m.j), the app's row shapes, `completed` before `filePath`, the exact
+ *   a13 rows           — addressFor(i) / SDevSeedPlan.rowIdFor(i, m) (walktools item 4; was messageIdFor(i, m.j)), the app's row shapes, `completed` before `filePath`, the exact
  *                        fileSize of a received row, requestWriteMessages + friend.save() after each chat
  *   a14 unseedRemoves  — unseed's ONE removal loop (removeFriend + forgetContact) covers the file chats (its bound = FileChatFirst +
  *                        FileChats, which follow the image chats without a gap); unseedFileChats removes no contact and touches the
@@ -270,14 +270,14 @@ export default async function (h) {
     const s = norm(G.seed);
     const LOOP = 'for (int i = SDevSeedPlan.FileChatFirst; i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats; i++) { Address address = addressFor(i);';
     const r = {
-      loop: s.includes(LOOP) && s.includes('foreach (SDevSeedPlan.FileMsg m in SDevSeedPlan.filePlan(i)) { byte[] id = messageIdFor(i, m.j);'),
+      loop: s.includes(LOOP) && s.includes('foreach (SDevSeedPlan.FileMsg m in SDevSeedPlan.filePlan(i)) { byte[] id = SDevSeedPlan.rowIdFor(i, m);'),
       text: s.includes('if (!SDevSeedPlan.hasFile(m)) { if (FriendList.addMessageWithType(id, FriendMessageType.standard, address, 0, SDevSeedPlan.rowText(m), m.local, null, m.ts, false, 0) != null) texts++; continue; }'),
       file: s.includes('FriendMessage? fm = FriendList.addMessageWithType(id, FriendMessageType.fileHeader, address, 0, SDevSeedPlan.fileHeaderText(i, m), m.local, null, m.ts, false, 0); if (fm == null) { continue; }'),
       completed: s.includes('fm.transferId = SDevSeedPlan.transferUid(i, m.j); if (!m.local) { fm.fileSize = (ulong)size; } fm.completed = true; fm.filePath = fPath; rows++;') && (s.match(/fm\.filePath = /g) || []).length === 1,
       size: s.includes('long size = SDevSeedPlan.fileLength(m);'),
       write: s.includes('IxianHandler.localStorage.requestWriteMessages(address, 0); friend.save(); } }'),
     };
-    ok(glueOk && Object.values(r).every(Boolean), '★ filewalk seed (a13 rows): the file chats take addressFor(i) and messageIdFor(i, m.j) like every seed contact; a row without a file = Core\'s standard row with the plan\'s text (an inline voice text included); a file row = the app\'s fileHeader text with the completed-transfer fields — `completed` BEFORE `filePath` (#46 r1 B-5), fileSize = the exact length for a received row; requestWriteMessages + friend.save() after each chat — ' + JSON.stringify(r));
+    ok(glueOk && Object.values(r).every(Boolean), '★ filewalk seed (a13 rows): the file chats take addressFor(i) and the row id SDevSeedPlan.rowIdFor(i, m) (walktools item 4: messageIdFor(i, m.j) for every row but a voice row, whose id is its first 16 bytes) like every seed contact; a row without a file = Core\'s standard row with the plan\'s text (an inline voice text included); a file row = the app\'s fileHeader text with the completed-transfer fields — `completed` BEFORE `filePath` (#46 r1 B-5), fileSize = the exact length for a received row; requestWriteMessages + friend.save() after each chat — ' + JSON.stringify(r));
   }
 
   /* ── a14 unseedRemoves ── */
@@ -331,7 +331,7 @@ export default async function (h) {
       ensureFileChatFile: /private static int ensureFileChatFile\(/, deleteFileChatTmp: /private static int deleteFileChatTmp\(/,
       presentIds: /private static List<byte\[\]\?>\? presentIds\(Friend friend\)/ };
     const WANT = {
-      seedFileChats: '45a50b1cdbaa6e91523ff6accb1d29c43871f3c2d6cb4c269525610180182acc', unseedFileChats: '814af502a139574b65b56452ff57c6f7903ecae60ececb11beca85d9611c00bf',
+      seedFileChats: '6a2bb9d9299c6d581735e3011cf1e21042476e77de26ea9d1fe817de8b6dc5c6', unseedFileChats: '814af502a139574b65b56452ff57c6f7903ecae60ececb11beca85d9611c00bf',
       fileChatsPresent: 'be1f248bcea032d16b7578f15ef1a503b940480bf6ceb87136223988ff221ab4', fileChatStateOf: '5db07df9a5c5a43aa0b42e6cf451e803109c22df00835b08bcbdcdb0453a0ae0',
       ensureFileChatFile: 'db6ce5b651a2044b72efc985353a9f2327a92ea1d55a736f98217c56be64c22f', deleteFileChatTmp: 'fa6c5e58e74259df7d75f25b0725d0df8357d4cffd615344868e2bd9f2a8b4df',
       presentIds: '731d40ef75b3c60390159cba7f590a98fa8bd162c637a1b598db9889dd472596',
@@ -353,7 +353,7 @@ export default async function (h) {
     const cc = bodyN(P, /public static bool chatComplete\(IEnumerable<byte\[\]\?> presentIds, int i\)/);
     const r = {
       skip: s.includes(SKIP),
-      plan: cc === 'List<FileMsg> l = filePlan(i); if (l.Count == 0 || presentIds == null) { return false; } byte[] newest = messageIdFor(i, l[l.Count - 1].j); foreach (byte[]? id in presentIds) { if (id != null && id.Length == newest.Length && isOurs(id, newest)) { return true; } } return false;',
+      plan: cc === 'List<FileMsg> l = filePlan(i); if (l.Count == 0 || presentIds == null) { return false; } byte[] newest = rowIdFor(i, l[l.Count - 1]); foreach (byte[]? id in presentIds) { if (id != null && id.Length == newest.Length && isOurs(id, newest)) { return true; } } return false;',
       ids: norm(method(S, /private static List<byte\[\]\?>\? presentIds\(Friend friend\)/)).includes('List<FriendMessage>? msgs = friend.getMessages(0); if (msgs == null) { return null; } List<byte[]?> ids = new List<byte[]?>(); lock (msgs) { foreach (FriendMessage fmsg in msgs) { ids.Add(fmsg.id); } } return ids;'),
       topUp: bodyN(P, /public static string topUpAction\(IReadOnlyCollection<byte\[\]\?>\? presentIds, int i\)/) === 'if (presentIds == null || filePlan(i).Count == 0) { return TopUpPartial; } if (presentIds.Count == 0) { return TopUpWrite; } return chatComplete(presentIds, i) ? TopUpSkip : TopUpPartial;',
       partialStatus: norm(G.seed).includes('(partly > 0 ? "; " + partly + " partial: Remove the seed, then Seed" : "")') && !/complete, skipped/.test(G.seed),

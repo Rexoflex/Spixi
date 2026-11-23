@@ -511,7 +511,7 @@ namespace SPIXI
                     }
                     foreach (SDevSeedPlan.FileMsg m in SDevSeedPlan.filePlan(i))
                     {
-                        byte[] id = messageIdFor(i, m.j);
+                        byte[] id = SDevSeedPlan.rowIdFor(i, m);   // ★ walktools item 4: a voice row gets a 16-byte id (a real message's), every other row the 32-byte one
                         try
                         {
                             if (!SDevSeedPlan.hasFile(m))

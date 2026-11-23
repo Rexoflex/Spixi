@@ -145,8 +145,15 @@ export function oldView(drv, par) {
 
 // ── the frozen base values: SHA-256 of the statements of the BASE scripts (scripts/device/ before batch photo1a: comments and blank
 //    lines dropped, parser table whitespace folded) — `oldView` of the new scripts must give the same bytes ──
-const BASE_DRV_VIEW_SHA = '8b69267a235d282f0b730a5a4ec425ca542bd15d13ef7dff7680a0ce07f9299e';
-const BASE_PAR_VIEW_SHA = '5c661b38be583ef9ac36751e9e89d7292df69baf1b535a25eb40f859f2346520';
+// re-based walktools (item 2): the driver statements moved by the probe `sets` form of screens.chat / screens.viewer: Get-ScreenGap restructured into
+// Get-ProbeListGap + Get-ScreenGap, Test-Probes now reads the pixels and calls Get-ProbeVerdict, the Test-Screen return carries Set / Sets, the pre-check failure text (Get-PreCheckText; the `check: set` success notes of the first version were removed in review round 1), the calibrate lines (note, `ok (set x)`, `sets`),
+// the load block (sets only on chat / viewer, the limit per set), and the new functions Test-HasField / Get-ScreenProbeSets / Test-ProbeSetPixels /
+// Get-ProbeVerdict (they are not photo1a's, so they stay in the view). 8b69267a235d... -> e656d3fad141... (round 2: `1 or 2 sets`, compact counts, Get-PreCheckText strips the prefix; round 1 value 27f71088107...) (review round 1: + Get-PreCheckText, `sets must be a list`, the compact failure note; Invoke-ShotCheck / Invoke-FileShot are pre-batch text again) (the view of the base scripts 338d30f4, cut the same way, still gives the old value: checked).
+const BASE_DRV_VIEW_SHA = 'e656d3fad1413bb0e0ddb169ac7e5b4a318508b9ad40026b111b197d246c71bf';
+// re-based walktools (item 3): the parser statements moved by the per-page rows (five $script:L line defs, Get-WordTok, X-PageGate / X-PageTok / X-PagePush / X-Page,
+// $script:PageRows, New-PageDefs, the two page-def tables, New-Def `$Arg`, the `history` table closing `) + $script:HistoryPageDefs }`, Get-DataRow `& $Def.Extract $c $Def.Arg`
+// + the insertmode note, the page legend line). X-SeedFirstPage, the seed legend and the HistorySeedDefs table are cut by the fixb3 strip (held there). 5c661b38be58... -> 987c149fb699... (review round 1: + Get-NoPair, the count guards of X-PageTok / X-PagePush)
+const BASE_PAR_VIEW_SHA = '987c149fb699c478f4ebf395af8c430c2babe14c35324f0be2ac3abd88a44339';
 const BASE_DEVADDR_SHA = '62dc3e08437c570d9f286f89de3f4e8399c650650981945999b51a6d46b8a00e';
 const BASE_LOGRE_SHA = 'a22d2dbaa96566788330114cca740fed5851d4ba7dafe55b115fea6195bfde3b';
 export const baseShas = { BASE_DRV_VIEW_SHA, BASE_PAR_VIEW_SHA, BASE_DEVADDR_SHA };
@@ -404,7 +411,9 @@ export default async function (h) {
     noSeedIndexNoData: osBlock.includes('if ($seedIdx.Count -eq 0) {') && osBlock.includes("$rows.Add((New-Row $step 'seed chats' '' $script:NoData $script:NoData $script:NoData '' $osNote '' 'nodata'))"),
     seedIndexRead: stm(fnP('Get-SeedIndexes')).join('\n').includes('if (($out.Count -lt 1) -or ($out.Count -gt 8)) { return @() }') && stm(fnP('Get-SeedIndexes')).join('\n').includes('($n -gt 55)'),
     stepNames: P.includes("'\\Aopen-seed-k(?:[0-4][0-9]|5[0-5])(?:-cold)?\\z'") && P.includes("|open-seed-k(?:[0-4][0-9]|5[0-5])(?:-cold)?'"),
-    optionalNotCounted: sha(getDataRow) === 'c26d0e68d492857a370118465a19495937ff17f21d389b6fd4e6078aeb50271d',
+    // re-based walktools (item 3): Get-DataRow now calls `& $Def.Extract $c $Def.Arg` (the per-page rows' argument) and has the `insertmode` aggregate note; the optional / required
+    // counting lines did not move. c26d0e68d492... -> 32c14cccf64b...
+    optionalNotCounted: sha(getDataRow) === '32c14cccf64b37a1851d611926aef23ad0bf5a354f5fb6001acd8288291024bb',
     mediaLine: lre('ChatMedia').test('Info|1: [P1] chat media thumbs=48') && !lre('ChatMedia').test('Info|1: [P1] chat mediax thumbs=48') && lre('ChatMedia').test('Info|1: [WEBVIEW] LOG [P1] chat media thumbs=1'),
     readLine: lre('ChatRead').test('Info|1: [P1] chat read rows=51 passes=1 ms=9') && !lre('ChatRead').test('Info|1: [P1] chat load n=5') && lre('ChatOnloadMain').test('Info|1: [P1] chat onload-main ms=12') && !lre('ChatOnloadMain').test('Info|1: [CDPERF] chat onload t=3'),
     shellLine: lre('ChatShell').test('Info|1: [WEBVIEW] WARNING [CDPERF] chat-shell n=51 batch=1 burst=3ms paint=30ms glass=45ms') && !lre('ChatShell').test('Info|1: [CDPERF] chat-shell rtt n=5 med=3ms') && !lre('ChatShell').test('Info|1: [CDPERF] chat-shell parse pre=3ms') && lre('ChatBatch').test('Info|1: [CDPERF] chat batch n=51 json=12345 t=80'),

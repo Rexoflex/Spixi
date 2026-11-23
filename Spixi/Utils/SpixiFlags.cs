@@ -387,4 +387,343 @@ namespace SPIXI
         }
 #endif
     }
+
+    /* ★ histcs (History C#, DECISIONS #1860–#1874, contract-histcs § 2) — mechanisms docs/histcs-mechanisms.md. P-28 (an
+     * older page is read and built on a pool thread, switch LoadMoreOffUi) and HV-5 (the first older page holds 50 rows,
+     * switch FirstOlderPage50), one switch each (#1478); both OFF = SingleChatPage.onLoadMore, byte for byte. The pure
+     * rules of the path live here too, so the csh harness runs them over this file (no MAUI type, no Core type: System,
+     * System.Threading and System.Globalization only). Log text: fixed words + integers only (the handover-gate log rule). */
+    public static class HistcsFlags
+    {
+        public const string LoadMoreOffUiKey = "flagLoadMoreOffUi";        // int pref; absent = default (1) — P-28 (P90)
+        public const string FirstOlderPage50Key = "flagFirstOlderPage50";  // int pref; absent = default (1) — HV-5 (P91)
+        /** P-28: an older page is read and built on a pool thread. OFF = onLoadMore on the UI thread (the old path). */
+        public static bool LoadMoreOffUi { get { ensureRead(); return offUi; } }
+        /** HV-5: the first older page holds 50 rows (no step over 100). OFF = the old step. */
+        public static bool FirstOlderPage50 { get { ensureRead(); return firstPage50; } }
+        private static bool offUi = false;
+        private static bool firstPage50 = false;
+        private static int readDone = 0;                     // 1 once read() has set the two values
+        private static readonly object readLock = new object();
+        private static int flagsLineTaken = 0;   // 1 once the [FLAGS] histcs line was handed out (takeFlagsLine)
+
+        /* ★ histcs: read LAZILY, once per process, at the first use (the first chat load) — NOT from SpixiFlags.init(): init's
+         * last statements are held by the pins and csh tests of six other batches, and a parallel batch appends there too. The
+         * value cannot change inside the process afterwards (a stored 0 acts at the next start, as every other switch). */
+        internal static void ensureRead()
+        {
+            if (System.Threading.Volatile.Read(ref readDone) != 0)
+            {
+                return;
+            }
+            lock (readLock)
+            {
+                if (readDone == 0)
+                {
+                    read();
+                }
+            }
+        }
+
+        /** The read (ensureRead calls it once; the csh tests call it again over a changed store): absent = ON; a stored 0 acts
+         *  only while devMode is on (S16PassRules.effectiveFlag); a throw keeps both ON. Logs NOTHING. */
+        internal static void read()
+        {
+            // ★ histcs HV-0: no log line on any path (the [FLAGS] histcs line is written once, at the first load-more).
+            bool dev = false;
+            int lo = 1, fp = 1;
+            try
+            {
+                dev = Preferences.Default.Get("devMode", false);
+                lo = Preferences.Default.Get(LoadMoreOffUiKey, 1);
+                fp = Preferences.Default.Get(FirstOlderPage50Key, 1);
+            }
+            catch (Exception)
+            {
+                dev = false;   // a store that throws keeps the defaults (ON): the flags only ever turn OFF on purpose
+                lo = fp = 1;
+            }
+            offUi = S16PassRules.effectiveFlag(dev, lo);
+            firstPage50 = S16PassRules.effectiveFlag(dev, fp);
+            System.Threading.Volatile.Write(ref readDone, 1);
+        }
+
+        /** `[FLAGS] histcs loadmoreoffui=<0|1> firstpage50=<0|1>` — fixed words and 0|1 only. */
+        public static string flagsLine(bool offUi, bool firstPage50)
+        {
+            return "[FLAGS] histcs loadmoreoffui=" + (offUi ? "1" : "0") + " firstpage50=" + (firstPage50 ? "1" : "0");
+        }
+
+        /** True exactly once per process (Interlocked): the caller then logs flagsLine(...) (every build). */
+        internal static bool takeFlagsLine()
+        {
+            return System.Threading.Interlocked.Exchange(ref flagsLineTaken, 1) == 0;
+        }
+    }
+
+    /** ★ histcs P-28: why an older page pushed nothing (None = it is kept). */
+    internal enum OlderDrop { None = 0, Busy, Closed, Channel, Load, Anchor }
+
+    internal static class HistoryOlderRules
+    {
+        public const string LoadMoreInBody = "chat loadmore in";
+
+        private static string n(long v)
+        {
+            return (v < 0 ? 0 : v).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /** `chat older read passes=<p> window=<w> ms=<m> flush=<f>` (negative → 0, invariant digits). */
+        public static string olderReadBody(int passes, int window, long ms, long flushMs)
+        {
+            return "chat older read passes=" + n(passes) + " window=" + n(window) + " ms=" + n(ms) + " flush=" + n(flushMs);
+        }
+
+        /** `chat older push n=<n> json=<j> build=<b>` (negative → 0). */
+        public static string olderPushBody(int rows, int jsonLength, long buildMs)
+        {
+            return "chat older push n=" + n(rows) + " json=" + n(jsonLength) + " build=" + n(buildMs);
+        }
+
+        /** `chat older drop why=<busy|closed|channel|load|anchor>`; None → "chat older drop why=none" is NEVER asked (callers log only a drop). */
+        public static string olderDropBody(OlderDrop why)
+        {
+            string w = why switch
+            {
+                OlderDrop.Busy => "busy",
+                OlderDrop.Closed => "closed",
+                OlderDrop.Channel => "channel",
+                OlderDrop.Load => "load",
+                OlderDrop.Anchor => "anchor",
+                _ => "none",   // a fixed word for any other value: the line stays in the grammar
+            };
+            return "chat older drop why=" + w;
+        }
+
+        /** The window after one load-more: show + step; ONLY when firstPage50 is false, a result of exactly 100 steps once more
+         *  (+ step) — the base onLoadMore's arithmetic, unchanged, when false. */
+        public static uint nextShow(uint show, uint step, bool firstPage50)
+        {
+            // ★ histcs HV-5: loadMessages never asks Core for 100 (window = want + 1, and its loop steps over 100) — the step
+            // only made the first older page 100 rows (mechanisms § 6). OFF keeps it.
+            uint r = show + step;
+            if (!firstPage50 && r == 100)
+            {
+                r += step;
+            }
+            return r;
+        }
+
+        /** True when either switch is on (loadMoreIn takes the new path); both OFF = onLoadMore, the old path. */
+        public static bool usesNewPath(bool offUi, bool firstPage50)
+        {
+            return offUi || firstPage50;
+        }
+
+        /** The drop rule, in this order: disposed or !sameDoc or !sameChat → Closed; !sameChannel → Channel;
+         *  !noLoadSince or !noneInFlight → Load; !sameAnchor → Anchor; else None (keep). */
+        public static OlderDrop decide(bool disposed, bool sameDoc, bool sameChat, bool sameChannel, bool noLoadSince, bool noneInFlight, bool sameAnchor)
+        {
+            if (disposed || !sameDoc || !sameChat)
+            {
+                return OlderDrop.Closed;
+            }
+            if (!sameChannel)
+            {
+                return OlderDrop.Channel;
+            }
+            if (!noLoadSince || !noneInFlight)
+            {
+                return OlderDrop.Load;   // ★ histcs P-28: another load's clearMessages would wipe or double the older rows
+            }
+            if (!sameAnchor)
+            {
+                return OlderDrop.Anchor;   // a load in flight at the request ended and handed the shell another oldest row
+            }
+            return OlderDrop.None;
+        }
+
+        /** Runs `body` through `schedule` (Task.Run in the app) with the busy guard ALREADY entered by the caller WITH `owner`:
+         *  body's throw → onFail(e); then after() (its throw swallowed); then busy.leave(owner) — on every path. A throw of
+         *  schedule itself → busy.leave(owner), onFail(e), returns false. Returns true when scheduled. */
+        public static bool schedule(OlderBusy busy, object owner, Action<Action> schedule, Action body, Action<Exception> onFail, Action after)
+        {
+            // ★ histcs #46 r1 (S-3): every leave names its owner — the page may have freed the guard already at its pushes
+            // (olderPushed), and a NEWER page that entered since must not be freed by this page's final leave.
+            // ★ histcs P-28: the guard frees on EVERY path (a guard left busy kills load-more for the page's life), and only
+            // after the job has ended. A throw of onFail is swallowed too: nothing escapes onto the pool or the UI thread.
+            Action run = () =>
+            {
+                try
+                {
+                    body();
+                }
+                catch (Exception e)
+                {
+                    try
+                    {
+                        onFail(e);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+                finally
+                {
+                    try
+                    {
+                        after();
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    busy.leave(owner);
+                }
+            };
+            try
+            {
+                schedule(run);
+                return true;
+            }
+            catch (Exception e)
+            {
+                busy.leave(owner);
+                try
+                {
+                    onFail(e);
+                }
+                catch (Exception)
+                {
+                }
+                return false;
+            }
+        }
+    }
+
+    /** The busy guard: one older page at a time. Interlocked; never blocks. ★ histcs #46 r1 (S-3): OWNER-aware — a page frees it
+     *  as soon as its pushes are out (the shell's next request may start while the page's media tail runs), and a stale leave
+     *  of that page (its task's final leave) never frees a NEWER owner. */
+    internal sealed class OlderBusy
+    {
+        private object? owner = null;   // null = free; else the token of the older page that runs
+
+        public bool tryEnter(object owner)   // null → owner; false when held
+        {
+            return System.Threading.Interlocked.CompareExchange(ref this.owner, owner, null) == null;
+        }
+
+        public void leave(object owner)      // owner → null; a leave with any other token changes nothing (idempotent)
+        {
+            System.Threading.Interlocked.CompareExchange(ref this.owner, null, owner);
+        }
+
+        public bool held
+        {
+            get { return System.Threading.Volatile.Read(ref owner) != null; }
+        }
+    }
+
+    /** The push gate of one chat page (mechanisms § 4). */
+    internal sealed class OlderPushGate
+    {
+        /* ★ histcs P-28: `started` / `finished` count every OTHER loadMessages (not the older page's own). The older page holds
+         * the gate from its check to its last push, so another load starts wholly before its check (→ drop) or wholly after
+         * its pushes (its clearMessages wipes and re-draws). Lock order: Core's list lock → gate; nothing waits for the UI
+         * thread under it. */
+        private readonly object gate = new object();
+        private long started = 0;
+        private long finished = 0;
+
+        /** A snapshot of the counters, taken at the request (UI thread). */
+        public readonly struct Ticket
+        {
+            public readonly long started0;
+
+            public Ticket(long started0)
+            {
+                this.started0 = started0;
+            }
+        }
+
+        public Ticket ticket()
+        {
+            lock (gate)
+            {
+                return new Ticket(started);
+            }
+        }
+
+        /** Every OTHER loadMessages: on = false → null (nothing counted, the switch-OFF path). Else started++ now (under the
+         *  gate) and a disposable whose FIRST Dispose does finished++ (under the gate); a second Dispose does nothing. */
+        public IDisposable? beginOther(bool on)
+        {
+            if (!on)
+            {
+                return null;
+            }
+            lock (gate)
+            {
+                started++;
+            }
+            return new OtherLoad(this);
+        }
+
+        private sealed class OtherLoad : IDisposable
+        {
+            private OlderPushGate? owner;
+
+            public OtherLoad(OlderPushGate owner)
+            {
+                this.owner = owner;
+            }
+
+            public void Dispose()
+            {
+                OlderPushGate? g = System.Threading.Interlocked.Exchange(ref owner, null);   // the FIRST Dispose only
+                if (g == null)
+                {
+                    return;
+                }
+                lock (g.gate)
+                {
+                    g.finished++;
+                }
+            }
+        }
+
+        /** Monitor.Enter(the gate); sets held = true. Blocks while another thread holds it. */
+        public void enter(ref bool held)
+        {
+            if (held)
+            {
+                return;   // already entered through this flag: Monitor.Enter(obj, ref true) would throw
+            }
+            bool taken = false;
+            System.Threading.Monitor.Enter(gate, ref taken);
+            held = taken;
+        }
+
+        /** Only while entered: (no load started since the ticket, no other load in flight now). */
+        public (bool noLoadSince, bool noneInFlight) counters(Ticket t)
+        {
+            lock (gate)
+            {
+                return (started == t.started0, started == finished);
+            }
+        }
+
+        /** Monitor.Exit when held; held = false. Safe to call twice; never throws when not held. */
+        public void exit(ref bool held)
+        {
+            if (!held)
+            {
+                return;
+            }
+            held = false;
+            if (System.Threading.Monitor.IsEntered(gate))   // never a SynchronizationLockException (another thread's flag)
+            {
+                System.Threading.Monitor.Exit(gate);
+            }
+        }
+    }
 }

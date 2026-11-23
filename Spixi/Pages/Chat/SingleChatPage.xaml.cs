@@ -594,7 +594,7 @@ namespace SPIXI
             }
             else if (current_url.Equals("ixian:loadmore", StringComparison.Ordinal))
             {
-                onLoadMore();
+                loadMoreIn();   // ★ histcs P-28 / HV-5: both switches OFF = onLoadMore(), the old path
             }
             else if (current_url.Equals("ixian:call", StringComparison.Ordinal))
             {
@@ -1195,6 +1195,305 @@ namespace SPIXI
             }
             requestPrepend();   // ★ #1166 B2: Core's window still grows above (the reply / react / delete cache); the shell gets ONLY the older slice
             loadMessages();
+        }
+
+        /* ★ histcs (contract-histcs § 3, docs/histcs-mechanisms.md § 2) — the `ixian:loadmore` entry (UI thread). Both switches
+         * OFF = onLoadMore(), the base method, untouched. HV-5 alone = the same load inline on the UI thread (the old timing;
+         * only the window is new). P-28 ON = one older page at a time (the busy guard), read and built on a pool thread; it
+         * pushes only when nothing closed, switched or reloaded since the request (the push gate, olderMayPush). Everything
+         * the page compares against is taken HERE, at the request, on the UI thread. */
+        private void loadMoreIn()
+        {
+            if (P1Perf.enabled)
+            {
+                P1Perf.line(HistoryOlderRules.LoadMoreInBody);   // ★ histcs HV-0 (developer builds only; every path)
+            }
+            if (HistcsFlags.takeFlagsLine())
+            {
+                Logging.info(HistcsFlags.flagsLine(HistcsFlags.LoadMoreOffUi, HistcsFlags.FirstOlderPage50));   // ★ histcs: once per process, every build (the BUILD row of the walk)
+            }
+            bool offUi = HistcsFlags.LoadMoreOffUi;
+            bool page50 = HistcsFlags.FirstOlderPage50;
+            if (!HistoryOlderRules.usesNewPath(offUi, page50)) { onLoadMore(); return; }
+            object busyOwner = new object();   // ★ histcs #46 r1 (S-3): this page's token for the OWNER-aware busy guard (a stale leave never frees a newer page)
+            if (offUi && !olderBusy.tryEnter(busyOwner))
+            {
+                /* ★ histcs P-28: a page runs already (the shell's 8 s retry, a pill tap) — nothing at all: no window growth, no
+                 * push. The running page's messagesDone ends the shell's one request. */
+                if (P1Perf.enabled)
+                {
+                    P1Perf.line(HistoryOlderRules.olderDropBody(OlderDrop.Busy));
+                }
+                return;
+            }
+            messagesToShow = HistoryOlderRules.nextShow(messagesToShow, Config.messagesToLoad, page50);   // ★ histcs HV-5: written BEFORE the task (Task.Run is a full fence)
+            OlderJob job = new OlderJob(offUi, thumbDoc, friend, selectedChannel, historyAnchor, offUi ? olderGate.ticket() : default, busyOwner);
+            if (!offUi)
+            {
+                // ★ histcs HV-5 alone: the job IS the prepend of the inline load (requestPrepend's job, bound to this thread)
+                job.bindHere();
+                Volatile.Write(ref olderJobPending, job);
+                try
+                {
+                    loadMessages();
+                }
+                finally
+                {
+                    Interlocked.CompareExchange(ref olderJobPending, null, job);   // ★ histcs: a load that threw before it took the job leaves none behind
+                }
+                return;
+            }
+            /* ★ histcs P-28: the job binds to the POOL thread inside the task, right before loadMessages — only that call takes
+             * it (takeOlderJob). The after step runs on the same thread: the gate goes back if still held (a throw between the
+             * check and the last push), then the true chat row of a dropped full load that zeroed the count (outside every
+             * lock: updateChat takes HomePage.refreshLock); the guard frees last. A throw is logged by its TYPE only. */
+            HistoryOlderRules.schedule(olderBusy, job.owner, a => { Task.Run(a); }, () =>
+            {
+                job.bindHere();
+                Volatile.Write(ref olderJobPending, job);
+                loadMessages();
+            }, e => Logging.warn("loadmore: the older page failed (" + e.GetType().Name + ")"), () =>
+            {
+                olderPostMarker(job);   // ★ histcs #46 r3: the empty-branch keep (or a throw after the keep) posts its marker here, behind its pushes (★ #46 r4: before the gate exit)
+                olderGate.exit(ref job.gateHeld);
+                Interlocked.CompareExchange(ref olderJobPending, null, job);   // ★ histcs: a load that threw before it took the job leaves none behind (a later load of this pool thread is no prepend)
+                Interlocked.CompareExchange(ref olderPushing, null, job);   // ★ histcs #46 r1 (F1): a throw between the keep and olderPushed leaves no pushing mark behind (only THIS job's)
+                olderDrainLate();   // ★ histcs #46 r4 (S4 MINOR-1): the repeats of an empty-branch keep or a dropped page (a no-op in the shell when it holds no such row)
+                if (job.zeroed)
+                {
+                    pushZeroedChatRow();
+                }
+            });
+        }
+
+        /** ★ histcs P-28 / HV-5: one load-more request, as the UI thread saw the page at the request. */
+        private sealed class OlderJob
+        {
+            public readonly bool background;            // P-28 ON: the page runs on a pool thread and pushes through the gate
+            public readonly int doc;                    // thumbDoc at the request (a new document = closed)
+            public readonly Friend? chat;               // friend at the request
+            public readonly int channel;                // selectedChannel at the request
+            public readonly HistoryAnchor? anchor;      // the REFERENCE of historyAnchor at the request (another load writes a new one)
+            public readonly OlderPushGate.Ticket ticket;   // the gate's counters at the request
+            public int thread = 0;                      // the managed thread whose loadMessages takes this job (bindHere)
+            public bool gateHeld = false;               // the gate is entered by this job (its own thread)
+            public bool zeroed = false;                 // a dropped full load zeroed the unread count: the true row goes after the gate
+            public int markerDue = 0;                   // ★ histcs #46 r3: 1 = this kept page counted its posts in olderPostsPending; the marker after its pushes is still owed
+            public readonly object owner;               // ★ histcs #46 r1 (S-3): the busy guard's token of this page (every leave names it)
+            public string? jumpSeen = null;             // ★ histcs #46 r1 (F1): jumpArmedId as this page's load saw it at its start (its own jump)
+
+            public OlderJob(bool background, int doc, Friend? chat, int channel, HistoryAnchor? anchor, OlderPushGate.Ticket ticket, object owner)
+            {
+                this.background = background;
+                this.doc = doc;
+                this.chat = chat;
+                this.channel = channel;
+                this.anchor = anchor;
+                this.ticket = ticket;
+                this.owner = owner;
+            }
+
+            public void bindHere()
+            {
+                thread = Environment.CurrentManagedThreadId;
+            }
+        }
+
+        private readonly OlderBusy olderBusy = new OlderBusy();             // ★ histcs P-28: one older page at a time
+        private readonly OlderPushGate olderGate = new OlderPushGate();     // ★ histcs P-28: the push gate of this page
+        private OlderJob? olderJobPending = null;                           // ★ histcs: the job the NEXT loadMessages of its thread takes
+        private int olderPostsPending = 0;   // ★ histcs #46 r3 (S3 / O4 MINOR-1): kept older pages whose pushes are POSTED to the main thread and not delivered yet (a main-thread sender would overtake them)
+        private OlderJob? olderPushing = null;                              // ★ histcs #46 r1 (F1): the kept older page between its check and olderPushed (pushPendingJump reads it)
+
+        /** ★ histcs: the pending job, ONLY for a loadMessages on the job's own thread (a CompareExchange: taken once). Another
+         *  thread's load gets null and leaves the field alone. */
+        private OlderJob? takeOlderJob()
+        {
+            OlderJob? j = Volatile.Read(ref olderJobPending);
+            if (j == null || j.thread != Environment.CurrentManagedThreadId)
+            {
+                return null;
+            }
+            return Interlocked.CompareExchange(ref olderJobPending, null, j) == j ? j : null;
+        }
+
+        /** ★ histcs P-28: may this load push? Not an older page, or HV-5 inline → true (the old path). An older page enters the
+         *  gate and asks HistoryOlderRules.decide; kept → true and the gate stays HELD until olderPushed / the task's after
+         *  step; dropped → the gate goes back, one developer line, false (nothing pushed, the anchor not written). */
+        private bool olderMayPush(OlderJob? job, int readChannel)
+        {
+            if (job == null || !job.background)
+            {
+                return true;
+            }
+            olderGate.enter(ref job.gateHeld);
+            (bool noLoadSince, bool noneInFlight) c = olderGate.counters(job.ticket);
+            OlderDrop why = HistoryOlderRules.decide(isDisposed, thumbDoc == job.doc, ReferenceEquals(friend, job.chat),
+                Volatile.Read(ref selectedChannel) == job.channel && readChannel == job.channel,
+                c.noLoadSince, c.noneInFlight, ReferenceEquals(historyAnchor, job.anchor));
+            if (why == OlderDrop.None)
+            {
+                Volatile.Write(ref olderPushing, job);   // ★ histcs #46 r1 (F1): pushPendingJump on THIS thread pushes only the jump this page saw at its start
+                Interlocked.Increment(ref olderPostsPending);   // ★ histcs #46 r3 (MINOR-1): under the gate, BEFORE the pushes: a main-thread load counted after this waits behind them (olderDeferBehindPage)
+                job.markerDue = 1;
+                return true;
+            }
+            olderGate.exit(ref job.gateHeld);
+            olderBusy.leave(job.owner);   // ★ histcs #46 r1 (S-3): nothing will be pushed — the shell's next request may start now
+            if (P1Perf.enabled)
+            {
+                P1Perf.line(HistoryOlderRules.olderDropBody(why));   // ★ histcs HV-0: a fixed word only
+            }
+            return false;
+        }
+
+        /** ★ histcs P-28: the older page's pushes are done — the gate goes back before the media jobs. */
+        private void olderPushed(OlderJob? job)
+        {
+            if (job != null && job.background)
+            {
+                olderPostMarker(job);   // ★ histcs #46 r3 (MINOR-1): the marker is POSTED behind this page's pushes — ★ #46 r4 (O5 NOTE-5): still under the gate, so no main-thread load passes the gate before it
+                olderGate.exit(ref job.gateHeld);
+                Interlocked.CompareExchange(ref olderPushing, null, job);   // ★ histcs #46 r1 (F1): only THIS job's mark
+                olderBusy.leave(job.owner);   // ★ histcs #46 r1 (S-3): the pushes are out (messagesDone too) — the shell's next request may start; the task's final leave (same owner) then changes nothing
+                olderDrainLate();   // ★ histcs #46 r4 (S4 MINOR-1): a delete / edit that landed during the build goes again, BEHIND this page's rows
+            }
+        }
+
+        /* ★ histcs #46 r4 (S4 MINOR-1): a peer's delete or edit that lands while a background page is in flight is posted from the
+         * network thread at once — BEFORE the page's queued rows, which may still carry the old text. deleteMessage / updateMessage
+         * also queue a repeat here while the busy guard is held; the page sends the repeats from its own thread right after its pushes
+         * (olderPushed, the task's after step), so they are delivered behind its rows. A repeat for a dropped page or a row the shell
+         * does not hold is a no-op in the shell. */
+        private readonly ConcurrentQueue<Action> olderLatePushes = new ConcurrentQueue<Action>();
+
+        private void olderDrainLate()
+        {
+            int n = olderLatePushes.Count;   // only the repeats queued so far: an edit repeated while a guard is still held queues itself once more, for the next drain — never a loop
+            for (int i = 0; i < n && olderLatePushes.TryDequeue(out Action? late); i++)
+            {
+                try
+                {
+                    late();
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("loadmore: a late chat push failed (" + e.GetType().Name + ")");
+                }
+            }
+        }
+
+        /** ★ histcs #46 r3 (S3 / O4 MINOR-1, the delivery order): a pool thread's pushes are POSTED to the main thread, a main-thread
+         *  sender's run INLINE (MainThread.BeginInvokeOnMainThread, SpixiContentPage.evaluateJavascript) — so the gate orders the
+         *  CALLS, not the deliveries. A kept page counts itself in olderPostsPending before its pushes; this posts the decrement
+         *  BEHIND them (once per job; called after the pushes and by the task's after step). A post that throws decrements at once. */
+        private void olderPostMarker(OlderJob job)
+        {
+            if (Interlocked.Exchange(ref job.markerDue, 0) != 1)
+            {
+                return;
+            }
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(() => Interlocked.Decrement(ref olderPostsPending));
+            }
+            catch (Exception)
+            {
+                Interlocked.Decrement(ref olderPostsPending);
+            }
+        }
+
+        /** ★ histcs #46 r3 (MINOR-1): a load on the MAIN thread while a kept page's pushes are still queued (olderPostsPending > 0)
+         *  would deliver its clearMessages / rows BEFORE them (e.g. "Delete history" drawing the deleted page again). It runs again
+         *  from a POST instead — queued behind the page's pushes and its marker — and returns now. A jump this call armed stays
+         *  armed for the re-run; its prepend request was already taken (takePrepend), so the re-run is a full re-flush (always
+         *  correct; mechanisms § 5 RECORD 1). A page closed before the re-run runs nothing (#46 r4). Not on the main thread,
+         *  an older page itself, or P-28 OFF → false (the old path). */
+        private bool olderDeferBehindPage(OlderJob? job)
+        {
+            if (job != null || !HistcsFlags.LoadMoreOffUi || Volatile.Read(ref olderPostsPending) <= 0 || !MainThread.IsMainThread)
+            {
+                return false;
+            }
+            olderPostBehind(() => { if (!isDisposed) { loadMessages(); } });   // ★ histcs #46 r4 (S4 NIT-1): a page closed meanwhile runs nothing
+            return true;
+        }
+
+        /** ★ histcs #46 r3: run `action` on the main thread BEHIND everything a pool thread has posted so far (posted from a pool
+         *  thread, the same queue as the page's pushes). A throw of the action is logged by its TYPE only. */
+        private void olderPostBehind(Action action)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        try
+                        {
+                            action();
+                        }
+                        catch (Exception e)
+                        {
+                            Logging.warn("loadmore: a deferred chat push failed (" + e.GetType().Name + ")");
+                        }
+                    });
+                }
+                catch (Exception e)
+                {
+                    Logging.warn("loadmore: a deferred chat push failed (" + e.GetType().Name + ")");   // ★ histcs #46 r4 (S4 NIT-3 / O5 NIT-2): the post itself failed — said, not silent
+                }
+            });
+        }
+
+        /** ★ histcs #46 r1 (S-1): a background page whose chat closed BEFORE its build — the build (read flags, receipts) is skipped:
+         *  the developer drop line `why=closed`, the busy guard freed (its owner), true (the caller returns; nothing is pushed, so no
+         *  gate is needed). Not an older page, HV-5 inline, or the chat still open → false (the old path). A close DURING the build
+         *  is caught by olderMayPush, as before. */
+        private bool olderClosedEarly(OlderJob? job, int readChannel)
+        {
+            if (job == null || !job.background)
+            {
+                return false;
+            }
+            bool closed = isDisposed || thumbDoc != job.doc || !ReferenceEquals(friend, job.chat);
+            bool switched = Volatile.Read(ref selectedChannel) != job.channel || readChannel != job.channel;   // ★ histcs #46 r3 (S3 NIT-1): the load's own read channel too (A → B → A)   // ★ histcs #46 r2 (S2 MINOR-1): a switched channel skips the build too (its rows would be built with the NEW channel)
+            if (!closed && !switched)
+            {
+                return false;
+            }
+            if (P1Perf.enabled)
+            {
+                P1Perf.line(HistoryOlderRules.olderDropBody(closed ? OlderDrop.Closed : OlderDrop.Channel));   // ★ histcs HV-0: a fixed word only
+            }
+            olderBusy.leave(job.owner);
+            return true;
+        }
+
+        /** ★ histcs #46 r2 (S2 MINOR-1 / MINOR-2): a background page that would take the base fallback (its anchor is not in the
+         *  window: `prepend` became false) while another load has REPLACED the anchor since the request — that load re-drew the
+         *  log, so this page drops HERE, inside the build's lock but before the fallback's side effects (the unread zero, the
+         *  reaction flag, the fileRowsShown wipe, the per-row binds and receipts). The same anchor (null since the open, or a
+         *  genuine miss) keeps the base fallback. Not a background page → false (the old path). */
+        private bool olderFallbackDrop(OlderJob? job, bool prepend)
+        {
+            if (job == null || !job.background || prepend || ReferenceEquals(historyAnchor, job.anchor))
+            {
+                return false;
+            }
+            if (P1Perf.enabled)
+            {
+                P1Perf.line(HistoryOlderRules.olderDropBody(OlderDrop.Anchor));   // ★ histcs HV-0: a fixed word only
+            }
+            olderBusy.leave(job.owner);
+            return true;
+        }
+
+        /** ★ histcs P-28: every OTHER loadMessages is counted by the gate while P-28 is ON (null = not counted: an older page
+         *  itself, or the switch OFF). */
+        private IDisposable? beginLoadScope(OlderJob? job)
+        {
+            return job != null ? null : olderGate.beginOther(HistcsFlags.LoadMoreOffUi);
         }
 
         /* ★ #1166 B2 (#1142, docs/chat-transport-spec.md §B2) — LOAD-MORE SENDS ONLY THE OLDER SLICE.
@@ -5205,6 +5504,7 @@ namespace SPIXI
             public readonly List<KeyValuePair<FriendMessage, string>> fileRows = new();
             /** ★ #46 r1 A MAJOR-1: the ONE reply index of this load (null = no loaded row is quote-shaped). */
             public ReplyQuote.Index? replyIndex = null;
+            public List<string>? deferredFileRows = null;   // ★ histcs #46 r1 (F2): a background older page's file-row ids, added to fileRowsShown at its keep (null = the old immediate add)
             private readonly Dictionary<string, int> strIndex = new();
             /** Only a long data: URI is interned — everything else stays inline. */
             private const int INTERN_MIN_LENGTH = 256;
@@ -5393,6 +5693,10 @@ namespace SPIXI
                 }
                 widened = true;
             }
+            if (reload && !widened && depth < SharedItems.JumpCap && olderBusy.held)
+            {
+                widened = true;   // ★ histcs #46 r2 (O3 M1): a background older page is in flight — the window counts its rows, the shell does not hold them yet: this load (counted by the gate, so that page drops) pushes them, then the jump
+            }
             if (reload)
             {
                 if (widened)
@@ -5410,8 +5714,24 @@ namespace SPIXI
         /** After the load burst: hand the shell the jump armed for THIS load (once). */
         private void pushPendingJump()
         {
+            if (HistcsFlags.LoadMoreOffUi && Volatile.Read(ref olderPostsPending) > 0 && MainThread.IsMainThread)
+            {
+                olderPostBehind(pushPendingJump);   // ★ histcs #46 r3 (O4 NIT-1): a main-thread jump waits behind a kept page's queued rows (the row it names may be among them)
+                return;
+            }
             string? id = jumpArmedId;
-            jumpArmedId = null;
+            /* ★ histcs #46 r1 (F1): a background older page pushes only the jump its own load saw at its start — a jump that a
+             * UI-thread widening load armed after that start stays armed (that load pushes it after the rows that hold it). Every
+             * other caller: the old behaviour; the take is atomic (a jump armed meanwhile is not wiped). */
+            OlderJob? pushingJob = Volatile.Read(ref olderPushing);
+            if (pushingJob != null && pushingJob.thread == Environment.CurrentManagedThreadId && !ReferenceEquals(id, pushingJob.jumpSeen))
+            {
+                return;
+            }
+            if (id == null || !ReferenceEquals(Interlocked.CompareExchange(ref jumpArmedId, null, id), id))   // a reference test (no CS0253 string-vs-object warning)
+            {
+                return;
+            }
             if (id != null)
             {
                 Utils.sendUiCommand(this, "jumpToMessage", id);
@@ -5459,6 +5779,12 @@ namespace SPIXI
             applyPendingJumpWindow(false);   // ★ #1106
             bool prepend = takePrepend();    // ★ #1166 B2: answered as a prepend (onLoadMore / a widening jump on an open chat) — see HistoryAnchor
             int want = (int)messagesToShow;
+            OlderJob? olderJob = takeOlderJob();   // ★ histcs: a load-more of loadMoreIn bound to THIS thread (else null)
+            if (olderJob != null) { prepend = true; }   // ★ histcs: a taken job IS the prepend (requestPrepend is not used by that path)
+            bool olderLines = prepend;   // ★ histcs HV-0: the `[P1] chat older` lines are for a load that is a prepend at its start
+            using IDisposable? olderScope = beginLoadScope(olderJob);   // ★ histcs P-28: every OTHER load is counted by the gate (every return and a throw)
+            if (olderJob != null && olderJob.background) { olderJob.jumpSeen = Volatile.Read(ref jumpArmedId); }   // ★ histcs #46 r1 (F1): the jump of THIS load (applyPendingJumpWindow ran above) — pushPendingJump of this page pushes no later one
+            if (olderDeferBehindPage(olderJob)) { return; }   // ★ histcs #46 r3 (MINOR-1): a main-thread load waits behind a kept page's queued pushes (counted above, so that page's check saw it or it pushed first)
             /* One row MORE than wanted: finding it is the only honest proof that older history
              * exists. The baseline asked for exactly `want` and offered "show older" whenever it
              * got that many — so a chat of exactly 50 messages showed a pill that loaded nothing. */
@@ -5480,7 +5806,9 @@ namespace SPIXI
             int readChannel = selectedChannel;   // ★ #1155 (#46 r3 m1): ONE channel for the read, the trim and the put-back
             int visibleSurplus = 0;              // ★ #1155: visible rows over `want` in the LAST read (the trim's limit)
             bool anyReplyShaped = false;         // ★ #1198 / #46 r1 A MAJOR-1: set in the read loop's count (below)
+            long flushT0 = P1Perf.now();   // ★ histcs HV-0: the P0 guard alone (`flush=`)
             CoreMessageWriter.arrivals.beforeReread(arrivalKey, readChannel, CoreMessageWriter.instance);
+            long flushMs = P1Perf.msSince(flushT0);   // ★ histcs HV-0
             for (int pass = 0; pass < LOAD_WINDOW_MAX_PASSES; pass++)
             {
                 if (window == 100)
@@ -5529,6 +5857,10 @@ namespace SPIXI
                 }
                 healLastMessage(arrivalKey, readChannel, messages);   // ★ 7b (#1223): F9 — the saved excerpt's message, put back
             }
+            if (P1Perf.enabled && olderLines)
+            {
+                P1Perf.line(HistoryOlderRules.olderReadBody(readPasses, window, P1Perf.msSince(readT0), flushMs));   // ★ histcs HV-0: the older page's read (`window` = the read loop's last window; `flush` = the P0 guard alone)
+            }
             if (P1Perf.enabled)
             {
                 P1Perf.line(PhotoOpenRules.readBody(readRows, readPasses, P1Perf.msSince(readT0)));   // ★ photo1a PO-0: the read alone (both paths below)
@@ -5541,6 +5873,7 @@ namespace SPIXI
                 // deleted messages until re-entered. Tell the WebView to clear first (no
                 // load-more). ★ Session P: `messagesDone` ends the burst at once — the emptied
                 // log paints on the signal, not on the shell's 250 ms safety timer.
+                if (!olderMayPush(olderJob, readChannel)) { return; }   // ★ histcs P-28: a dropped older page pushes nothing and keeps the anchor (kept: the gate is HELD to the task's end)
                 historyAnchor = null;   // ★ #1166 B2: the shell holds nothing — the next load-more re-flushes
                 lock (fileRowsShown)
                 {
@@ -5561,6 +5894,7 @@ namespace SPIXI
              * history, and painted the just-wiped log once (a blank frame on load-more, the
              * reading position lost). Nothing in the loop needs the shell cleared first. */
 
+            if (olderClosedEarly(olderJob, readChannel)) { return; }   // ★ histcs #46 r1 (S-1): a background page whose chat closed skips the build (no read flags, no receipts); nothing is pushed
             UiBatch batch = new UiBatch();   // ★ Session P: the load burst crosses ONCE (header above)
             /* ★ #1198 / #46 r1 A MAJOR-1: a loaded row is quote-shaped (decided in the read loop's count) → the ONE deeper
              * read happens HERE — before `lock (messages)`, off the UI thread (prefetchReplyDeep) — and the load builds ONE
@@ -5569,6 +5903,7 @@ namespace SPIXI
             {
                 prefetchReplyDeep(readChannel);
             }
+            if (olderJob != null && olderJob.background) { batch.deferredFileRows = new List<string>(); }   // ★ histcs #46 r1 (F2): a background page's file rows enter fileRowsShown only when it is KEPT (after the prefetch block: pins-s6b/cs holds `UiBatch batch …` + that block adjacent)
             /* ★ Session P [CDPERF] — TEMPORARY (#802 r12): the BUILD is the window in which the shell's
              * 500 ms first-paint fallback could still fire (it is gated on the peer, and the peer landed
              * at onChatScreenReady, at the top of onLoad). The clock starts BEFORE `lock (messages)`, so
@@ -5604,6 +5939,7 @@ namespace SPIXI
                         prepend = false;   // the shell's oldest row is not in this window: the full re-flush (the old path)
                     }
                 }
+                if (olderFallbackDrop(olderJob, prepend)) { return; }   // ★ histcs #46 r2 (S2 MINOR-1/-2): a background page whose anchor another load replaced drops HERE, before the fallback's side effects (the unread zero, the reaction flag, the fileRowsShown wipe, the row binds)
                 if (!prepend && friend.metaData.unreadMessageCount > 0)   // ★ #1166 B2: entering the chat zeroes the count, a prepend never does
                 {
                     friend.metaData.unreadMessageCount = 0;
@@ -5721,6 +6057,9 @@ namespace SPIXI
                     Logging.error("loadMessages: the batch could not be serialized (" + batchEx.GetType().Name + ")");
                     json = null;
                 }
+                if (!olderMayPush(olderJob, readChannel)) { olderJob!.zeroed = zeroedUnread; return; }   // ★ histcs P-28: dropped — no anchor write, no push, no media job; a zeroed count's row goes after the gate
+                if (batch.deferredFileRows != null && json != null) { lock (fileRowsShown) { fileRowsShown.UnionWith(batch.deferredFileRows); } }   // ★ histcs #46 r1 (F2): KEPT — this page's file rows are on their way to the shell now (a dropped page adds none, #1190)
+                if (P1Perf.enabled && olderLines) { P1Perf.line(HistoryOlderRules.olderPushBody(batch.items.Count, json != null ? json.Length : 0, buildClock.ElapsedMilliseconds)); }   // ★ histcs HV-0
                 if (firstPushedId != null)
                 {
                     historyAnchor = new HistoryAnchor(firstPushedId, readChannel);   // ★ #1166 B2
@@ -5751,6 +6090,8 @@ namespace SPIXI
                     Utils.sendUiCommand(this, "messagesDone", show_more);
                     pushPendingJump();   // ★ #1106: a widening jump lands after the rows that hold it
                 }
+                olderPushed(olderJob);   // ★ histcs P-28: the pushes are done — the gate goes back before the media jobs
+                olderScope?.Dispose();   // ★ histcs P-28: this OTHER load's pushes are out — it no longer counts as in flight (its anchor write is done; the second Dispose at the end does nothing)
                 /* ★ photo1a PO-1: an OPEN's media wait for the paint signal (holdMedia → mediaGate, released by onPainted / the
                  * backstop, in this order); a load-more prepend, a load with no open in flight and the switch OFF enqueue as before. */
                 int holdDoc = thumbDoc;
@@ -6666,9 +7007,16 @@ namespace SPIXI
                     push(batch, "addFile", Crypto.hashToString(message.id), address, nick, avatar, uid, name, message.timestamp.ToString(), message.localSender.ToString(), fConfirmed.ToString(), fRead.ToString(), progress, message.completed.ToString(), paid.ToString(), fSent.ToString(), fTransfer, fLocal, fVoice, fGroup, fPlayed, fSize);
                     noteThumbCandidate(message, name, batch);   // ★ A5 #1124: AFTER the row's push — the shell must know the id first
                     noteOfferPreview(message, name, batch);     // ★ S11 G (#1258): AFTER the row's push too — an offer's preview
+                    if (batch?.deferredFileRows != null)   // ★ histcs #46 r1 (F2): a background older page — the id waits for its keep (loadMessages); a dropped page adds none
+                    {
+                        batch.deferredFileRows.Add(Crypto.hashToString(message.id));
+                    }
+                    else
+                    {
                     lock (fileRowsShown)
                     {
                         fileRowsShown.Add(Crypto.hashToString(message.id));   // ★ #1190 (#46 r4 M1): this document now holds this file row
+                    }
                     }
                     if (fileRowOnly)
                     {
@@ -7030,6 +7378,11 @@ namespace SPIXI
                     fileRowsShown.Remove(Crypto.hashToString(msg_id));   // ★ #1190 (#46 r4 M1): the shell drops the row
                 }
                 Utils.sendUiCommand(this, "deleteMessage", Crypto.hashToString(msg_id));
+                if (HistcsFlags.LoadMoreOffUi && olderBusy.held)
+                {
+                    string lateId = Crypto.hashToString(msg_id);
+                    olderLatePushes.Enqueue(() => Utils.sendUiCommand(this, "deleteMessage", lateId));   // ★ histcs #46 r4 (S4 MINOR-1): again behind a page in flight
+                }
             }
             Interlocked.Increment(ref fileDeleteGen);   // ★ photo1a PO-5: an in-app delete notification — a running load re-checks
             ChatMediaStore.deleteMessage(friend?.walletAddress, msg_id);   // ★ photo1a PO-3 / PO-6: the kept thumbnail and peaks leave with the message (any channel; never throws)
@@ -7298,6 +7651,10 @@ namespace SPIXI
             if (channel != selectedChannel)
             {
                 return;
+            }
+            if (HistcsFlags.LoadMoreOffUi && olderBusy.held)
+            {
+                olderLatePushes.Enqueue(() => updateMessage(message, channel));   // ★ histcs #46 r4 (S4 MINOR-1): an edit again behind a page in flight (that page may carry the old text)
             }
             /* ★★ TEXT ONLY, AND THIS IS THE CHOKE POINT.
              *

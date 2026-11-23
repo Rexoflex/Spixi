@@ -792,7 +792,11 @@ export default async function (h) {
   const CHGP = ['New-Ctx', 'New-RepCtx', 'Invoke-Main'];
   const OLDP = ['Get-Hits', 'Test-Ready', 'Get-Tok', 'Get-MissingTok', 'Get-MissingLine', 'X-Scroll', 'X-Long', 'X-Send', 'X-SendLine', 'Convert-T0'];
   const dgD = diag(bufD, [...NEWD, ...CHGD, ...OLDD]), dgP = diag(bufP, [...NEWP, ...CHGP, ...OLDP]);
-  const B24_DRIVER_SHA = '44ebb3b92ea1b2e75641d70884ca188108816e91def2f5cf6d9ad6d302e40d1b', B24_PARSER_SHA = '4a80770bf20ba5f350a7eb289df961ab26fb483ead233fe8985b9dc0c52210a0', B24_DRIVER_REST = 'd16e78cb719d477f402663d0e6c30739b56a0622bf449c10c0116e493fe93f0f', B24_PARSER_REST = '988f1969edf851530bb3bd90896e9bbc033d3d4ecfa0463bf27c971b453d7212';   // the guard (…_SHA) and the diagnostics
+  // re-based walktools (items 2 + 3; after a look at the diff, #1596): driver 44ebb3b9... -> 9502953e... (item 2: the probe `sets` form: Test-Screen, Invoke-Calibrate, the load block / header;
+  // new functions Test-HasField, Get-ProbeListGap, Get-ScreenProbeSets, Test-ProbeSetPixels, Get-ProbeVerdict; Get-ScreenGap / Test-Probes / Invoke-PreCheck (Get-PreCheckText) rewritten; Invoke-FileShot and Invoke-ShotCheck are back to their pre-batch text); parser 4a80770b... -> 873d647b... (item 3: Invoke-Main (two legend
+  // lines), the script level (five line defs, Get-WordTok, X-PageGate / X-PageTok / X-PagePush / X-Page, X-SeedFirstPage (I-3a), New-Def, Get-DataRow, the page tables)). The two script-level remainders and the five moved
+  // function hashes follow (review rounds 1 + 2 of walktools re-based them again (round 2: only the driver script level moved: Get-ScreenGap `1 or 2 sets`, the compact counts of Get-ProbeVerdict, Get-PreCheckText): success notes dropped, Invoke-FileShot back to its pre-batch text, Get-PreCheckText, Get-NoPair, the equal-counts rule); Get-EstimateSec and Invoke-Walk: the text did not change in this batch - their diagnostic constants were already stale on the base (the diagnostics are not the verdict) and are refreshed.
+  const B24_DRIVER_SHA = '074f7f0e65d1326f68e4aedacb75d4c459627c5fd6ed126c2495c261bbafa6e0', B24_PARSER_SHA = 'e502ac2b6003b4981e044aa9e01dfceb2f54d3f247d4d23ec2ebf9275c10b002', B24_DRIVER_REST = '19c3ac7d5c50272e5c73d04bfdd544762d22899bbefc13e661ac80d5d8f61315', B24_PARSER_REST = '8f0a2440703b5af78d63583681fba8e12865602da144e1e24b9f711af24eefeb';   // the guard (…_SHA) and the diagnostics
   const B24_DRIVER_FN = {
     "Set-RepStamp2": "b810fbc48072ef35d08d2ad824f4e6b32b4ec4ee9d169ea01ce27580003a56c7",
     "ConvertTo-Base58": "607782670e7e397d660daaca5f441110ec9e8366c0a8d87ecd05073e3977faa9",
@@ -817,10 +821,10 @@ export default async function (h) {
     "Get-StepGap": "f273e5567fbb8d75444c09f6fefe1c0faf01e3ae86cb342b6df9826bca87ef68",
     "Complete-Rep": "b3eb31eefca4adcc72d0a3659affa6ae3696111f9910a303631a3b7ecefdc4ba",
     "Invoke-RepBody": "c87669ed2062ccd62869d4b992bba653e1431889e229b44c11b53113b24d462a",
-    "Get-EstimateSec": "0d5f958d9af50ab4cb5a097c9f3e5ed483b44c6304ad3a5f0ec5d3c5051ed130",
-    "Invoke-Walk": "c4ea0fd9a5b03ff301293b36bfe4b74aa97aa4583f91cc6c0a17f8a9b8042aba",
+    "Get-EstimateSec": "0786e4ac70f4ff359d3329819460502ef67daef47633d481b1b7f92e5d99a6c5",
+    "Invoke-Walk": "a0aa305cd44a9dc84c392d08b94fd375a05580f423f82724f2dcc5af4e2df243",
     "Invoke-CalNewTaps": "82a90e9586891a4405e24aa9578a48f17c33bd0a7edadae48d5960ca6580f335",
-    "Invoke-Calibrate": "d8d0d4d9407a93f8cd7071eb4929780d9bc1cb9b0350086971f5113b00216710",
+    "Invoke-Calibrate": "c6083d80947e7df37bee29c153e04b47f5646f0ea7083cb136d71648696265be",
     "Assert-AppFront": "2ab25b07f54f84768f166a7285067b238b633ff02a73fc890e6dd4896c6c63f8",
     "Get-LogCount": "d3ae2881a794fb61ffc35947a99bd572a5a6cda2f8bfabc3d5b553f74fc200e8",
     "Wait-LogCount": "8b7129561482fec96bcd5a517a3beb2dbaef1a43df31be29b989640c752ad160",
@@ -833,7 +837,7 @@ export default async function (h) {
     "Invoke-EnsureHome": "178056bf8cb9a8f356dc7f5774f30ff91105c27b1e55271c4b87dc31c9d07280",
     "Reset-AppToChats": "4e21668694b09105a59583ab9ed453b1d23a84d4d4016d7f9ab8b8210edd7040",
     "Save-Shot": "3afac19c029c18e97eafae013a978ab207a685d81b5a511595cd4babfd5220f5",
-    "Test-Screen": "8c3627314c9af20c858354f66c07235654c10fbf14743901a4388d3a152b5751",
+    "Test-Screen": "523474b1a567ba33f420ea6f78c289d4d059ccb078864a214058ea7c4b4f870a",
     "Remove-LocalFile": "7b7c11ac7caa6a6051216efacfe48595300c175e1ca5b2a5b2be01a198bde273",
     "Get-Pids": "5ded1679cf3fc964f15d96a02e397c5eea3ceaa5fed2a2305bafb600b8ca6ef0",
     "Test-Ordinal": "bb6dd53b801655a99d612b1d8a7625fa8b263d847b051ec73d41e4d09a624f20",
@@ -855,7 +859,7 @@ export default async function (h) {
     "X-LongW": "ed3d79f0bad44ed63f2b7fba766feb2f9bb6b3d6a378db4c7f0934cc028d0328",
     "New-Ctx": "aa47f939777d49b4c86a96b784fea317c6ed33dbb5aa1340a1e40898eaf630b6",
     "New-RepCtx": "cb832a0d05945c1ea40f885ee5b4b92ad107cff24693e78971e7e23d8fe2ac91",
-    "Invoke-Main": "47719fd40383cec0f2665bbd9ce2268172eb6507f16415e5c2da6a7a712da920",
+    "Invoke-Main": "f5d4bcf6bca04d35a6cdbcd16f2be74275ccdaf3e677fcd4487fc4a3e8eb8efd",
     "Get-Hits": "59e531bfb6a713b9643b8cf057ffd6e8c387a03407bb36e4f27fc5dbfa27436e",
     "Test-Ready": "6113f1d735b818943964016e113a5f8657e9aeb9bc283c37963f7a46eb71cd61",
     "Get-Tok": "095e09a4141a5101c6df2cf550d3983012464626f3e29d9710ca250c34539361",

@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "tool": "adb-walk",
+  "run": "synthetic-seed-none",
+  "mode": "walk",
+  "device": {
+    "model": "synthetic",
+    "release": "14",
+    "refresh": "renderFrameRate=60",
+    "dnd": "on"
+  },
+  "app": {
+    "package": "com.example.synthetic",
+    "versionName": "0.0.0",
+    "versionCode": "1"
+  },
+  "flags": {
+    "asked": null,
+    "logged": "not read",
+    "ok": true
+  },
+  "repeats": 2,
+  "stepsRequested": [
+    "history"
+  ],
+  "historySeed": 7,
+  "memory": [],
+  "reps": [
+    {
+      "step": "history-seed-k07",
+      "rep": 1,
+      "status": "ok",
+      "t0": "12-01T10:00:00.000",
+      "log": "android-walk-history-seed-k07-01.txt",
+      "swipes": 5,
+      "pages": 1
+    },
+    {
+      "step": "history-seed-k07",
+      "rep": 2,
+      "status": "ok",
+      "t0": "12-01T10:01:00.000",
+      "log": "android-walk-history-seed-k07-02.txt",
+      "swipes": 6,
+      "pages": 1
+    }
+  ],
+  "finished": true
+}

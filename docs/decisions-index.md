@@ -346,3 +346,14 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1893 🟡 | The walk kit (icon, the load signal), the #1542 rows of the Safety sheet, the new launch walk sheet, the readiness section S12w; the two Artifacts and the `fixb3` sheet pointer owed. |
 | #1894 | The #46 verdict of the batch (readers: Opus only). |
 | #1895 | Session "Docs batch" — the record. |
+
+### Session Docs batch 2 (`docsb2`, 2026-11-23, #1950–#1956, L293–L294, no packet)
+| Row | Rule |
+|---|---|
+| #1950 | The main chat's rows #1831–#1838 in `DECISIONS.md` word for word, right after #1830; the scripts take `--manifest` and a heading row as a run's predecessor. |
+| #1951 | 13 status cells extended (#1886, #1852, #1853, #1849, #1848, #1850, #1846, #1847, #1845, #1860, #1877, #1796, #1798); the rest listed as not changed. |
+| #1952 🟡 | `docs/process.md` follows #1503, #1606, #1735, #1546, #1507 (13 proposals of `docsb` + three contradicting sentences); Q-2: is branch protection set? |
+| #1953 | The readiness rows of 2026-11-23; the Windows walk set-up: the page store and `ixian.cfg` beside `Spixi.exe`, the store copied after the first start, full PowerShell lines. |
+| #1954 🟡 | The doubled numbers #1420–#1423 are two sets (ON-1 and S20G), not a copy; Q-1: keep both and cite with the session (recommended) / renumber / mark. |
+| #1955 | The #46 verdict of the batch (readers: Opus only): CLEAN at r4; the compare script's relaxed cell check stays a stated limit (rule 9). |
+| #1956 | Session "Docs batch 2" — the record. |

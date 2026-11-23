@@ -231,3 +231,18 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1816 | Q-2 answered (Damir #1754): option (a), received downloads stay after chat info › Delete history for v1. |
 | #1817 | Fix batch 3 operator block: the four map keys, the `-HistorySeed` state renamed (`$script:HistSeedIdx`; round 5 CLEAN), the device runs. |
 | #1818 | Finding: the `-HistorySeed` row "first swipe -> 1st page" gives no data (log order); recorded, fix direction in a later scripts batch (Q-3). |
+
+### Session Fix batch 4 (`fixb4`, 2026-11-22 / 23, #1845–#1855, L265–L268, packets P87–P88)
+| Row | Rule |
+|---|---|
+| #1845 | The two page defaults of a new account: ONE push `setNewAccountDefaults` to the launch shell from the three new-account sites of LaunchPage (no new verb; a lost push = the old defaults); `PageDefaultsRules.cs`; `readFixb4`. |
+| #1846 | Item 3: "Load pictures and GIFs" Off for a new or restored account (switch `DefaultMediaTapToLoad`); the C# mirror `SAutoDownload.loadPictures` Off at the same site (P87). |
+| #1847 | Item 4: the Compact chat list for a new or restored DESKTOP account (switch `DefaultListCompact`; Windows / Mac only) (P88). |
+| #1848 | Item 1: welcome slide 4 names only Blitz Chess; the key renamed `slide4Copy2` → `slide4Copy3` (no stale value can ship). |
+| #1849 | Item 2: the protect-account fields above the keyboard on Android (adjustResize): the focused field box + ring into the body by `scrollTop` only; no switch. |
+| #1850 | Item 6: the Developer log floor `min-height: 60vh`; no switch. |
+| #1851 | Item 5: the "sending" broken-picture tile = an unsent file (a Seed contact never takes a file); W-2 / A-2 of `docs/walk-photo1b.md` corrected. |
+| #1852 | Item 7: drag and drop into a chat was never built; question Q-DD; the inherited `file:` navigation (FILE-NAV, legacy). |
+| #1853 | Question Q-T: the slide-4 title "Play and plan together." |
+| #1854 | Fix batch 4: the #46 verdict. |
+| #1855 | Session "Fix batch 4" — the record (numbers, models, owed). |

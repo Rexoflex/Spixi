@@ -121,6 +121,8 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P79](P79-new-account-app-lock-on.md) | Defaults batch item 1 (#1750): a NEW or RESTORED account is written with App lock On (flag `DefaultAppLockOn`); existing accounts and every reader unchanged | LOW | no | none | built · ⚠ uncompiled | 4 min |
 | [P80](P80-new-account-confirm-payments-on.md) | Defaults batch item 3: a NEW or RESTORED account is written with Confirm payments On on Android / iPhone / Mac (flag `DefaultPayConfirmOn`); the send path byte-identical | LOW | no | none | built · ⚠ uncompiled | 3 min |
 | [P81](P81-lock-delay-one-minute.md) | Defaults batch item 2: the no-auth window of the app lock is 60 s on the phone and the Mac (flag `LockDelayOneMinute`, OFF = 5 s); Windows unchanged | MEDIUM | no | none | built · ⚠ uncompiled | 5 min |
+| [P87](P87-new-account-media-tap-to-load.md) | Fix batch 4 item 3 (#1750 P1): a NEW or RESTORED account starts with "Load pictures and GIFs" Off — ONE new C# → JS push `setNewAccountDefaults` to the launch shell from the three new-account sites (flag `DefaultMediaTapToLoad`) + the C# mirror `photoAutoDlLoadPictures` Off; existing accounts and every reader unchanged | LOW | no | +1 push (no verb) | built · ⚠ uncompiled | 5 min |
+| [P88](P88-new-account-list-compact.md) | Fix batch 4 item 4 (#1750 A9): the same push writes the Compact chat list on Windows / Mac only (flag `DefaultListCompact`) | NONE | no | the push of P87 | built · ⚠ uncompiled | 2 min |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

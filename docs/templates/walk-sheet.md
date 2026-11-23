@@ -37,6 +37,23 @@ Publish it as an Artifact when Damir walks away from the PC.
     `DirectoryNotFoundException` (#584); also not shown by the log: W-3 (10 minutes idle did not fit), W-4 (no restore),
     W-9. On Android a fresh account needs an emulator or a spare phone (`claude/talk-session-status.md`, Sessions,
     `defaultsb`).
+    **Windows: where the page store and `ixian.cfg` live** (WALK #1835; item `n-20261123-win-webview-store-in-build-folder`):
+    both are in the build folder beside `Spixi.exe` (the configuration folder is, in the clone,
+    `Spixi\bin\x64\Debug\net10.0-windows10.0.19041.0\win-x64`: the page store is `…\win-x64\Spixi.exe.WebView2\EBWebView`,
+    the file is `…\win-x64\ixian.cfg`; `ixian.cfg` is read from the app's working folder, `Spixi/Meta/Config.cs:112`,
+    `:150-152`, `:258`). So a wipe of `Spixi\bin` EMPTIES the page store and DELETES `ixian.cfg`; a search of `%LOCALAPPDATA%`
+    finds nothing. A sheet therefore (1) copies the page store AFTER the first start of the new build (after the wipe and F5),
+    from that fixed full path — it does not search for it; (2) makes every `ixian.cfg` step a full PowerShell line with the
+    full path and no placeholder (no `<…>`, no "open or create the file"): one line each for setting the folder, the restore
+    folder and removing the line; the put-back of the store is one line with the same fixed path; (3) does not ask for "the
+    old build first" after a wipe (the old build cannot be started; the page-store values of an existing account then show
+    the values of an empty store: Load pictures On, List density Comfortable, WALK #1835 W-1) — W-1 says what the page-store values read; a native value noted at the first start of the new build is the
+    test account's own value (the wipe does not touch it) and serves the put-back row — when the batch changes no native
+    value of an EXISTING account; a batch that changes a native value of an existing account compares with the test
+    account's known setting instead; and when an earlier walk changed the test account's value, W-1 is information only (note
+    the value, mark P when noted; the put-back row restores what W-1 saw; `docs/walk-defaultsb.md` W-1). A row that may be walked alone
+    again names the rows it needs first, and the clean-up of the second data folders comes before it. The model sheets: `docs/walk-fixb4.md` (Windows set-up) and
+    `docs/walk-defaultsb.md`.
 - **Marks**: Pass / Fail / N/A buttons + a note on EVERY row, PASS included (#843). State in `localStorage` under a
   per-sheet key, wrapped in try/catch.
 - **Sticky bar**: live tally `n P · n F · n N/A · n left` · Clear (double-tap) · **Copy results**.

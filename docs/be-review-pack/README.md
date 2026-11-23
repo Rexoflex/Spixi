@@ -121,6 +121,9 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P79](P79-new-account-app-lock-on.md) | Defaults batch item 1 (#1750): a NEW or RESTORED account is written with App lock On (flag `DefaultAppLockOn`); existing accounts and every reader unchanged | LOW | no | none | built · ⚠ uncompiled | 4 min |
 | [P80](P80-new-account-confirm-payments-on.md) | Defaults batch item 3: a NEW or RESTORED account is written with Confirm payments On on Android / iPhone / Mac (flag `DefaultPayConfirmOn`); the send path byte-identical | LOW | no | none | built · ⚠ uncompiled | 3 min |
 | [P81](P81-lock-delay-one-minute.md) | Defaults batch item 2: the no-auth window of the app lock is 60 s on the phone and the Mac (flag `LockDelayOneMinute`, OFF = 5 s); Windows unchanged | MEDIUM | no | none | built · ⚠ uncompiled | 5 min |
+| [P90](P90-older-page-off-ui-thread.md) | History C# P-28: an older page of chat history is read and built on a pool thread (flag `LoadMoreOffUi`); the busy guard, the push gate, the dropped-page rule, the delivery order behind a kept page | MEDIUM | no | none | built · ⚠ uncompiled | 8 min |
+| [P91](P91-first-older-page-50.md) | History C# HV-5: the first older page holds 50 rows (flag `FirstOlderPage50`); the D-18 cache rule proven not to bite | LOW | no | none | built · ⚠ uncompiled | 3 min |
+| [P92](P92-history-csharp-lines.md) | History C# HV-0: four developer lines, one `[FLAGS] histcs` line, three type-only warns | LOW | no | none | built · ⚠ uncompiled | 2 min |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

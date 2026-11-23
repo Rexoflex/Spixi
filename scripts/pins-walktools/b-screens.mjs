@@ -29,6 +29,7 @@
  *                    VALUES are not pinned (the operator block fills them); the proposed values of the mechanisms doc are valid; the rule texts reject what
  *                    they must (both forms, unknown / duplicate name, 5 sets, sets on another screen)
  *   k8 definitions — each new function is defined exactly once
+ * ★ walktools2 re-base (2026-11-23; after a look at the diff, #1596 / #1634): screens.home may hold sets too (k2 gapRule / usageBlock, k7 specGap / noSetsOutsideChatViewer / rejectOtherScreen + acceptHomeSets); k6 allowlistFrozen = the base + the ONE `$script:WatchEventsCmd,` line of Initialize-Allowlist.
  * Deliberate breaks (#802): the builder's report, one one-token mutation per key in a full copy of the tree (run with a scratch runner). */
 import { createHash } from 'node:crypto';
 
@@ -95,15 +96,16 @@ export default async function (h) {
   const blockText = iBlock < 0 ? '' : D.slice(iBlock, idx(D, "foreach ($scrName in @('home', 'chat', 'chatinfo', 'viewer', 'downloads')) {"));
   const asRule = (() => { const i = idx(D, "if (-not (Get-ScreenGap 'accountScrolled') -and -not (Get-TapGap 'accountDownloads')) {"); return i < 0 ? '' : D.slice(i, iTiming); })();
   const k2 = {
-    gapRule: has(gap, "@('chat', 'viewer') -cnotcontains $Name") && has(gap, 'may not use sets (only chat and viewer)'),
-    usageBlock: has(blockText, "(Test-HasField (Get-Field $scrAll $scrKey) 'sets') -and (@('chat', 'viewer') -cnotcontains $scrKey)") && has(blockText, 'Exit-Usage') && has(blockText, 'only screens.chat and screens.viewer may use sets'),
+    // ★ walktools2 re-base (2026-11-23): the screens that may hold sets are home, chat and viewer (item 3: the dark home); the rule is the same, the list is the old one + `home` first; every other screen is still a gap / a usage error
+    gapRule: has(gap, "@('home', 'chat', 'viewer') -cnotcontains $Name") && has(gap, 'may not use sets (only home, chat and viewer)'),
+    usageBlock: has(blockText, "(Test-HasField (Get-Field $scrAll $scrKey) 'sets') -and (@('home', 'chat', 'viewer') -cnotcontains $scrKey)") && has(blockText, 'Exit-Usage') && has(blockText, 'only screens.home, screens.chat and screens.viewer may use sets'),
     beforeTheLimitsAndTiming: iBlock > 0 && iBlock < iTiming && iBlock < idx(D, "foreach ($scrName in @('home', 'chat', 'chatinfo', 'viewer', 'downloads')) {"),
     loopsOverEveryScreenKey: has(blockText, '$scrAll.PSObject.Properties.Name'),
     accountScrolledKeepsOldForm: asRule.length > 0 && has(asRule, "Get-Field $asScr 'probes'") && has(asRule, "Get-Field $asScr 'minMatch'") && !/sets/.test(asRule),
     accountScrolledInvalidIsUsage: has(D, "if ($null -ne (Get-Field (Get-Field $script:Cfg 'screens') 'accountScrolled') -and (Get-ScreenGap 'accountScrolled')) { Exit-Usage"),
   };
   ok(F(k2).length === 0,
-    '★ walktools B (k2 onlyChatViewer): ONLY screens.chat and screens.viewer may hold sets — Get-ScreenGap makes any other screen with sets a gap, and the load block loops over EVERY key of screens and makes sets on another screen a usage error (before the 16-probe limits and the timing block, so before any adb command); accountScrolled keeps its old form (its load-time rule reads probes / minMatch only) and a present-but-invalid accountScrolled is still a usage error — failing: ' + JSON.stringify(F(k2)));
+    '★ walktools B (k2 onlyChatViewer): ONLY screens.home, screens.chat and screens.viewer may hold sets (walktools2 re-base: home added) — Get-ScreenGap makes any other screen with sets a gap, and the load block loops over EVERY key of screens and makes sets on another screen a usage error (before the 16-probe limits and the timing block, so before any adb command); accountScrolled keeps its old form (its load-time rule reads probes / minMatch only) and a present-but-invalid accountScrolled is still a usage error — failing: ' + JSON.stringify(F(k2)));
 
   /* ── k3 · the decision ── */
   const tProbes = fn('Test-Probes'), tScreen = fn('Test-Screen'), verdict = fn('Get-ProbeVerdict'), pure = fn('Test-ProbeSetPixels');
@@ -168,13 +170,16 @@ export default async function (h) {
   const newBody = NEW_FNS.map(fn).join('\n') + '\n' + tProbes + '\n' + tScreen;
   const shaFn = (n) => sha(lines(fn(n)).join('\n'));
   const k6 = {
-    allowlistFrozen: Object.entries(ALLOWLIST_FN_SHA).every(([n, s]) => fn(n).length > 0 && shaFn(n) === s),
+    // ★ walktools2 re-base (2026-11-23): Test-ShellAllowed, Assert-AdbCommand and Get-LogPullCmd stay byte-identical to the base; Initialize-Allowlist = the base + exactly ONE statement, `$script:WatchEventsCmd,` (once): without that line its statements hash to the base value again (the exact string of the command is held by pins-walktools2/b-coldwatch k1)
+    allowlistFrozen: Object.entries(ALLOWLIST_FN_SHA).every(([n, s]) => fn(n).length > 0 && (n === 'Initialize-Allowlist'
+      ? (() => { const st = lines(fn(n)); return st.filter((l) => l === '$script:WatchEventsCmd,').length === 1 && sha(st.filter((l) => l !== '$script:WatchEventsCmd,').join('\n')) === s; })()
+      : shaFn(n) === s)),
     newFunctionsSendNothing: NEW_FNS.every((n) => fn(n).length > 0) && !/Invoke-(Shell|ShellReq|Adb|CalInput|Back)|Assert-AdbCommand|Start-Process|adb\b/.test(newBody),
     noVerbWords: !/input text|input tap|input swipe|keyevent|pm clear|uninstall|reboot|rm -r|\bsu\b|am start|force-stop|settings put/i.test(newBody),
     noNewVerbInUsageBlock: !/Invoke-(Shell|Adb)/.test(blockText),
   };
   ok(F(k6).length === 0,
-    '★ walktools B (k6 noNewInput): NO new adb command shape and no typed input — Initialize-Allowlist, Test-ShellAllowed, Assert-AdbCommand and Get-LogPullCmd are byte-identical to the base (SHA-256 of their statements); the five new functions plus Test-Probes / Test-Screen send nothing (no Invoke-Shell / Invoke-Adb / Invoke-CalInput) and hold no verb word of the safety list; the load-time block sends nothing — failing: ' + JSON.stringify(F(k6)));
+    '★ walktools B (k6 noNewInput): NO new adb command shape and no typed input (walktools2 re-base: Initialize-Allowlist = the base + the ONE PipedCmds line `$script:WatchEventsCmd,`) — Initialize-Allowlist, Test-ShellAllowed, Assert-AdbCommand and Get-LogPullCmd are byte-identical to the base (SHA-256 of their statements); the five new functions plus Test-Probes / Test-Screen send nothing (no Invoke-Shell / Invoke-Adb / Invoke-CalInput) and hold no verb word of the safety list; the load-time block sends nothing — failing: ' + JSON.stringify(F(k6)));
 
   /* ── k7 · the real map under the rules (re-implemented in JS) ── */
   const hexRe = js((/-cnotmatch '(\^#\[0-9A-Fa-f\]\{6\}\\z)'/.exec(listGap) || [])[1] || '(?!)');
@@ -197,7 +202,7 @@ export default async function (h) {
   const specGap = (name, scr) => {
     if (scr == null) return 'a52s.json has no screens.' + name;
     if (Object.prototype.hasOwnProperty.call(scr, 'sets')) {
-      if (!['chat', 'viewer'].includes(name)) return 'may not use sets';
+      if (!['home', 'chat', 'viewer'].includes(name)) return 'may not use sets';   // ★ walktools2 re-base (2026-11-23): + home
       if ('probes' in scr || 'minMatch' in scr) return 'one form only';
       if (!Array.isArray(scr.sets)) return 'must be a list of 1 or 2 sets';   // null and an object: review round 1 NIT
       const sets = scr.sets;
@@ -228,7 +233,7 @@ export default async function (h) {
   const k7 = {
     parses: map !== null && map.schema === 1 && typeof screens === 'object',
     everyScreenValid: ['home', 'chat', 'chatinfo', 'viewer', 'accountScrolled', 'downloads'].every((n) => screens[n] === undefined || specGap(n, screens[n]) === ''),
-    noSetsOutsideChatViewer: Object.entries(screens).every(([n, s]) => ['chat', 'viewer'].includes(n) || !('sets' in s)),
+    noSetsOutsideChatViewer: Object.entries(screens).every(([n, s]) => ['home', 'chat', 'viewer'].includes(n) || !('sets' in s)),   // ★ walktools2 re-base (2026-11-23): home, chat and viewer may hold sets (the key keeps its name)
     accountScrolledOldForm: screens.accountScrolled === undefined || ('probes' in screens.accountScrolled && !('sets' in screens.accountScrolled)),
     noBothForms: Object.values(screens).every((s) => !('sets' in s) || (!('probes' in s) && !('minMatch' in s))),
     proposedChatValid: specGap('chat', { sets: [chatL, chatD] }) === '' && specGap('chat', { sets: [chatL] }) === '',
@@ -238,12 +243,14 @@ export default async function (h) {
     rejectDuplicate: specGap('chat', { sets: [chatL, { ...chatL }] }) !== '',
     rejectFive: specGap('chat', { sets: [chatL, chatD, chatL] }) !== '' && specGap('chat', { sets: [] }) !== '',
     rejectNullObject: specGap('chat', { sets: null }) === 'must be a list of 1 or 2 sets' && specGap('viewer', { sets: chatL }) === 'must be a list of 1 or 2 sets' && specGap('chat', { sets: 'light' }) === 'must be a list of 1 or 2 sets',
-    rejectOtherScreen: ['home', 'chatinfo', 'accountScrolled', 'downloads'].every((n) => specGap(n, { sets: [chatL] }) === 'may not use sets'),
+    // ★ walktools2 re-base (2026-11-23): home is no longer an `other screen` (the three left still are); the home sets are accepted by the line below
+    acceptHomeSets: specGap('home', { sets: [chatL, chatD] }) === '',
+    rejectOtherScreen: ['chatinfo', 'accountScrolled', 'downloads'].every((n) => specGap(n, { sets: [chatL] }) === 'may not use sets'),
     rejectBadSet: specGap('chat', { sets: [{ ...chatL, minMatch: 4 }] }) === 'screens.chat.sets[light].minMatch is not 1..3' && specGap('chat', { sets: [{ ...chatL, probes: [P(5000, 1, '#FFFFFF', 2)] }] }).includes('off the screen'),
     oldFormTexts: specGap('chat', { probes: [P(1, 1, 'red', 2)], minMatch: 1 }) === 'screens.chat probe 1 is invalid' && specGap('chat', { probes: [P(1, 1, '#FFFFFF', 2)], minMatch: 2 }) === 'screens.chat.minMatch is not 1..1',
   };
   ok(F(k7).length === 0,
-    '★ walktools B (k7 realMap): scripts/device/a52s.json parses and every screen in it is valid under the rules of Get-ScreenGap (re-implemented in JavaScript with the hex and name regexes cut out of the script text); only chat and viewer may hold sets, accountScrolled stays in the old form, no screen holds both forms; the proposed chat / viewer sets of the mechanisms doc are valid; both forms, an unknown / wrong-case / missing / duplicate name, 5 and 0 sets, sets on any other screen and a bad set are all rejected with the old and the new texts — the VALUES of the map are NOT pinned (the operator block fills them) — failing: ' + JSON.stringify(F(k7)));
+    '★ walktools B (k7 realMap): scripts/device/a52s.json parses and every screen in it is valid under the rules of Get-ScreenGap (re-implemented in JavaScript with the hex and name regexes cut out of the script text); only home, chat and viewer may hold sets (walktools2 re-base), accountScrolled stays in the old form, no screen holds both forms; the proposed chat / viewer sets of the mechanisms doc are valid; both forms, an unknown / wrong-case / missing / duplicate name, 5 and 0 sets, sets on any other screen and a bad set are all rejected with the old and the new texts — the VALUES of the map are NOT pinned (the operator block fills them) — failing: ' + JSON.stringify(F(k7)));
 
   /* ── k8 · each new function once ── */
   const defs = (n) => (D.match(new RegExp('^function ' + n.replace(/-/g, '\\-') + '\\b', 'gmi')) || []).length;

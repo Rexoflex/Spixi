@@ -1,0 +1,2 @@
+12-01 10:03:01.000  4304  4322 I DOTNET  : 12-01 10:03:01.0000|info|1: Starting Spixi 0.9.30 (dev)
+12-01 10:03:04.500  4304  4322 I DOTNET  : 12-01 10:03:04.5000|info|1: [CDPERF] chat attach spare=1

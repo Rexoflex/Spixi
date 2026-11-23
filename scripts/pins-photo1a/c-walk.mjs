@@ -149,11 +149,14 @@ export function oldView(drv, par) {
 // Get-ProbeListGap + Get-ScreenGap, Test-Probes now reads the pixels and calls Get-ProbeVerdict, the Test-Screen return carries Set / Sets, the pre-check failure text (Get-PreCheckText; the `check: set` success notes of the first version were removed in review round 1), the calibrate lines (note, `ok (set x)`, `sets`),
 // the load block (sets only on chat / viewer, the limit per set), and the new functions Test-HasField / Get-ScreenProbeSets / Test-ProbeSetPixels /
 // Get-ProbeVerdict (they are not photo1a's, so they stay in the view). 8b69267a235d... -> e656d3fad141... (round 2: `1 or 2 sets`, compact counts, Get-PreCheckText strips the prefix; round 1 value 27f71088107...) (review round 1: + Get-PreCheckText, `sets must be a list`, the compact failure note; Invoke-ShotCheck / Invoke-FileShot are pre-batch text again) (the view of the base scripts 338d30f4, cut the same way, still gives the old value: checked).
-const BASE_DRV_VIEW_SHA = 'e656d3fad1413bb0e0ddb169ac7e5b4a318508b9ad40026b111b197d246c71bf';
+// ★ walktools2 re-base (2026-11-23; after a look at the diff, #1596 / #1634): + exactly the statements of walktools2 (the step coldstart-watch, the home `sets` lines; see pins-fixb3/c-walk BASE_DRV_VIEW_SHA); e656d3fad141... -> 9b5c41ccdc47...
+// ★ walktools2 re-base, #46 round 1: only coldstart-watch statements changed; driver 9b5c41cc... -> b41ec367..., parser a813c8e4... -> 4ea57874...
+const BASE_DRV_VIEW_SHA = 'b41ec3678054bc466986455114d7d3a854d968c7adb985c370bbcbf4436d2aa2';
 // re-based walktools (item 3): the parser statements moved by the per-page rows (five $script:L line defs, Get-WordTok, X-PageGate / X-PageTok / X-PagePush / X-Page,
 // $script:PageRows, New-PageDefs, the two page-def tables, New-Def `$Arg`, the `history` table closing `) + $script:HistoryPageDefs }`, Get-DataRow `& $Def.Extract $c $Def.Arg`
 // + the insertmode note, the page legend line). X-SeedFirstPage, the seed legend and the HistorySeedDefs table are cut by the fixb3 strip (held there). 5c661b38be58... -> 987c149fb699... (review round 1: + Get-NoPair, the count guards of X-PageTok / X-PagePush)
-const BASE_PAR_VIEW_SHA = '987c149fb699c478f4ebf395af8c430c2babe14c35324f0be2ac3abd88a44339';
+// ★ walktools2 re-base (2026-11-23): + exactly the added statements of the step coldstart-watch (no parser statement was removed); 987c149fb699... -> a813c8e4ed49...
+const BASE_PAR_VIEW_SHA = '4ea57874174f55b6c1bd7d7a5a6e14c9bd563650e6ee2798dd298195073e38d9';
 const BASE_DEVADDR_SHA = '62dc3e08437c570d9f286f89de3f4e8399c650650981945999b51a6d46b8a00e';
 const BASE_LOGRE_SHA = 'a22d2dbaa96566788330114cca740fed5851d4ba7dafe55b115fea6195bfde3b';
 export const baseShas = { BASE_DRV_VIEW_SHA, BASE_PAR_VIEW_SHA, BASE_DEVADDR_SHA };
@@ -316,7 +319,8 @@ export default async function (h) {
   const ALLOWED_HELPERS = ['Add-AmResult', 'Add-Note', 'Clear-FileStepPngs', 'Complete-Rep', 'Get-DevSeedAddress', 'Get-ErrText', 'Get-StepGap', 'Invoke-BackReq', 'Invoke-EnsureHome', 'Invoke-FileReset', 'Invoke-FileShotCheck', 'Invoke-LogPull', 'Invoke-OpenSeedOne', 'Invoke-OpenSeedRep', 'Invoke-OpenSeedRestart', 'Invoke-OpenSeedWarmup', 'Invoke-ShellReq', 'New-Rep', 'Read-AmOutput', 'Save-FileRepPid', 'Say-Log', 'Set-RepStamp', 'Wait-FilePull', 'Wait-Ms'];
   const c4 = {
     found: allowFn.length > 0 && pipedNow.length > 0 && fpBlock.length > 0,
-    pipedDelta: pipedNow.filter((l) => l !== "$script:FramePoll['chatmedia']").join('\n') === BASE_PIPED.join('\n') && pipedNow.filter((l) => l === "$script:FramePoll['chatmedia']").length === 1 && pipedNow.length === BASE_PIPED.length + 1,
+    // ★ walktools2 re-base (2026-11-23): the base list + the chatmedia poll + exactly ONE more string, `$script:WatchEventsCmd` (the events pull of coldstart-watch; each once; the exact command is held by pins-walktools2/b-coldwatch k1)
+    pipedDelta: pipedNow.filter((l) => l !== "$script:FramePoll['chatmedia']" && l !== '$script:WatchEventsCmd').join('\n') === BASE_PIPED.join('\n') && pipedNow.filter((l) => l === "$script:FramePoll['chatmedia']").length === 1 && pipedNow.filter((l) => l === '$script:WatchEventsCmd').length === 1 && pipedNow.length === BASE_PIPED.length + 2,
     framePollDelta: fpNow.filter((l) => l.startsWith('chatmedia =')).join('\n') === NEW_FP && fpNow.length === 16 && count(fpBlock, 'chatmedia') === 1,
     countOnly: !NEW_FP.includes('grep -E') && !NEW_FP.includes('>') && !NEW_FP.includes(';') && D.includes("$script:LogCmd = 'logcat -d -v threadtime -s DOTNET:I'"),
     shellAllowFrozen: allowNow.join('\n') === BASE_ALLOW.join('\n') && allowNow.length === 31,
@@ -403,7 +407,8 @@ export default async function (h) {
     newRowsNotRequired: defRows.slice(3).every((r) => r[2] === false) && defRows.slice(3).length === 12,
     oldRowsRequired: defRows.slice(0, 3).every((r) => r[2] === true),
     coldPrefix: P.includes("$script:OpenSeedWarmDefs = New-OpenSeedDefs ''") && P.includes("$script:OpenSeedColdDefs = New-OpenSeedDefs 'cold '"),
-    tableEntries: tableKeys.join() === [...oldTableKeys.slice(0, 9), 'mem-photos', ...oldTableKeys.slice(9), 'open-seed'].join() && (P.match(/^ {4}'open-seed'\s*= @\{ Kind = 'open-seed' \}/gm) || []).length === 1 && (P.match(/^ {4}'mem-photos'\s*= @\{ Kind = 'mem'; Phase = 'photos' \}/gm) || []).length === 1,
+    // ★ walktools2 re-base (2026-11-23): the step table = the old keys + open-seed + exactly ONE more entry, `coldstart-watch` (last)
+    tableEntries: tableKeys.join() === [...oldTableKeys.slice(0, 9), 'mem-photos', ...oldTableKeys.slice(9), 'open-seed', 'coldstart-watch'].join() && (P.match(/^ {4}'open-seed'\s*= @\{ Kind = 'open-seed' \}/gm) || []).length === 1 && (P.match(/^ {4}'mem-photos'\s*= @\{ Kind = 'mem'; Phase = 'photos' \}/gm) || []).length === 1,
     perIndexRows: osBlock.includes("$nnK = ([int]$seedK).ToString('00', $script:Inv)") && osBlock.includes("$sk = 'open-seed-k' + $nnK") && stm(fnP('X-TokenMs')).join('\n').includes('$v = Get-TokMs $hits[0].Tail $Key') && osBlock.includes("$labelK = 'open-seed k=' + ([int]$seedK).ToString($script:Inv)") && osBlock.includes('foreach ($cold in @($false, $true)) {')
       && osBlock.includes("$countK = $repeats") && osBlock.includes("if ($cold) { $sk = $sk + '-cold'; $countK = 1; $defsK = $script:OpenSeedColdDefs }") && osBlock.includes('$defsK = $script:OpenSeedWarmDefs')
       && osBlock.includes('foreach ($dK in $defsK) { $rows.Add((Get-DataRow $labelK $dK $ctxK.ToArray())) }'),
@@ -434,8 +439,8 @@ export default async function (h) {
     driverStatements: drvSha === baseShas.BASE_DRV_VIEW_SHA,
     parserStatements: parSha === baseShas.BASE_PAR_VIEW_SHA,
     noMissingAdded: !ov.drv.some((l) => l.startsWith('#MISSING')) && !ov.par.some((l) => l.startsWith('#MISSING')),
-    allStepsPrefix: allSteps.slice(0, 23).join() === BASE23.join() && allSteps.length === 25,
-    optInPrefix: optIn.slice(0, 6).join() === 'scroll-image,scroll-files,scroll-voice,scroll-photos,viewer,downloads' && optIn.length === 8,
+    allStepsPrefix: allSteps.slice(0, 23).join() === BASE23.join() && allSteps.length === 26,   // ★ walktools2 re-base (2026-11-23): 25 -> 26 names: the first 23 and open-seed, mem-photos unchanged, + `coldstart-watch` last (c9)
+    optInPrefix: optIn.slice(0, 6).join() === 'scroll-image,scroll-files,scroll-voice,scroll-photos,viewer,downloads' && optIn.length === 9,   // ★ walktools2 re-base (2026-11-23): 8 -> 9 (+ coldstart-watch last)
     pngRegexNew: D.includes("$f.Name -cmatch '^shot-(scroll-files|scroll-voice|scroll-photos|viewer|downloads|open-seed)-[A-Za-z0-9-]{1,40}\\.png\\z'"),
     defaultStepsRule: D.includes('$script:DefaultSteps = @($script:AllSteps | Where-Object { $script:OptInSteps -cnotcontains $_ })'),
     oldRoutes: ['Invoke-RepBody', 'Invoke-Step', 'Invoke-FileReset', 'Reset-AppToChats', 'Save-FileRepPid', 'Invoke-MemPhase'].every((n) => fnD(n).length > 0),
@@ -450,7 +455,8 @@ export default async function (h) {
   const memFn = stm(fnD('Invoke-MemPhase')).join('\n');
   const c9 = {
     found: allSteps.length > 0 && walkLoop.length > 0,
-    lastTwo: allSteps.slice(-2).join() === 'open-seed,mem-photos' && optIn.slice(-2).join() === 'open-seed,mem-photos',
+    // ★ walktools2 re-base (2026-11-23): mem-photos is still the LAST photo1a step (after open-seed); the one name after it is the opt-in coldstart-watch of walktools2, last in AllSteps and in OptInSteps
+    lastTwo: allSteps.slice(-3).join() === 'open-seed,mem-photos,coldstart-watch' && optIn.slice(-3).join() === 'open-seed,mem-photos,coldstart-watch',
     typedOrderLost: D.includes('else { $script:StepsReq = @($script:AllSteps | Where-Object { $want -contains $_ }) }') && order.join() === 'coldstart,mem-home,viewer,open-seed,mem-photos',
     memHomeBeforeChat: allSteps.indexOf('mem-home') === 1 && allSteps.indexOf('mem-home') < allSteps.indexOf('chat-intent') && allSteps.indexOf('mem-home') < allSteps.indexOf('open-seed'),
     walkBranches: walkLoop.includes("elseif ($s -eq 'open-seed') { Invoke-OpenSeedStep }") && walkLoop.includes("elseif ($s -eq 'mem-photos') { Invoke-MemPhase 'photos' }") && count(walkLoop, "Invoke-MemPhase 'photos'") === 1,
@@ -461,7 +467,7 @@ export default async function (h) {
     estimate: stm(fnD('Get-EstimateSec')).includes("elseif ($s -eq 'mem-photos') { $sum += $t['memQuietSec'] + 6 }"),
   };
   ok(F(c9).length === 0,
-    '★ photo1a walk (c9 memPhotosLast): `mem-photos` is the LAST step of AllSteps (after open-seed) and opt-in; the order typed in -Steps is lost (AllSteps order wins), so mem-home runs 2nd — before every chat step — and mem-photos last; the walk loop runs `Invoke-MemPhase \'photos\'` (files meminfo-photos-app.txt / -renderer.txt from the phase name, one row set like mem-end); the parser has the table entry, the file-name rule, the Files-section phase and a legend line — failing: ' + JSON.stringify(F(c9)));
+    '★ photo1a walk (c9 memPhotosLast): `mem-photos` is the LAST photo1a step of AllSteps (after open-seed; walktools2 re-base: only the opt-in `coldstart-watch` comes after it, last in AllSteps and OptInSteps) and opt-in; the order typed in -Steps is lost (AllSteps order wins), so mem-home runs 2nd — before every chat step — and mem-photos last; the walk loop runs `Invoke-MemPhase \'photos\'` (files meminfo-photos-app.txt / -renderer.txt from the phase name, one row set like mem-end); the parser has the table entry, the file-name rule, the Files-section phase and a legend line — failing: ' + JSON.stringify(F(c9)));
 
   /* ═══ fix round 1 (the reader's findings of 2026-11-17, scope C-walk): one key per finding ═══ */
   const SQ = String.fromCharCode(39);

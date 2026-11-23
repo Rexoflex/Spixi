@@ -1,0 +1,7 @@
+12-01 09:30:00.000  1500  1600 I am_proc_died: [0,4302,com.ixilabs.spixi.dev,0,2,
+12-01 09:30:00.010  1500  1600 I am_kill : [0,4302,com.ixilabs.spixi.dev,0,
+12-01 10:00:59.900  1500  1600 I am_kill : [0,4301,com.ixilabs.spixi.dev,0,
+12-01 10:01:00.200  1500  1600 I am_proc_start: [0,4302,10345,com.ixilabs.spixi.dev,
+12-01 10:01:03.400  1500  1600 I am_proc_died: [0,4302,com.ixilabs.spixi.dev,0,2,
+12-01 10:01:04.000  1500  1600 I killinfo: [4999,10200,900,800,1234,2,5000
+12-01 10:05:00.000  1500  1600 I am_kill : [0,4302,com.ixilabs.spixi.dev,0,

@@ -361,10 +361,13 @@ export default async function (h) {
   // re-based walktools (item 2): adb-walk.ps1 — the probe `sets` form of screens.chat / screens.viewer (Get-ProbeListGap, Get-ScreenGap,
   // Get-ScreenProbeSets, Test-ProbeSetPixels, Get-ProbeVerdict, Test-Probes, Test-Screen, the set notes, the calibrate lines, the load block);
   // the body keys above (the -Flags functions) did not move. 44ebb3b9ea1b… -> 161e786a9db5… (review round 1: 9502953e1b56… -> 161e786a9db5…; round 2: -> 074f7f0e65d1…)
-  fz['file:adb-walk.ps1'] = sha(DN) === '074f7f0e65d1326f68e4aedacb75d4c459627c5fd6ed126c2495c261bbafa6e0';
+  // ★ walktools2 re-base (2026-11-23): adb-walk.ps1 — the opt-in step coldstart-watch (the events pull shape WatchEventsCmd, Invoke-ColdWatchRep, Save-WatchEvidence, Save-WatchPull, the usage refusals with -Calibrate / -Flags, the help text, the estimate) and screens.home in the sets form (Get-ScreenGap, the load-time rule); the -Flags body keys above did not move. 074f7f0e65d1… -> 1ac3bf836ef0…
+  // ★ walktools2 re-base, #46 round 1 (2026-11-23): fixer-b changed only the coldstart-watch code (driver: Test-WatchPidof, the try/finally of the watch rep, pidInAfter; parser: the class rules of Get-WatchRep / Get-WatchRows, the legend line); the statements of the base view are unchanged (checked: the same five removed lines as before)
+  fz['file:adb-walk.ps1'] = sha(DN) === '02ef800d4cbf3034f4edfcccb2ebbcf425f952e20c1a6a7e34f14e4a9167ab20';
   // re-based walktools (item 3): adb-walk-parse.ps1 — the first-page rule X-SeedFirstPage (I-3a), the per-page rows (L entries, Get-WordTok,
   // X-PageGate / X-PageTok / X-PagePush / X-Page, New-PageDefs, New-Def $Arg, the insertmode note, two legend lines). 4a80770bf20b… -> e502ac2b6003… (review round 1: 873d647b6c7c… -> that)
-  fz['file:adb-walk-parse.ps1'] = sha(PN) === 'e502ac2b6003b4981e044aa9e01dfceb2f54d3f247d4d23ec2ebf9275c10b002';
+  // ★ walktools2 re-base (2026-11-23): adb-walk-parse.ps1 — the step coldstart-watch (StepTable entry, Get-WatchRep / Get-WatchRows and their readers, the five count rows, the facts block, the legend line, the events file name). e502ac2b6003… -> 73c8dfa1ca0d…
+  fz['file:adb-walk-parse.ps1'] = sha(PN) === 'bff0b1dcff42f16d2766c7221232c14e121ff866f6bdf79147a2d94f211fcbe3';
   for (const [sn, txt] of [['adb-walk.ps1', D], ['adb-walk-parse.ps1', P]]) {
     const seen = new Map();
     for (const m of txt.matchAll(/(?:^|[^\w-])(?:function|filter|workflow)\s+(?:(?:global|script|local|private):)?([\w-]+)/gi)) { const k = m[1].toLowerCase(); seen.set(k, (seen.get(k) || 0) + 1); }

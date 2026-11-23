@@ -5,6 +5,7 @@ Usage:
   powershell -ExecutionPolicy Bypass -File scripts\device\adb-walk.ps1 [-Calibrate] [-Steps coldstart,scroll]
              [-Repeats 5] [-Serial <id>] [-Apk <path>] [-KillRenderer]
              [-Flags warmidle=<0|1>,sparerearm=<0|1>,sparekeep=<0|1>,noemptydetail=<0|1>] [-SeedIndex 0,50,51,52,55] [-HistorySeed 55]
+  The cold start watch (opt-in, batch walktools2): -Steps coldstart-watch -Repeats 50
 
 Walk: pre-flight, then each step x Repeats (one screenshot + one DOTNET log pull per rep), run.json after
 every rep, then adb-walk-parse.ps1 -RunDir <run folder>; the exit code is the parser's.
@@ -100,7 +101,8 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
   page cannot measure it). run.json gets the integer historySeed; the parser gives history-seed-kNN the rows of history, with
   the page rows for the first page (older pages loaded, first swipe -> 1st page). Without -HistorySeed history and every old
   step send the same commands and give a byte-identical summary.csv.
-  mem-photos (the app + renderer PSS, the shape of mem-end, files meminfo-photos-app.txt / -renderer.txt): runs LAST.
+  mem-photos (the app + renderer PSS, the shape of mem-end, files meminfo-photos-app.txt / -renderer.txt): runs LAST of the
+  photo1a steps (only the opt-in coldstart-watch of batch walktools2 comes after it).
   New steps take a screenshot before the input too (shot-<step>-NN-pre.png): no input when that check fails
   (except resume-now, resume-3s and scroll-image: a focus check only, as the old resume). A pre-check PNG that fails is
   deleted. The tab steps wait for the app's own frames log lines (a count only): the first tab tap is gated by the
@@ -161,6 +163,38 @@ Batch walktools (item 2) - the screen map has a second form, ONLY for screens.ch
   then cal-15 taps the photo), so the chat sets must be in the map BEFORE the calibrate that reads the viewer. No new step, no new adb
   command, no typed input: only the way a PNG is judged changes. The values of the sets are filled by ONE calibrate run of the operator
   block (read the pixels from cal-14 / cal-15 in each theme), never by hand from a guess.
+  Batch walktools2 (item 3): screens.home may take the sets form too (since then: screens.home, screens.chat and screens.viewer; sets
+  on any other screen is still a usage error before any adb command, "only screens.home, screens.chat and screens.viewer may use
+  sets"). The rules of a set are the same; a home check passes when one set passes (light = the probes of the old form, dark = the
+  values of the dark home). Every reader of screens.home takes both forms (the coldstart check, the tab steps, the proven restarts,
+  the calibrate shots that expect home); a home in the old form keeps its behaviour and its notes byte for byte. The calibrate names
+  the set that passed in the probes entry of each home shot ("ok (set light)") and adds one note when home holds sets.
+Batch walktools2 (item 2) - the step coldstart-watch: opt-in (never in the default list), only when named in -Steps; it runs after
+  every other step. Usage error before any adb command: with -Calibrate, with -Flags (every rep restarts the app). -Repeats 1..50.
+  Per rep: am force-stop, coldStartIdleSec, logcat -c, the stamp + am start -W (t0), pidof at once (the pid P: exactly one pid of
+  digits), a FIXED wait of $script:WatchWaitSec = 10 s (a script constant, run.json coldstartWatch.waitSec), the stamp + pidof (stamp2),
+  the focus check (Test-AppFront). The start is PROVEN when exactly one pid is there after the wait and it is P AND our app is in
+  front. A start that is NOT proven keeps its evidence BEFORE any later command that can clear a buffer (the next rep's logcat -c):
+  (1) the system events by ONE new command shape, matched as a whole string:
+      logcat -d -b events -v threadtime | grep -o -E '<the fixed pattern $script:WatchEventRe>' > /data/local/tmp/adbwalk-log.txt
+      pulled to android-walk-coldstart-watch-NN-events.txt, then rm -f. grep -o keeps ONLY the line's time, the pid / tid columns, the
+      priority letter, the tag and the numeric fields of am_proc_start, am_proc_died, am_kill, am_crash, am_anr, am_wtf of the pinned
+      package (the numeric fields before it and the numeric fields right after it) and the numeric fields of killinfo: no message, no
+      kill reason, no exception text and no other package name leaves the phone. logcat -c does not clear the events buffer: the
+      parser counts an event only when its own time is at or after the rep's t0 (and at most 60 s after stamp2).
+  (2) the app log of the pid P by the existing filtered pull (Get-LogPullCmd P, the emitter shapes of the log filter below), pulled to
+      android-walk-coldstart-watch-NN.txt; when no single pid was read right after the start there is no app log pull.
+  No screenshot, no tap, no key in this step. A failed evidence pull (or a failed stamp / am start / pidof) makes the rep an error:
+  the parser says "no data" (exit 2). A pidof answer counts only with no timeout, no stderr text and exit 0 with pids of digits or
+  exit 1 with no output; the first pidof is read once more when it cannot be read (#46 r1 F-1). Everything after the start is in a
+  try / finally: an error there (an IO error of walk.log, Ctrl+C in the wait) still saves the evidence once before the error goes on
+  (F-4; a second Ctrl+C, a killed process or a walk.log that stays broken can still lose it). run.json: the rep's watch object (pid,
+  pidsAtStart, pidsAfter, pidInAfter, samePid, front, proven, eventsPull, events, logPull). The parser rows: starts, in front after <n> s, ends with no kill, ends with a kill, not in front, process alive;
+  one facts line per start that was not proven in summary.md (numbers and fixed words only, never a raw line). Time: t0 / stamp2 come
+  from the phone's date +%m-%dT%H:%M:%S.%N and the events from the threadtime stamp of logcat, both the phone's local clock and both
+  without a year; the parser puts t0 into a year by the parse time and each event within 180 days of t0, so a run over New Year
+  keeps its order; an event dated more than 180 days before t0 would land a year later, past the 60 s bound, and is not counted. A
+  phone clock that is set (NTP, by hand) between t0 and the events can move an event out of or into the window.
 Inputs: a52s.json next to this script (timing, taps, swipes, screen probes or, for chat and viewer, probe sets; the package is pinned below);
         <repo>\Claude outputs\adbwalk\walk.local.json (optional, never in git): { "seedAddresses": [...],
         "imageChatAddress": "...", "fileChatAddress": "...", "voiceChatAddress": "...", "photoChatAddress": "..."
@@ -178,6 +212,8 @@ Safety rules (Assert-AdbCommand is an allowlist of every command shape this scri
   separate adb call just before (a window that takes the focus in that gap can still receive one event).
   All other commands (am, svc, settings, logcat, dumpsys, kill of the confirmed renderer, HOME, the wake key)
   do not depend on the focus. After a screencap the focus is read again; a foreign result deletes the PNG.
+- coldstart-watch: the events buffer is cut ON THE PHONE by grep -o to times, pids, the six am_* tags of the pinned package with
+  their numeric fields, and the numeric fields of killinfo (one exact command string; see the step above)
 - the log pull is filtered ON THE PHONE by the app pid, the Core log stamp and the app's own token grammar
   ([P1] / [CDPERF] lines, "Starting Spixi", "Network client connected to <host:port>", "Received Hello: ...", and the
   ONE exact state line "[FLAGS] warmidle=<0|1> sparerearm=<0|1> sparekeep=<0|1> noemptydetail=<0|1>": no other
@@ -236,11 +272,12 @@ $script:Utf8 = New-Object System.Text.UTF8Encoding($false)
 $script:Ws = [char[]]@(32, 9, 13, 10)
 $script:AllSteps = @('coldstart', 'mem-home', 'chat-intent', 'chat-tap', 'scroll', 'resume', 'resume-long', 'network', 'mem-end', 'mem-trim',
     'resume-now', 'resume-3s', 'chatinfo', 'tab-apps', 'tab-wallet', 'tab-account', 'history', 'scroll-image',
-    'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads', 'open-seed', 'mem-photos')
+    'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads', 'open-seed', 'mem-photos', 'coldstart-watch')
 # Walk steps 2: the new steps run AFTER the old ones, so every old row keeps its place and its meaning. scroll-image
 # runs only when it is named in -Steps (it needs the local key imageChatAddress, the image seed of speed batch 1a).
 # Batch filewalk: the five file-walk steps run after scroll-image and are opt-in too (local keys and new map keys).
-$script:OptInSteps = @('scroll-image', 'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads', 'open-seed', 'mem-photos')
+# Batch walktools2 (item 2): coldstart-watch is opt-in and comes last (it force-stops and cold-starts the app in every rep).
+$script:OptInSteps = @('scroll-image', 'scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads', 'open-seed', 'mem-photos', 'coldstart-watch')
 $script:DefaultSteps = @($script:AllSteps | Where-Object { $script:OptInSteps -cnotcontains $_ })
 # Batch filewalk: the local key of each file chat step (walk.local.json) and its index in $script:Seeds (-1 = no valid key).
 $script:FileChatKeys = @{ 'scroll-files' = 'fileChatAddress'; 'scroll-voice' = 'voiceChatAddress'; 'scroll-photos' = 'photoChatAddress' }
@@ -340,6 +377,16 @@ $script:FlagsStopText = @{
     'state-differs' = 'the app logged a switch state that differs from the asked state'
     'unproven-process' = 'the app process changed after the switch state was proven (a restart inside the run): the state of the new process is not proven'
 }
+# Batch walktools2 (item 2, coldstart-watch): the FIXED wait between the start (am start -W + pidof) and the proof (one pid = the pid of
+# the start AND our app in front). A script constant, written to run.json as coldstartWatch.waitSec. F-1 (2026-11-23): the process
+# ended 3 s after am start -W returned.
+$script:WatchWaitSec = 10
+# The ONE events pull of a start that was not proven: the events buffer, cut ON THE PHONE by grep -o to the time, the pid / tid
+# columns, the priority letter, the tag and the leading numeric fields of six am_* tags of the pinned package (and the numeric
+# fields that follow the package), plus the numeric fields of killinfo. Nothing else of a line can pass: no message, no reason,
+# no exception text, no other package name. Matched by exact string equality (PipedCmds), written to the existing phone file.
+$script:WatchEventRe = '^[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3} +[0-9]+ +[0-9]+ [A-Z] ((am_proc_start|am_proc_died|am_kill|am_crash|am_anr|am_wtf) *: \[[0-9]+(,[0-9]+)*,com\.ixilabs\.spixi\.dev(,-?[0-9]+)*[],]|killinfo *: \[-?[0-9]+(,-?[0-9]+)*)'
+$script:WatchEventsCmd = 'logcat -d -b events -v threadtime | grep -o -E ''' + $script:WatchEventRe + ''' > /data/local/tmp/adbwalk-log.txt'
 
 $script:Mode = 'walk'
 $script:Hook = $false
@@ -636,6 +683,7 @@ function Initialize-Allowlist {
         $script:FramePoll['scrolllines'],
         $script:FramePoll['overlayclose'],
         $script:FramePoll['chatmedia'],
+        $script:WatchEventsCmd,
         'dumpsys window | grep -e mCurrentFocus=',
         'dumpsys window | grep -e mDreamingLockscreen= -e isKeyguardShowing= -e mShowingLockscreen= -e mKeyguardShowing= -e mCurrentFocus=',
         'dumpsys activity activities | grep -e mKeyguardShowing=',
@@ -922,12 +970,12 @@ function Get-ProbeListGap([string]$Label, $Probes, $Min) {
 
 function Get-ScreenGap([string]$Name) {
     # Batch walktools (item 2): a screen is EITHER { probes, minMatch } (the old form: the checks and texts are unchanged, they now
-    # live in Get-ProbeListGap) OR, for chat and viewer ONLY, { sets: [ { name, probes, minMatch } ] }: 1 or 2 sets, the names unique and
+    # live in Get-ProbeListGap) OR, for chat and viewer ONLY (batch walktools2 item 3: and home), { sets: [ { name, probes, minMatch } ] }: 1 or 2 sets, the names unique and
     # light or dark, each set checked by Get-ProbeListGap. A key with both forms, and sets on another screen, are gaps (invalid).
     $scr = Get-Field (Get-Field $script:Cfg 'screens') $Name
     if ($null -eq $scr) { return ('a52s.json has no screens.' + $Name) }
     if (Test-HasField $scr 'sets') {
-        if (@('chat', 'viewer') -cnotcontains $Name) { return ('screens.' + $Name + ' may not use sets (only chat and viewer)') }
+        if (@('home', 'chat', 'viewer') -cnotcontains $Name) { return ('screens.' + $Name + ' may not use sets (only home, chat and viewer)') }
         if ((Test-HasField $scr 'probes') -or (Test-HasField $scr 'minMatch')) { return ('screens.' + $Name + ' holds sets and probes / minMatch (one form only)') }
         # The raw property value (Get-Field would unroll a one-element list): null and an object are no list.
         $rawSets = $scr.PSObject.Properties['sets'].Value
@@ -1464,6 +1512,8 @@ function Save-RunJson([bool]$Finished) {
     $doc['stepsRequested'] = [string[]]$script:StepsReq
     if ($script:SeedIdx.Count -gt 0) { $doc['seedIndex'] = [int[]]$script:SeedIdx }
     if ($script:HistSeedIdx -ge 0) { $doc['historySeed'] = [int]$script:HistSeedIdx }
+    # Batch walktools2 (item 2): the fixed wait of coldstart-watch, only in a run that asked for the step (an old run.json is unchanged).
+    if ($script:StepsReq -contains 'coldstart-watch') { $doc['coldstartWatch'] = [ordered]@{ waitSec = [int]$script:WatchWaitSec } }
     $doc['reps'] = $script:Reps
     $doc['memory'] = $script:Mem
     $doc['finished'] = $Finished
@@ -1475,6 +1525,8 @@ function Complete-Rep($Rec, [int]$Of) {
     foreach ($k in @('t0', 'stamp2', 'log', 'shot', 'shotPre', 'screen', 'screenOk', 'swipes', 'am')) { if ($Rec.ContainsKey($k)) { $out[$k] = $Rec[$k] } }
     # Batch fixb3 (item 4): the page requests of a history-seed rep (a whole number; 0 = no older page: the parser says "no data").
     if ($Rec.ContainsKey('pages')) { $out['pages'] = [int]$Rec['pages'] }
+    # Batch walktools2 (item 2): the proof facts of a coldstart-watch rep (pids, front, the evidence pulls); no other rep has the key.
+    if ($Rec.ContainsKey('watch')) { $out['watch'] = $Rec['watch'] }
     $full = ($Rec.notes -join ', ')
     $out['note'] = Get-SafeNote $full
     $script:Reps.Add($out)
@@ -1712,6 +1764,132 @@ function Invoke-ColdstartRep($Rec) {
     Invoke-ShotCheck $Rec 'home'
     Invoke-LogPull $Rec
     Update-FlagsLogged $Rec
+}
+
+function Save-WatchPull([string]$Cmd, [string]$LocalName) {
+    # Batch walktools2 (item 2): one filtered write on the phone (an allowlisted whole string: the events pull, or Get-LogPullCmd of the
+    # pid of the start), the pull to the run folder, rm -f. Returns '' when the file was pulled, else fixed words (never throws on a
+    # failed command: the caller records the failure; a refused command still stops the run in Assert-AdbCommand).
+    $local = Join-Path $script:RunDir $LocalName
+    if (Test-Path -LiteralPath $local) { return ($LocalName + ' exists already') }
+    $w = Invoke-Shell $Cmd
+    # grep's status: 1 = no matching line (an empty file), not an error. #46 r1 F-7: only with an empty stderr (adb itself also exits 1,
+    # with its own text on stderr: that is a failed write).
+    if ($w.TimedOut -or ($w.ExitCode -ne 0 -and -not ($w.ExitCode -eq 1 -and [string]::IsNullOrWhiteSpace([string]$w.StdErr)))) {
+        [void](Invoke-Shell ('rm -f ' + $script:PhoneLog))
+        return ('filtered write failed (exit ' + $w.ExitCode + ')')
+    }
+    $r = Invoke-Adb -AdbArgs @('pull', $script:PhoneLog, $local) -TimeoutSec 120
+    [void](Invoke-Shell ('rm -f ' + $script:PhoneLog))
+    if ($r.ExitCode -ne 0 -or $r.TimedOut -or -not (Test-Path -LiteralPath $local)) {
+        $left = ''
+        if (-not (Remove-LocalFile $local)) { $left = ', local file not deleted' }
+        return ((Get-AdbWhy $r) + $left)
+    }
+    return ''
+}
+
+function Save-WatchEvidence($Rec) {
+    # Batch walktools2 (item 2): a start that was NOT proven. BEFORE any command that can clear a buffer (the next rep's logcat -c):
+    # (1) the system events (the ONE events pull, android-walk-coldstart-watch-NN-events.txt), (2) the app log of the pid of the start
+    # (the existing filtered pull Get-LogPullCmd, android-walk-coldstart-watch-NN.txt; no pid read = not pulled). A failed pull = the rep
+    # is an error (the parser: "no data", exit 2). No screenshot, no tap, no key.
+    $w = $Rec['watch']
+    $nn = Get-Nn $Rec.rep
+    $evName = 'android-walk-coldstart-watch-' + $nn + '-events.txt'
+    $e1 = Save-WatchPull $script:WatchEventsCmd $evName
+    if ($e1) { $w['eventsPull'] = 'failed'; Add-Note $Rec ('events pull: ' + $e1) }
+    else { $w['eventsPull'] = 'ok'; $w['events'] = $evName }
+    if ($w.Contains('pid')) {
+        $lgName = 'android-walk-coldstart-watch-' + $nn + '.txt'
+        $e2 = Save-WatchPull (Get-LogPullCmd ([string]$w['pid'])) $lgName
+        if ($e2) { $w['logPull'] = 'failed'; Add-Note $Rec ('app log pull: ' + $e2) }
+        else { $w['logPull'] = 'ok'; $Rec['log'] = $lgName }
+    } else {
+        $w['logPull'] = 'nopid'
+    }
+    if ($w['eventsPull'] -ne 'ok' -or $w['logPull'] -eq 'failed') { $Rec.status = 'error' }
+}
+
+function Test-WatchPidof($R, [bool]$Stamped) {
+    # Batch walktools2 (#46 r1 F-1): a pidof answer that can be read: no timeout, no stderr text, exit 0 with pids of digits only, or
+    # exit 1 with no output (no process). $Stamped: the first line is the phone stamp (stamp2 + pidof), the pids follow it.
+    if ($R.TimedOut -or -not [string]::IsNullOrWhiteSpace([string]$R.StdErr)) { return $false }
+    $t = Get-Clean $R.StdOut
+    if ($Stamped) {
+        $i = $t.IndexOf([char]10)
+        if ($i -lt 0) { $t = '' } else { $t = Get-Clean $t.Substring($i + 1) }
+    }
+    if ($R.ExitCode -eq 1) { return ($t -eq '') }
+    if ($R.ExitCode -eq 0) { return ($t -cmatch '^[0-9]{1,9}([ \t]+[0-9]{1,9})*\z') }
+    return $false
+}
+
+function Invoke-ColdWatchRep($Rec) {
+    # Batch walktools2 (item 2): one cold start that keeps its evidence. am force-stop, coldStartIdleSec, logcat -c, the stamp + am
+    # start -W (t0), pidof at once (pid P: exactly one pid of digits), the FIXED wait $script:WatchWaitSec, the stamp + pidof (stamp2),
+    # the focus check. Proven = ONE pid after the wait and it is P, AND our app in front. Not proven = Save-WatchEvidence at once.
+    # A failed command after the start is a note (the rep is an error after the evidence). #46 r1 F-1: a pidof answer that cannot be
+    # read (timeout, stderr text, another exit, a token that is no pid) is read ONCE more, then the rep is an error. F-2: pidInAfter =
+    # P is among the pids after the wait (the parser gives no "ends" class while P lives). F-4: everything after the start sits in a
+    # try / finally: when anything throws there (an IO error of the walk log, Ctrl+C) the finally saves the evidence ONCE, unless proven.
+    $w = [ordered]@{ proven = $false }
+    $Rec['watch'] = $w
+    [void](Invoke-ShellReq ('am force-stop ' + $script:Pkg))
+    Wait-Sec $script:Tm['coldStartIdleSec'] 'coldStartIdleSec'
+    [void](Invoke-ShellReq 'logcat -c')
+    $bad = $false
+    $saved = $false
+    try {
+        $r = Invoke-Shell ($script:StampCmd + '; am start -W -n ' + $script:Comp) 60
+        $p = Invoke-Shell ('pidof ' + $script:Pkg)
+        if (-not (Test-WatchPidof $p $false)) {
+            Add-Note $Rec ('pidof after the start not readable (exit ' + $p.ExitCode + '), read again')
+            $p = Invoke-Shell ('pidof ' + $script:Pkg)
+        }
+        $pOk = Test-WatchPidof $p $false
+        if (-not $pOk) { Add-Note $Rec ('pidof after the start failed (exit ' + $p.ExitCode + ')'); $bad = $true }
+        $am = Read-AmOutput ($r.StdOut + "`n" + $r.StdErr)
+        Add-AmResult $Rec $am
+        $s = Read-Stamp $r.StdOut
+        if ($s.T0) { $Rec['t0'] = $s.T0 } else { Add-Note $Rec $s.Note; $bad = $true }
+        if ($r.ExitCode -ne 0 -or $r.TimedOut) { Add-Note $Rec ('am start -W failed (exit ' + $r.ExitCode + ')'); $bad = $true }
+        if ($am.Error) { Add-Note $Rec ('am: ' + $am.Error); $bad = $true }
+        $ids = @()
+        if ($pOk) { $ids = @(Get-Pids $p.StdOut) }
+        $w['pidsAtStart'] = $ids.Count
+        if ($ids.Count -eq 1) { $w['pid'] = [int]$ids[0] }
+        Wait-Sec $script:WatchWaitSec 'coldstart-watch fixed wait'
+        $r2 = Invoke-Shell ($script:StampCmd + '; pidof ' + $script:Pkg)
+        $s2 = Read-Stamp $r2.StdOut
+        if ($s2.T0) { $Rec['stamp2'] = $s2.T0 } else { Add-Note $Rec ($s2.Note + ' (stamp2)'); $bad = $true }
+        $after = @()
+        if (Test-WatchPidof $r2 $true) { $after = @(Get-Pids $r2.StdOut) }
+        else { Add-Note $Rec ('pidof after the wait failed (exit ' + $r2.ExitCode + ')'); $bad = $true }
+        $w['pidsAfter'] = $after.Count
+        $w['pidInAfter'] = [bool]($w.Contains('pid') -and (@($after) -ccontains ([string]$w['pid'])))
+        $w['samePid'] = [bool]($w.Contains('pid') -and $after.Count -eq 1 -and (Test-Ordinal ([string]$after[0]) ([string]$w['pid'])))
+        $w['front'] = [bool](Test-AppFront)
+        $w['proven'] = [bool]($w['samePid'] -and $w['front'])
+        if (-not $w['proven']) {
+            if (-not $w.Contains('pid')) { Add-Note $Rec ('not proven: no single pid right after the start (' + $ids.Count + ' pids)') }
+            elseif ($w['samePid']) { Add-Note $Rec 'not proven: the process is alive, our app is not in front' }
+            elseif ($after.Count -eq 0) { Add-Note $Rec 'not proven: the process of the start is gone' }
+            elseif ($w['pidInAfter']) { Add-Note $Rec 'not proven: more than one pid after the wait' }
+            else { Add-Note $Rec 'not proven: another pid after the wait' }
+            $saved = $true
+            Save-WatchEvidence $Rec
+        }
+    } finally {
+        # F-4: reached with $saved false and not proven only when something threw after the start. ONE evidence save; its own error
+        # is a note (the first error goes on to Invoke-Step, which makes the rep an error).
+        if ((-not $saved) -and (-not $w['proven'])) {
+            $saved = $true
+            $Rec.status = 'error'
+            try { Save-WatchEvidence $Rec } catch { Add-Note $Rec ('evidence after an error: ' + $_.Exception.GetType().Name) }
+        }
+    }
+    if ($bad) { $Rec.status = 'error' }
 }
 
 function Invoke-ChatRep($Rec, [string]$How) {
@@ -2534,6 +2712,7 @@ function Invoke-RepBody($Rec) {
     elseif ($s -eq 'downloads') { Invoke-DownloadsRep $Rec }
     elseif ($s -eq 'network') { Invoke-NetworkRep $Rec }
     elseif ($s -eq 'killrenderer') { Invoke-KillRendererRep $Rec }
+    elseif ($s -eq 'coldstart-watch') { Invoke-ColdWatchRep $Rec }
 }
 
 function Invoke-Step([string]$Step, [int]$Count, [bool]$NeedsHome) {
@@ -2840,6 +3019,8 @@ function Get-EstimateSec {
         # Batch photo1a: per index one restart (its own settle + 12 s of proof) and Repeats + 1 reps (the chat settle, the media wait, BACK).
         elseif ($s -eq 'open-seed') { $sum += $script:SeedIdx.Count * ($t['coldStartSettleSec'] + 12 + ($n + 1) * (($t['chatSettleMs'] + $t['backSettleMs']) / 1000 + 10)) }
         elseif ($s -eq 'mem-photos') { $sum += $t['memQuietSec'] + 6 }
+        # Batch walktools2 (item 2): per rep the idle, the fixed wait and about 8 s of commands (a start that is not proven adds two pulls).
+        elseif ($s -eq 'coldstart-watch') { $sum += $n * ($t['coldStartIdleSec'] + $script:WatchWaitSec + 8) }
     }
     return [int]$sum
 }
@@ -2879,6 +3060,8 @@ function Invoke-Walk {
         elseif ($s -eq 'mem-end') { Invoke-MemPhase 'end' }
         elseif ($s -eq 'mem-trim') { Invoke-MemPhase 'trim' }
         elseif ($s -eq 'killrenderer') { Invoke-Step 'killrenderer' 1 $true }
+        # Batch walktools2 (item 2): every rep force-stops and cold-starts the app itself (no home check before a rep).
+        elseif ($s -eq 'coldstart-watch') { Invoke-Step 'coldstart-watch' $script:RepeatsN $false }
     }
 }
 
@@ -3404,6 +3587,11 @@ function Invoke-Calibrate {
         $cal.notes.Add('chat sets: 3 pill probes and 1 on the Aa glyph of the message field (chat only, the pill alone is a white strip)')
         $cal.notes.Add('viewer is checked only after the chat check passes: fill the chat sets before the calibrate that reads the viewer')
     }
+    # Batch walktools2 (item 3): screens.home in the sets form: the note says where the passing set is named (a map whose home has the old
+    # form gives the calibrate.json of before).
+    if (Test-HasField (Get-Field (Get-Field $script:Cfg 'screens') 'home') 'sets') {
+        $cal.notes.Add('home sets: every home check names the set that passed in its probes entry, ok (set light) or ok (set dark)')
+    }
     foreach ($s in $script:CalShots) {
         $e = $s.Entry
         if ($s.Path) {
@@ -3533,6 +3721,12 @@ foreach ($stepArg in $Steps) {
 if ($want.Count -eq 0) { $script:StepsReq = @($script:DefaultSteps) }
 else { $script:StepsReq = @($script:AllSteps | Where-Object { $want -contains $_ }) }
 if ($KillRenderer) { $script:StepsReq = @($script:StepsReq) + @('killrenderer') }
+# Batch walktools2 (item 2): coldstart-watch restarts the app in every rep. Refused before any adb command with -Calibrate (a calibrate
+# runs no step) and with -Flags (the switch state of each new process would not be proven).
+if ($want -contains 'coldstart-watch') {
+    if ($Calibrate) { Exit-Usage 'the step coldstart-watch cannot be used with -Calibrate' }
+    if ($script:FlagsAsked) { Exit-Usage 'the step coldstart-watch cannot be combined with -Flags (every rep restarts the app: the new process has no proven switch state)' }
+}
 
 # Batch photo1a: -SeedIndex = the dev-seed indexes of open-seed (0..55, 0 = Seed 01; 1 to 8 values, no repeat). A string array
 # on purpose: with powershell -File a comma list reaches [int[]] as ONE number (0,50,51 -> 05051), so the script splits
@@ -3585,17 +3779,17 @@ $cfgPkg = [string](Get-Field $script:Cfg 'package')
 # The store app holds a real account: only the pinned package is ever driven.
 if ($cfgPkg -cne $script:PinnedPackage) { Exit-Usage ('a52s.json package "' + (Get-SafeNote $cfgPkg) + '" is not the pinned ' + $script:PinnedPackage + ': refused') }
 $script:Pkg = $script:PinnedPackage
-# Batch walktools (item 2): the sets form is for screens.chat and screens.viewer ONLY. Any other screen with a sets key (accountScrolled
-# included: it keeps its old form and its own rule below) is a usage error before any adb command.
+# Batch walktools (item 2): the sets form is for screens.chat and screens.viewer ONLY (batch walktools2 item 3: and screens.home). Any other
+# screen with a sets key (accountScrolled included: it keeps its old form and its own rule below) is a usage error before any adb command.
 $scrAll = Get-Field $script:Cfg 'screens'
 if ($scrAll -is [System.Management.Automation.PSCustomObject]) {
     foreach ($scrKey in @($scrAll.PSObject.Properties.Name)) {
-        if ((Test-HasField (Get-Field $scrAll $scrKey) 'sets') -and (@('chat', 'viewer') -cnotcontains $scrKey)) { Exit-Usage ('a52s.json screens.' + $scrKey + ' has sets: only screens.chat and screens.viewer may use sets') }
+        if ((Test-HasField (Get-Field $scrAll $scrKey) 'sets') -and (@('home', 'chat', 'viewer') -cnotcontains $scrKey)) { Exit-Usage ('a52s.json screens.' + $scrKey + ' has sets: only screens.home, screens.chat and screens.viewer may use sets') }
     }
 }
 foreach ($scrName in @('home', 'chat', 'chatinfo', 'viewer', 'downloads')) {
     if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') $scrName) 'probes').Count -gt 16) { Exit-Usage ('a52s.json screens.' + $scrName + ' has more than 16 probes') }
-    # Batch walktools (item 2): the same limit for every set of chat / viewer (more than 4 sets is a gap in Get-ScreenGap, so the loop stays short).
+    # Batch walktools (item 2): the same limit for every set of chat / viewer (and home, walktools2) (more than 4 sets is a gap in Get-ScreenGap, so the loop stays short).
     foreach ($limSet in @(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') $scrName) 'sets' | Select-Object -First 4)) {
         if (@(Get-Field $limSet 'probes').Count -gt 16) { Exit-Usage ('a52s.json screens.' + $scrName + ' has a set with more than 16 probes') }
     }

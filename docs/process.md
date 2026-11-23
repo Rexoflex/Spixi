@@ -77,7 +77,7 @@ is graded by G2. Example: `docs/workflow-reset-grading.md`.
 | Pipeline checks | `node scripts/pin-sweep.mjs --working` (lists the pins that READ the changed files — read them) · `build-shells --check` · `extract-strings --check` · `build-legal-docs --check` · `generate-icons --check` · `i18n-lint` · `pseudo-locale-smoke` · `verify-locales` · `cs-syntax-check` (parses, does not compile) | #593 |
 | Smoke baseline | `node scripts/smoke-test.mjs` → `BASELINE OK n / the 2 KNOWN (#136 · B3)`. Current: **5095** with the Ixian-Core sibling @`097341a` (#1129). Delta = the new pins; any other change: look first. Compare only within one environment | #895, #681 |
 | C# harness | `node scripts/run-csh.mjs` → `CSH pass=N fail=0` (needs the .NET 8+ SDK; exit 3 = no SDK = NOT passed). Compiles the REAL pure C# files listed in `scripts/csh/csh.csproj` against stubs and runs their MSTest classes + integration checks — the MSTest project itself never runs on this branch's CI. A new pure C# rule → add the file + its tests to the csproj | #1122 |
-| Pins are behaviour | Executed pins on the BUILT shell first; a source-text pin declares `stripCode` or raw; derive lists from the code, never from your own list | #771, #798, L12/L15 (Bot L3/L4) |
+| Pins are behaviour | Executed pins on the BUILT shell first; a source-text pin declares `stripCode` or raw; derive lists from the code, never from your own list; a source-text pin states its limits in its first version, and a gap of the stated class is a NIT, not a MAJOR (#1735) | #771, #798, L12/L15 (Bot L3/L4) |
 | **Deliberate break** | Every new or rebased pin: break the code on purpose (one-token mutation in a full copy, green baseline first), the pin must fail **for exactly that reason**, restore. Record kills and survivors in the DECISIONS row | #802, Bot L5/L18; skill `ci-deliberate-break-self-test` |
 | Failure message proves its cause | A pin's / probe's failure text is attached only after the steps before it are proven (the shell booted, the push arrived, the build is the new one — BUILD walk row). Otherwise it blames the code for a setup fault | Bot L18/L23; #663 |
 | Characterize before asserting | Record the real behaviour (device log, `[CDPERF]`/`[CALLSWAP]` lines, a frame-by-frame recording) before a pin or a DECISIONS row asserts it | Bot L24; #1092, #1095 |
@@ -93,19 +93,23 @@ is graded by G2. Example: `docs/workflow-reset-grading.md`.
 ### The adversarial review loop (#46)
 
 1. **When:** after the build and a green smoke run, BEFORE delivery to Damir and before the walk (a defect found here
-   costs no build and no walk — Bot L22). Rebuild + smoke between fix and review rounds and once more after the last fix.
-   Also over any fix round. For a work session "before delivery" = before the first push of `work/<batch>`: the
-   branch on GitHub holds only reviewed work, because a pushed commit cannot be taken back (no force-push). A fix after
-   a red CI run or after a walk fail is a fix round: a fresh reader over it before the next push. (🟡 #1474 / #1496
-   propose a lighter smoke between rounds; not in force. The main chat's record rows are the one exception to
-   "only reviewed work on the branch" — `docs/orchestration.md` § 6.)
+   costs no build and no walk — Bot L22). Between fix and review rounds run the pins the fix touches
+   (first grep `smoke-test.mjs` for the tokens of every edited line, L84; an INLINE smoke pin touched = the full smoke at
+   once); run the full smoke ONCE after the last fix, before the batch leaves the machine (#1503). Also over any fix
+   round. For a work session "before delivery" = before the first push of `work/<batch>`: the branch on GitHub holds
+   only reviewed work, because a pushed commit cannot be taken back (no force-push). A fix after a red CI run or after
+   a walk fail is a fix round: a fresh reader over it before the next push. (#1474 is in force, #1503; option (c) of
+   #1496, a push before CLEAN, is not taken. The main chat's record rows are the one exception to "only reviewed work
+   on the branch" — `docs/orchestration.md` § 6.)
 2. **Brief:** write `docs/review-brief-<batch>.md` from `docs/templates/review-brief.md` (scope, commit range,
    disjoint auditor scopes, must-hold invariants, accepted dials).
-3. **Auditors:** 2–4 read-only Claude Fable 5.2 sub-agents (#1471, which supersedes #352 for the model: every #46 reviewer is a fresh read-only Fable 5.2 instance; no fallback to another model — stop and tell Damir, in a work session through the status doc; the skill `adversarial-review-loop` still says Opus until Damir saves the skill change — #1471 wins) with **disjoint** scopes (typical: C# · shells/components · pins +
-   mutation), findings with `file:line`. The builder never reviews its own work (#542).
+3. **Auditors:** 2–4 fresh read-only sub-agents (#1471; by #1606 Claude Fable 5.2 for the security-only pass and for
+   the file where an error costs most, which the prompt names, and Claude Opus for every other reader; no fallback
+   below the named model — stop and tell Damir, in a work session through the status doc) with **disjoint** scopes
+   (typical: C# · shells/components · pins + mutation), findings with `file:line`. The builder never reviews its own work (#542).
 4. **Verify** each finding against the tree before fixing (reviewers are wrong sometimes).
 5. **Fix:** mechanical fixes land; architectural findings become 🟡 DECISIONS rows, never silent changes. Rebuild the
-   generators and run smoke between fix and review.
+   generators; run the pins the fix touches between fix and review, and the full smoke once after the last fix (#1503).
 6. **Break-my-verdict:** a FRESH reviewer attacks the fixes, not the original work, each round.
 7. **Stop = CLEAN:** a FRESH reader over the last fixes finds 0 MAJOR, and every MINOR is fixed or recorded (with its
    reason) in the verdict. The #46 hard rule is "until CLEAN": a loop that stops earlier ("CLEAN not claimed at rN",
@@ -134,12 +138,13 @@ At the end of every session (a work session: BEFORE its first push, so that one 
 
 Then, after #46 CLEAN:
 
-- **Commit · push · pull request** `work/<batch>` → `redesign/frontend`, inside the fork only (`Rexoflex/Spixi`; never
-  `ixian-platform/Spixi`; the base repository read back — #1493; `docs/orchestration.md` § 6): what, why, the
-  criteria with their evidence, the review verdict, the walk sheet link, what is owed; the CI result is added to
-  its text after the run. No attribution lines
-  (★ COMMIT AND PUSH RULE). The session never merges a pull request.
-- **No push access** (the state on 2026-11-12) — only when the prompt says "fallback allowed: yes": the edits go into
+- **Commit · push · compare link** (#1546) `work/<batch>` → `redesign/frontend`, inside the fork only (`Rexoflex/Spixi`;
+  never `ixian-platform/Spixi`; `docs/orchestration.md` § 6): the session pushes only the branch, reads each commit
+  back and gives Damir the compare link with the title and the description to paste: what, why, the criteria with
+  their evidence, the review verdict, the walk sheet link, what is owed. The session does NOT open the pull request:
+  Damir opens it and reads its base (#1493); the CI result is read on that pull request and added to the status doc after the run (#1546 (5): the session or the main chat reads it). No
+  attribution lines (★ COMMIT AND PUSH RULE). The session never merges a pull request.
+- **A push fails** (#1546) — only when the prompt says "fallback allowed: yes": the edits go into
   Damir's PC tree, `docs/commit-message-<batch>.txt` (no attribution lines) is written, and the PowerShell lines make
   the branch, the commits and the pull request. Without that line the session stops before any build.
 - **PowerShell repo commands** with every delivery, one line at a time, no `&&`: how to check out and build the branch.
@@ -170,16 +175,16 @@ Then, after #46 CLEAN:
 
 **Walk-ready** (where a work session stops): every G2 gate is green, the smoke is `BASELINE OK` with the delta = the
 new pins, the review verdict is CLEAN (loop step 7), the DECISIONS rows + handoff + status-log entry + walk sheet
-exist in the branch, the pull request is open inside the fork with its base read back, `redesign-ci` is green on it,
-and the status doc + the Mission Control update are written. Every platform the change touches but that is not yet
-compiled is listed as "⚠ UNCOMPILED". Session status in Mission Control: "Walk owed".
-- **By the fallback** (no push access, "fallback allowed: yes"): the same, but in place of the pull request and CI
+exist in the branch, the branch is pushed and read back, the compare link is given (CI is read on the pull request that
+Damir opens), and the status doc + the Mission Control update are written. Every platform the change touches but that
+is not yet compiled is listed as "⚠ UNCOMPILED". Session status in Mission Control: "Walk owed".
+- **By the fallback** (a push failed, "fallback allowed: yes"): the same, but in place of the pull request and CI
   the files are in Damir's PC tree with the commit-message file and the PowerShell lines; the status doc says
   "fallback" and "CI not run". The pull request and CI are Damir's first steps; a red run becomes a new item.
 - **A batch with no walk** (docs, tooling, research): it stops at the same point; session status "Waiting on someone".
 - **A session that stopped early.** STOPPED (wholly): NOT walk-ready; session status "Waiting on someone"; the
-  status doc names the question. PARTLY: the finished items go through the #46 loop, the push and the pull request
-  (CI green) and are walk-ready; the stopped items are "Waiting on someone" with their questions; the status doc lists both.
+  status doc names the question. PARTLY: the finished items go through the #46 loop, the push, the read-back and the
+  compare link (#1546; CI is read on the pull request that Damir opens) and are walk-ready; the stopped items are "Waiting on someone" with their questions; the status doc lists both.
 
 **Done** = walk-ready, and: the walk rows pass and the `WALK` row is written for every platform the batch ships on
 (a batch with no walk: none is owed), every platform the change touches but that is not yet compiled is listed as
@@ -196,9 +201,9 @@ unwalked (★ #1472). The BE review is a release gate (T1), not a batch gate. **
 | Who talks | Damir talks in the ONE main chat (#1488). Work sessions report through files: the repo, Mission Control, the status doc. A fact that is only in a chat is lost |
 | Who decides | Scope, the Ready queue, session order, merges and release dates are Damir's. A session proposes; a 🟡 row is not in force |
 | Git on the mounted repo | `git --no-optional-locks` always; plain `git status` can strand `.git/index.lock` and block GitHub Desktop (Bot L17) |
-| Commits and pushes | A work session commits on `work/<batch>`, pushes it to `origin` and opens a pull request inside the fork (`Rexoflex/Spixi` → `redesign/frontend`; never upstream, #1493). No session ever pushes `redesign/frontend`, force-pushes, merges a pull request or tags; Damir reviews and merges (#1490, `docs/orchestration.md` § 6). One logical unit per commit. Never `git add -A` (CRLF-only churn: check with `git diff --ignore-cr-at-eol`). Never commit stale built artifacts — rebuild first. No attribution lines, and never quote the attribution markers (e.g. `Claude-Session`) in a commit message: the Mac re-sync check greps commit messages for them. The commit author of a pushed commit is the one Damir ruled, never the cloud default |
-| Where to build | On a cloud clone of the fork ("cloud twin"; older docs say "container twin") with `../Ixian-Core` @`097341a`: branch `work/<batch>`, the pinned npm line (L160), ONE full smoke at a time with nothing that executes beside it (L75, L153; 42–43 minutes on 2026-11-11). Damir's PC tree is for his builds and walks; a session changes it only when its prompt says so or as the no-push fallback. Say which |
-| Delivery without push access, or when the PC is off | A FALLBACK, not the normal path, and only when the prompt says "fallback allowed: yes" (`docs/orchestration.md` § 6): the edits into Damir's PC tree through the device shell + `docs/commit-message-<batch>.txt` + the PowerShell lines; PC off → `git format-patch <base>..HEAD` + a tarball + SHA256; Damir runs `git am`, then the FULL pipeline. One fallback delivery at a time |
+| Commits and pushes | A work session commits on `work/<batch>`, pushes it to `origin`; Damir opens the pull request inside the fork with the compare link (`Rexoflex/Spixi` → `redesign/frontend`; never upstream, #1493, #1546). No session ever pushes `redesign/frontend`, force-pushes, merges a pull request or tags; Damir reviews and merges (#1490, `docs/orchestration.md` § 6). One logical unit per commit. Never `git add -A` (CRLF-only churn: check with `git diff --ignore-cr-at-eol`). Never commit stale built artifacts — rebuild first. No attribution lines, and never quote the attribution markers (e.g. `Claude-Session`) in a commit message: the Mac re-sync check greps commit messages for them. Author AND committer are Damir's identity (#1501), unsigned (#1546 (1), #1543), never the cloud default |
+| Where to build | On a cloud clone of the fork ("cloud twin"; older docs say "container twin") with `../Ixian-Core` @`097341a`: branch `work/<batch>`, the pinned npm line (L160), ONE full smoke at a time with nothing that executes beside it (L75, L153; 42–43 minutes on 2026-11-11). Damir's PC tree is for his builds and walks; a session changes it only when its prompt says so or as the fallback when a push fails (#1546). Say which |
+| Delivery when a push fails (#1546), or when the PC is off | A FALLBACK, not the normal path, and only when the prompt says "fallback allowed: yes" (`docs/orchestration.md` § 6): the edits into Damir's PC tree through the device shell + `docs/commit-message-<batch>.txt` + the PowerShell lines; PC off → `git format-patch <base>..HEAD` + a tarball + SHA256; Damir runs `git am`, then the FULL pipeline. One fallback delivery at a time |
 | Numbers | Each session gets a DECISIONS and a lessons number block (and a packet block when it owes packets) from the main chat, in its prompt. Never write outside it; unused numbers stay empty and the handoff names them (#1494) |
 | Scratch | `_to_delete/` (gitignored) for session scratch; Damir deletes it. `_deliveries/` is the older landing folder (#513) |
 | Mac after the 2026-10-01 rewrite | Give the CLAUDE.md MAC RE-SYNC steps FIRST when Damir says he pulled on the Mac |
@@ -214,19 +219,19 @@ unwalked (★ #1472). The BE review is a release gate (T1), not a batch gate. **
 | Short CLAUDE.md + `status-log.md` | ✅ one screen | ✅ about two screens | Damir: the ★ rules stay word for word in the file every session loads (#1097) |
 | Numbered prompts `docs/prompts/session-N.md` | ✅ | ➖ the numbered prompts of 2026-10; now one prompt doc per work session in the project (`claude/session-<name>-prompt.md`), written by the main chat | A work session starts from a stand-alone prompt; Mission Control holds the order |
 | "Is this worth doing?" before specifying | ✅ (L15) | ✅ adopted | Spixi's #660 class: many open rows were already built |
-| #46 adversarial loop, disjoint scopes (Spixi reviewers: Claude Fable 5.2, #1471) | ✅ | ✅ (origin: Spixi #46) | — |
+| #46 adversarial loop, disjoint scopes (Spixi readers: Fable 5.2 for the security-only pass and the riskiest file, Opus for the rest, #1606; fresh instances, #1471) | ✅ | ✅ (origin: Spixi #46) | — |
 | Review BEFORE the push / delivery | ✅ (L22) | ✅ adopted (before delivery and walk) | Spixi had already moved this way; now written down |
 | Deliberate-break self-test | CI job per break (GitHub Actions) | Local one-token mutation of each new pin in a full copy | Spixi: a CI workflow for `redesign/frontend` is added (`.github/workflows/redesign-ci.yml`, #1481); first run: 2026-11-12, green (#1498) (`dotnet.yml` runs on master/development only); the gate is the local smoke suite |
 | Failure marker proves the setup first (L18/L23) | Marker per case in CI | Pin failure text after the boot/push is proven; BUILD walk row proves the build is new | Spixi's equivalent faults are a stale shell (#663) and a missing Core sibling |
 | Characterize before asserting (L24) | Trace the client cascade | Device logs, probe lines, frame-by-frame recordings | Spixi's truth is on four devices |
 | CI is the gate | ✅ | ➖ partly: `redesign-ci` runs on every pull request to `redesign/frontend` (#1481: two `--check` gates + smoke + CSH + a Windows compile; first run: 2026-11-12, green (#1498)). No macOS job; MAUI on four platforms needs Damir's machines. Gate = the lead's smoke + CI on the pull request + the walk | Branch protection is not set; Damir merges |
 | Mutation tool (Stryker), fuzzing (SharpFuzz) | ✅ planned | ❌ not adopted | JS shells + uncompiled C# in the cloud; hand mutation is the proven method here (#802) |
-| Batch rubric in the PR | ✅ | ➖ since 2026-11-12 a work session opens a pull request inside the fork (#1490, #1493); its text carries the criteria with evidence, the CI link and the verdict | The DECISIONS row + review verdict stay the record |
+| Batch rubric in the PR | ✅ | ➖ since 2026-11-12 the pull request is opened by Damir with the compare link (#1490, #1493, #1546); its text, written by the session, carries the criteria with evidence and the verdict (the CI result goes to the status doc after the run; by #1546 (5) the session or the main chat reads `redesign-ci`) | The DECISIONS row + review verdict stay the record |
 | Design rubric weights | correctness, member impact, self-hosting… | security, user impact, maintainability, endgame fit, speed | Different product; Spixi has no self-hosting axis |
 | Walk sheets on devices | ❌ (bot is headless) | ✅ Spixi-only | Visual app on four platforms |
 | Render both themes before a pin | ❌ | ✅ Spixi-only | Visual app |
 | `docs/examples/` folder | ✅ | ❌ not adopted | Spixi's own newest docs are the examples (§F step 5) |
-| Branch protection / semantic version tags | ✅ | ❌ not adopted now | Spixi merges once at the end (#916); the store version is a DoD row. Work branches `work/<batch>` and pull requests inside the fork are adopted (#1490) |
+| Branch protection / semantic version tags | ✅ | Branch protection ✅ adopted in the form of #1507 (a pull request + the two green `redesign-ci` jobs before every merge) — #1507's status: owed, Damir sets the rule on GitHub (whether it is set: Q-2 of `docsb2`); semantic version tags ❌ not adopted now | Spixi merges once at the end (#916); the store version is a DoD row. Work branches `work/<batch>` and pull requests inside the fork are adopted (#1490) |
 | "Already decided" block in the prompt | ✅ | ✅ adopted (template) | Stops a session re-opening settled rows |
 | One talk session · Ready queue · lead + agents by model · number blocks | (kit) | ✅ adopted 2026-11-12 (#1488–#1494; `docs/orchestration.md`) | Damir: one chat to talk in; everything else runs alone up to walk-ready |
 | CI-push budget per session | ✅ | ➖ adapted: a build/walk budget ("one walk per batch") stated in the prompt when it matters | Damir's builds and walks are the scarce resource, not CI runs |

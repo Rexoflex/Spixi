@@ -99,7 +99,8 @@ from the folder of the process's executable (the runs started `dotnet VoiceFixPr
 `C:\Program Files\dotnet`), System32, or a library in `runtimes\<rid>\native\` below the current directory (the folders and names of § 7)
 (`C:\Users\Damir`, the PowerShell prompt of the runs; the copy would land in `C:\Users\Damir`). Damir's check of
 2026-11-23 (`Test-Path` of `$HOME\opus.dll`, `$HOME\runtimes`, `System32\opus.dll`,
-`$env:ProgramFiles\dotnet\opus.dll`): PENDING.
+`$env:ProgramFiles\dotnet\opus.dll`): asked at the end of the session, not answered when the batch was pushed —
+owed (the status doc carries it).
 
 ## 4 · The app runs of this session (operator steps 3–14)
 

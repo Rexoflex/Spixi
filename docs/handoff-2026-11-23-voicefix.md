@@ -7,7 +7,7 @@ block; it writes the next prompt.
 
 ## 0 · State
 - Branch: `work/voicefix` from `redesign/frontend` @ `462ba3e4` ("Merge pull request #24 from Rexoflex/work/histcs"),
-  merged with the newest base before the push (the numbers of the merged tree: the status doc) · push: by #1546, each
+  merged with the newest base `23c9c495` ("Merge pull request #25 from Rexoflex/work/docsb2") before the push · push: by #1546, each
   commit read back through the GitHub API · pull request: Damir opens it with the compare link
   `https://github.com/Rexoflex/Spixi/compare/redesign/frontend...work/voicefix?expand=1` (title and description in
   `claude/session-voicefix-status.md` and Mission Control) · merge = Damir (a merge commit, #1505).
@@ -15,12 +15,14 @@ block; it writes the next prompt.
 - Smoke: `BASELINE OK — 7000 pass / the 2 KNOWN` on the untouched base `462ba3e4` (cloud twin, Ixian-Core @
   `097341a`, jsdom 29.1.1, `TZ=America/Los_Angeles`; the second run — the first was stopped at a turn end) · CSH
   `pass=866 fail=0` (.NET SDK 10.0.115, runtime 10.0.15). Delta of this batch: **+0** (no pin, no test; no app,
-  shell or pin file changed). The merged tree: the status doc.
-- Review: brief `docs/review-brief-voicefix.md` (verdict in § 5).
+  shell or pin file changed). The merged tree (`work/voicefix` + `23c9c495`): `BASELINE OK — 7000 pass / the 2
+  KNOWN` (2026-11-23, the same environment) · CSH `pass=866 fail=0` · `build-shells --check` ✓ · `build-locales --check` ✓.
+- Review: CLEAN at r5 (the last permitted round; r4 had one MAJOR of record truth, fixed) · brief
+  `docs/review-brief-voicefix.md` § 5.
 - ⚠ C# UNCOMPILED: none in the app. The probe `scripts/voicefix/` compiles in the cloud (with the `Concentus.dll` of
   the Windows build output) and ran on Damir's PC.
 - Definition of done: no row of `docs/release-readiness.md` changed.
-- Still owed: the Windows walk `docs/walk-voicefix.md` (Ctrl+F5, 20 opens) · the main chat's answer to Q-1 (the
+- Still owed: Damir's `Test-Path` check (mechanisms § 4, the paragraph above the table) · the Windows walk `docs/walk-voicefix.md` (Ctrl+F5, 20 opens) · the main chat's answer to Q-1 (the
   walk start, #1904), Q-2 (a belt anyway?, #1901) and Q-3 (the Concentus native-library line, #1905).
 
 ## 1 · What this session did

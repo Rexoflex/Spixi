@@ -99,8 +99,10 @@ from the folder of the process's executable (the runs started `dotnet VoiceFixPr
 `C:\Program Files\dotnet`), System32, or a library in `runtimes\<rid>\native\` below the current directory (the folders and names of § 7)
 (`C:\Users\Damir`, the PowerShell prompt of the runs; the copy would land in `C:\Users\Damir`). Damir's check of
 2026-11-23 (`Test-Path` of `$HOME\opus.dll`, `$HOME\runtimes`, `System32\opus.dll`,
-`$env:ProgramFiles\dotnet\opus.dll`): asked at the end of the session, not answered when the batch was pushed —
-owed (the status doc carries it).
+`$env:ProgramFiles\dotnet\opus.dll`), answered 23:57: `$HOME\opus.dll` False, `$HOME\runtimes` False,
+`System32\opus.dll` False; the `Program Files\dotnet` line was not run. So no copy could land below the current
+directory and no System32 library existed: the probe runs measured the managed decoder unless an `opus.dll` sat in
+`C:\Program Files\dotnet` (not checked; not a place any installer of ours writes).
 
 ## 4 · The app runs of this session (operator steps 3–14)
 

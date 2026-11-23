@@ -22,7 +22,7 @@ block; it writes the next prompt.
 - ⚠ C# UNCOMPILED: none in the app. The probe `scripts/voicefix/` compiles in the cloud (with the `Concentus.dll` of
   the Windows build output) and ran on Damir's PC.
 - Definition of done: no row of `docs/release-readiness.md` changed.
-- Still owed: Damir's `Test-Path` check (mechanisms § 4, the paragraph above the table) · the Windows walk `docs/walk-voicefix.md` (Ctrl+F5, 20 opens) · the main chat's answer to Q-1 (the
+- Still owed: the Windows walk `docs/walk-voicefix.md` (Ctrl+F5, 20 opens) · the main chat's answer to Q-1 (the
   walk start, #1904), Q-2 (a belt anyway?, #1901) and Q-3 (the Concentus native-library line, #1905).
 
 ## 1 · What this session did

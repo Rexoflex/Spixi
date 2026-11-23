@@ -100,3 +100,8 @@ A change to this table goes through the lead; both sides get the new text.
 | 1 + 2 C# | 1 | Opus | green (CSH +14) | merged |
 | 1 shell | 1 | Sonnet | green (a-shell 9 / 9, render 18 rows) | merged |
 | 3 | 1 | Fable 5.2 | green (CSH +15) | merged |
+| pins + re-bases | 1 | Sonnet | green (b-csharp 9 keys, 4 inline rows, 3 modules re-based) | merged |
+| review r1 fix (C#) | 1 | Opus | green (CSH 898; `releaseHold`, the backstop, `holdReleased`) | merged |
+| review r1 fix (pins) | 1 | Sonnet | green (b10, 57 breaks) | merged |
+| review r2 fix (C#) | 1 | Opus | green (R5 + `authDeferred`, not-presented) | merged |
+| review r2 fix (pins) | 1 | Sonnet | green (66 breaks, the #454 slice) | merged |

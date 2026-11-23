@@ -4,7 +4,7 @@ Session `lockb`, 2026-11-23 (ruling #1825 (1)–(3); DECISIONS #1915–#1934; pa
 branch `work/lockb`. The html changed (`lock.html`) and C# changed. Windows = **F5, never `dotnet build`** (#663); wipe
 `Spixi\bin` + `Spixi\obj` first. Android = the Release dev build (`com.ixilabs.spixi.dev`); wipe `Spixi\bin` + `Spixi\obj`
 first (#449: an incremental build does not repackage the Raw html). The page with the same rows: the Artifact
-**"Spixi Lock batch — walk rows"** (link in `claude/session-lockb-status.md`).
+**"Spixi Lock batch — walk rows"** (https://claude.ai/artifact/SK86JZ3oEPx8NaKtP6bcmw).
 
 ★ **L149 — your test account and its data stay.** No row needs a new account on the test phone. **Never** Delete account,
 **never** `adb uninstall`, **never** `pm clear`. ★ The Android rows END with App lock **Off** again (the adb walk needs it).

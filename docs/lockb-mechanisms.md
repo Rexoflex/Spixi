@@ -63,7 +63,8 @@ state again.
   and the password clears it (the base's state). It helps only for a throw before MAUI's `PopModalAsync` removes the page; after
   that the page is disposed (`OnDisappearing` → `Dispose`), the base's same dead page (review r2, S2 NIT-3).
 - `lockOnPause`'s two failure paths (the push did not present; the catch) drop `pauseLock`; each calls
-  `releaseHold("not-presented")` first (review r2, S2 MINOR-1).
+  `releaseHold("not-presented")` as its LAST statement, the catch on the page it captured before the drop (review r2, S2
+  MINOR-1). On a page that never showed it still sends `"False"` and logs the line — harmless (review r3, X3 NIT-1).
 - The release fires only while the prompt is still deferred (`authDeferred`): after a consumed hand-off a second `OnPostResume`
   with no restart (the prompt's own credential UI, a notification tap) reveals nothing — the shell already has `"1"` (review
   r2, X2 MINOR-1 / S2 NIT-1).
@@ -146,7 +147,8 @@ The walk has a Windows row that shows the lock exactly as before (the password f
   read, clamped; `-2` = no twin) only when the item-3 switch is on and the platform has the clock.
 - Three error lines in `LockPage` catches: `LockPage: promptWindowOpens failed (<Type>)`, `LockPage: setAuthPending hold push
   failed (<Type>)`, `LockPage: releaseHold failed (<Type>)` — fixed words and the exception TYPE name only.
-- `[LOCKDIAG] … lock/hold-released · why=<post-resume|pop-failed|other>` (review r1 fix): the hold was released with no prompt.
+- `[LOCKDIAG] … lock/hold-released · why=<post-resume|pop-failed|not-presented|other>` (review r1 / r2 fixes): the hold was
+  released with no prompt.
 No other line changes.
 
 ## 8 · How it was built (the shapes the readers should know)

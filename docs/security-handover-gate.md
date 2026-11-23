@@ -2422,3 +2422,16 @@ Packet: [P93](be-review-pack/P93-walktools-seed-voice-ids-walk-scripts.md) (item
 | the walk parser: the first-page rule I-3a, 17 optional rows per older page | reads the pulled log of the run folder; writes only its summary files; the raw-line guard unchanged (only `key=<int>` and one `[a-z]{1,16}` word are read from a line) | baseline: **no**. Ours, safe |
 
 Surface counts: verbs **+0** · pushes **+0** · caps **+0** · `spixi.*` keys **+0** · prefs **+0** · log lines **+0** · files written or deleted on a new path **+0** · network fetches **+0** · adb commands **+0** · walk steps **+0** (rows +17 per older page, optional). Pin limits: stated in each module (#1735).
+
+## Session Walk tools 2 (`walktools2`, #1935–#1949) — the seed's quote chat, the cold-start watch, home probe sets, the lockfile (2026-11-23)
+
+Packet: [P102](be-review-pack/P102-walktools2-quote-seed-coldstart-watch-lockfile.md). Files: `Spixi/Utils/SDevSeedPlan.cs` (§ 4), `Spixi/Utils/SDevSeed.cs` (`seedQuoteChat`, `quoteChatsPresent`, three hook statements), `scripts/device/adb-walk.ps1`, `scripts/device/adb-walk-parse.ps1`, `scripts/device/a52s.json`, `package.json`, `package-lock.json`, `.github/workflows/redesign-ci.yml` (the install step); test code otherwise.
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| the dev seed's quote chat Seed 57 (1000 text rows, 16-byte ids, four replies in the app's own text shape) | no verb, push, key, fetch or file; log lines `[DEVSEED] quote chat stopped (<Type>)` and `[DEVSEED] quote chat: N messages skipped, the first i:j (<Type>)` (developer builds; numbers and a type name); the status sentence gains a clause of counts and ms; both files wholly inside `#if SPIXI_DEV_COEXIST` | baseline: **no** (the dev seed is ours). Ours, safe: developer builds only |
+| the adb walk: the step `coldstart-watch` + ONE new adb command (the events pull cut on the phone by `grep -o -E`, #1938) | developer tooling on Damir's PC; no app file; no typed input, no tap, no screenshot; the pulled files stay in the git-ignored run folder; numeric `killinfo` fields of other processes are kept (recorded) | baseline: **no** (the walk is ours). Ours, safe |
+| the device map: `screens.home` in the `sets` form | values only | baseline: **no**. Ours, safe |
+| the test-tool lockfile and `npm ci` in CI | the same 122 packages, now pinned with sha512 integrity | baseline: **no** (the CI is ours). Ours, safe |
+
+Surface counts: verbs **+0** · pushes **+0** · caps **+0** · `spixi.*` keys **+0** · prefs **+0** · log lines **+2** (developer builds) · files written or deleted on a new path **+0** (app) · network fetches **+0** · adb commands **+1** (the events pull) · walk steps **+1** (opt-in). Pin limits: stated in each module (#1735).

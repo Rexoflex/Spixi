@@ -128,6 +128,7 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P90](P90-older-page-off-ui-thread.md) | History C# P-28: an older page of chat history is read and built on a pool thread (flag `LoadMoreOffUi`); the busy guard, the push gate, the dropped-page rule, the delivery order behind a kept page | MEDIUM | no | none | built · ⚠ uncompiled | 8 min |
 | [P91](P91-first-older-page-50.md) | History C# HV-5: the first older page holds 50 rows (flag `FirstOlderPage50`); the D-18 cache rule proven not to bite | LOW | no | none | built · ⚠ uncompiled | 3 min |
 | [P92](P92-history-csharp-lines.md) | History C# HV-0: four developer lines, one `[FLAGS] histcs` line, three type-only warns | LOW | no | none | built · ⚠ uncompiled | 2 min |
+| [P102](P102-walktools2-quote-seed-coldstart-watch-lockfile.md) | Walk tools 2: the dev seed's quote chat Seed 57 (developer builds), the adb walk step `coldstart-watch` and its ONE new adb command (the events pull cut on the phone by `grep -o -E`), home probe sets, the test-tool lockfile + `npm ci` | LOW | no | none | built · ⚠ uncompiled (`SDevSeed.cs`) | 3 min |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

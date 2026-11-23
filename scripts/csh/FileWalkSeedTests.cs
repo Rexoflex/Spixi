@@ -143,7 +143,7 @@ public class FileWalkSeedTests
         {
             foreach (var m in SDevSeedPlan.filePlan(i))
             {
-                Assert.IsTrue(ids.Add(hex(SDevSeedPlan.messageIdFor(i, m.j))), "a new message id " + i + ":" + m.j);
+                Assert.IsTrue(ids.Add(hex(SDevSeedPlan.rowIdFor(i, m))), "a new message id " + i + ":" + m.j);
                 if (!SDevSeedPlan.hasFile(m))
                 {
                     Assert.AreEqual("", SDevSeedPlan.folderOf(m), "no folder for a row without a file");
@@ -320,7 +320,7 @@ public class FileWalkSeedTests
                     if (w < 0) { refused++; continue; }
                     files += w;
                 }
-                if (store.Add(hex(SDevSeedPlan.messageIdFor(i, m.j)))) msgs++;
+                if (store.Add(hex(SDevSeedPlan.rowIdFor(i, m)))) msgs++;
             }
         }
         return new[] { msgs, files, refused };
@@ -368,7 +368,7 @@ public class FileWalkSeedTests
         Assert.AreEqual(4 + 115, disk.reads, "the four same-length foreign files were read (the other length was not) + the proof after each of the 115 moves (#46 r1 S-S-1)");
         Assert.AreEqual("156,115", first[0] + "," + first[1], "the other 115 files are written; the five foreign ones get no row");
         foreach (var kv in foreign) Assert.IsTrue(disk.f[kv.Key].SequenceEqual(kv.Value), "never written over " + kv.Key);
-        Assert.IsFalse(store.Contains(hex(SDevSeedPlan.messageIdFor(53, doc.j))) || store.Contains(hex(SDevSeedPlan.messageIdFor(54, voice.j))), "never adopted (no row)");
+        Assert.IsFalse(store.Contains(hex(SDevSeedPlan.rowIdFor(53, doc))) || store.Contains(hex(SDevSeedPlan.rowIdFor(54, voice))), "never adopted (no row)");   // ★ walktools #46 r1 (C-2): the WRITER's ids (rowIdFor; a voice row 16 bytes)
         int removed = 0;
         foreach (var (i, m) in allFiles()) removed += disk.unseedOne(i, m);
         Assert.AreEqual(115, removed, "unseed deletes the 115 files that are ours");
@@ -389,7 +389,8 @@ public class FileWalkSeedTests
         // 100-message chat; SDevSeedPlan.chatComplete looks for the plan's NEWEST id (the seed writes oldest first)
         foreach (int i in Chats)
         {
-            var ids = SDevSeedPlan.filePlan(i).Select(m => (byte[]?)SDevSeedPlan.messageIdFor(i, m.j)).ToList();
+            // ★ walktools item 4 (re-based): the ids the WRITER gives (SDevSeedPlan.rowIdFor — a voice row 16 bytes); an old 32-byte voice id is "partial" (WalkToolsSeedTests)
+            var ids = SDevSeedPlan.filePlan(i).Select(m => (byte[]?)SDevSeedPlan.rowIdFor(i, m)).ToList();
             Assert.IsTrue(SDevSeedPlan.chatComplete(ids, i), "all ids → complete " + i);
             Assert.IsTrue(SDevSeedPlan.chatComplete(ids.Skip(Math.Max(0, ids.Count - 51)).ToList(), i), "the last 51 rows (loadMessages) → complete " + i);
             Assert.IsFalse(SDevSeedPlan.chatComplete(ids.Take(ids.Count - 1).ToList(), i), "the newest missing → a top-up " + i);
@@ -413,7 +414,7 @@ public class FileWalkSeedTests
         // ★ #46 r2 B2-5: never a top-up through Core's ~51-row window (fail closed)
         foreach (int i in Chats)
         {
-            var ids = SDevSeedPlan.filePlan(i).Select(m => (byte[]?)SDevSeedPlan.messageIdFor(i, m.j)).ToList();
+            var ids = SDevSeedPlan.filePlan(i).Select(m => (byte[]?)SDevSeedPlan.rowIdFor(i, m)).ToList();
             var window = ids.Skip(Math.Max(0, ids.Count - 51)).ToList();
             Assert.AreEqual(SDevSeedPlan.TopUpWrite, SDevSeedPlan.topUpAction(new List<byte[]?>(), i), "an EMPTY list (never written) → write " + i);
             Assert.AreEqual(SDevSeedPlan.TopUpSkip, SDevSeedPlan.topUpAction(window, i), "the newest row in a 51-row window → skip " + i);

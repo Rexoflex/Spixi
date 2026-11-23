@@ -721,6 +721,26 @@ namespace SPIXI
             return leaf;
         }
 
+        /** ★ walktools item 4 (contract I-4): a REAL message id is 16 bytes (Guid.ToByteArray(); Ixian-Core CoreConfig.maxMessageIdSize = 16),
+         *  and the chat page's voice play refuses a longer id (SingleChatPage.isVoiceIdHex: at most 2 × 16 hex characters) — the 32-byte
+         *  SHA-256 id every seed row had made every seed voice clip unplayable. */
+        public const int RealMessageIdLength = 16;
+
+        /** ★ walktools item 4: the id the seed gives row `m` of chat `i`. A voice row (inline or file) = the FIRST 16 bytes of
+         *  messageIdFor(i, m.j), the length of a real message id (the play check accepts it); EVERY other row = messageIdFor(i, m.j),
+         *  32 bytes, unchanged. The writer (SDevSeed.seedFileChats) and chatComplete / topUpAction use THIS function and no other. */
+        public static byte[] rowIdFor(int i, FileMsg m)
+        {
+            byte[] full = messageIdFor(i, m.j);
+            if (m.kind != KindVoiceInline && m.kind != KindVoiceFile)
+            {
+                return full;
+            }
+            byte[] shortId = new byte[RealMessageIdLength];
+            Array.Copy(full, 0, shortId, 0, RealMessageIdLength);
+            return shortId;
+        }
+
         /** ★ #46 r1 C-S-1: is file chat `i` complete in this list of ids? The seed writes a chat OLDEST first, so its NEWEST planned id
          *  present = every row was written. Core's own refusal of a known id (FriendList.cs:258) sees only the in-memory list, which
          *  after the chat page's loadMessages holds about 51 rows — NOT MaxPlan — so a top-up of a 100-message chat cannot rely on it;
@@ -732,7 +752,7 @@ namespace SPIXI
             {
                 return false;
             }
-            byte[] newest = messageIdFor(i, l[l.Count - 1].j);
+            byte[] newest = rowIdFor(i, l[l.Count - 1]);   // ★ walktools item 4: the id the writer gives that row (a voice row: 16 bytes)
             foreach (byte[]? id in presentIds)
             {
                 if (id != null && id.Length == newest.Length && isOurs(id, newest))

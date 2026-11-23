@@ -20,7 +20,7 @@ Not built, and why: <list>
 |---|---|---|
 | A | C# | correctness, threading, the "C# touches no risky parts" fence |
 | B | shells + components | behaviour, both themes, the frozen bridge grammar, the security-gate triggers |
-| C | pins | does each new pin fail when the behaviour breaks? deliberate break per pin; derived, not author-listed cases |
+| C | pins | does each new pin fail when the behaviour breaks? deliberate break per pin; derived, not author-listed cases; a source-text pin states its limits in its first version, and a gap of the stated class is a NIT, not a MAJOR (#1735) |
 
 ## 4 · Non-negotiables and accepted dials
 - Must hold: the PARAMOUNT isolation invariant (#220/#221) · WebView composes, C# signs · no WebView path into a file op ·

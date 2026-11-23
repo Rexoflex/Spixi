@@ -1,0 +1,25 @@
+Component: NBitcoin (MetacoSA/NBitcoin) — code in Ixian-Core Utils/Wordlist.cs, KDTable.cs, WordlistSources.cs (HardcodedWordlistSource), Mnemonics.cs and BitWriter.cs; closest proven blobs 2016-08 (Mnemonic.cs), 2019-08 (KDTable.cs, BitWriter.cs) and 2020-01 (Wordlist.cs)
+Licence: The MIT License (MIT), "Copyright (c) 2019 Metaco SA"
+Source of this text: https://raw.githubusercontent.com/MetacoSA/NBitcoin/1348e841dda58940490c625a23e4d66a7eb0e6ba/LICENSE (the LICENSE in force on 2020-01-16, the date of the closest Wordlist.cs blob bdac4b64; the version of NBitcoin Ixian copied is not proven) · upstream SHA-256 6524ffa12414a6b8c2ed0da6236efb21456260471078dac7f4288b56f3dd8786 · CRLF changed to LF · LF-body SHA-256 f69675d12cfdfeb1ad25a61a5a1fc268179edebc633a60cd159406ae55bc929f
+
+The MIT License (MIT)
+
+Copyright (c) 2019 Metaco SA
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

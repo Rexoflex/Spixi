@@ -16,7 +16,11 @@ Publish it as an Artifact when Damir walks away from the PC.
   Raw html, #320/#449) → the build commands per platform (Windows = **F5, never `dotnet build`** #663; Android
   `dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug` then `-t:Run`; iPhone `devicectl`; Mac
   `-f net10.0-maccatalyst`) → "this is the first compile of this C#; a build error is this batch's bug" →
-  "Mark each row, then tap Copy results and paste them in the chat".
+  "Mark each row, then tap Copy results and paste them in the chat". **The page shows every set-up command of its sheet
+  in full** — the commands that make the build, the zip or the seed the rows use, and the commands of a second data
+  folder — not only the rows and a file name: a row cannot pass when the page does not say how to make what it needs
+  (WALK #1828: A-BUILD of `fixb3` was first N/A because the page did not give the commands that make
+  `fixb3-walk-app.zip`; the lesson recorded in WALK #1828).
 - **Rows** = a JS array `ROWS` of `{id, t: title, w: where (platform/device), d: Do, p: Pass when, n: NEW 1/0}`.
   - The FIRST row is `BUILD`. Its "Pass when" names something only THIS build shows (a changed screen, a new log line or
     probe tag) — "builds and starts" is not proof, because a stale shell starts too (#663). It is the setup check before
@@ -26,6 +30,13 @@ Publish it as an Artifact when Damir walks away from the PC.
   - One row per item; the id = the finding id or DECISIONS number (`B6w`, `1091f`).
   - "Pass when" is observable on the device (what the eye or a log line shows), never "works".
   - A row that needs a log line names the probe tag (`[CALLSWAP]`, `[CDPERF]`) and what it must read.
+  - **A row that needs a NEW account** (a first-run default, a restore, a fresh install) says that the new account is made
+    in a SECOND data folder (Windows: `ixian.cfg`, `spixiUserFolder`; the commands are on the page), never by "Delete
+    account" + create in the test account. Source: the walk of the Defaults batch (`defaultsb`, `claude/talk-rulings-2026-11-22-walk.md`):
+    Damir made the new account by "Delete account" in the MAIN data folder; the create after the delete hit a caught
+    `DirectoryNotFoundException` (#584); also not shown by the log: W-3 (10 minutes idle did not fit), W-4 (no restore),
+    W-9. On Android a fresh account needs an emulator or a spare phone (`claude/talk-session-status.md`, Sessions,
+    `defaultsb`).
 - **Marks**: Pass / Fail / N/A buttons + a note on EVERY row, PASS included (#843). State in `localStorage` under a
   per-sheet key, wrapped in try/catch.
 - **Sticky bar**: live tally `n P · n F · n N/A · n left` · Clear (double-tap) · **Copy results**.

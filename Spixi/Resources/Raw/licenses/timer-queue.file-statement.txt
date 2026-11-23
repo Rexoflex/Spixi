@@ -1,0 +1,25 @@
+Component: TimerQueue ("Borrowed from http://www.crazygaze.com/blog/2016/03/24/portable-c-timer-queue/") in facebook/rocksdb util/timer_queue.h — the 15 TimerQueue symbols of the Android librocksdb.so (used by utilities/blob_db/blob_db_impl)
+Licence: CC0 by the statement in the file ("The source code in this article is licensed under the CC0 license")
+Source of this text: https://raw.githubusercontent.com/facebook/rocksdb/3f51c0a185cd5bf43e7056c8f8010d7375346272/util/timer_queue.h lines 1-21 · upstream SHA-256 14e8f140988eb2ca8fb950c3d7df2f1e5d4eed9798bfad7a46b899eaa72eff07
+
+//  Portions Copyright (c) 2011-present, Facebook, Inc.  All rights reserved.
+//  This source code is licensed under both the GPLv2 (found in the
+//  COPYING file in the root directory) and Apache 2.0 License
+//  (found in the LICENSE.Apache file in the root directory).
+//
+// Borrowed from
+// http://www.crazygaze.com/blog/2016/03/24/portable-c-timer-queue/
+// Timer Queue
+//
+// License
+//
+// The source code in this article is licensed under the CC0 license, so feel
+// free to copy, modify, share, do whatever you want with it.
+// No attribution is required, but Ill be happy if you do.
+// CC0 license
+
+// The person who associated a work with this deed has dedicated the work to the
+// public domain by waiving all of his or her rights to the work worldwide
+// under copyright law, including all related and neighboring rights, to the
+// extent allowed by law.  You can copy, modify, distribute and perform the
+// work, even for commercial purposes, all without asking permission.

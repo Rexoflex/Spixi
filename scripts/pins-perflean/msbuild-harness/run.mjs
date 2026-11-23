@@ -26,11 +26,27 @@
  *                     Raw/html; after each passing build it assembles the packaged html folder from the final
  *                     MauiAsset list and runs `strip-release.mjs --check <that folder> <flags>` = GATE 1 on what
  *                     MSBuild would pack. Run it after builder-s1's script is integrated.
+ * leanfollow item 2 (review round 5 of Speed lean, r5B-1 / r5B-2; round 1 of leanfollow, r1C-3, r1C-4, r1S-1, r1S-4, r1S-7b):
+ *   r1late (a targets file whose target runs AfterTargets="SpixiLeanGuard" and sets SpixiLeanJs=true: the guard passes, the first Error of the lean target stops the build; the tokens-only call is the only node call;
+ *     a file planted in obj/.../spixi-lean/html must SURVIVE: R1 is before RemoveDir, by behaviour),
+ *   rawiop / rawiopcase / rawiopdetour / rawiopself (a lean build with an IntermediateOutputPath under Resources\Raw: the guard refuses, no node call, nothing written),
+ *   packedfonts / packedresself / packedresdetour / packedrawneighbour / packedplat / packedplatcase (the same for the other folders the build packs, the whole Resources folder and Platforms: one more guard Error),
+ *   rawiopbelt, packedbeltres, packedbeltplat (--fake only: a target changes the property after the guard; the lean target's belts refuse, and a file planted in the folder RemoveDir would empty survives),
+ *   rawnearmiss, platnearmiss (ResourcesX/obj/ and PlatformsX/obj/ share only the name prefix: lean builds),
+ *   linklean, linkhtml (a LINK planted at obj/.../spixi-lean or at .../spixi-lean/html that points at the committed Resources/Raw/html: RemoveDir would follow it; the lean target's link Errors refuse before it, Raw/html keeps
+ *     every file),
+ *   iopbylink (--real only: IntermediateOutputPath=lnkobj/ where Spixi/lnkobj is a link into Resources/Raw: the csproj tests compare spellings and pass, the REAL script of the tokens-only call refuses the real path),
+ *   rawiopoff (--real only: an all-off build with the property under Resources\Raw: the REAL script refuses the out folder, the build fails).
+ *   Breaks (--csproj <a copy>, one edit each): without the first Error of SpixiLeanReleaseHtml, or with it after RemoveDir = r1late misses; without the guard's R2 / packed Error = the rawiop* / packed* scenarios miss; the
+ *   belts removed or moved after RemoveDir = rawiopbelt / packedbelt* miss (the planted file is gone); a link Error removed or moved after RemoveDir = linklean / linkhtml miss; strip-release.mjs without outFolderRefusal on the plain
+ *   path = rawiopoff misses; without the real-path and inode tests = iopbylink misses (run the harness of a scratch tree).
+ *   After the table a MISS prints a `FAILED:` block (an empty line, the line `FAILED:`, one line per MISS row; a die prints its reason there too): the CI annotation step publishes the lines after `FAILED:`.
+ *   The dotnet child process gets DOTNET_CLI_TELEMETRY_OPTOUT=1 and DOTNET_NOLOGO=1.
  * usage: node scripts/pins-perflean/msbuild-harness/run.mjs [--fake|--real] [--csproj <file>] [--only <id,id>] [--keep]
  *   --csproj  read another csproj text (a mutated copy, for the deliberate breaks) instead of Spixi/Spixi.csproj
  * Exit: 0 every scenario held · 1 a scenario missed · 2 usage / a piece not found / no dotnet.
  * Node built-ins only. */
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, existsSync, readdirSync, statSync, cpSync, symlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, existsSync, readdirSync, statSync, cpSync, symlinkSync, linkSync } from 'node:fs';
 import { join, dirname, sep, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -40,11 +56,12 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const argv = process.argv.slice(2);
 const opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null; };
 const REAL = argv.includes('--real');
-if (REAL && argv.includes('--fake')) { console.error('msbuild-harness: --fake and --real exclude each other'); process.exit(2); }
 const KEEP = argv.includes('--keep');
 const CSPROJ = resolve(opt('--csproj') || join(REPO, 'Spixi', 'Spixi.csproj'));
 const ONLY = opt('--only') ? opt('--only').split(',') : null;
-const die = (m) => { console.error('msbuild-harness: ' + m); process.exit(2); };
+/* round 1 (r1C-3): the CI annotation step publishes the lines after a `FAILED:` line (an empty line before it); a die (exit 2) prints its reason there too */
+const die = (m) => { console.error('msbuild-harness: ' + m); console.error('\nFAILED:\nmsbuild-harness: ' + m); process.exit(2); };
+if (REAL && argv.includes('--fake')) die('--fake and --real exclude each other');
 
 /* ---------- 1 · take the pieces out of the real csproj, verbatim ---------- */
 const csText = readFileSync(CSPROJ, 'utf8').replace(/^\uFEFF/, '');
@@ -94,7 +111,12 @@ if (include.length !== 1) die('expected ONE wholesale `MauiAsset Include="Resour
 const INCLUDE_LINE = include[0][0];
 
 /* ---------- 2 · the temp tree ---------- */
-const TMP = mkdtempSync(join(tmpdir(), 'spixi-msbuild-harness-'));
+/* round 4 (r4S-9): --linked reaches the whole scratch tree through a SYMLINKED parent (the linked-checkout class: macOS /var -> /private/var, a symlinked home, a Windows junction). MSBuild then writes --out with the written
+ * spelling (through the link) while the script's root is the real path: the default Release build and a lean build must still pass. The same happens with TMPDIR set to a symlinked folder. */
+const LINKED = argv.includes('--linked');
+const LINKED_REAL = LINKED ? mkdtempSync(join(tmpdir(), 'spixi-msbuild-harness-real-')) : null;
+if (LINKED) symlinkSync(LINKED_REAL, LINKED_REAL + '-link', 'junction');
+const TMP = LINKED ? mkdtempSync(join(LINKED_REAL + '-link', 'spixi-msbuild-harness-')) : mkdtempSync(join(tmpdir(), 'spixi-msbuild-harness-'));
 const SPIXI = join(TMP, 'Spixi');
 const RAW = join(SPIXI, 'Resources', 'Raw');
 mkdirSync(join(TMP, 'scripts'), { recursive: true });
@@ -146,6 +168,13 @@ console.log('fake strip-release: ' + (files.length + (lean && process.env.SPIXI_
 const LATE_DEV = join(TMP, 'late-dev.targets'), LATE_OTHER = join(TMP, 'late-other.targets');
 writeFileSync(LATE_DEV, '<Project><PropertyGroup><SpixiDevCoexist>true</SpixiDevCoexist></PropertyGroup></Project>\n');
 writeFileSync(LATE_OTHER, '<Project><PropertyGroup><Harness_Unrelated>1</Harness_Unrelated></PropertyGroup></Project>\n');
+/* leanfollow R1 / R2: a targets file imported by the project (Directory.Build.targets does the same from a folder above the repo) that runs a TARGET after
+ * the guard and sets a property the guard already tested: SpixiLeanJs (the park of P-07) or IntermediateOutputPath (a folder under Resources\\Raw) */
+const LATE_JS_TARGET = join(TMP, 'late-js-target.targets'), LATE_IOP_TARGET = join(TMP, 'late-iop-target.targets');
+writeFileSync(LATE_JS_TARGET, '<Project><Target Name="HarnessLateJs" AfterTargets="SpixiLeanGuard"><PropertyGroup><SpixiLeanJs>true</SpixiLeanJs></PropertyGroup></Target></Project>\n');
+const lateIop = (name, iop) => { const f = join(TMP, name + '.targets'); writeFileSync(f, '<Project><Target Name="HarnessLateIop" AfterTargets="SpixiLeanGuard"><PropertyGroup><IntermediateOutputPath>' + iop + '</IntermediateOutputPath></PropertyGroup></Target></Project>\n'); return f; };
+writeFileSync(LATE_IOP_TARGET, '<Project><Target Name="HarnessLateIop" AfterTargets="SpixiLeanGuard"><PropertyGroup><IntermediateOutputPath>Resources/Raw/obj/</IntermediateOutputPath></PropertyGroup></Target></Project>\n');
+const LATE_FONTS_TARGET = lateIop('late-iop-fonts', 'Resources/Fonts/obj/'), LATE_PLAT_TARGET = lateIop('late-iop-platforms', 'Platforms/Android/obj/');
 const MARK = (tag, run) => '\n/* HARNESS-FAKE flags=' + tag + ' run=' + run + ' */\n';
 
 if (REAL) {
@@ -194,7 +223,7 @@ const isExtJs = (logical) => logical.startsWith(H) && EXTERNAL_JS.includes(htmlR
 
 /* ---------- 4 · one msbuild run ---------- */
 let runNo = 0;
-const DOTNET = spawnSync('dotnet', ['--version'], { encoding: 'utf8' });
+const DOTNET = spawnSync('dotnet', ['--version'], { encoding: 'utf8', env: { ...process.env, DOTNET_CLI_TELEMETRY_OPTOUT: '1', DOTNET_NOLOGO: '1' } });
 if (DOTNET.status !== 0) die('dotnet not found (' + (DOTNET.error ? DOTNET.error.code : 'status ' + DOTNET.status) + ')');
 const msbuild = (props, env = {}) => {
   const run = 'r' + (++runNo);
@@ -204,7 +233,7 @@ const msbuild = (props, env = {}) => {
     '-p:IntermediateOutputPath=' + OBJ_REL, '-p:HarnessDump=' + dump, ...Object.entries(props).map(([k, v]) => '-p:' + k + '=' + v)];
   /* the caller's shell must not decide a scenario: every variable that MSBuild would read as one of the properties under test is dropped */
   const cleanEnv = { ...process.env }; for (const k of Object.keys(cleanEnv)) if (/^SPIXI_(FAKE_|PACKAGED_LEAN)|^(SpixiLean\w*|SpixiStoreRelease|SpixiStripHtml|SpixiDevCoexist|DesignTimeBuild|IntermediateOutputPath|Configuration)$/i.test(k)) delete cleanEnv[k];
-  const r = spawnSync('dotnet', args, { cwd: TMP, encoding: 'utf8', env: { ...cleanEnv, SPIXI_FAKE_LOG: CALL_LOG, SPIXI_FAKE_NONCE: run, ...env }, maxBuffer: 64 << 20 });
+  const r = spawnSync('dotnet', args, { cwd: TMP, encoding: 'utf8', env: { ...cleanEnv, DOTNET_CLI_TELEMETRY_OPTOUT: '1', DOTNET_NOLOGO: '1', SPIXI_FAKE_LOG: CALL_LOG, SPIXI_FAKE_NONCE: run, ...env }, maxBuffer: 64 << 20 });
   const out = (r.stdout || '') + (r.stderr || '');
   const calls = REAL
     ? out.split('\n').map((l) => l.trim()).filter((l) => /^node "[^"]*strip-release\.mjs" --out /.test(l))
@@ -438,6 +467,111 @@ const iopRefused = (id, value, props = { SpixiLeanCss: 'true' }) => ({
     return summary + ' · calls ' + r.calls.length + ' · new entries in the project folder ' + d.added.length + ' · removed ' + d.gone.length + ' · Resources/Raw ' + raw + '/' + W.size + ' files';
   },
 });
+/* ★ leanfollow R1 (review round 5 of Speed lean, r5B-1): the lean target repeats the park of P-07 as its FIRST task. A targets piece that sets SpixiLeanJs=true in a target that
+ * runs after the guard (AfterTargets="SpixiLeanGuard") gets past the guard (it read false) and the tokens-only strip (one node call, before the lean target), and stops at the
+ * lean target's first Error: no lean call, no RemoveDir, no stamp. Deliberate break: --csproj <the csproj without that Error> → the build packs the js strip → this scenario MISSES. */
+const R1TEXT = (v) => "Spixi lean packaging: SpixiLeanJs='" + v + "' reached the lean target after SpixiLeanGuard had passed (a target or an imported file set it late): the comment strip of the scripts (P-07) is PARKED in this batch, so no build may pack its output (DECISIONS 1583 and 1589). Remove the late setting of the property; the comment strip of the stylesheets is SpixiLeanCss=true.";
+const R1PLANT = () => join(LEAN_DIR, 'planted-before-removedir.txt');
+const R1 = (id, label, props) => refused(id, label, props, R1TEXT('true'), () => [stripCall()], {
+  /* round 1 (r1C-4): "R1 is BEFORE RemoveDir" is proven by BEHAVIOUR: a file planted in the folder RemoveDir would empty must still be there */
+  pre: [() => { mkdirSync(LEAN_DIR, { recursive: true }); writeFileSync(R1PLANT(), 'planted: RemoveDir must not run\n'); }],
+  check: (r, P) => {
+    if (!existsSync(R1PLANT())) P.push('RemoveDir ran: the file planted in the lean folder is gone (R1 must come BEFORE RemoveDir)');
+    else if (walk(LEAN_DIR).length !== 1) P.push('the lean folder holds more than the planted file: ' + walk(LEAN_DIR).join(', ') + ' (the lean target went past its first Error)');
+    if (r.out.includes('is PARKED in this batch (SpixiLeanJs=')) P.push('the GUARD\'s park text appeared: the guard must have passed (it read SpixiLeanJs=false)');
+    if (r.calls.some((c) => /--lean-/.test(REAL ? c : JSON.stringify(c)))) P.push('a lean call was made');
+  },
+});
+/* ★ leanfollow R2 (review round 5 of Speed lean, r5B-2): the asset glob is Resources\\Raw\\**, so an IntermediateOutputPath under it would put the strip output into the NEXT package.
+ * The guard refuses it for a lean build (before any node call); the same test is a belt in the lean target (a target that changes the property after the guard). Three spellings: the
+ * contract form with backslashes, another letter case with forward slashes, a ..\\Spixi\\ detour. Deliberate break: --csproj <the csproj without the guard's R2 Error> → these scenarios MISS. */
+const R2TEXT = (v) => "Spixi lean packaging: IntermediateOutputPath='" + v + "' is the asset folder Resources\\Raw or inside it — refusing a lean build (the asset glob packs every file under Resources\\Raw, so a file written there ships in the next package). Leave IntermediateOutputPath to the SDK, or set it to another folder.";
+const R2BELT = (v) => "Spixi lean packaging: IntermediateOutputPath='" + v + "' is the asset folder Resources\\Raw or inside it at target time — refusing to empty a directory there";
+/* round 1 (r1S-4): the same test for the other folders the build packs, Resources (the whole folder) and Platforms: one Error (two StartsWith joined by `or`) after the Raw one, in the guard and as a belt */
+const R2PACKED = (v) => "Spixi lean packaging: IntermediateOutputPath='" + v + "' is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them — refusing a lean build (the build packs files under Resources, for example Fonts, Images, AppIcon and Splash, and under Platforms, for example Android Assets and Resources, so a file written there ships in the next package). Leave IntermediateOutputPath to the SDK, or set it to another folder.";
+const R2PACKEDBELT = (v) => "Spixi lean packaging: IntermediateOutputPath='" + v + "' is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them at target time — refusing to empty a directory there";
+/* round 1 (r1S-1): a link at spixi-lean or at spixi-lean/html is refused before RemoveDir (RemoveDir follows a link and empties its target) */
+const LINKTEXT = (iop, which) => "Spixi lean packaging: the folder " + which + " under IntermediateOutputPath='" + iop + "' is a link (a symbolic link, a junction or another reparse point) — refusing to empty it: RemoveDir would follow it and could empty a folder of the working tree, for example Resources\\Raw\\html. Delete the link, or delete Spixi\\obj.";
+/* a deliberate break (a csproj without the Error) lets a build write under Resources/Raw, Resources/Fonts or Platforms (or empties a folder there): put the tree back to what the scenario found (Raw as the repo has it; nothing else under Resources or Platforms),
+ * so the next scenario starts clean */
+const restoreRaw = () => {
+  rmSync(RAW, { recursive: true, force: true });
+  cpSync(join(REPO, 'Spixi', 'Resources', 'Raw'), RAW, { recursive: true });
+  for (const x of existsSync(join(SPIXI, 'Resources')) ? readdirSync(join(SPIXI, 'Resources')) : []) if (x !== 'Raw') rmSync(join(SPIXI, 'Resources', x), { recursive: true, force: true });
+  for (const x of ['Platforms', 'PlatformsX', 'ResourcesX', 'RESOURCES', 'lnkobj', 'Resources2', 'Other', 'bin']) rmSync(join(SPIXI, x), { recursive: true, force: true });
+};
+const cleanRaw = restoreRaw;
+/* a lean build whose IntermediateOutputPath is under a folder the build packs: the GUARD refuses with `textOf(value)`, no script call, nothing written under the project folder */
+const iopUnder = (id, value, textOf, what, props = { SpixiLeanCss: 'true' }) => ({
+  id, label: 'leanfollow R2: Release + ' + Object.entries(props).map(([k, v]) => k + '=' + v).join(' + ') + ' + IntermediateOutputPath=' + JSON.stringify(value) + ' (' + what + '): the GUARD refuses, no script call, nothing written under the project folder',
+  run: (P) => {
+    fresh();
+    for (const x of ['spixi-strip', 'spixi-lean', 'spixi-lean.stamp']) rmSync(join(SPIXI, x), { recursive: true, force: true });
+    const before = snap();
+    const r = msbuild({ ...RDEV, ...props, IntermediateOutputPath: value });
+    const texts = [textOf(value), textOf(value.replace(/\\/g, '/'))];   // MSBuild on Linux / macOS fixes the slashes of a path-like property value; on Windows the text keeps the backslashes
+    const text = texts.find((t) => r.out.includes(t)) || texts[0];
+    const summary = failBuild(r, text, P);
+    if (r.out.includes('at target time — refusing to empty')) P.push('the lean target\'s own belt fired: the guard did not stop the build first');
+    if (r.calls.length) P.push('script calls: got [' + r.calls.map((c) => (REAL ? c : JSON.stringify(c))).join(' · ') + '], want none (the build must stop before node starts)');
+    if (r.out.includes('Release packaging strip applied')) P.push('the tokens-only strip ran (its Message appeared)');
+    if (r.out.includes('LEAN Release packaging applied')) P.push('the lean success Message appeared');
+    if (r.items) P.push('the Build target ran (an item dump exists) although the build must stop in the guard');
+    const d = snapDiff(before, snap());
+    if (d.gone.length) P.push('REMOVED from the project folder: ' + d.gone.slice(0, 5).join(', '));
+    if (d.added.length) P.push('NEW in the project folder: [' + d.added.join(', ') + '], want nothing');
+    const raw = existsSync(RAW) ? walk(RAW).length : 0;
+    if (raw !== W.size) P.push('Resources/Raw is not complete: ' + raw + ' files, want ' + W.size);
+    return summary + ' · calls ' + r.calls.length + ' · new entries in the project folder ' + d.added.length + ' · Resources/Raw ' + raw + '/' + W.size + ' files';
+  },
+  after: restoreRaw,
+});
+const rawIopRefused = (id, value, props) => iopUnder(id, value, R2TEXT, 'under Resources\\Raw', props);
+/* a lean target belt scenario (--fake only: the fake tokens-only call writes where the late property points): a targets file changes IntermediateOutputPath AFTER the guard; the lean target's belt `beltText` refuses
+ * BEFORE RemoveDir — proven by a file planted in the folder RemoveDir would empty (<late IntermediateOutputPath>spixi-lean/html/): it must still be there */
+const beltScenario = (id, targetsFile, late, beltText, what) => ({
+  id, label: 'leanfollow R2 belt: Release + dev + Android + SpixiLeanCss=true, a targets file whose target (AfterTargets="SpixiLeanGuard") sets IntermediateOutputPath=' + late + ' (' + what + ') AFTER the guard: the lean target\'s belt refuses BEFORE RemoveDir (a file planted in the folder RemoveDir would empty survives); the fake tokens-only call already wrote there: the folders are removed again by this scenario', fake: true,
+  run: (P) => {
+    fresh();
+    restoreRaw();
+    const planted = join(SPIXI, late, 'spixi-lean', 'html', 'planted-before-removedir.txt');
+    mkdirSync(dirname(planted), { recursive: true });
+    writeFileSync(planted, 'planted: RemoveDir must not run\n');
+    const r = msbuild({ ...RDEV, SpixiLeanCss: 'true', HarnessLate: targetsFile });
+    const s = failBuild(r, beltText(late), P);
+    if (r.out.includes('refusing a lean build (the')) P.push('the GUARD\'s text appeared: the guard must have passed (the property was changed after it)');
+    if (r.calls.some((c) => c.includes('--lean-css') || c.includes('--lean-js'))) P.push('a lean call was made');
+    if (r.out.includes('LEAN Release packaging applied')) P.push('the lean success Message appeared');
+    if (!existsSync(planted)) P.push('RemoveDir ran: the file planted in ' + late + 'spixi-lean/html/ is gone (the belt must come BEFORE RemoveDir)');
+    return s + ' · calls ' + r.calls.length + ' · planted file ' + (existsSync(planted) ? 'survived' : 'GONE');
+  },
+  after: restoreRaw,
+});
+/* ★ round 1 (r1S-1): a LINK planted at obj/…/spixi-lean or at obj/…/spixi-lean/html that points at the committed Raw/html. RemoveDir follows a link and would empty its target; the two link Errors of the lean target refuse
+ * BEFORE RemoveDir. The build fails with the new text, Raw/html keeps all its files (same list, same bytes), no lean call is made, no stamp is written. */
+const linkScenario = (id, where) => ({
+  id, label: 'leanfollow r1S-1: Release + dev + Android + SpixiLeanCss=true, a LINK planted at obj/…/' + where + ' pointing at the committed Resources/Raw/html: the lean target refuses BEFORE RemoveDir with the link text; Resources/Raw/html keeps every file; only the tokens-only call runs; no stamp',
+  run: (P) => {
+    fresh();
+    restoreRaw();
+    const htmlBefore = walk(join(RAW, 'html')).sort().join('|');
+    const leanTop = join(SPIXI, OBJ_REL, 'spixi-lean');
+    let linkAt;
+    if (where === 'spixi-lean') { mkdirSync(dirname(leanTop), { recursive: true }); linkAt = leanTop; }
+    else { mkdirSync(leanTop, { recursive: true }); linkAt = join(leanTop, 'html'); }
+    try { symlinkSync(where === 'spixi-lean' ? RAW : join(RAW, 'html'), linkAt, 'junction'); } catch (e) { return 'SKIPPED: no link could be made here (' + (e && e.code) + ')'; }
+    // with the link at spixi-lean the folder html below it IS Raw/html (via RAW → Resources/Raw/html): RemoveDir of spixi-lean/html would empty it
+    const r = msbuild({ ...RDEV, SpixiLeanCss: 'true' });
+    const s = failBuild(r, LINKTEXT(OBJ_REL, where === 'spixi-lean' ? 'spixi-lean' : 'spixi-lean\\html'), P);
+    const htmlAfter = existsSync(join(RAW, 'html')) ? walk(join(RAW, 'html')).sort().join('|') : '(gone)';
+    if (htmlAfter !== htmlBefore) P.push('Resources/Raw/html CHANGED: ' + walk(RAW).length + ' files under Raw now, was ' + W.size + ' (RemoveDir followed the link)');
+    if (r.calls.some((c) => /--lean-/.test(REAL ? c : JSON.stringify(c)))) P.push('a lean call was made');
+    if (r.out.includes('LEAN Release packaging applied')) P.push('the lean success Message appeared');
+    if (stampNow() !== null) P.push('a stamp was written: ' + stampShow(stampNow()));
+    return s + ' · Resources/Raw ' + walk(RAW).length + '/' + W.size + ' files · calls ' + r.calls.length;
+  },
+  after: restoreRaw,
+});
 const CSS_SRC = [...W.keys()].filter((l) => isCss(l) && l !== H + 'spixi.tokens.css').sort()[0];   // a stylesheet the lean css flag writes (not the tokens-only one)
 
 const SCENARIOS = [
@@ -601,6 +735,109 @@ const SCENARIOS = [
   iopRefused('dotiop', '.'),
   iopRefused('dotslashiop', './', { SpixiLeanCss: 'true' }),
   iopRefused('objdotdotiop', 'obj/../'),
+  /* ★ leanfollow R1 — the park again inside the lean target */
+  R1('r1late', 'leanfollow R1: Release + dev + Android + SpixiLeanCss=true + a targets file with a target AfterTargets="SpixiLeanGuard" that sets SpixiLeanJs=true: the guard passes, the lean target stops at its FIRST Error (R1 text); the tokens-only call is the only node call, no lean call, no RemoveDir',
+    { ...RDEV, SpixiLeanCss: 'true', HarnessLate: LATE_JS_TARGET }),
+  /* ★ leanfollow R2 — an IntermediateOutputPath under Resources\\Raw (three spellings) is refused by the guard of a lean build; the same test is a belt in the lean target */
+  rawIopRefused('rawiop', 'Resources\\Raw\\obj\\'),
+  rawIopRefused('rawiopcase', 'RESOURCES/raw/Obj/'),
+  rawIopRefused('rawiopdetour', '..\\Spixi\\Resources\\Raw\\x\\'),
+  rawIopRefused('rawiopself', 'Resources/Raw', { SpixiLeanCss: 'true' }),
+  beltScenario('rawiopbelt', LATE_IOP_TARGET, 'Resources/Raw/obj/', R2BELT, 'under Resources\\Raw'),
+  /* round 1 (r1S-4): the whole Resources folder and Platforms are refused too (the MAUI default globs pack Fonts, Images, AppIcon, Splash, Android Assets / Resources): the guard in six spellings, the belt in two, near misses allowed */
+  iopUnder('packedfonts', 'Resources/Fonts/obj/', R2PACKED, 'under Resources\\Fonts, not under Raw'),
+  iopUnder('packedresself', 'Resources', R2PACKED, 'Resources itself'),
+  iopUnder('packedresdetour', '..\\Spixi\\Resources\\Images\\x\\', R2PACKED, 'a ..\\Spixi\\ detour into Resources\\Images'),
+  iopUnder('packedrawneighbour', 'Resources/Raw2/obj/', R2PACKED, 'Raw2: a neighbour of Raw but inside Resources, so refused as Resources'),
+  iopUnder('packedplat', 'Platforms/Android/obj/', R2PACKED, 'under Platforms\\Android'),
+  iopUnder('packedplatcase', 'PLATFORMS', R2PACKED, 'Platforms itself, another letter case'),
+  /* round 2 (r2S-2): inside the project folder outside obj and bin (the MAUI default items embed every .css of the project folder; read from upstream, not proven by a MAUI build) */
+  iopUnder('packedprojx', 'ResourcesX/obj/', R2PACKED, 'inside the project folder, outside obj and bin'),
+  iopUnder('packedprojother', 'Other/x/', R2PACKED, 'inside the project folder, outside obj and bin'),
+  beltScenario('packedbeltres', LATE_FONTS_TARGET, 'Resources/Fonts/obj/', R2PACKEDBELT, 'under Resources\\Fonts'),
+  beltScenario('packedbeltplat', LATE_PLAT_TARGET, 'Platforms/Android/obj/', R2PACKEDBELT, 'under Platforms\\Android'),
+  ...[['rawnearmiss', 'obj/ResourcesX/', 'Resources'], ['platnearmiss', 'bin/PlatformsX/', 'Platforms']].map(([id, OUT, what]) => ({ id, label: 'leanfollow R2 control: Release + dev + Android + SpixiLeanCss=true + IntermediateOutputPath=' + OUT + ' (a NEIGHBOUR folder that only shares the name prefix of ' + what + ', under obj or bin of the project folder): a lean build (the folder test needs the trailing separator); the folder is removed again by this scenario',
+    run: (P) => {
+      fresh();
+      restoreRaw();
+      const r = msbuild({ ...RDEV, SpixiLeanCss: 'true', IntermediateOutputPath: OUT });
+      if (!okBuild(r, P)) return 'build failed';
+      expectSet(r.items, P);
+      const nLean = r.items.filter((it) => resolve(it.full).startsWith(resolve(SPIXI, OUT, 'spixi-lean') + sep)).length;
+      if (!nLean) P.push('no asset from ' + OUT + 'spixi-lean/');
+      if (r.calls.length !== 2) P.push('script calls: ' + r.calls.length + ', want 2 (tokens-only and lean)');
+      return 'ok: lean ' + nLean + ' asset(s) from ' + OUT + 'spixi-lean/';
+    },
+    after: restoreRaw })),
+  /* round 1 (r1S-1): a link at spixi-lean / spixi-lean/html (RemoveDir would follow it and empty Raw/html) is refused before RemoveDir; a link at the IntermediateOutputPath level is refused earlier, by the script of the tokens-only call (--real) */
+  linkScenario('linklean', 'spixi-lean'),
+  linkScenario('linkhtml', 'spixi-lean/html'),
+  /* round 2 (r2S-7): a link at spixi-lean.stamp is refused by the guard before the stamp is read or written; the file it points to stays as it was */
+  { id: 'stamplink', label: 'leanfollow r2S-7: Release + dev + Android + SpixiLeanCss=true, obj/…/spixi-lean.stamp is a LINK to a file outside: the guard refuses with the stamp-link text; no script call; the target file is unchanged',
+    run: (P) => {
+      fresh();
+      const outside = join(TMP, 'stamp-target.txt');
+      writeFileSync(outside, 'css=true js=false\n');
+      mkdirSync(dirname(STAMP), { recursive: true });
+      try { symlinkSync(outside, STAMP, 'junction'); } catch (e) { return 'SKIPPED: no link could be made here (' + (e && e.code) + ')'; }
+      const r = msbuild({ ...RDEV, SpixiLeanCss: 'true' });
+      const s = failBuild(r, 'the stamp file spixi-lean.stamp under IntermediateOutputPath=\'' + OBJ_REL + '\' is a link', P);
+      if (r.calls.length) P.push('script calls: ' + r.calls.length + ', want none (the guard stops the build first)');
+      if (readFileSync(outside, 'utf8') !== 'css=true js=false\n') P.push('the file the stamp link points to CHANGED');
+      return s + ' · calls ' + r.calls.length + ' · link target unchanged';
+    } },
+  /* round 2 (r2S-1, --real only): an all-OFF Release build; a HARD link planted at obj/…/spixi-strip/html/spixi.tokens.css to the committed stylesheet. The tokens-only call (the real script) must REPLACE the link by a new file: the build passes, the
+   * committed Raw/html/spixi.tokens.css keeps its bytes, the packaged copy is the stripped one */
+  { id: 'hardlinkoff', label: 'leanfollow r2S-1 (real script): Release, all OFF, a HARD link planted at obj/…/spixi-strip/html/spixi.tokens.css pointing at the committed Raw/html/spixi.tokens.css: the build passes, the committed file keeps its bytes (the script renames a temp file over the link)', real: true,
+    run: (P) => {
+      fresh();
+      restoreRaw();
+      const committed = join(RAW, 'html', 'spixi.tokens.css'), before = readFileSync(committed);
+      mkdirSync(STRIP_DIR, { recursive: true });
+      try { linkSync(committed, join(STRIP_DIR, 'spixi.tokens.css')); } catch (e) { return 'SKIPPED: no hard link could be made here (' + (e && e.code) + ')'; }
+      const r = msbuild({ ...REL });
+      if (!okBuild(r, P)) return 'build failed';
+      if (!readFileSync(committed).equals(before)) P.push('the COMMITTED spixi.tokens.css was rewritten through the hard link');
+      const packed = (r.items.find((it) => it.logical === H + 'spixi.tokens.css') || {}).full;
+      if (!packed || resolve(packed) !== resolve(join(STRIP_DIR, 'spixi.tokens.css'))) P.push('the packaged spixi.tokens.css is not the one of the strip folder');
+      else if (readFileSync(packed).length >= before.length) P.push('the packaged spixi.tokens.css was not stripped (' + readFileSync(packed).length + ' >= ' + before.length + ' bytes)');
+      return 'ok: the build passed, the committed file is byte-equal, the strip folder holds the stripped copy';
+    },
+    after: restoreRaw },
+  { id: 'iopbylink', label: 'leanfollow r1S-1 (real script): Release + dev + Android + SpixiLeanCss=true + IntermediateOutputPath=obj/lnkobj/ where Spixi/obj/lnkobj is a LINK to Resources/Raw/linktarget: the spelling is outside Raw (the csproj tests pass), the REAL script of the tokens-only call refuses the real path (exit 1), the build fails, Resources/Raw gains nothing', real: true,
+    run: (P) => {
+      fresh();
+      restoreRaw();
+      const target = join(RAW, 'linktarget');
+      mkdirSync(target, { recursive: true });
+      mkdirSync(join(SPIXI, 'obj'), { recursive: true });
+      try { symlinkSync(target, join(SPIXI, 'obj', 'lnkobj'), 'junction'); } catch (e) { return 'SKIPPED: no link could be made here (' + (e && e.code) + ')'; }
+      const before = walk(RAW).sort().join('|');
+      const r = msbuild({ ...RDEV, SpixiLeanCss: 'true', IntermediateOutputPath: 'obj/lnkobj/' });
+      const s = failBuild(r, 'exited with code 1', P);
+      if (!/strip-release: REFUSED — the out folder .*is inside the asset folder/.test(r.out)) P.push('the script\'s refusal text is missing from the log');
+      if (r.out.includes('LEAN Release packaging applied')) P.push('the lean success Message appeared');
+      if (walk(RAW).sort().join('|') !== before) P.push('Resources/Raw changed: ' + walk(RAW).filter((f) => !before.split('|').includes(f)).slice(0, 4).join(', '));
+      return s + ' · Resources/Raw unchanged (' + walk(RAW).length + ' files)';
+    },
+    after: restoreRaw },
+  /* leanfollow R2, --real only: an all-OFF build (no lean switch, so no guard) with an IntermediateOutputPath under Resources\\Raw: the tokens-only target is NOT edited and has no test of its
+   * own; its Exec calls the REAL script, which refuses the out folder (exit 1), so the build fails and nothing is written there. The fake script has no such rule: real mode only. */
+  { id: 'rawiopoff', label: 'leanfollow R2 (real script): Release, all OFF, IntermediateOutputPath=Resources\\Raw\\obj\\: the untouched tokens-only target runs the script, the script refuses the out folder (exit 1), the build fails, nothing is written under Resources/Raw', real: true,
+    run: (P) => {
+      fresh();
+      const before = snap();
+      const r = msbuild({ ...REL, IntermediateOutputPath: 'Resources/Raw/obj/' });
+      const s = failBuild(r, 'exited with code 1', P);
+      if (!/strip-release: REFUSED — the out folder .*is inside the asset folder/.test(r.out)) P.push('the script\'s refusal text is missing from the log');
+      if (r.items) P.push('the Build target ran (an item dump exists)');
+      const d = snapDiff(before, snap());
+      if (d.added.length || d.gone.length) P.push('the project folder changed: +[' + d.added.join(', ') + '] -[' + d.gone.join(', ') + ']');
+      const raw = existsSync(RAW) ? walk(RAW).length : 0;
+      if (raw !== W.size) P.push('Resources/Raw is not complete: ' + raw + ' files, want ' + W.size);
+      return s + ' · Resources/Raw ' + raw + '/' + W.size + ' files, nothing new in the project folder';
+    },
+    after: cleanRaw },
   { id: 'outsideiop', label: 'D-5 (a): Release + SpixiLeanCss=true + IntermediateOutputPath = a folder OUTSIDE the project folder (absolute): accepted; every lean file, the tokens-only copy and the stamp live there; nothing new in the project folder',
     run: (P) => {
       fresh();
@@ -625,7 +862,23 @@ const SCENARIOS = [
    * makes the tokens-only strip write <project dir>/spixi-strip/html/spixi.tokens.css and pack THAT copy; the build passes. Pinned exactly as it is
    * (3 new entries, one call, the stray copy packaged), so a change of the legacy path shows here; the folder is removed afterwards. The stale guard
    * skips its test for an empty IntermediateOutputPath, so it adds nothing here. */
-  { id: 'offemptyiop', label: 'LEGACY behaviour — Release, all off, IntermediateOutputPath EMPTY (-p:IntermediateOutputPath=): the untouched tokens-only strip writes spixi-strip/html/ into the project folder and packs that copy; the build passes',
+  /* round 2 (r2S-2): the real script now refuses an out folder inside the project folder outside obj and bin; an EMPTY IntermediateOutputPath in an all-off build (legacy: wrote spixi-strip/html/ beside the project file) is such a folder: the build FAILS in real mode (a fix refuses more, never less). The fake stand-in has no such rule and keeps the legacy row below. */
+  { id: 'offemptyiopreal', real: true, label: 'leanfollow r2S-2 (real script): Release, all off, IntermediateOutputPath EMPTY: the tokens-only call asks for <project>/spixi-strip/html/ (inside the project folder, outside obj and bin): the script refuses (exit 1), the build fails, nothing new in the project folder',
+    run: (P) => {
+      fresh();
+      const STRAY = join(SPIXI, 'spixi-strip');
+      rmSync(STRAY, { recursive: true, force: true });
+      const before = snap();
+      const r = msbuild({ ...REL, IntermediateOutputPath: '' });
+      if (r.status === 0) P.push('the build PASSED: the script wrote into the project folder');
+      if (!/MSB3073/.test(r.out)) P.push('no MSB3073 (script exit) in the output');
+      if (existsSync(STRAY)) P.push('spixi-strip was created in the project folder');
+      const d = snapDiff(before, snap());
+      if (d.added.length) P.push('NEW in the project folder: [' + d.added.join(', ') + ']');
+      rmSync(STRAY, { recursive: true, force: true });
+      return 'FAILS as wanted (exit ' + r.status + ') · new entries in the project folder ' + d.added.length;
+    } },
+  { id: 'offemptyiop', fake: true, label: 'LEGACY behaviour (fake script only) — Release, all off, IntermediateOutputPath EMPTY (-p:IntermediateOutputPath=): the untouched tokens-only strip writes spixi-strip/html/ into the project folder and packs that copy; the build passes',
     run: (P) => {
       fresh();
       const STRAY = join(SPIXI, 'spixi-strip');
@@ -672,6 +925,17 @@ const SCENARIOS = [
     } },
 ];
 
+/* round 3 (r3C-4): the scenarios that run in ONE mode only are frozen by id (b-refusals row 17 reads these two lists from this source and compares them with its own copy): a scenario that silently turns
+ * fake-only / real-only (or both) changes what a mode proves. A scenario marked both fake and real would run in no mode: refused. */
+const FAKE_ONLY = ['dup', 'emptyafterboth', 'failkeepsstamp', 'failnostamp', 'offemptyiop', 'oldscript', 'orphan', 'packedbeltplat', 'packedbeltres', 'rawiopbelt', 'scriptempty', 'scriptfail', 'subdir'];
+const REAL_ONLY = ['hardlinkoff', 'iopbylink', 'offemptyiopreal', 'rawiopoff'];
+{
+  const both = SCENARIOS.filter((s) => s.fake && s.real).map((s) => s.id);
+  if (both.length) die('scenario(s) marked both fake and real (they would run in no mode): ' + both.join(', '));
+  const f = SCENARIOS.filter((s) => s.fake).map((s) => s.id).sort().join(','), r = SCENARIOS.filter((s) => s.real).map((s) => s.id).sort().join(',');
+  if (f !== [...FAKE_ONLY].sort().join(',') || r !== [...REAL_ONLY].sort().join(',')) die('the one-mode scenario sets changed: fake-only [' + f + '] real-only [' + r + '] — update FAKE_ONLY / REAL_ONLY (and b-refusals row 17) on purpose');
+}
+
 writeProject();
 console.log('msbuild-harness: mode ' + (REAL ? 'REAL' : 'FAKE') + ' · dotnet ' + DOTNET.stdout.trim() + ' · csproj ' + CSPROJ + ' · tmp ' + TMP);
 console.log('pieces (file order): ' + ordered.map((p) => p.name).join(' → '));
@@ -681,14 +945,18 @@ let miss = 0;
 for (const s of SCENARIOS) {
   if (ONLY && !ONLY.includes(s.id)) continue;
   if (s.fake && REAL) { rows.push([s.id, 'SKIP', s.label, 'fake mode only']); continue; }
+  if (s.real && !REAL) { rows.push([s.id, 'SKIP', s.label, 'real mode only (the fake script has no out-folder rule)']); continue; }
   const P = [];
   let detail;
   try { detail = s.run(P); } catch (e) { P.push('THROW ' + (e && e.stack || e)); } finally { if (s.after) s.after(); }
   if (P.length) miss++;
-  rows.push([s.id, P.length ? 'MISS' : 'ok', s.label, P.length ? P.join(' ; ') : detail]);
+  const skipped = !P.length && typeof detail === 'string' && detail.startsWith('SKIPPED');   // r2C-7: a scenario that could not make its link is a SKIP, not an ok
+  rows.push([s.id, P.length ? 'MISS' : skipped ? 'SKIP' : 'ok', s.label, P.length ? P.join(' ; ') : detail]);
 }
 console.log('\n| scenario | result | what | key output |\n|---|---|---|---|');
 for (const r of rows) console.log('| ' + r.join(' | ') + ' |');
 console.log('\nmsbuild-harness: ' + (miss ? miss + ' scenario(s) MISSED' : 'every scenario held') + ' (' + rows.filter((r) => r[1] !== 'SKIP').length + ' run, ' + rows.filter((r) => r[1] === 'SKIP').length + ' skipped)');
-if (!KEEP) rmSync(TMP, { recursive: true, force: true }); else console.log('kept: ' + TMP);
+if (!KEEP) { rmSync(TMP, { recursive: true, force: true }); if (LINKED) { rmSync(LINKED_REAL + '-link', { force: true }); rmSync(LINKED_REAL, { recursive: true, force: true }); } } else console.log('kept: ' + TMP);
+/* r1C-3: after the summary, the MISS rows once more as a FAILED: block (the CI annotation step publishes it; the table above puts them mid-log) */
+if (miss) { console.log('\nFAILED:'); for (const r of rows) if (r[1] === 'MISS') console.log('  MISS ' + r[0] + ': ' + String(r[3]).slice(0, 500)); }
 process.exit(miss ? 1 : 0);

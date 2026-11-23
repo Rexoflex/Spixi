@@ -12,8 +12,10 @@
  * and nowhere else.
  *
  * What it does, in a FULL copy (never the working tree, never cp -al):
- *   1. copies the repo (minus .git and node_modules) into a temp dir, symlinks node_modules
- *   2. runs the copy's strip-release.mjs --out over its own Raw/html  (the package)
+ *   1. copies the repo (minus .git and node_modules) into a temp dir, makes the copy a git work tree with no history
+ *      (`git init -q`; the S15 D row asks git), symlinks node_modules, local-nuget and the Ixian-Core sibling (when
+ *      root/../Ixian-Core exists; three rows read it) — every link is removed by itself before the temp folder goes
+ *   2. runs the copy's strip-release.mjs --out <its Raw/html> --in-place over its own Raw/html  (the package)
  *   3. runs THIS tree's strip-release.mjs --check against it            (gate 1, standalone)
  *   4. runs the copy's smoke-test.mjs with SPIXI_PACKAGED_FROM=<this Raw/html>, which
  *      makes the in-suite artifact gate ask gate 1's question instead of build-shells'
@@ -28,7 +30,7 @@
  *         and SPIXI_PACKAGED_LEAN. Some rows are red BY DESIGN on a lean package; the run passes
  *         only when the red rows are exactly the expected ones of
  *         scripts/pins-perflean/lean-expected-reds.json (per active flag, plus its list "copy" =
- *         the rows that are red in EVERY packaged copy because the copy is not a git work tree)
+ *         the rows that are red in EVERY packaged copy; EMPTY since leanfollow: the copy is a git work tree now)
  *         plus the 2 KNOWN — judged by the row lists (judgeLean: the suite's summary must be a
  *         whole line in its own format and agree with the rows) AND by the suite process
  *         (leanVerdict: its exit status must fit that summary; a signal or a spawn error fails),
@@ -37,8 +39,12 @@
  *         rows read Core files and are red in a copy without it. At the end it removes its three
  *         links one by one (the link, never through it) BEFORE the recursive delete of the temp
  *         folder; a link that cannot be removed leaves the folder in place, names it, exit 1.
- *         No lean flag = the run below, unchanged.
- * Takes as long as the suite (~5 min in the container). Record the verdict in DECISIONS
+ *         ★ leanfollow: the PLAIN run (no lean flag) does the same with its links (node_modules, local-nuget, Ixian-Core) and
+ *         makes the copy a git work tree (the lean run too); without root/../Ixian-Core it prints one line and goes on, the three
+ *         Core rows then stay red as in the main suite of such a tree. Its verdict line and exit status are the copy suite's.
+ *         Both paths print ONE line at the start naming the temp folder (what to remove by hand if the run is killed: the links first),
+ *         and take the stop signals (SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGBREAK, SIGALRM, SIGXCPU, SIGVTALRM) and a closed output pipe so that a stop still runs the clean-up (the limits are in the comment above the handler).
+ * Takes as long as the suite (~45 min in the container). Record the verdict in DECISIONS
  * with the release it covers.
  */
 import { mkdtempSync, rmSync, symlinkSync, existsSync, cpSync, mkdirSync } from 'node:fs';
@@ -52,10 +58,43 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const keep = process.argv.includes('--keep');
 // ★ perflean: a lean run takes its own path (leanGate2, below) and exits; without a lean flag the code after this line runs as before
 const LEAN_FLAGS = ['--lean-css', '--lean-js'].filter((f) => process.argv.includes(f));
-if (LEAN_FLAGS.length || process.argv.slice(2).some((a) => a.startsWith('--lean'))) process.exit(leanArgsProblem(process.argv.slice(2)) ? 2 : await leanGate2());
+/* ★ leanfollow (review r1S-3): a stop signal must not end the run WITHOUT its clean-up, which removes the links before the recursive delete.
+   Without a handler Ctrl-C / kill ends this process on the spot, and the temp folder stays with live links to node_modules, local-nuget and
+   the Ixian-Core sibling. With a handler the signal is only NOTED (here) and the run goes on to its own end:
+   - a terminal Ctrl-C reaches the suite (or the strip) too: it dies, its spawnSync / execSync returns, the failure path runs, the finally
+     removes the links, then the folder; the run exits 1;
+   - a signal sent to THIS process alone (kill <pid>) is not seen while a child is running (spawnSync blocks the event loop): the run
+     goes on until the suite ends (up to ~45 minutes), cleans up, and then exits 1 even if the suite passed. It cannot be hurried;
+   - SIGKILL (and a power loss) cannot be handled at all: the line printed at the start tells what to do by hand.
+   The handler is installed before the lean branch (the lean run shares it). */
+const stop = { sig: null };
+// SIGINT (Ctrl-C), SIGTERM (kill), SIGHUP (terminal closed), SIGQUIT (Ctrl-\), SIGBREAK (Windows Ctrl-Break) and the signals whose default action also ends a
+// process (SIGALRM, SIGXCPU, SIGVTALRM). SIGPROF is left out too (V8's CPU profiler, `node --cpu-prof`, samples with it). SIGUSR1 / SIGUSR2 are left out ON PURPOSE: Node reserves SIGUSR1 for its inspector (a listener changes what it does)
+// and nothing sends SIGUSR2 to stop a run. SIGKILL cannot be handled. (On Windows only SIGINT, SIGBREAK, SIGHUP and SIGTERM exist.)
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT', 'SIGBREAK', 'SIGALRM', 'SIGXCPU', 'SIGVTALRM']) process.on(sig, () => { stop.sig = sig; });
+// A closed output pipe (`... | head -1`) raises an 'error' (EPIPE) on stdout / stderr one turn later; unhandled, it ends the process WITHOUT the clean-up. It is noted as a stop
+// (the next stop point throws into the clean-up), and the later writes into the dead pipe are dropped by the same handler.
+for (const st of [process.stdout, process.stderr]) st.on('error', () => { stop.sig = stop.sig || 'EPIPE'; });
+/** A stop point between two phases (no child runs there): one turn of the event loop delivers a signal that came during the phase; if one was noted, throw, so
+ *  that the failure path and the clean-up run (exit 1) instead of the rest of the run (the suite takes ~45 minutes). */
+async function stopPoint() {
+  await new Promise((r) => setImmediate(r));
+  if (stop.sig) throw new Error('stopped by ' + stop.sig + ' — the run was cut short and cleaned up');
+}
+if (LEAN_FLAGS.length || process.argv.slice(2).some((a) => a.startsWith('--lean'))) {
+  const leanCode = leanArgsProblem(process.argv.slice(2)) ? 2 : await leanGate2();
+  await new Promise((r) => setImmediate(r));   // one turn of the event loop: a signal that came while a child ran is delivered now
+  process.exit(stop.sig && leanCode === 0 ? 1 : leanCode);
+}
 const tmp = mkdtempSync(join(tmpdir(), 'spixi-packaged-'));
 const copy = join(tmp, 'Spixi');
 const q = JSON.stringify;
+console.log(stopNote(tmp));
+// ★ leanfollow (the plain run was red on four rows in any copy): every link of the plain run is recorded BEFORE it is made and
+// removed by itself (removeLinks, below) before the temp folder goes — with --keep and on a failure too, as in the lean run
+const plainLinks = [];
+const plainLink = (target, at) => { plainLinks.push(at); symlinkSync(target, at, 'junction'); };
+let plainCode = 0;   // the exit status: the copy suite's (0, or 1 for any other end); set below, applied ONCE after the clean-up (1 also after a stop signal)
 
 try {
   console.log('smoke-packaged: copying the tree → ' + copy);
@@ -63,7 +102,12 @@ try {
   mkdirSync(copy, { recursive: true });
   // #46 auditor B: obj/ bin/ local-nuget/ _to_delete/ are excluded too — hundreds of MB per run on the PC otherwise
   cpSync(root, copy, { recursive: true, filter: (p) => !/[\\/](?:\.git|node_modules|obj|bin|local-nuget|_to_delete)(?:[\\/]|$)/.test(p.slice(root.length)) });
-  if (existsSync(join(root, 'node_modules'))) symlinkSync(join(root, 'node_modules'), join(copy, 'node_modules'), 'junction');
+  // ★ leanfollow: the copy is made a git work tree with NO history (`git init -q`): the one row that asks git
+  // (S15 D, `git check-ignore --no-index`) needs a work tree and then reads the copy's own .gitignore files. Loud when git is missing.
+  await stopPoint();   // plain: after the copy
+  gitInitCopy(copy);
+  await stopPoint();   // plain: after git init
+  if (existsSync(join(root, 'node_modules'))) plainLink(join(root, 'node_modules'), join(copy, 'node_modules'));
   /* ★★ 2026-09-07 (Damir, iOS walk R) — local-nuget/ IS SYMLINKED BACK IN, and leaving it out
      had made GATE 2 UNPASSABLE since Session R added gate 22. That gate hashes the committed
      RocksDB.0.0.42.nupkg; the exclusion above deleted the file from the package, so the pin
@@ -76,19 +120,26 @@ try {
      ★ This is the second gate found dead in one afternoon. The first was strip-release's
      main-module guard. Both were written in the container and never run on a Mac; neither
      had a pin asserting it could run at all. */
-  if (existsSync(join(root, 'local-nuget'))) symlinkSync(join(root, 'local-nuget'), join(copy, 'local-nuget'), 'junction');
+  if (existsSync(join(root, 'local-nuget'))) plainLink(join(root, 'local-nuget'), join(copy, 'local-nuget'));
+  // ★ leanfollow: the Ixian-Core sibling, next to the copy (a link, never a copy: nothing in the suite writes there). Three rows read
+  // Core files through root/../Ixian-Core (#1101 F-1b, A10, S14); in a copy without it they are red, as in a tree without the sibling.
+  if (existsSync(join(root, '..', 'Ixian-Core'))) plainLink(join(root, '..', 'Ixian-Core'), join(tmp, 'Ixian-Core'));
+  else console.log('smoke-packaged: no Ixian-Core sibling at ' + join(root, '..', 'Ixian-Core') + ' — the rows that read the Ixian-Core sibling (three were red without it: #1101 F-1b, A10, S14) will be red');
 
+  await stopPoint();   // plain: after the links
   const copyRaw = join(copy, 'Spixi', 'Resources', 'Raw', 'html');
   console.log('smoke-packaged: stripping the copy in place (the package)');
-  execSync(q(process.execPath) + ' ' + q(join(copy, 'scripts', 'strip-release.mjs')) + ' --out ' + q(copyRaw), { stdio: 'inherit' });
+  execSync(q(process.execPath) + ' ' + q(join(copy, 'scripts', 'strip-release.mjs')) + ' --out ' + q(copyRaw) + ' --in-place', { stdio: 'inherit' });   // the temp COPY, stripped in place
+  await stopPoint();   // plain: after the strip
 
   console.log('smoke-packaged: GATE 1 from the committed tree');
   execSync(q(process.execPath) + ' ' + q(join(root, 'scripts', 'strip-release.mjs')) + ' --check ' + q(copyRaw), { stdio: 'inherit' });
+  await stopPoint();   // plain: after GATE 1
 
   console.log('smoke-packaged: GATE 2 — the suite over the packaged tree (this takes as long as the suite)');
   const r = spawnSync(process.execPath, [join(copy, 'scripts', 'smoke-test.mjs')], {
     cwd: copy,
-    env: { ...process.env, SPIXI_PACKAGED_FROM: join(root, 'Spixi', 'Resources', 'Raw', 'html') },
+    env: gitFreeEnv({ ...process.env, SPIXI_PACKAGED_FROM: join(root, 'Spixi', 'Resources', 'Raw', 'html') }),
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
@@ -98,12 +149,25 @@ try {
   const verdict = lines.reverse().find((l) => /BASELINE OK|smoke test CLEAN/.test(l));
   console.log('smoke-packaged: ' + (verdict || '(no verdict line — see FAILED below)'));
   if (r.stderr && r.status !== 0) console.error(r.stderr.trim().split('\n').slice(-12).join('\n'));
-  if (r.status !== 0) { console.error('smoke-packaged: GATE 2 FAILED — the packaged tree does not pass the suite'); process.exit(1); }
-  console.log('smoke-packaged: GATE 2 OK — the packaged tree passes the suite');
+  // (no process.exit inside the try: it would skip the clean-up below, which removes the links before the recursive delete)
+  if (r.status !== 0) { console.error('smoke-packaged: GATE 2 FAILED — the packaged tree does not pass the suite'); plainCode = 1; }
+  else console.log('smoke-packaged: GATE 2 OK — the packaged tree passes the suite');
+} catch (e) {
+  // a failed step (git missing, a strip or GATE 1 that exits non-zero, a copy error): loud, exit 1, and the clean-up below still runs
+  console.error('smoke-packaged: GATE 2 FAILED — ' + String(e && e.message ? e.message : e).split('\n')[0]);
+  plainCode = 1;
 } finally {
-  if (keep) console.log('smoke-packaged: copy kept at ' + tmp);
+  // the links go in EVERY path (also --keep, a failure, a throw): the link itself, never through it; only then the temp folder
+  const stuck = removeLinks(plainLinks);
+  if (stuck.length) {
+    console.error('smoke-packaged: a link could not be removed — ' + stuck.join(' · ') + '\nsmoke-packaged: the temp folder is NOT deleted (a recursive delete could reach the real tree through the link); remove it by hand: ' + tmp);
+    plainCode = 1;
+  } else if (keep) console.log('smoke-packaged: copy kept at ' + tmp + ' (the links to node_modules, local-nuget and Ixian-Core were removed; the kept copy holds files only)');
   else rmSync(tmp, { recursive: true, force: true });
 }
+// one turn of the event loop first: a signal that came while a child ran is delivered only now, and a loop with nothing to wait for would end without it
+await new Promise((r) => setImmediate(r));   // one turn: a signal that came while the suite ran is seen here
+process.exitCode = stop.sig && plainCode === 0 ? 1 : plainCode;
 
 /* ═══════════════════════ ★ perflean — GATE 2 over a LEAN package ═══════════════════════ */
 
@@ -118,6 +182,31 @@ function leanArgsProblem(argv) {
   if (!bad.length) return false;
   console.error('smoke-packaged: unknown argument(s) in a lean run: ' + bad.map((a) => JSON.stringify(a)).join(' ') + '\nusage: node scripts/smoke-packaged.mjs [--lean-css] [--lean-js] [--keep]');
   return true;
+}
+
+/** ★ leanfollow (r1S-3): the ONE line printed at the start of a run (both paths): where the temp folder is and what to do by hand if the run is killed. */
+function stopNote(dir) {
+  return 'smoke-packaged: temp folder ' + dir + ' — if this run is stopped, remove the links in it first (node_modules, local-nuget, ../Ixian-Core), then the folder';
+}
+
+/** ★ leanfollow: the git variables of the CALLER. An exported GIT_DIR would make `git init -q` re-initialise that repository and would point the
+ *  copy's own `git check-ignore` (S15 D) at it, so the copy's `git init` and the copy's suite run without them (see the list rule inside). */
+function gitFreeEnv(env) {
+  // EVERY name that starts with GIT_ goes (a case-insensitive match: a Windows env is), except GIT_EXEC_PATH (where git itself lives). Why the prefix and
+  // not a list: git has dozens of variables that redirect a repository (GIT_DIR …), re-configure it (GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT with
+  // GIT_CONFIG_KEY_n / GIT_CONFIG_VALUE_n, GIT_CONFIG_GLOBAL / _SYSTEM / _NOSYSTEM, GIT_TEMPLATE_DIR) or change how it finds one (GIT_CEILING_DIRECTORIES,
+  // GIT_DISCOVERY_ACROSS_FILESYSTEM), and a list goes stale; `git init -q` and the suite's `check-ignore --no-index` need none of them.
+  const out = { ...env };
+  for (const k of Object.keys(out)) if (/^GIT_/i.test(k) && k.toUpperCase() !== 'GIT_EXEC_PATH') delete out[k];
+  return out;
+}
+
+/** ★ leanfollow: make the COPY a git work tree with no history (`git init -q`). One row of the suite (S15 D) asks git
+ *  (`git check-ignore --no-index`), which needs a work tree; git then reads the copy's own .gitignore files. Both paths use it.
+ *  Throws (the caller prints it and exits 1) when git is missing or `git init` fails: a quiet skip would bring the red row back. */
+function gitInitCopy(dir) {
+  const r = spawnSync('git', ['init', '-q', '--template='], { cwd: dir, encoding: 'utf8', env: gitFreeEnv(process.env) });
+  if (r.error || r.status !== 0) throw new Error('git init -q failed in the copy (' + dir + '): ' + (r.error ? r.error.message + ' — git must be installed and on the PATH for a packaged run' : 'exit ' + r.status + ' ' + String(r.stderr || '').trim().split('\n')[0]));
 }
 
 /** The KNOWN pre-existers of the copy's suite, read from its source (the array literal at its end). */
@@ -252,6 +341,7 @@ async function leanGate2() {
   const flags = flagsArg.map((f) => f.replace('--lean-', ''));
   const label = flags.join(',');
   const tmp = mkdtempSync(join(tmpdir(), 'spixi-packaged-'));
+  console.log(stopNote(tmp));
   const copy = join(tmp, 'Spixi');
   const rootRaw = join(root, 'Spixi', 'Resources', 'Raw', 'html');
   const fa = flagsArg.map((f) => ' ' + f).join('');
@@ -263,18 +353,23 @@ async function leanGate2() {
     console.log('smoke-packaged: LEAN ' + label + ' — copying the tree → ' + copy);
     mkdirSync(copy, { recursive: true });
     cpSync(root, copy, { recursive: true, filter: (p) => !/[\\/](?:\.git|node_modules|obj|bin|local-nuget|_to_delete)(?:[\\/]|$)/.test(p.slice(root.length)) });
+    await stopPoint();   // lean: after the copy
+    gitInitCopy(copy);   // ★ leanfollow: a git work tree with no history, as in the plain run (S15 D asks git)
     if (existsSync(join(root, 'node_modules'))) link(join(root, 'node_modules'), join(copy, 'node_modules'));
     if (existsSync(join(root, 'local-nuget'))) link(join(root, 'local-nuget'), join(copy, 'local-nuget'));
     // the Ixian-Core sibling (a link, never a copy: nothing in the suite writes there). Three rows read Core files through
     // root/../Ixian-Core (#1101 F-1b, A10, S14) and are red in a copy without it — in the plain run above too.
     if (existsSync(join(root, '..', 'Ixian-Core'))) link(join(root, '..', 'Ixian-Core'), join(tmp, 'Ixian-Core'));
+    await stopPoint();   // lean: after git init and the links
     const copyRaw = join(copy, 'Spixi', 'Resources', 'Raw', 'html');
 
     console.log('smoke-packaged: stripping the copy in place with' + fa + ' (the package)');
     execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(copy, 'scripts', 'strip-release.mjs')) + ' --out ' + JSON.stringify(copyRaw) + ' --in-place' + fa, { stdio: 'inherit' });   // the temp COPY, stripped in place (#46 r2 S-2)
+    await stopPoint();   // lean: after the strip
 
     console.log('smoke-packaged: GATE 1 from the committed tree with' + fa);
     execSync(JSON.stringify(process.execPath) + ' ' + JSON.stringify(join(root, 'scripts', 'strip-release.mjs')) + ' --check ' + JSON.stringify(copyRaw) + fa, { stdio: 'inherit' });
+    await stopPoint();   // lean: after GATE 1
 
     // the Session F rows (smoke-test.mjs, the COPIES table): built ≡ the SHIPPED transform of the source
     console.log('smoke-packaged: the Session F copies, re-checked with the shipped transform');
@@ -300,11 +395,12 @@ async function leanGate2() {
     const xc = spawnSync(process.execPath, [join(root, 'scripts', 'pins-perflean', 'x-parser-crosscheck.mjs'), '--committed', rootRaw, '--packaged', copyRaw, ...flagsArg], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     process.stdout.write(xc.stdout || '');
     if (xc.stderr) process.stderr.write(xc.stderr);
+    await stopPoint();   // lean: after the cross-check
 
     console.log('smoke-packaged: GATE 2 — the suite over the LEAN package (SPIXI_PACKAGED_LEAN=' + label + '; this takes as long as the suite)');
     const r = spawnSync(process.execPath, [join(copy, 'scripts', 'smoke-test.mjs')], {
       cwd: copy,
-      env: { ...process.env, SPIXI_PACKAGED_FROM: rootRaw, SPIXI_PACKAGED_LEAN: label },
+      env: gitFreeEnv({ ...process.env, SPIXI_PACKAGED_FROM: rootRaw, SPIXI_PACKAGED_LEAN: label }),
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     });

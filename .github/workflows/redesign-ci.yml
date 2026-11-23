@@ -88,6 +88,33 @@ jobs:
         set -o pipefail
         node scripts/run-csh.mjs 2>&1 | tee ../csh.log
 
+    # Proves, with two parsers that are not the strip's own scanner (acorn and jsdom), that both lean strips change only
+    # comments and white space: the strip runs in memory over the committed html folder (no package is written) and the
+    # result is compared with the source token by token. Runs repo code only; jsdom is on the npm line above and acorn
+    # comes with the pinned eslint; needs no network. A script acorn cannot read fails, it is never skipped. The time
+    # limit (as the Smoke step has one) makes a hang end as a step failure, so the annotation and upload steps still run.
+    - name: Parser cross-check (lean strips against acorn and jsdom)
+      id: xparser
+      if: ${{ !cancelled() }}
+      timeout-minutes: 10
+      run: |
+        set -eo pipefail
+        node scripts/pins-perflean/x-parser-crosscheck.mjs 2>&1 | tee ../xparser.log
+
+    # Proves, with MSBuild itself, which web files the lean packaging targets of Spixi.csproj pack and which builds they
+    # refuse. A bare project (no workload, no restore). --fake runs a stand-in strip script (1 minute on 2 cores);
+    # --real runs the repo's real strip script and checks what MSBuild would pack (2.5 minutes on 2 cores, measured
+    # 2026-11-18). Runs repo code and the installed .NET SDK only; needs no network (the harness turns the dotnet CLI
+    # telemetry off in its child processes). The time limit is as for the step above.
+    - name: MSBuild harness (the lean packaging targets)
+      id: msbuildh
+      if: ${{ !cancelled() }}
+      timeout-minutes: 10
+      run: |
+        set -eo pipefail
+        node scripts/pins-perflean/msbuild-harness/run.mjs --fake 2>&1 | tee ../msbuild-harness.log
+        node scripts/pins-perflean/msbuild-harness/run.mjs --real 2>&1 | tee -a ../msbuild-harness.log
+
     # Only for a step that itself failed (or was cut by a time limit): the smoke's own FAILED: / ABSENT block and the
     # last 5 lines of that step's log (passing rows left out), at most 10 annotations per step. Nothing is published for
     # a passing step. The 2 KNOWN rows are not in the FAILED: block; after a log that was CUT, the last 5 lines can be
@@ -100,6 +127,8 @@ jobs:
         O_GATE_LOCALES: ${{ steps.gate_locales.outcome }}
         O_SMOKE: ${{ steps.smoke.outcome }}
         O_CSH: ${{ steps.csh.outcome }}
+        O_XPARSER: ${{ steps.xparser.outcome }}
+        O_MSBUILDH: ${{ steps.msbuildh.outcome }}
       run: |
         esc() { local s="${1//'%'/'%25'}"; s="${s//$'\r'/}"; printf '%s' "$s"; }
         publish() {   # $1 = the log's name, $2 = the outcome of the step that wrote it
@@ -118,6 +147,8 @@ jobs:
         publish gate-locales "$O_GATE_LOCALES"
         publish smoke "$O_SMOKE"
         publish csh "$O_CSH"
+        publish xparser "$O_XPARSER"
+        publish msbuild-harness "$O_MSBUILDH"
         true
 
     - name: Upload the logs (on failure)
@@ -128,6 +159,8 @@ jobs:
         path: |
           smoke.log
           csh.log
+          xparser.log
+          msbuild-harness.log
           gate-shells.log
           gate-locales.log
         if-no-files-found: ignore

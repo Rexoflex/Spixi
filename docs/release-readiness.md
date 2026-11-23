@@ -40,6 +40,7 @@ the other open audit rows are T1 rows (S-01 = B-18, C-06 = B-17), the G-3c seed 
 | S10 | Security gate re-run + the BE pack | G-6 · A-5 · A-5.O-08 · A-5.O-09 · A-5.O-11 · A-5.O-34/35 · A-5.O-32 · A-16 · A-3 · G-7 · G-7b · B-2 |
 | S11 | Merge (S13: stray cells removed from this line) | G-8 |
 | S12 | Release builds, store, TestFlight; the per-platform release-candidate walks | C-4 · E-W · E-A · E-I · E-M · E-W2 · E-A2 · E-I2 · E-M3 · E-M4 · E-RV · H-1 · A-15 · G-9a · G-9b · G-9c · G-9d · G-9e · G-9f · G-9g |
+| S12w | The walks and merges of each batch since 2026-11-17 (Windows + Android; feeds E-W and E-A; added by `docsb`) | WK-1743 · WK-1751 · WK-1828 · WK-1829 · WK-DEF · MG-c9d6bf64 · MG-1ad3a44e · MG-338d30f4 |
 | T1 | Parallel: the BE engineer's rows (each says the stage it blocks) | B-1 · B-3 … B-9 · B-11 … B-22 · B-24 … B-34 (S13) |
 | T2 | Parallel: Damir's decisions (each says the stage it blocks) | H-2 … H-6 · H-8 · H-9 · H-11 … H-24 |
 
@@ -239,6 +240,21 @@ L6 opens this stage (#933, #937). The audit rows here are the ruled set in the h
 | G-9f | `PrivacyInfo.xcprivacy` is present, or Damir confirms it is not needed | doc check | Damir | UNKNOWN — no file (inference: App Store review asks for it) | `find Spixi -name PrivacyInfo.xcprivacy` → none |
 | G-9g | TestFlight: a build is uploaded, installs and passes the S2 iPhone rows | walk row | Damir | OPEN | #916 |
 
+## S12w · Walks and merges since 2026-11-17 (Windows + Android; added by batch `docsb`, 2026-11-22)
+
+Each batch since Fix batch 2 was merged; this table records its walk or measurement and its merge (photo1a was measured, not walked; defaultsb is only half-walked). It feeds E-W and E-A (their rule "the last walk of each batch has 0 F" reopens with each batch); the states of E-W and E-A are NOT changed here (a question for the main chat: they still read "DONE through #1095"). Texts: DECISIONS #1743, #1751, #1828, #1829 (the rows of the main chat, `claude/talk-rulings-2026-11-18-afternoon.md`, `-2026-11-18-evening.md`, `-2026-11-22-walk.md`). Rows still owed go to the launch walk: `docs/walk-launch.md`. Apple legs stay with the Apple phase (#1515).
+
+| ID | Criterion — passes when … | Check | Owner | State | Evidence |
+|---|---|---|---|---|---|
+| WK-1743 | Fix batch 2 (`fixb2`: the unread pill, the divider line, the Windows confirms, the sheet height, the tx rows, the Aurora ring) is walked on Windows + Android and every F is fixed or ruled | walk rows (`docs/walk-fixb2.md`) | Damir | DONE — WALK #1743: 10 P · 1 F · 1 N/A (Windows 7 P · 1 F · 1 N/A; Android 3 P). The F, W-1 (the focus ring at open does not show), is ACCEPTED for v1 by Damir; the dials (reset width 440, the tx-row padding) accepted. W-4 (the mini-app confirms, N/A: no mini app with an action) → row LW-APPCONFIRM of the launch walk. Mac / iPhone rows owed to the Apple phase | #1743; `docs/walk-fixb2.md`; `docs/walk-launch.md` LW-APPCONFIRM; merged as `55feaddc` (pull request 15) |
+| WK-1751 | Photo open 1a (`photo1a`): the warm open of the photo chat is under the limit of #1643 (150 ms; target 120 ms) on the Galaxy A52s, measured A / B / A with the adb walk | measurement (device numbers) | us → Damir | DONE — #1751: measured, merged, no walk owed (no screen change); the photo chat is under its limit: Seed 56 `present` 211 / 137 / 207 ms (A / B / A), 137 ms against 150 ms, over the target 120 ms; every other chat under 120 ms; app + renderer memory about 27 MB lower. The page half is in `photo1b` (WALK #1829) | #1751; `claude/device-numbers-2026-11-18-photo1a.md`; merged as `14ae57f2` (pull request 16) |
+| WK-1828 | Fix batch 3 (`fixb3`: a mini-app action before `ixian:onload` is refused "not ready"; "Delete history" empties chat info) is walked on Windows + Android with 0 F | walk rows (`docs/walk-fixb3.md`) | Damir | DONE with one row owed — WALK #1828: 5 P · 0 F · 1 N/A (Windows 3 P · 1 N/A; Android 2 P; the first A-BUILD was N/A because the walk page gave no pack command). W-2 (the chats-list path of "Delete history") was not walked → row LW-DELHIST-LIST of the launch walk | #1828; `docs/walk-fixb3.md`; `docs/walk-launch.md` LW-DELHIST-LIST; merged as `1ad3a44e` (pull request 17) |
+| WK-1829 | The Chat shell batch (`photo1b`: the older-page insert, the lighter photo tile and voice wave, the chat backgrounds) is walked on Windows + Android with 0 F | walk rows (`docs/walk-photo1b.md`) | Damir | OPEN — WALK #1829: 14 P · 1 F · 1 N/A (Windows 7 P · 1 F; Android 7 P · 1 N/A). The F, W-2 (a picture that fails shows a tile with a JPG icon, "0 %" and Cancel, not the file card), is an item: `n-20261122-win-broken-picture-tile-stays-sending` (mechanism first). 🟡 #1763 (the moved floors) confirmed on Windows at W-6. Findings logged: `n-20261122-devseed-voice-clips-not-playable`, `n-20261122-win-drag-drop-files-into-chat`, `n-20261122-dev-log-window-half-row` | #1829; `docs/walk-photo1b.md`; merged as `c9d6bf64` (pull request 19) |
+| WK-DEF | The Defaults batch (`defaultsb`: App lock On and Confirm payments On for a new or restored account; the lock after 1 minute) is walked on Windows + Android; every row is P or N/A with a reason | walk rows (`docs/walk-defaultsb.md`) | Damir | OPEN — not a WALK row yet (half-walked = unwalked, #1472; the note is in the doc of #1829). Android (Damir's marks: 6 P · 2 N/A; A-2, A-3: a fresh account needed); the third leg of A-4 is not in the log. Windows (Damir's marks: 6 P): the log shows W-BUILD, W-1, W-2 (made in the MAIN folder by Delete account, not in the second folder); W-3, W-4, W-9 not shown. Owed rows → LW-DEF-W3, LW-DEF-W4, LW-DEF-A2, LW-DEF-A3, LW-DEF-A4C of the launch walk | the doc of #1829 ("The Defaults batch"); `docs/walk-defaultsb.md`; `docs/walk-launch.md` |
+| MG-c9d6bf64 | Pull request 19 (`work/photo1b`, the Chat shell batch) is merged into `redesign/frontend` by a merge commit (#1505) | git + `redesign-ci` | Damir | DONE — merged 2026-11-22 14:08 (`c9d6bf64`). Walked: WK-1829 | `git log` of `redesign/frontend`; #1829 |
+| MG-1ad3a44e | Pull request 17 (`work/fixb3`, Fix batch 3) is merged into `redesign/frontend` by a merge commit (#1505) | git + `redesign-ci` | Damir | DONE — merged 2026-11-22 16:18 (`1ad3a44e`; the branch had merged `c9d6bf64` first; the Windows compile of `redesign-ci` passed on `bfc991b`). Walked: WK-1828 | `git log`; #1828; `CLAUDE.md` "Where we are now" |
+| MG-338d30f4 | Pull request 18 (`work/defaultsb`, the Defaults batch) is merged into `redesign/frontend` by a merge commit (#1505) | git + `redesign-ci` | Damir | DONE — merged 2026-11-22 18:39 (`338d30f4`; the branch had merged `c9d6bf64` and `1ad3a44e`). NOT fully walked: WK-DEF | `git log`; the doc of #1829 |
+
 ---
 
 ## V · The v1 build list (#1137 / #1138 / #1145 — sessions 5–9; Core stays clean)
@@ -433,7 +449,7 @@ its own criterion row in the stage it blocks).
 | Security / money — BE | B-1 · B-2 · B-3 … B-9 · B-11 … B-22 · B-24 · A-15 |
 | Release blockers in code | C-1 · C-2a · C-2b · C-2e · C-2f · C-2g · C-2h · C-2j · C-2k · C-4 · H-10 · A-19 |
 | Crash-class and memory | D-3 · D-4 · D-5 · D-9 · A-8 · A-11 |
-| Platform walks | E-OW · E-I · E-I2 … E-I7 · E-M · E-M2 · E-M3 · E-M4 · E-W · E-W2 · E-A · E-A2 · E-A3 · E-RV |
+| Platform walks | E-OW · E-I · E-I2 … E-I7 · E-M · E-M2 · E-M3 · E-M4 · E-W · E-W2 · E-A · E-A2 · E-A3 · E-RV · S12w: WK-1743 · WK-1751 · WK-1828 · WK-1829 · WK-DEF · MG-c9d6bf64 · MG-1ad3a44e · MG-338d30f4 |
 | v1 features | F-0b-a · F-0b-b · F-0b-d · F-1 · F-1b · F-2 · F-3 · F-4 · F-5a … F-5d · F-5-SEC · F-5b-a…e · F-6 |
 | Endgame | G-1 · G-1t · G-3a … G-3e · G-4 · G-5 · G-7 · G-7b · G-8 · G-9a … G-9g |
 | Decisions | H-2 … H-6 · H-8 · H-9 · H-11 … H-24 (H-1 = S12 measurement row; H-10 = S6 row; H-7 → J-27) |

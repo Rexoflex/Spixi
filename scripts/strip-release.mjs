@@ -41,6 +41,19 @@
  *   node scripts/strip-release.mjs --stats                print sizes before/after, change nothing
  *   node scripts/strip-release.mjs --stdout <file>        print one stripped file (for a diff)
  *
+ * EVERY --out (plain and lean) refuses a folder that is Spixi/Resources (the whole folder: Raw, Fonts, Images, AppIcon, Splash) or
+ * Spixi/Platforms or inside one of them (the build packs files there as assets), exit 1, nothing written; the one exception is the
+ * source folder Raw/html itself together with --in-place (outFolderRefusal below; smoke-packaged strips its temp copy that way).
+ * Round 2 (r2S-2): an out folder anywhere inside the project folder Spixi/ is refused too, except under Spixi/obj or Spixi/bin (the MAUI default items embed every
+ * `**\*.css` of the project folder: read from the upstream targets, NOT proven by a MAUI build). Both writes (plain and lean) make a temp file with 'wx' and RENAME it over the
+ * target, so a link of any kind (symlink, hard link) at a target is replaced, never written through. LIMIT (r2S-10b): the 'same folder under another name' tests that do not
+ * need a link (letter case, device + inode) work only where the file system gives it: no inode (some exFAT / network drives on Windows) means the inode tests are blind there;
+ * a case-insensitive file system is covered by the inode test, a case-insensitive one without inodes is not.
+ * LIMIT (review round 4): a link planted inside obj or bin that points into the project folder (outside Resources / Platforms) is not refused — the exception is granted when any view says the folder is under obj or bin (a stricter test refused every build of a checkout reached through a linked folder, review round 4); a link into Resources/Raw, Resources or Platforms is still refused. Also recorded, not fixed: a linked checkout with a link inside Raw that points outside (as at the base for the lean path); a write that fails after its temp file was created can leave a partial temp (r4S-5).
+ * --in-place is valid only with --out AND only for that source folder: any other out folder with --in-place is a usage error (exit 2).
+ * A link anywhere in the out path is followed (the real path is tested too); a dangling link is refused; a link or a non-regular file
+ * where a target would be written is refused by the pre-flight of the plain and of the lean write (outPreflight).
+ *
  * The csproj runs `--out $(IntermediateOutputPath)spixi-strip/html` for Release builds and
  * swaps the allowlisted MauiAsset items for the stripped copies (Spixi.csproj, target
  * SpixiStripReleaseHtml). Set the MSBuild property SpixiStripHtml=false to ship the
@@ -182,7 +195,7 @@ const flag = (name) => { const k = args.indexOf(name); return k >= 0 ? (args[k +
 // must not produce a tokens-only output that looks like success). The one change of the no-flag CLI.
 {
   const KNOWN = ['--out', '--check', '--stats', '--stdout', '--lean-css', '--lean-js', '--in-place'];
-  const USAGE = 'strip-release: one of --out <dir> · --check <packagedDir> · --stats · --stdout <file>, optionally with --lean-css and / or --lean-js (and --in-place only with --out and a lean flag)';
+  const USAGE = 'strip-release: one of --out <dir> · --check <packagedDir> · --stats · --stdout <file>, optionally with --lean-css and / or --lean-js (and --in-place only with --out)';
   const modes = [], seenVal = {};
   for (let k = 0; k < args.length; k++) {
     if (args[k] === '--stats') modes.push('--stats');
@@ -199,8 +212,9 @@ const flag = (name) => { const k = args.indexOf(name); return k >= 0 ? (args[k +
   // `--check X --stats` exited 0 without a check, `--check A --check B` checked A only, `--out A --out B` wrote A only.
   for (const [f, c] of Object.entries(seenVal)) if (c > 1) { console.error('strip-release: ' + f + ' given ' + c + ' times (each of --out / --check / --stdout at most once)\n' + USAGE); process.exit(2); }
   if (modes.length > 1) { console.error('strip-release: give exactly one of --out / --check / --stats / --stdout (got ' + modes.join(', ') + ')\n' + USAGE); process.exit(2); }
-  // #46 r2 S-2: --in-place (strip the source folder itself) is a lean --out option only
-  if (args.includes('--in-place') && !(modes[0] === '--out' && (args.includes('--lean-css') || args.includes('--lean-js')))) { console.error('strip-release: --in-place is valid only together with --out <dir> and --lean-css and / or --lean-js\n' + USAGE); process.exit(2); }
+  // #46 r2 S-2: --in-place (strip the source folder itself) is an --out option only. Leanfollow R2: it is valid with ANY --out
+  // (plain or lean), because the plain --out is refused for the source folder too (outFolderRefusal); with no --out it stays a usage error
+  if (args.includes('--in-place') && modes[0] !== '--out') { console.error('strip-release: --in-place is valid only together with --out <dir>\n' + USAGE); process.exit(2); }
 }
 // ★ perflean: a lean mode takes its own branch and exits there. The flags select it; the env
 // SPIXI_PACKAGED_LEAN only when the run IS a --check (the in-suite GATE 1 runs --check with no flag) —
@@ -318,17 +332,34 @@ if (one !== null) {
 const outDir = flag('--out');
 if (outDir !== null) {
   if (!outDir) { console.error('strip-release: --out needs a directory'); process.exit(2); }
-  mkdirSync(outDir, { recursive: true });
+  // leanfollow R2: the same refusal as the lean path (one function), BEFORE anything is created
+  { const why = outFolderRefusal(outDir, { inPlace: args.includes('--in-place') }); if (why) { console.error(why.text); process.exit(why.code); } }
+  // leanfollow round 1 (r1S-2): the same pre-flight as the lean path (one function): a target that is a link or not a regular file (a link to a file of
+  // Resources/Raw would have been written THROUGH), a folder on the way that is a link or a file, an out folder that is a file: refused, nothing written
+  { const pre = outPreflight(resolve(outDir), STRIP_ALLOWLIST); if (pre.length) { console.error(preflightText(pre)); process.exit(1); } }
+  // leanfollow round 2 (r2S-1, r2S-4): the plain write is the lean write in small: resolve(outDir) once, a temp file made with 'wx' (it never existed) next to each target,
+  // read back, then RENAMED over the target — a link of ANY kind at the target (a symlink, a hard link) is replaced, never written through
+  const outAbs = resolve(outDir);
+  mkdirSync(outAbs, { recursive: true });
   for (const f of STRIP_ALLOWLIST) {
     const s = stripped(f);
-    const dest = join(outDir, f);
+    const dest = join(outAbs, f);
     mkdirSync(dirname(dest), { recursive: true });
-    writeFileSync(dest, s, 'utf8');
-    const back = readFileSync(dest, 'utf8');
-    if (back !== s) { console.error('strip-release: SHORT WRITE on ' + dest); process.exit(1); }
+    const tmpName = dest + '.strip-tmp-' + process.pid + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    let made = false;   // r3S-5: only a temp file THIS run created is unlinked (an EEXIST of the 'wx' create leaves the other file alone)
+    try {
+      writeFileSync(tmpName, s, { encoding: 'utf8', flag: 'wx' });
+      made = true;
+      if (readFileSync(tmpName, 'utf8') !== s) throw new Error('SHORT WRITE on ' + tmpName);
+      renameRetry(tmpName, dest);
+    } catch (e) {
+      if (made) { try { unlinkSync(tmpName); } catch (_) { /* gone */ } }
+      console.error('strip-release: WRITE FAILED on ' + dest + ' — ' + (e && e.message)); process.exit(1);
+    }
+    if (readFileSync(dest, 'utf8') !== s) { console.error('strip-release: SHORT WRITE on ' + dest); process.exit(1); }
     console.log(`  ✓ ${f} → ${dest} (${Buffer.byteLength(s, 'utf8')} bytes)`);
   }
-  console.log(`strip-release: ${STRIP_ALLOWLIST.length} file(s) written to ${resolve(outDir)}`);
+  console.log(`strip-release: ${STRIP_ALLOWLIST.length} file(s) written to ${outAbs}`);
   process.exit(0);
 }
 
@@ -450,6 +481,106 @@ function alwaysOnGates(packagedDir, seen = {}) {
   return problems;
 }
 
+/** r3S-4 (UNPROVEN on Windows: written from the documented behaviour, not run there): a rename over a file that another process holds open (a virus scanner, a Visual Studio design-time
+ *  build) can fail on Windows with EPERM / EACCES / EBUSY for a moment. On win32 the rename is tried up to 5 times, 100 ms apart, for those codes; every other platform and every other
+ *  code fails at once. After the last try the original error goes up (the loud failure of the caller). */
+function renameRetry(from, to) {
+  for (let n = 1; ; n++) {
+    try { renameSync(from, to); return; } catch (e) {
+      if (process.platform !== 'win32' || n >= 5 || !e || !['EPERM', 'EACCES', 'EBUSY'].includes(e.code)) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+}
+
+/** ★ leanfollow R2 (review round 5 of Speed lean, r5B-2; widened in round 1, r1S-4) — THE ONE RULE OF EVERY --out (plain and lean). Returns null (allowed) or
+ *  { code, text }: code 1 = REFUSED (the caller prints the text, writes nothing, exits 1), code 2 = a usage error (--in-place with another folder).
+ *  Why: the asset glob of Spixi.csproj is `Resources\Raw\**`, so every file under Spixi/Resources/Raw ships; the MAUI default globs pack Resources\Fonts,
+ *  Resources\Images, Resources\AppIcon, Resources\Splash and, under Spixi/Platforms, the Android Assets and Resources. An out folder there puts extra files into
+ *  the next package (and a lean out folder inside Raw/html is read as source by the next run).
+ *  Refused: the out folder is Spixi/Resources (the WHOLE folder, Raw included) or Spixi/Platforms of the tree this script belongs to, or inside one of them — by
+ *  three tests, each against Spixi/Resources/Raw, Raw/html, Spixi/Resources and Spixi/Platforms: (a) the REAL path (the nearest existing parent resolved, links
+ *  followed: a link OUTSIDE the tree that points into it is caught here, on Linux by this test alone), (b) the path AS WRITTEN (lexical; a link inside the tree
+ *  that points outside gives a real path outside, and the walkers and the glob follow it; the lexical "same" test is part of it), and (c) device + inode of the
+ *  out folder and of every parent (a file system that ignores letter case: `Raw/HTML` is `Raw/html`). `..` counts only as a whole path segment (a folder named
+ *  `..lean` is inside). A dangling link as the out folder or as a parent (lstat walk) is refused too (the mkdir through it would create its target).
+ *  ONE exception: the out folder IS the source folder Raw/html (same tests) AND inPlace (--in-place) is true: smoke-packaged strips its temp COPY in place.
+ *  Without --in-place the source folder is refused too (the gates would be blind afterwards: the stripped files become "the committed tree"). With --in-place
+ *  and ANY OTHER out folder that passed every test above: code 2 (--in-place means "the source folder itself"; a typo must not look like success).
+ *  `lean` only picks the wording of the old lean text. */
+export function outFolderRefusal(outDir, { inPlace = false, lean = false } = {}) {
+  const outAbs = resolve(outDir);
+  const realish = (q) => { const rest = []; let x = q; while (!existsSync(x)) { const up = dirname(x); if (up === x) break; rest.unshift(x.slice(up.length).replace(/^[\\/]/, '')); x = up; } let r = x; try { r = realpathSync(x); } catch (_) { /* keep */ } return join(r, ...rest); };
+  const realOf = (q) => { try { return realpathSync(q); } catch (_) { return q; } };
+  const idOf = (q) => { try { const st = statSync(q, { bigint: true }); return st.ino ? st.dev + ':' + st.ino : null; } catch (_) { return null; } };   // r3S-6: BigInt dev + ino (a 64-bit inode loses bits as a JS number)
+  const outReal = realish(outAbs);
+  const outsideText = (rel) => rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel);
+  // where does the out folder stand against `base` (a folder of this tree)? 'same' | 'inside' | 'outside'
+  const standing = (base) => {
+    const baseReal = realOf(base), baseId = idOf(baseReal);
+    const relReal = relative(baseReal, outReal);
+    if (relReal === '' || (baseId !== null && idOf(outReal) === baseId) || [base, baseReal].some((b) => relative(resolve(b), outAbs) === '')) return 'same';
+    if (!outsideText(relReal)) return 'inside';
+    if ([base, baseReal].some((b) => { const rel = relative(resolve(b), outAbs); return rel !== '' && !outsideText(rel); })) return 'inside';
+    if (baseId !== null) for (let x = dirname(outReal); ; x = dirname(x)) { if (idOf(x) === baseId) return 'inside'; if (dirname(x) === x) break; }
+    return 'outside';
+  };
+  const refuse = (text) => ({ code: 1, text });
+  const assetRoot = join(root, 'Spixi', 'Resources', 'Raw');
+  const html = standing(RAW), raw = standing(assetRoot);
+  if (html === 'same') {
+    if (inPlace) return null;
+    return refuse('strip-release: REFUSED — the out folder ' + outAbs + ' is the source folder; a ' + (lean ? 'lean ' : '') + 'strip in place needs --in-place; nothing was written');
+  }
+  if (html === 'inside') return refuse('strip-release: REFUSED — the out folder ' + outAbs + ' is inside the source folder ' + realOf(RAW) + ' (it would be read as source by the next run, and every file under Resources/Raw ships as an asset); nothing was written');
+  if (raw !== 'outside') return refuse('strip-release: REFUSED — the out folder ' + outAbs + ' is ' + (raw === 'same' ? '' : 'inside ') + 'the asset folder ' + realOf(assetRoot) + ' (the build packs every file under Resources/Raw as an asset: a file written there ships); nothing was written');
+  // r1S-4: the other folders the build packs (MAUI default globs): the whole Resources folder (Fonts, Images, AppIcon, Splash, …) and Platforms (Android Assets / Resources, …)
+  for (const [name, why] of [['Resources', 'Resources\\Fonts, Resources\\Images, Resources\\AppIcon and Resources\\Splash are packed'], ['Platforms', 'Platforms\\Android\\Assets and Platforms\\Android\\Resources are packed']]) {
+    const base = join(root, 'Spixi', name), at = standing(base);
+    if (at !== 'outside') return refuse('strip-release: REFUSED — the out folder ' + outAbs + ' is ' + (at === 'same' ? '' : 'inside ') + 'the packed folder ' + realOf(base) + ' (' + why + ' by the build: a file written there ships); nothing was written');
+  }
+  // round 2 (r2S-2): the MAUI default items also embed every `**\\*.css` of the project folder (MauiCss, minus bin and obj; read from the upstream targets, NOT proven by a MAUI build):
+  // an out folder anywhere inside Spixi/ is refused unless it is under Spixi/obj or Spixi/bin (the exception Raw/html + --in-place came earlier and stays)
+  {
+    const proj = join(root, 'Spixi'), at = standing(proj);
+    // LIMIT (review round 4): the exception is granted when ANY view (real path, path as written, inode) says the folder is under obj or bin. A link planted inside obj or bin that points into the project folder
+    // (outside Resources / Platforms) is therefore not refused; a link into Resources/Raw, Resources or Platforms is still refused. A stricter test (real path AND path as written) refused EVERY build of a
+    // checkout reached through a linked folder (macOS /var -> /private/var, a symlinked home, a Windows junction): `root` is the real path, MSBuild writes --out with the written spelling.
+    if (at !== 'outside' && standing(join(proj, 'obj')) === 'outside' && standing(join(proj, 'bin')) === 'outside') return refuse('strip-release: REFUSED — the out folder ' + outAbs + ' is ' + (at === 'same' ? '' : 'inside ') + 'the project folder ' + realOf(proj) + ' outside obj and bin (the build embeds every .css file of the project folder, and packs the folders above: a file written there can ship); use a folder under Spixi/obj, Spixi/bin or outside the project; nothing was written');
+  }
+  // r1S-8: a dangling link as the out folder or as a parent: mkdir through it would create its target (maybe inside a refused folder)
+  for (let x = outAbs; ; x = dirname(x)) {
+    let st = null;
+    try { st = lstatSync(x); } catch (_) { /* not there: look at the parent */ }
+    if (st) { if (st.isSymbolicLink() && !existsSync(x)) return refuse('strip-release: REFUSED — the out folder ' + outAbs + ' has a link on its way (' + x + ') that points to nothing: the folder it would create cannot be tested; nothing was written'); break; }
+    if (dirname(x) === x) break;
+  }
+  if (inPlace) return { code: 2, text: 'strip-release: --in-place is valid only when --out is the source folder Spixi/Resources/Raw/html of this tree; ' + outAbs + ' is not (a typo must not look like a success); nothing was written' };
+  return null;
+}
+
+/** ★ leanfollow round 1 (r1S-2) — THE ONE PRE-FLIGHT of every --out write (plain and lean; nothing is written before it passes). Returns the problems (empty = fine):
+ *  the out folder exists and is not a directory; a folder on the way up from the out folder to the first existing one is not a directory; a target that exists and
+ *  is a link (a write would go THROUGH it, into a file of Resources/Raw for instance), a directory or another kind of entry; a folder between the out folder and
+ *  a target that is a link or not a directory. `files` = the relative target names. */
+export function outPreflight(outAbs, files) {
+  const pre = [];
+  const lst = (q) => { try { return lstatSync(q); } catch (e) { if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) return null; throw e; } };
+  try {
+    const st0 = existsSync(outAbs) ? statSync(outAbs) : null;
+    if (st0 && !st0.isDirectory()) pre.push(outAbs + ': the out folder is not a directory');
+    if (!st0) for (let x = dirname(outAbs); ; x = dirname(x)) { if (lst(x)) { if (!statSync(x).isDirectory()) pre.push(x + ': is not a directory (on the way to the out folder)'); break; } if (dirname(x) === x) break; }
+    for (const f of files) {
+      const dest = join(outAbs, f);
+      const st = lst(dest);
+      if (st && !st.isFile()) pre.push(f + ': the target is ' + (st.isDirectory() ? 'a directory' : st.isSymbolicLink() ? 'a link' : 'not a regular file'));
+      for (let d = dirname(dest); d.length > outAbs.length; d = dirname(d)) { const sd = lst(d); if (sd && (!sd.isDirectory() || sd.isSymbolicLink())) { pre.push(f + ': ' + d + ' is not a real directory'); break; } }
+    }
+  } catch (e) { pre.push('pre-flight: ' + (e && e.message)); }
+  return pre;
+}
+function preflightText(pre) { return 'strip-release: REFUSED — the out folder cannot take this package:\n  ' + pre.slice(0, 10).join('\n  ') + (pre.length > 10 ? '\n  … +' + (pre.length - 10) : '') + '\nstrip-release: nothing was written'; }
+
 /** The lean branch of the CLI (--lean-css / --lean-js, else SPIXI_PACKAGED_LEAN). Exits. */
 function leanCli(args, flag, mode) {
   const scope = leanScopeOf(mode, { legacyTokensStrip: stripCssComments });   // #1478: tokens.css as today unless lean CSS is on
@@ -502,6 +633,9 @@ function leanCli(args, flag, mode) {
   if (outDir !== null) {
     console.log(modeLine);
     const t0 = performance.now();
+    // 0 · the out folder rule FIRST (leanfollow R2: the same function as the plain --out): a refused folder costs no transform and writes nothing
+    const outAbs = resolve(outDir);
+    { const why = outFolderRefusal(outDir, { inPlace: args.includes('--in-place'), lean: true }); if (why) die(why.code, why.text); }
     // 1 · every transform and every post-condition first, in memory: a failure writes NOTHING
     const plan = [];
     for (const f of inScope) {
@@ -509,45 +643,11 @@ function leanCli(args, flag, mode) {
     }
     // #46 r1 C-4 — the write is two-phase, and a failure never deletes a file this run did not make:
     //   (b) pre-flight · (c) phase 1: every temp file written and read back · (d) phase 2: every rename.
-    // (b) pre-flight: the out folder is a directory (or absent) and NOT a proper sub-folder of Raw/html (out == Raw/html
-    //     is allowed: smoke-packaged strips its copy in place); every target is absent or a regular file; every folder on
-    //     the way from the out folder to a target is absent or a real directory (never a file, never a link out of it).
-    const outAbs = resolve(outDir);
-    const realish = (q) => { const rest = []; let x = q; while (!existsSync(x)) { const up = dirname(x); if (up === x) break; rest.unshift(x.slice(up.length).replace(/^[\\/]/, '')); x = up; } let r = x; try { r = realpathSync(x); } catch (_) { /* keep */ } return join(r, ...rest); };
-    let rawReal = RAW;
-    try { rawReal = realpathSync(RAW); } catch (_) { /* keep */ }
-    const outReal = realish(outAbs);
-    const relToRaw = relative(rawReal, outReal);
-    // #46 r2 S-2: out == the source folder makes the stripped files "the committed tree" of every later gate — only on
-    // request (--in-place: smoke-packaged strips its temp COPY in place; the csproj's out folder is in obj and never is)
-    // #46 r3 B-4 / S "not proven": the path TEXT is not enough — a folder named `..lean` starts with `..` and is inside;
-    // on a file system that ignores letter case (macOS, Windows) `Raw/HTML` is the source folder under another spelling.
-    // So: `..` counts only as a whole path segment, and identity is also taken from the file system (device + inode).
-    const idOf = (q) => { try { const st = statSync(q); return st.ino ? st.dev + ':' + st.ino : null; } catch (_) { return null; } };
-    const rawId = idOf(rawReal);
-    const isSourceDir = relToRaw === '' || (rawId !== null && idOf(outReal) === rawId);
-    const outsideByText = relToRaw === '..' || relToRaw.startsWith('..' + sep) || isAbsolute(relToRaw);
-    let insideById = false;
-    if (rawId !== null && !isSourceDir) { for (let x = dirname(outReal); ; x = dirname(x)) { if (idOf(x) === rawId) { insideById = true; break; } if (dirname(x) === x) break; } }
-    if (isSourceDir && !args.includes('--in-place')) die(1, 'strip-release: REFUSED — the out folder ' + outAbs + ' is the source folder; a lean strip in place needs --in-place; nothing was written');
-    // #46 r4 B-2: the REAL path is not enough either — a link INSIDE the source folder that points out of it gives a real
-    // path outside, and the source walkers (and the csproj's Resources\Raw\** glob) follow such a link: what is written
-    // there is read as source by the next run. So the path AS WRITTEN (lexically, links not resolved) must be outside too.
-    const insideLexically = [RAW, rawReal].some((base) => { const rel = relative(resolve(base), outAbs); return rel !== '' && !(rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)); });
-    if (!isSourceDir && (!outsideByText || insideById || insideLexically)) die(1, 'strip-release: REFUSED — the out folder ' + outAbs + ' is inside the source folder ' + rawReal + ' (it would be read as source by the next run); nothing was written');
-    const pre = [];
-    const lst = (q) => { try { return lstatSync(q); } catch (e) { if (e && e.code === 'ENOENT') return null; throw e; } };
-    try {
-      const st0 = existsSync(outAbs) ? statSync(outAbs) : null;
-      if (st0 && !st0.isDirectory()) pre.push(outAbs + ': the out folder is not a directory');
-      for (const [f] of plan) {
-        const dest = join(outAbs, f);
-        const st = lst(dest);
-        if (st && !st.isFile()) pre.push(f + ': the target is ' + (st.isDirectory() ? 'a directory' : st.isSymbolicLink() ? 'a link' : 'not a regular file'));
-        for (let d = dirname(dest); d.length > outAbs.length; d = dirname(d)) { const sd = lst(d); if (sd && (!sd.isDirectory() || sd.isSymbolicLink())) { pre.push(f + ': ' + d + ' is not a real directory'); break; } }
-      }
-    } catch (e) { pre.push('pre-flight: ' + (e && e.message)); }
-    if (pre.length) die(1, 'strip-release: REFUSED — the out folder cannot take this package:\n  ' + pre.slice(0, 10).join('\n  ') + (pre.length > 10 ? '\n  … +' + (pre.length - 10) : '') + '\nstrip-release: nothing was written');
+    // (b) pre-flight: the out folder was already tested by outFolderRefusal (step 0: not Spixi/Resources/Raw or inside it; out == Raw/html only with
+    //     --in-place: smoke-packaged strips its copy in place); outPreflight: it is a directory (or absent), every target is absent or a regular file; every
+    //     folder on the way from the out folder to a target is absent or a real directory (never a file, never a link out of it).
+    const pre = outPreflight(outAbs, plan.map(([f]) => f));
+    if (pre.length) die(1, preflightText(pre));
     // (c) phase 1: a temp file next to each target, unique to this run (created with 'wx': it never existed), read back
     const tag = '.strip-tmp-' + process.pid + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
     const temps = [];       // the temp files THIS run created — the only files a failure deletes
@@ -575,7 +675,7 @@ function leanCli(args, flag, mode) {
     try {
       for (const [f, s] of plan) {
         const dest = join(outAbs, f);
-        renameSync(dest + tag, dest);
+        renameRetry(dest + tag, dest);
         replaced.push(f);
         if (readFileSync(dest, 'utf8') !== s) throw new Error('read-back mismatch on ' + dest);
       }

@@ -1,0 +1,29 @@
+Component: RocksDbSharp (curiosity-ai/rocksdb-sharp @ f1cf0ba0): vendored source for Mac Catalyst, and the NuGet package RocksDB 0.0.42 whose nuspec names that commit (the licence of NuGet RocksDB 10.4.2.64152 is UNPROVEN, no text for it is claimed here)
+Licence: BSD-2-Clause
+Source of this text: https://raw.githubusercontent.com/curiosity-ai/rocksdb-sharp/f1cf0ba0306fa01b55efa2292c1cc44ee3192b88/LICENSE (same bytes as Spixi/Platforms/MacCatalyst/RocksDbSharp/LICENSE) · upstream SHA-256 d0bd8da8d0c720f8203735f7bbfa1e246b4977f0a02655703ef5ab63a1ad5333
+
+BSD-2-Clause
+
+Copyright (c) 2015, Warren Falk, Copyright (c) 2022, Curiosity GmbH
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

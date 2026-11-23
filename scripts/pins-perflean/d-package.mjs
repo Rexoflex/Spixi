@@ -101,6 +101,21 @@
  * fix-builder X5 (the PARK of P-07, Damir 2026-11-15, DECISIONS 1583 / 1589): SpixiLeanJs on is refused by the guard (`'$(SpixiLeanJs)' != 'false'`), right after the
  * CssFull Error: the cause 'js-parked' stands between 'full' and 'store-word' in the order of `spec`, the invariant is "every lean build is css-only, Android, dev id",
  * rows 4 / 5 hold the js / both builds as refusals, row 7 pins the Condition, row 8 the element. The JS strip code, its pins (rows 12–29) and the script flag stay.
+ * leanfollow item 2 (review round 5 of Speed lean, r5B-1 and r5B-2): the lean target SpixiLeanReleaseHtml gets a FIRST Error `'$(SpixiLeanJs)' != 'false'` (the park again: a target that runs after
+ * the guard could set the property; cause 'js-parked-lean'), and BOTH lean targets get one Error on an IntermediateOutputPath that is Resources\Raw or under it: the guard after its old folder Error
+ * (cause 'raw-iop'), the lean target as a belt after its old folder belt and before RemoveDir (cause 'raw-iop-lean'). The R2 Condition is the property function
+ * `$([MSBuild]::NormalizeDirectory(project, IntermediateOutputPath).StartsWith(`$([MSBuild]::NormalizeDirectory(project, `Resources`, `Raw`))`, System.StringComparison.OrdinalIgnoreCase))`
+ * (accepted by dotnet msbuild 10.0.115; the evaluator models it: both sides normalized, lower-cased, StartsWith; both end in a separator, so Resources/RawX is not under Resources/Raw). The model:
+ * the matrix G (1728 builds: five spellings under Resources/Raw, eight more under Resources / Platforms (round 1, r1S-4), and five of round 2 (r2S-2): obj/ResourcesX/, bin/PlatformsX/ and /p/Spixi2/obj/ are lean builds, ResourcesX/obj/ and Other/x/ (inside the project folder outside obj and bin) are refused), the rule `spec` knows 'raw-iop' after 'iop', the invariants forbid the two belt
+ * causes (the guard always stops first), row 4 holds the neighbours as lean builds, row 5 the refusals (spellings, order against the strip and park texts), rows 7 / 8 the Condition lists and the
+ * element lists (R1 first in the lean target), row 9 the order (park twin, folder belt, R2 belt, all before RemoveDir). The harness proves the real MSBuild behaviour (scenarios r1late, rawiop*,
+ * rawnearmiss, rawiopbelt, rawiopoff); the pin pins-leanfollow/b-refusals holds the script rule and the same elements as text.
+ * leanfollow round 1 (r1S-4, r1S-1): the guard gets a THIRD folder Error right after the Raw one, the lean target a belt of it (causes 'packed-iop' / 'packed-iop-lean'): one Condition, two StartsWith tests joined by `or`
+ * (Resources, Platforms: the MAUI default globs pack Fonts, Images, AppIcon, Splash, Android Assets / Resources). Resources includes Raw, so the Raw Error keeps its own text and comes first. The model: IOP_CLASS has the class
+ * 'packed' (spec: 'packed-iop' right after 'raw-iop'), the matrix G is 1536 builds (18 spellings),
+ * row 4 holds obj/ResourcesX/ and bin/PlatformsX/ (round 2: were ResourcesX/obj/ and PlatformsX/, now inside the project folder outside obj and bin, so refused) as lean builds (were Resources/Raw2/obj/ and Resources/RawX/, now 'packed'), row 5 the refusals, rows 7 / 8 / 9 the Conditions, the element lists (guard 32 entries, lean target 64)
+ * and the order. The lean target also gets two LINK Errors (a link at spixi-lean or spixi-lean\\html, before RemoveDir): their Conditions read the real disk (Exists, GetAttributes), so the evaluator skips them (RUNTIME) and the
+ * rows 7 / 8 / 9 pin their text and place; the harness (linklean, linkhtml) proves the behaviour.
  * KNOWN DIFFERENCES of the evaluator from MSBuild (each on the safe side or on input no row uses): a `\` in a path is a plain character
  * here (MSBuild on Linux reads `obj\..\` as a path; the model does not refuse it, MSBuild does); white space that .NET and JavaScript
  * trim differently (U+00A0, U+2028 at the ends of a stamp line); `Exists(…)` of any file but the stamp is not evaluated; items, the swap
@@ -162,8 +177,16 @@ export default async function (h) {
       if (fn === 'NormalizeDirectory' && !r.endsWith('/')) r += '/';
       return r;
     }), P);
-    if (/\$\(/.test(out)) throw new Error('unknown property function in: ' + s);
-    return out;
+    /* leanfollow R2: the Condition `$([MSBuild]::NormalizeDirectory(a, b).StartsWith(`prefix`, System.StringComparison.OrdinalIgnoreCase))` (the inner NormalizeDirectory of the prefix and every $(X) are expanded above
+     * already): the normalized directory, compared with the prefix by StartsWith, ordinal ignore-case (modelled by lower-casing both); the result is the word true / false */
+    const out2 = out.replace(/\$\(\[MSBuild\]::NormalizeDirectory\(((?:\s*(?:'[^']*'|`[^`]*`)\s*,?)*)\)\.StartsWith\(`([^`]*)`,\s*System\.StringComparison\.OrdinalIgnoreCase\)\)/g, (_, args, prefix) => {
+      const parts = [...args.matchAll(/'([^']*)'|`([^`]*)`/g)].map((m) => (m[1] !== undefined ? m[1] : m[2]));
+      let r = pposix.resolve(...parts.filter((x) => x !== ''));
+      if (!r.endsWith('/')) r += '/';
+      return String(r.toLowerCase().startsWith(prefix.toLowerCase()));
+    });
+    if (/\$\(/.test(out2)) throw new Error('unknown property function in: ' + s);
+    return out2;
   };
   /* MSBuild's comparison (rules 1–3 of the header, verified with dotnet msbuild 10.0.115) */
   const msBool = (s) => { let v = s.toLowerCase(), neg = false; if (v[0] === '!') { neg = true; v = v.slice(1); } return ['true', 'yes', 'on'].includes(v) ? !neg : ['false', 'no', 'off'].includes(v) ? neg : null; };
@@ -236,7 +259,7 @@ export default async function (h) {
   const BODY_EL = new RegExp('<Error\\b' + ATTRS + '\\s*\\/>|<PropertyGroup\\b[^>]*>([\\s\\S]*?)<\\/PropertyGroup>|<ReadLinesFromFile\\b' + ATTRS + '\\s*>([\\s\\S]*?)<\\/ReadLinesFromFile>|<WriteLinesToFile\\b' + ATTRS + '\\s*\\/>', 'g');
   for (const t of targets) t.els = [...t.body.matchAll(BODY_EL)];   // the evaluated elements of each body, in order (parsed once)
   const list = (s) => (s || '').split(';').map((x) => x.trim()).filter(Boolean);
-  const RUNTIME = /@\(|\$\(_SpixiLean(Count|AssetsBefore|AssetsKept|Removed|AssetsAfter)\)/;   // item conditions and the swap counts: not evaluated, the belt pins them
+  const RUNTIME = /@\(|\$\(_SpixiLean(Count|AssetsBefore|AssetsKept|Removed|AssetsAfter)\)|GetAttributes\(/;   // item conditions, the swap counts and (round 1, r1S-1) the two link Errors of the lean target (they read the real disk): not evaluated here, the belt (row 8) and the harness (linklean / linkhtml) pin them
   const TARGET_PROPS = /^(SpixiStripHtmlDir|SpixiStripScript|SpixiLeanHtmlDir|SpixiLeanScript|SpixiLeanFlags|_SpixiLeanStamp|_SpixiLeanState|_SpixiLeanStampWas)$/;
   const RUNTIME_PROPS = /^_SpixiLean(Count|AssetsBefore|AssetsKept|Removed|AssetsAfter)$/;
   const stampPath = (iop) => pposix.resolve(PROJ, ...[iop].filter((x) => x !== ''), STAMP_NAME);   // the obj folder's stamp (for the model disk; the spec does not use it)
@@ -259,6 +282,11 @@ export default async function (h) {
     : /needs the Release packaging strip/.test(text) ? 'strip'
     : /is empty, only white space, or the project folder itself — refusing a lean build/.test(text) ? 'iop'
     : /the project folder itself at target time — refusing to empty/.test(text) ? 'iop-lean'
+    : /is the asset folder Resources\\Raw or inside it — refusing a lean build/.test(text) ? 'raw-iop'
+    : /is the asset folder Resources\\Raw or inside it at target time — refusing to empty/.test(text) ? 'raw-iop-lean'
+    : /is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them — refusing a lean build/.test(text) ? 'packed-iop'
+    : /is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them at target time — refusing to empty/.test(text) ? 'packed-iop-lean'
+    : /SpixiLeanJs='.*' reached the lean target after SpixiLeanGuard had passed/.test(text) ? 'js-parked-lean'
     : 'other:' + text.slice(0, 60);
   const build = (globals, disk = new Map()) => {
     const P = evaluate(globals); const evalKeys = Object.keys(P); P.__disk = disk;
@@ -465,7 +493,8 @@ export default async function (h) {
     jsOffWords: B({ ...RD, SpixiLeanCss: 'true', SpixiLeanJs: '!true' }), jsOff: B({ ...RD, SpixiLeanCss: 'true', SpixiLeanJs: 'OFF' }),
     cssOnJsNo: B({ ...RD, SpixiLeanCss: 'on', SpixiLeanJs: 'no' }), cssYesFullOff: B({ ...RD, SpixiLeanCss: 'YES', SpixiLeanCssFull: 'off' }),
     dbgStripCss: B({ ...D, SpixiStripHtml: 'true', SpixiLeanCss: 'true' }),   // D-5 (c): the rule is SpixiStripHtml, not the configuration
-    iopOutside: B({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: '/elsewhere/obj/' }), iopBelow: B({ ...RD, SpixiLeanCss: 'yes', IntermediateOutputPath: 'build/obj' }),
+    iopResX: B({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'obj/ResourcesX/' }), iopPlatX: B({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'bin/PlatformsX/' }),   // leanfollow R2 (round 1: was Resources/Raw2/obj/ and Resources/RawX/, which are inside Resources now): a folder that only shares the name prefix of Resources / Platforms is not inside it (both end in a separator)
+    iopOutside: B({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: '/elsewhere/obj/' }), iopBelow: B({ ...RD, SpixiLeanCss: 'yes', IntermediateOutputPath: 'obj/build' }),
     sameStamp: B({ ...RD, SpixiLeanCss: 'true' }, disk1(OWN, 'css=true js=false\n')), sameStampYes: B({ ...RD, SpixiLeanCss: 'yes' }, disk1(OWN, 'css=true js=false\r\n')),
     otherObjStamp: B({ ...RD, SpixiLeanCss: 'true' }, disk1(stampPath('obj/Debug/net10.0-android/'), 'css=false js=true\n')),
     cssEscaped: B({ ...RD, SpixiLeanCss: '%74rue' }),
@@ -477,7 +506,7 @@ export default async function (h) {
   const parkedBuilds = {
     js: [B({ ...RD, SpixiLeanJs: 'true' }), 'true'], both: [B({ ...RD, SpixiLeanCss: 'true', SpixiLeanJs: 'true' }), 'true'],
     jsYes: [B({ ...RD, SpixiLeanJs: 'yes' }), 'yes'], jsOn: [B({ ...RD, SpixiLeanJs: 'On' }), 'On'], jsNotFalse: [B({ ...RD, SpixiLeanJs: '!false' }), '!false'],
-    jsEscaped: [B({ ...RD, SpixiLeanJs: '%74rue' }), 'true'], jsBelow: [B({ ...RD, SpixiLeanJs: 'true', IntermediateOutputPath: 'build/obj' }), 'true'],
+    jsEscaped: [B({ ...RD, SpixiLeanJs: '%74rue' }), 'true'], jsBelow: [B({ ...RD, SpixiLeanJs: 'true', IntermediateOutputPath: 'obj/build' }), 'true'],
     jsDebug: [B({ ...D, SpixiStripHtml: 'true', SpixiLeanJs: 'true' }), 'true'], jsDevEscaped: [B({ ...R, SpixiDevCoexist: '%74rue', SpixiLeanJs: 'true' }), 'true'],
     jsOnStamp: [B({ ...RD, SpixiLeanJs: 'true' }, disk1(OWN, 'css=true js=true\n')), 'true'],   // a stamp of an older css + js build does not change the text: the park comes first
   };
@@ -494,7 +523,8 @@ export default async function (h) {
     msbuildWords: lean.cssOnJsNo.outcome === 'built:lean:css' && lean.cssOnJsNo.flags === ' --lean-css' && lean.cssYesFullOff.outcome === 'built:lean:css'
       && ORDER.test(orderOf(lean.cssOnJsNo)),
     debugWithStrip: lean.dbgStripCss.outcome === 'built:lean:css',
-    iopElsewhere: lean.iopOutside.outcome === 'built:lean:css' && lean.iopBelow.outcome === 'built:lean:css' && wrote(lean.iopOutside, '/elsewhere/obj/' + STAMP_NAME, 'css=true js=false') && wrote(lean.iopBelow, PROJ + '/build/obj/' + STAMP_NAME, 'css=true js=false'),
+    iopRawNeighbours: lean.iopResX.outcome === 'built:lean:css' && lean.iopPlatX.outcome === 'built:lean:css',
+    iopElsewhere: lean.iopOutside.outcome === 'built:lean:css' && lean.iopBelow.outcome === 'built:lean:css' && wrote(lean.iopOutside, '/elsewhere/obj/' + STAMP_NAME, 'css=true js=false') && wrote(lean.iopBelow, PROJ + '/obj/build/' + STAMP_NAME, 'css=true js=false'),
     /* D-1: the stamp = the EVALUATED switches (true / True / yes / on / !false → "true"), one write, at the obj folder's stamp path, after the swap */
     stampText: wrote(lean.css, OWN, 'css=true js=false') && wrote(lean.cssCase, OWN, 'css=true js=false') && wrote(lean.jsOffWords, OWN, 'css=true js=false')
       && wrote(lean.cssOnJsNo, OWN, 'css=true js=false') && wrote(lean.cssYesFullOff, OWN, 'css=true js=false'),
@@ -511,6 +541,8 @@ export default async function (h) {
   const NEEDS = /SpixiStripHtml is '.*'.*Configuration=/;
   const WHERE = ' \\(a -p: switch, an environment variable, or a props \\/ \\.user file\\)';
   const IOPRE = (v) => new RegExp('^Spixi lean packaging: IntermediateOutputPath=\'' + v.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '\' is empty, only white space, or the project folder itself — refusing a lean build \\(its output directory would be inside the working tree, beside the sources\\)\\. Leave IntermediateOutputPath to the SDK, or set it to another folder\\.$');
+  const RAWRE = (v) => new RegExp('^Spixi lean packaging: IntermediateOutputPath=\'' + v.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '\' is the asset folder Resources\\\\Raw or inside it — refusing a lean build \\(the asset glob packs every file under Resources\\\\Raw, so a file written there ships in the next package\\)\\. Leave IntermediateOutputPath to the SDK, or set it to another folder\\.$');
+  const PACKEDRE = (v) => new RegExp('^Spixi lean packaging: IntermediateOutputPath=\'' + v.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '\' is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them — refusing a lean build \\(the build packs files under Resources, for example Fonts, Images, AppIcon and Splash, and under Platforms, for example Android Assets and Resources, so a file written there ships in the next package\\)\\. Leave IntermediateOutputPath to the SDK, or set it to another folder\\.$');
   const WIPE = 'Delete Spixi\\\\obj and Spixi\\\\bin \\(and the publish folder\\), then build again; only GATE 1 on the deployed folder proves a package\\.$';
   const CHANGED = (was, now) => new RegExp('^Spixi lean packaging: the lean switches changed in this obj folder: ' + OWN.replace(/[.\\/]/g, '\\$&') + ' says \'' + was + '\', this build is \'' + now + '\'\\. The bin or publish folder can still hold the files of the earlier build \\(a copy by timestamp keeps them\\)\\. ' + WIPE);
   const STALE = new RegExp('^Spixi lean packaging: every lean switch is off, but ' + OWN.replace(/[.\\/]/g, '\\$&') + ' exists: a LEAN build ran in this obj folder, and the bin or publish folder can still hold its lean files \\(a copy by timestamp keeps them\\)\\. ' + WIPE);
@@ -596,6 +628,30 @@ export default async function (h) {
     iopEmptyJsYes: refuse({ ...RD, SpixiLeanCss: 'yes', IntermediateOutputPath: '' }, 'iop', /is empty, only white space, or the project folder itself — refusing a lean build/),
     iopEmptyDebug: refuse({ ...D, SpixiLeanCss: 'true', IntermediateOutputPath: '' }, 'strip', /needs the Release packaging strip/),   // the guard's IntermediateOutputPath Error comes after the user's real mistake
     iopEmptyTypo: refuse({ ...R, SpixiLeanJs: 'tru', IntermediateOutputPath: '' }, 'typo-js', /SpixiLeanJs='tru'/),
+    /* leanfollow R2 (review round 5, r5B-2): an IntermediateOutputPath under Resources/Raw is refused by the guard, in every spelling, before the strip targets run */
+    rawIop: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'Resources/Raw/obj/' }, 'raw-iop', RAWRE('Resources/Raw/obj/')),
+    rawIopCase: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'RESOURCES/raw/Obj/' }, 'raw-iop', RAWRE('RESOURCES/raw/Obj/')),
+    rawIopDetour: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: '../Spixi/Resources/Raw/x/' }, 'raw-iop', RAWRE('../Spixi/Resources/Raw/x/')),
+    rawIopSelf: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'Resources/Raw' }, 'raw-iop', RAWRE('Resources/Raw')),
+    rawIopAbs: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: PROJ + '/Resources/Raw/obj/' }, 'raw-iop', RAWRE(PROJ + '/Resources/Raw/obj/')),
+    rawIopEscaped: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: '%52esources/Raw/obj/' }, 'raw-iop', RAWRE('Resources/Raw/obj/')),   // MSBuild unescapes %52 to R
+    rawIopDebug: refuse({ ...D, SpixiLeanCss: 'true', IntermediateOutputPath: 'Resources/Raw/obj/' }, 'strip', /needs the Release packaging strip/),   // the folder Error comes after the user's real mistake
+    rawIopParked: refuse({ ...RD, SpixiLeanJs: 'true', IntermediateOutputPath: 'Resources/Raw/obj/' }, 'js-parked', PARKRE('true')),
+    /* leanfollow round 1 (r1S-4): the other packed folders; Resources/Raw2 (was a neighbour of Raw, now inside Resources) gets the packed text, Raw keeps its own */
+    packedFonts: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'Resources/Fonts/obj/' }, 'packed-iop', PACKEDRE('Resources/Fonts/obj/')),
+    packedResSelf: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'RESOURCES' }, 'packed-iop', PACKEDRE('RESOURCES')),
+    packedDetour: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: '../Spixi/Resources/Images/x/' }, 'packed-iop', PACKEDRE('../Spixi/Resources/Images/x/')),
+    packedRaw2: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'Resources/Raw2/obj/' }, 'packed-iop', PACKEDRE('Resources/Raw2/obj/')),
+    packedPlat: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'Platforms/Android/obj/' }, 'packed-iop', PACKEDRE('Platforms/Android/obj/')),
+    packedPlatSelf: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'platforms' }, 'packed-iop', PACKEDRE('platforms')),
+    packedPlatAbs: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: PROJ + '/Platforms/x/' }, 'packed-iop', PACKEDRE(PROJ + '/Platforms/x/')),
+    /* round 2 (r2S-2): inside the project folder outside obj and bin */
+    packedProjX: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'ResourcesX/obj/' }, 'packed-iop', PACKEDRE('ResourcesX/obj/')),
+    packedProjOther: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: 'Other/x/' }, 'packed-iop', PACKEDRE('Other/x/')),
+    packedProjAbs: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: PROJ + '/build/obj' }, 'packed-iop', PACKEDRE(PROJ + '/build/obj')),
+    packedDebug: refuse({ ...D, SpixiLeanCss: 'true', IntermediateOutputPath: 'Platforms/Android/obj/' }, 'strip', /needs the Release packaging strip/),   // the user's real mistake comes first
+    packedParked: refuse({ ...RD, SpixiLeanJs: 'true', IntermediateOutputPath: 'Platforms/Android/obj/' }, 'js-parked', PARKRE('true')),
+    rawIopNotEmpty: refuse({ ...RD, SpixiLeanCss: 'true', IntermediateOutputPath: '' }, 'iop', /is empty, only white space/),   // the old folder Error stays first
     /* D-1: the stamp */
     stampOther: refuse({ ...RD, SpixiLeanCss: 'true' }, 'stamp', CHANGED('css=true js=true', 'css=true js=false'), disk1(OWN, 'css=true js=true\n')),
     stampOtherYes: refuse({ ...RD, SpixiLeanCss: 'yes' }, 'stamp', CHANGED('css=false js=true', 'css=true js=false'), disk1(OWN, 'css=false js=true\n')),
@@ -621,7 +677,14 @@ export default async function (h) {
    * values are classified by a TABLE (not by the evaluator's path model). The stamp is given as a state of THIS obj folder. */
   const ON = new Set(['true', 'yes', 'on', '!false', '!no', '!off']), OFF = new Set(['false', 'no', 'off', '!true', '!yes', '!on']);
   const word = (v) => { const x = String(v === undefined ? 'false' : v).toLowerCase(); return ON.has(x) ? 'on' : OFF.has(x) ? 'off' : 'other'; };
-  const IOP_CLASS = { 'obj/Release/net10.0-android/': 'ok', '/elsewhere/obj/': 'ok', '': 'empty', ' ': 'blank', '.': 'project', 'obj/../': 'project' };
+  const IOP_CLASS = { 'obj/Release/net10.0-android/': 'ok', '/elsewhere/obj/': 'ok', '': 'empty', ' ': 'blank', '.': 'project', 'obj/../': 'project',
+    /* leanfollow R2: a folder under (or equal to) Resources/Raw is 'raw' however it is spelled (case, ../Spixi/ detour, no trailing separator, absolute); a neighbour that only shares the name prefix is 'ok' */
+    'Resources/Raw/obj/': 'raw', 'RESOURCES/raw/Obj/': 'raw', '../Spixi/Resources/Raw/x/': 'raw', 'Resources/Raw': 'raw', '/p/Spixi/Resources/Raw/obj/': 'raw',
+    /* round 1 (r1S-4): the whole Resources folder and Platforms are 'packed' (Raw is the more specific class: its own Error comes first); only a neighbour that shares the name prefix of Resources / Platforms is 'ok' */
+    'Resources/Raw2/obj/': 'packed', 'Resources/RawX/': 'packed', 'Resources/Fonts/obj/': 'packed', 'RESOURCES': 'packed', '../Spixi/Resources/Images/x/': 'packed', 'Platforms/Android/obj/': 'packed', 'PLATFORMS': 'packed', '/p/Spixi/Platforms/x/': 'packed',
+    'obj/ResourcesX/': 'ok', 'bin/PlatformsX/': 'ok', '/p/Spixi2/obj/': 'ok',
+    /* round 2 (r2S-2): inside the project folder but not under obj / bin is 'packed' too (the MAUI default items embed every .css of the project folder); outside it, and under obj / bin, is 'ok' */
+    'ResourcesX/obj/': 'packed', 'Other/x/': 'packed' };
   const spec = (g, stamp) => {   // stamp: null = none in this obj folder (a stamp elsewhere = null), else its text
     const cfg = String(g.Configuration).toLowerCase();
     const css = word(g.SpixiLeanCss), js = word(g.SpixiLeanJs), full = word(g.SpixiLeanCssFull);
@@ -651,7 +714,9 @@ export default async function (h) {
     const appId = g.ApplicationId !== undefined ? String(g.ApplicationId) : ((devEarly === '' ? 'off' : word(devEarly)) === 'on' && tf.includes('-android') ? 'com.ixilabs.spixi.dev' : 'com.ixilabs.spixi');
     if (appId.toLowerCase() !== 'com.ixilabs.spixi.dev') return 'app-id';
     if (stripV !== 'true') return 'strip';
-    if (iop !== 'ok') return 'iop';
+    if (iop !== 'ok' && iop !== 'raw' && iop !== 'packed') return 'iop';
+    if (iop === 'raw') return 'raw-iop';   // leanfollow R2: the guard's second folder Error, after the first
+    if (iop === 'packed') return 'packed-iop';   // round 1 (r1S-4): the third, after the Raw one
     const now = 'css=' + (css === 'on') + ' js=' + (js === 'on');
     if (stamp !== null && stamp.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(';') !== now) return 'stamp';
     return 'built:lean:' + [css === 'on' ? 'css' : '', js === 'on' ? 'js' : ''].filter(Boolean).join(',');
@@ -668,7 +733,8 @@ export default async function (h) {
     if (b.outcome !== want) mism.push(tag + ' -> ' + b.outcome + ' (rule: ' + want + ') [' + b.trace.join(' > ') + ']');
     const at = (x) => b.trace.indexOf(x);
     if (b.trace.includes('run:SpixiLeanReleaseHtml') && !(at('run:SpixiLeanGuard') >= 0 && at('run:SpixiLeanGuard') < at('run:SpixiLeanReleaseHtml') && at('run:SpixiStripReleaseHtml') >= 0 && at('run:SpixiStripReleaseHtml') < at('run:SpixiLeanReleaseHtml'))) inv.push(tag + ' lean ran without guard then strip before it');
-    if (b.stopped && ['typo-css', 'typo-js', 'full', 'js-parked', 'store-word', 'dev-word', 'store', 'dev', 'not-android', 'app-id', 'strip', 'iop', 'stamp', 'stale'].includes(b.stopped.cause) && (b.trace.includes('run:SpixiStripReleaseHtml') || b.trace.includes('run:SpixiLeanReleaseHtml'))) inv.push(tag + ' node would have started in a build the guard refuses');
+    if (b.stopped && ['typo-css', 'typo-js', 'full', 'js-parked', 'store-word', 'dev-word', 'store', 'dev', 'not-android', 'app-id', 'strip', 'iop', 'raw-iop', 'packed-iop', 'stamp', 'stale'].includes(b.stopped.cause) && (b.trace.includes('run:SpixiStripReleaseHtml') || b.trace.includes('run:SpixiLeanReleaseHtml'))) inv.push(tag + ' node would have started in a build the guard refuses');
+    if (b.stopped && (b.stopped.cause === 'raw-iop-lean' || b.stopped.cause === 'packed-iop-lean' || b.stopped.cause === 'js-parked-lean')) inv.push(tag + ' the lean target\'s own belt (' + b.stopped.cause + ') fired: the guard did not stop the build first');
     if (b.stopped && b.stopped.cause === 'iop-lean') inv.push(tag + ' the lean target\'s own IntermediateOutputPath belt fired: the tokens-only strip has already written into the project folder');
     if (b.stopped && b.stopped.cause === 'gate' && b.trace.some((x) => /^run:(SpixiLeanGuard|SpixiLeanStaleGuard|SpixiStripReleaseHtml|SpixiLeanReleaseHtml)$/.test(x))) inv.push(tag + ' gate refused but a later target ran');
     /* the stamp: written exactly once by a passing lean build (its obj folder, the evaluated switches), never otherwise */
@@ -739,8 +805,18 @@ export default async function (h) {
   F = pick(F, 'TargetFramework', [undefined, 'net10.0-android', 'net10.0-ios']);
   F = pick(F, 'SpixiStoreRelease', [undefined, 'true']);
   for (const g of F) runCase(g, null);
-  const nB = Bm.length * STAMPS.length, nBuilds = A.length + C.length + nB + E.length + F.length;
-  ok(mism.length === 0 && inv.length === 0 && A.length === 27648 && C.length === 5184 && nB === 27648 && E.length === 3024 && F.length === 2160 && ['built:lean', 'dev', 'dev-word', 'store-word', 'store', 'not-android', 'app-id', 'stamp', 'stale', 'iop', 'gate'].every((k) => seen[k] > 0),
+  /* G — leanfollow R2: the IntermediateOutputPath under Resources/Raw (six spellings) and two neighbours, × Configuration × SpixiStripHtml × the lean switches × the design-time build × the dev value, no stamp */
+  let G = [{ TargetFramework: ANDROID }];
+  G = pick(G, 'Configuration', ['Debug', 'Release']);
+  G = pick(G, 'SpixiStripHtml', [undefined, 'true']);
+  G = pick(G, 'SpixiLeanCss', [undefined, 'true']);
+  G = pick(G, 'SpixiLeanJs', [undefined, 'true', 'no']);
+  G = pick(G, 'DesignTimeBuild', [undefined, 'true']);
+  G = pick(G, 'SpixiDevCoexist', [undefined, 'true']);
+  G = pick(G, 'IntermediateOutputPath', ['Resources/Raw/obj/', 'RESOURCES/raw/Obj/', '../Spixi/Resources/Raw/x/', 'Resources/Raw', '/p/Spixi/Resources/Raw/obj/', 'Resources/Raw2/obj/', 'Resources/RawX/', 'Resources/Fonts/obj/', 'RESOURCES', '../Spixi/Resources/Images/x/', 'Platforms/Android/obj/', 'PLATFORMS', '/p/Spixi/Platforms/x/', 'obj/ResourcesX/', 'bin/PlatformsX/', '/p/Spixi2/obj/', 'ResourcesX/obj/', 'Other/x/']);
+  for (const g of G) runCase(g, null);
+  const nB = Bm.length * STAMPS.length, nBuilds = A.length + C.length + nB + E.length + F.length + G.length;
+  ok(mism.length === 0 && inv.length === 0 && A.length === 27648 && C.length === 5184 && nB === 27648 && E.length === 3024 && F.length === 2160 && G.length === 1728 && ['built:lean', 'dev', 'dev-word', 'store-word', 'store', 'not-android', 'app-id', 'stamp', 'stale', 'iop', 'raw-iop', 'packed-iop', 'gate'].every((k) => seen[k] > 0),
     T + ' (6) matrices — A ' + A.length + ' builds (Configuration × SpixiStripHtml × SpixiLeanCss × SpixiLeanJs × SpixiLeanCssFull × SpixiStoreRelease {unset, true, 1, \'true \'} × SpixiDevCoexist {unset, true, yes, false, 1, \'true \'}) + C ' + C.length + ' (× DesignTimeBuild × 6 IntermediateOutputPath values) + B ' + nB + ' with a stamp (6 stamp states) + F ' + F.length + ' (Configuration × SpixiStripHtml × SpixiLeanCss × LateDev {unset, true, false: SpixiDevCoexist set by a file imported after the body} × SpixiDevCoexist × a global ApplicationId {unset, production, other, upper-case dev, dev} × TargetFramework × SpixiStoreRelease) + E ' + E.length + ' (Configuration × SpixiStripHtml × SpixiLeanCss × SpixiLeanJs × SpixiLeanCssFull × SpixiStoreRelease × SpixiDevCoexist × TargetFramework {unset, \'\', android, android35.0, ios, maccatalyst, windows}) = ' + nBuilds + ', each equal to the written-out rule (a switch is on / off by MSBuild\'s boolean words true, yes, on / false, no, off in any case or negated with !; the store gate first; a design-time build = today; all off = tokens-only or nothing, or the stale Error when THIS obj folder holds a stamp (not for an empty / white-space IntermediateOutputPath); else the guard refuses a non-boolean lean value / CssFull / a store or dev value that is not a boolean word / a store build / a build that is not a dev build / a build whose TargetFramework is not Android / a build whose evaluated ApplicationId is not the dev id (a late SpixiDevCoexist, a global ApplicationId) / no-strip / an empty, white-space or project-folder IntermediateOutputPath / a stamp of other switches, in that order; else lean); in each the lean body ran only after the guard and the tokens-only strip, node never started in a refused build, the stamp was written once by each passing lean build and by no other build, and every lean build has the dev app id of an Android build; outcomes ' + JSON.stringify(seen) + ' — ' + (mism.length ? mism.length + ' mismatch(es), first: ' + mism.slice(0, 2).join(' || ') : 'no mismatch') + (inv.length ? ' · invariants: ' + inv.length + ', first: ' + inv.slice(0, 2).join(' || ') : ''));
 
   /* ================= row 7 — the open tags, the order and the hooks in the file ================= */
@@ -754,6 +830,11 @@ export default async function (h) {
     SpixiLeanReleaseHtml: '<Target Name="SpixiLeanReleaseHtml" BeforeTargets="PrepareForBuild" DependsOnTargets="SpixiLeanGuard;SpixiStripReleaseHtml" Condition="\'$(DesignTimeBuild)\' != \'true\' and \'$(SpixiStripHtml)\' == \'true\' and (\'$(SpixiLeanCss)\' == \'true\' or \'$(SpixiLeanJs)\' == \'true\')">',
   };
   const IOP_COND = '\'$(IntermediateOutputPath.Trim())\' == \'\' or \'$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`))\' == \'$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))\'';
+  const RAW_COND = '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`, `Raw`))`, System.StringComparison.OrdinalIgnoreCase))';   // leanfollow R2 (r5B-2): the normalized IntermediateOutputPath starts with the normalized Resources\\Raw (ordinal, ignore case) — the guard's Error and the lean target's belt
+  const SW = (dir) => '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`' + (dir ? ', `' + dir + '`' : '') + '))`, System.StringComparison.OrdinalIgnoreCase))';
+  const PACKED_COND = SW('Resources') + ' or ' + SW('Platforms') + ' or (' + SW() + ' and !' + SW('obj') + ' and !' + SW('bin') + ')';   // leanfollow round 1 (r1S-4): the whole Resources folder and Platforms (the MAUI default globs pack Fonts, Images, AppIcon, Splash, Android Assets / Resources): the guard's third folder Error and the lean target's belt
+  const NP = (...parts) => '$([MSBuild]::NormalizePath(' + ['$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', ...parts].map((x) => '`' + x + '`').join(', ') + '))';
+  const LINK_COND = (...parts) => 'Exists(\'' + NP(...parts) + '\') and $([System.IO.File]::GetAttributes(`' + NP(...parts) + '`).ToString().Contains(`ReparsePoint`))';   // round 1 (r1S-1): a link at spixi-lean / spixi-lean\html is refused before RemoveDir
   const DEV_COND = '\'$(SpixiDevCoexist)\' != \'true\'';
   const PARK_COND = '\'$(SpixiLeanJs)\' != \'false\'';   // the PARK of P-07
   const APPID_COND = '\'$(ApplicationId)\' != \'com.ixilabs.spixi.dev\'';   // r4 B-1: the guarantee itself, tested on the id as it was DECIDED (when the project file was read)
@@ -765,7 +846,9 @@ export default async function (h) {
     hooks: names.every((n) => tgt(n) && tgt(n).a.BeforeTargets === 'PrepareForBuild'),
     openTags: Object.entries(OPEN).every(([n, o]) => tgt(n) && tgt(n).open === o),
     depends: !!leanT && JSON.stringify(list(leanT.a.DependsOnTargets)) === JSON.stringify(['SpixiLeanGuard', 'SpixiStripReleaseHtml']),
-    guardErrors: JSON.stringify(errorsOf(guardT).map((a) => a.Condition)) === JSON.stringify(['\'$(SpixiLeanCss)\' != \'true\' and \'$(SpixiLeanCss)\' != \'false\'', '\'$(SpixiLeanJs)\' != \'true\' and \'$(SpixiLeanJs)\' != \'false\'', '\'$(SpixiLeanCssFull)\' != \'false\'', PARK_COND, '\'$(SpixiStoreRelease)\' != \'\' and \'$(SpixiStoreRelease)\' != \'true\' and \'$(SpixiStoreRelease)\' != \'false\'', '\'$(SpixiDevCoexist)\' != \'\' and \'$(SpixiDevCoexist)\' != \'true\' and \'$(SpixiDevCoexist)\' != \'false\'', '\'$(SpixiStoreRelease)\' == \'true\'', DEV_COND, ANDROID_COND, APPID_COND, '\'$(SpixiStripHtml)\' != \'true\'', IOP_COND, 'Exists(\'$(_SpixiLeanStamp)\') and \'$(_SpixiLeanStampWas)\' != \'$(_SpixiLeanState)\'']),
+    guardErrors: JSON.stringify(errorsOf(guardT).map((a) => a.Condition)) === JSON.stringify(['\'$(SpixiLeanCss)\' != \'true\' and \'$(SpixiLeanCss)\' != \'false\'', '\'$(SpixiLeanJs)\' != \'true\' and \'$(SpixiLeanJs)\' != \'false\'', '\'$(SpixiLeanCssFull)\' != \'false\'', PARK_COND, '\'$(SpixiStoreRelease)\' != \'\' and \'$(SpixiStoreRelease)\' != \'true\' and \'$(SpixiStoreRelease)\' != \'false\'', '\'$(SpixiDevCoexist)\' != \'\' and \'$(SpixiDevCoexist)\' != \'true\' and \'$(SpixiDevCoexist)\' != \'false\'', '\'$(SpixiStoreRelease)\' == \'true\'', DEV_COND, ANDROID_COND, APPID_COND, '\'$(SpixiStripHtml)\' != \'true\'', IOP_COND, RAW_COND, PACKED_COND, LINK_COND('spixi-lean.stamp'), 'Exists(\'$(_SpixiLeanStamp)\') and \'$(_SpixiLeanStampWas)\' != \'$(_SpixiLeanState)\'']),
+    /* leanfollow R1 / R2: the lean target's Errors in order are: the park twin FIRST (before the folder belt and RemoveDir), the old folder belt, the R2 belt, then the existing ones; it is the FIRST element of the body */
+    leanFirstErrors: JSON.stringify(errorsOf(leanT).slice(0, 6).map((a) => a.Condition)) === JSON.stringify([PARK_COND, IOP_COND, RAW_COND, PACKED_COND, LINK_COND('spixi-lean'), LINK_COND('spixi-lean', 'html')]) && !!leanT && leanT.body.trimStart().startsWith('<Error Condition="' + PARK_COND + '"'),
     storeSameAsGate: !!tgt('SpixiStoreReleaseGate') && tgt('SpixiStoreReleaseGate').a.Condition === '\'$(SpixiStoreRelease)\' == \'true\'' && errorsOf(guardT).filter((a) => a.Condition === '\'$(SpixiStoreRelease)\' == \'true\'').length === 1,
     /* r2 S-1: the dev test of the guard is the NEGATION of the csproj's own app-id test (the same comparison text), so both agree for every spelling */
     devSameAsAppId: (() => { const ids = [...body.matchAll(/<(ApplicationId|ApplicationTitle|DefineConstants) Condition="'\$\(SpixiDevCoexist\)' == 'true'( and [^"]*)?">/g)].length; return ids === 3 && errorsOf(guardT).filter((a) => a.Condition === DEV_COND).length === 1 && errorsOf(tgt('SpixiStoreReleaseGate')).some((a) => a.Condition === '\'$(SpixiDevCoexist)\' == \'true\''); })(),
@@ -777,7 +860,7 @@ export default async function (h) {
     oneStampFormula: !!guardT && guardT.body.includes('<_SpixiLeanStamp>$([MSBuild]::NormalizePath(\'$(MSBuildProjectDirectory)\', \'$(IntermediateOutputPath)\', \'spixi-lean.stamp\'))</_SpixiLeanStamp>') && count(cs, '<_SpixiLeanStamp>') === 1,
   };
   ok(Object.values(r7).every(Boolean),
-    T + ' (7) open tags and order — in the file SpixiStoreReleaseGate < SpixiLeanGuard < SpixiLeanStaleGuard < SpixiStripReleaseHtml < SpixiLeanReleaseHtml (positions ' + at5.join(' < ') + '), all five BeforeTargets="PrepareForBuild", the EXACT open tag of the three lean targets (every attribute: the DesignTimeBuild test, the Conditions, DependsOnTargets="SpixiLeanGuard;SpixiStripReleaseHtml", no Inputs / Outputs), the thirteen guard Error Conditions in order (typo css, typo js, CssFull, SpixiLeanJs on = the PARK of P-07, a store value and a dev value that are not boolean words, the store build with the store gate\'s own Condition text, not a dev build = the negation of the app-id test of the csproj, not Android = the negation of its TargetFramework half, the evaluated ApplicationId is not the dev id (the literal of the dev ApplicationId line), no strip, the IntermediateOutputPath test, the stamp compare), the ONE stale Error, one stamp path formula (the file order is what MSBuild runs; DependsOnTargets alone would hide a moved target) — ' + JSON.stringify(r7));
+    T + ' (7) open tags and order — in the file SpixiStoreReleaseGate < SpixiLeanGuard < SpixiLeanStaleGuard < SpixiStripReleaseHtml < SpixiLeanReleaseHtml (positions ' + at5.join(' < ') + '), all five BeforeTargets="PrepareForBuild", the EXACT open tag of the three lean targets (every attribute: the DesignTimeBuild test, the Conditions, DependsOnTargets="SpixiLeanGuard;SpixiStripReleaseHtml", no Inputs / Outputs), the ' + errorsOf(guardT).length + ' guard Error Conditions in order (typo css, typo js, CssFull, SpixiLeanJs on = the PARK of P-07, a store value and a dev value that are not boolean words, the store build with the store gate\'s own Condition text, not a dev build = the negation of the app-id test of the csproj, not Android = the negation of its TargetFramework half, the evaluated ApplicationId is not the dev id (the literal of the dev ApplicationId line), no strip, the IntermediateOutputPath test, the R2 test (leanfollow: the folder is Resources\\Raw or under it), the packed-folder test (Resources, Platforms, or the project folder outside obj and bin), the stamp-is-a-link test (r2S-7), the stamp compare), the first six Errors of the lean target (leanfollow: the park twin FIRST and as the first element of the body, the folder belt, the R2 belt, the packed-folder belt, the two link Errors), the ONE stale Error, one stamp path formula (the file order is what MSBuild runs; DependsOnTargets alone would hide a moved target) — ' + JSON.stringify(r7));
 
   /* ================= row 8 — the structural belt: every element of the three lean targets, in order ================= */
   /* Each element = its name, its attributes SORTED by name with their exact values, and its text (property values); a closing
@@ -808,6 +891,9 @@ export default async function (h) {
       "Error Condition=\"'$(ApplicationId)' != 'com.ixilabs.spixi.dev'\" Text=\"Spixi lean packaging: a lean package is allowed only with the dev app id before the ruling of the lean defaults, and ApplicationId is '$(ApplicationId)' (SpixiDevCoexist=$(SpixiDevCoexist), TargetFramework=$(TargetFramework)): the id is decided when the project file is read, so a SpixiDevCoexist that is set later (a .csproj.user file, a Directory.Build.targets file) or an ApplicationId on the build line does not give the dev id. Pass -p:SpixiDevCoexist=true -f net10.0-android on the build line, or remove the lean property (a -p: switch, an environment variable, or a props / .user file).\" /",
       "Error Condition=\"'$(SpixiStripHtml)' != 'true'\" Text=\"Spixi lean packaging: SpixiLeanCss=$(SpixiLeanCss) / SpixiLeanJs=$(SpixiLeanJs) needs the Release packaging strip, but SpixiStripHtml is '$(SpixiStripHtml)' (Configuration=$(Configuration)). A lean switch needs SpixiStripHtml=true, which is on by default only in Release: build -c Release without SpixiStripHtml=false, or remove the lean property (a -p: switch, an environment variable, or a props / .user file).\" /",
       "Error Condition=\"'$(IntermediateOutputPath.Trim())' == '' or '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`))' == '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))'\" Text=\"Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is empty, only white space, or the project folder itself — refusing a lean build (its output directory would be inside the working tree, beside the sources). Leave IntermediateOutputPath to the SDK, or set it to another folder.\" /",
+      "Error Condition=\"$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`, `Raw`))`, System.StringComparison.OrdinalIgnoreCase))\" Text=\"Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is the asset folder Resources\\\\Raw or inside it — refusing a lean build (the asset glob packs every file under Resources\\\\Raw, so a file written there ships in the next package). Leave IntermediateOutputPath to the SDK, or set it to another folder.\" /",
+      "Error Condition=\"$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`))`, System.StringComparison.OrdinalIgnoreCase)) or $([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Platforms`))`, System.StringComparison.OrdinalIgnoreCase)) or ($([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))`, System.StringComparison.OrdinalIgnoreCase)) and !$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `obj`))`, System.StringComparison.OrdinalIgnoreCase)) and !$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `bin`))`, System.StringComparison.OrdinalIgnoreCase)))\" Text=\"Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them — refusing a lean build (the build packs files under Resources, for example Fonts, Images, AppIcon and Splash, and under Platforms, for example Android Assets and Resources, so a file written there ships in the next package). Leave IntermediateOutputPath to the SDK, or set it to another folder.\" /",
+      "Error Condition=\"Exists('$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean.stamp`))') and $([System.IO.File]::GetAttributes(`$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean.stamp`))`).ToString().Contains(`ReparsePoint`))\" Text=\"Spixi lean packaging: the stamp file spixi-lean.stamp under IntermediateOutputPath='$(IntermediateOutputPath)' is a link (a symbolic link, a junction or another reparse point) — refusing a lean build: the stamp is read and written through it, and a write would change the file it points to. Delete the link, or delete Spixi\\\\obj.\" /",
       "PropertyGroup",
       "_SpixiLeanStamp = \"$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-lean.stamp'))\"",
       "/_SpixiLeanStamp",
@@ -831,7 +917,12 @@ export default async function (h) {
       "Error Condition=\"Exists('$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean.stamp`))')\" Text=\"Spixi lean packaging: every lean switch is off, but $([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-lean.stamp')) exists: a LEAN build ran in this obj folder, and the bin or publish folder can still hold its lean files (a copy by timestamp keeps them). Delete Spixi\\\\obj and Spixi\\\\bin (and the publish folder), then build again; only GATE 1 on the deployed folder proves a package.\" /",
     ],
     SpixiLeanReleaseHtml: [
+      "Error Condition=\"'$(SpixiLeanJs)' != 'false'\" Text=\"Spixi lean packaging: SpixiLeanJs='$(SpixiLeanJs)' reached the lean target after SpixiLeanGuard had passed (a target or an imported file set it late): the comment strip of the scripts (P-07) is PARKED in this batch, so no build may pack its output (DECISIONS 1583 and 1589). Remove the late setting of the property; the comment strip of the stylesheets is SpixiLeanCss=true.\" /",
       "Error Condition=\"'$(IntermediateOutputPath.Trim())' == '' or '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`))' == '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))'\" Text=\"Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is empty, only white space, or the project folder itself at target time — refusing to empty a directory in the working tree\" /",
+      "Error Condition=\"$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`, `Raw`))`, System.StringComparison.OrdinalIgnoreCase))\" Text=\"Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is the asset folder Resources\\\\Raw or inside it at target time — refusing to empty a directory there\" /",
+      "Error Condition=\"$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`))`, System.StringComparison.OrdinalIgnoreCase)) or $([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Platforms`))`, System.StringComparison.OrdinalIgnoreCase)) or ($([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))`, System.StringComparison.OrdinalIgnoreCase)) and !$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `obj`))`, System.StringComparison.OrdinalIgnoreCase)) and !$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `bin`))`, System.StringComparison.OrdinalIgnoreCase)))\" Text=\"Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them at target time — refusing to empty a directory there\" /",
+      "Error Condition=\"Exists('$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean`))') and $([System.IO.File]::GetAttributes(`$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean`))`).ToString().Contains(`ReparsePoint`))\" Text=\"Spixi lean packaging: the folder spixi-lean under IntermediateOutputPath='$(IntermediateOutputPath)' is a link (a symbolic link, a junction or another reparse point) — refusing to empty it: RemoveDir would follow it and could empty a folder of the working tree, for example Resources\\\\Raw\\\\html. Delete the link, or delete Spixi\\\\obj.\" /",
+      "Error Condition=\"Exists('$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean`, `html`))') and $([System.IO.File]::GetAttributes(`$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean`, `html`))`).ToString().Contains(`ReparsePoint`))\" Text=\"Spixi lean packaging: the folder spixi-lean\\\\html under IntermediateOutputPath='$(IntermediateOutputPath)' is a link (a symbolic link, a junction or another reparse point) — refusing to empty it: RemoveDir would follow it and could empty a folder of the working tree, for example Resources\\\\Raw\\\\html. Delete the link, or delete Spixi\\\\obj.\" /",
       "PropertyGroup",
       "SpixiLeanHtmlDir = \"$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-lean', 'html'))\"",
       "/SpixiLeanHtmlDir",
@@ -924,6 +1015,7 @@ export default async function (h) {
   const INCLUDE_SWAP = '<MauiAsset Include="@(_SpixiLeanFile)" LogicalName="%(_SpixiLeanFile.LogicalName)" />';
   const e = {
     noFile: errAt('\'@(_SpixiLeanFile)\' == \'\''), orphan: errAt('\'@(_SpixiLeanOrphan)\' != \'\''), must: errAt('\'@(_SpixiLeanMust)\' != \'\''),
+    park: errAt(PARK_COND), rawBelt: errAt(RAW_COND), packedBelt: errAt(PACKED_COND), link1: errAt(LINK_COND('spixi-lean')), link2: errAt(LINK_COND('spixi-lean', 'html')),   // leanfollow R1 / R2 and round 1: the belts of the lean target
     removed: errAt('\'$(_SpixiLeanRemoved)\' != \'$(_SpixiLeanCount)\''), after: errAt('\'$(_SpixiLeanAssetsAfter)\' != \'$(_SpixiLeanAssetsBefore)\''),
   };
   const sw = { glob: pos('<_SpixiLeanFile Include="$(SpixiLeanHtmlDir)**" />'), logical: pos('<_SpixiLeanFile LogicalName="' + LOGICAL + '" />'), remove: pos(REMOVE_SWAP), include: pos(INCLUDE_SWAP) };
@@ -933,6 +1025,7 @@ export default async function (h) {
   const outsideBody = body;   // the project body (everything outside every target)
   const r9 = {
     allFound: Object.values(p7).every((v) => v >= 0) && Object.values(e).every((v) => v >= 0) && Object.values(sw).every((v) => v >= 0),
+    beltsBeforeDir: e.park >= 0 && e.park < p7.iop && p7.iop < e.rawBelt && e.rawBelt < e.packedBelt && e.packedBelt < e.link1 && e.link1 < e.link2 && e.link2 < p7.dir && e.link2 < p7.remove,   // R1 first, then the folder belt, the Raw belt, the packed-folders belt, the two link Errors, all before anything is emptied
     dirOrder: p7.iop < p7.dir && p7.dir < p7.script && p7.script < p7.flags && p7.flags < p7.remove && p7.remove < p7.exists && p7.exists < p7.exec,
     once: count(lb, REMOVE_DIR) === 1 && count(lb, '<RemoveDir') === 1 && count(lb, '<SpixiLeanHtmlDir>') === 1 && count(lb, '<SpixiLeanScript>') === 1,
     dirShape: /<SpixiLeanHtmlDir>\$\(\[MSBuild\]::NormalizeDirectory\('\$\(MSBuildProjectDirectory\)', '\$\(IntermediateOutputPath\)', 'spixi-lean', 'html'\)\)<\/SpixiLeanHtmlDir>/.test(lb),
@@ -1244,25 +1337,31 @@ export default async function (h) {
 
       /* ===== row 16 — flag scoping ===== */
       {
-        const p = P(), copyE = ENT.filter((e) => e.f === 'copy'), cssE = ENT.filter((e) => e.f === 'css'), jsE = ENT.filter((e) => e.f === 'js');
-        p.need(copyE.length > 0 && cssE.length > 0 && jsE.length > 0, 'the JSON needs a copy, a css and a js entry for this row (' + copyE.length + '/' + cssE.length + '/' + jsE.length + ')');
-        const css = judge({ reds: [...expRows(['css']), ...KROWS] }, ['css']);              // only css: the js entries are not consulted, not required
+        /* leanfollow: the JSON's `copy` list is empty now (the S15 D entry went when the packaged copy became a git work tree), so this row brings its OWN copy entry (synthetic, the pattern of
+         * rows 13 / 14 / 17): the css and js entries still come from the JSON, the copy entry is the one the row needs to prove "required with ANY flag set" */
+        const p = P();
+        const copyE = [{ match: '★ synthetic copy-list entry of row 16', reason: 'synthetic reason of the copy entry', f: 'copy' }], cssE = ENT.filter((e) => e.f === 'css'), jsE = ENT.filter((e) => e.f === 'js');
+        const EXP16 = { copy: copyE.map(({ match, reason }) => ({ match, reason })), css: EXP.css || [], js: EXP.js || [] };
+        const ENT16 = [...copyE, ...cssE, ...jsE];
+        const expRows = (flags) => ENT16.filter((e) => e.f === 'copy' || flags.includes(e.f)).map(rowOf);
+        p.need(cssE.length > 0 && jsE.length > 0, 'the JSON needs a css and a js entry for this row (' + cssE.length + '/' + jsE.length + ')');
+        const css = judge({ reds: [...expRows(['css']), ...KROWS] }, ['css'], EXP16);              // only css: the js entries are not consulted, not required
         p.need(css.ok === true && css.byDesign === copyE.length + cssE.length && !has(css, /^EXPECTED but not red/), 'flags [css] with copy + css red: ok=' + css.ok + ' byDesign=' + css.byDesign);
-        const js = judge({ reds: [...expRows(['js']), ...KROWS] }, ['js']);
+        const js = judge({ reds: [...expRows(['js']), ...KROWS] }, ['js'], EXP16);
         p.need(js.ok === true && js.byDesign === copyE.length + jsE.length, 'flags [js] with copy + js red: ok=' + js.ok + ' byDesign=' + js.byDesign);
         p.need(js.lines.some((l) => l.startsWith('  ✗ [copy] ' + (copyE[0] || { match: '?' }).match)), 'the copy row is listed "by design" under [copy] with flags [js]');
         if (jsE.length) {   // a red row that only a js entry matches, under flags [css]: unexpected
-          const x = judge({ reds: [...expRows(['css']), rowOf(jsE[0]), ...KROWS] }, ['css']);
+          const x = judge({ reds: [...expRows(['css']), rowOf(jsE[0]), ...KROWS] }, ['css'], EXP16);
           p.need(x.ok === false && has(x, /^UNEXPECTED red/) && x.lines.some((l) => l.includes(jsE[0].match)), 'flags [css] + a js-only row: ok=' + x.ok);
         }
         if (cssE.length) {
-          const y = judge({ reds: [...expRows(['js']), rowOf(cssE[0]), ...KROWS] }, ['js']);
+          const y = judge({ reds: [...expRows(['js']), rowOf(cssE[0]), ...KROWS] }, ['js'], EXP16);
           p.need(y.ok === false && has(y, /^UNEXPECTED red/), 'flags [js] + a css-only row: ok=' + y.ok);
         }
         if (copyE.length) {   // the copy entries are required with ANY flag set
-          const miss = judge({ reds: [...expRows(['js']).filter((r) => !copyE.some((e) => r === rowOf(e))), ...KROWS] }, ['js']);
+          const miss = judge({ reds: [...expRows(['js']).filter((r) => !copyE.some((e) => r === rowOf(e))), ...KROWS] }, ['js'], EXP16);
           p.need(miss.ok === false && has(miss, /^EXPECTED but not red/) && miss.lines.some((l) => l.startsWith('  ~ [copy] ')), 'flags [js] without the copy row red: ok=' + miss.ok);
-          const missC = judge({ reds: [...expRows(['css']).filter((r) => !copyE.some((e) => r === rowOf(e))), ...KROWS] }, ['css']);
+          const missC = judge({ reds: [...expRows(['css']).filter((r) => !copyE.some((e) => r === rowOf(e))), ...KROWS] }, ['css'], EXP16);
           p.need(missC.ok === false && missC.lines.some((l) => l.startsWith('  ~ [copy] ')), 'flags [css] without the copy row red: ok=' + missC.ok);
         }
         rowD(16, 'flag scoping — flags [css] and [js] alone pass with copy + their own entries red (the other flag\'s entries are not required); a row only the other flag\'s entry matches is UNEXPECTED; the copy entries are required with ANY flag (missing → "~ [copy]"), and listed as [copy] when red', p);

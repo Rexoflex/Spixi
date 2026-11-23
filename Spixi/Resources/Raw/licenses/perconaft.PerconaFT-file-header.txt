@@ -1,0 +1,50 @@
+Component: PerconaFT locktree as vendored in facebook/rocksdb utilities/transactions/lock/range/range_tree/lib/ — the toku:: symbols of the Android librocksdb.so and the members concurrent_tree keyrange lock_request locktree manager range_buffer treenode txnid_set wfg dbt memarena of the iOS librocksdb_full.a
+Licence: the licence header of the PerconaFT files: GPL version 2, AGPL version 3 and Apache License 2.0, each in its own paragraph
+Source of this text: https://raw.githubusercontent.com/facebook/rocksdb/3f51c0a185cd5bf43e7056c8f8010d7375346272/utilities/transactions/lock/range/range_tree/lib/locktree/locktree.cc lines 5-50 (the header block; 34 of the 35 files that carry it hold the same block, SHA-256 4cbc21904863…; README of that directory: "The files in this directory originally come from https://github.com/percona/PerconaFT/", with two listed modifications) · upstream SHA-256 4cbc21904863d75704e7abcfb66da95a976d255e21630fddbb0922c35c94b972
+
+/*======
+This file is part of PerconaFT.
+
+
+Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
+
+    PerconaFT is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License, version 2,
+    as published by the Free Software Foundation.
+
+    PerconaFT is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+    PerconaFT is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License, version 3,
+    as published by the Free Software Foundation.
+
+    PerconaFT is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+======= */

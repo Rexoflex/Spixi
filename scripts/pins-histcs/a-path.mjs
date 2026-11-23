@@ -70,7 +70,7 @@
  *   a7 sclRest   — the rest of SingleChatPage.xaml.cs (the file minus the region of a3 / a4, the insertions of a5 and the one branch
  *                  statement of a1, with the two replaced base texts put back) = the base: SHA-256 frozen
  *   a8 flagsRest — SpixiFlags.cs minus the histcs block = the base: SHA-256 frozen; init() is untouched (it still ends with
- *                  `readPhoto1b();`), there is NO `HistcsFlags.read();` line (contract § 6 M1: the switches are read lazily, once, at
+ *                  `readPhoto1b(); readFixb4();` — the merged base 8ce1215d, re-based 2026-11-23), there is NO `HistcsFlags.read();` line (contract § 6 M1: the switches are read lazily, once, at
  *                  their first use — HistcsFlags.ensureRead) and no line outside the block names HistcsFlags
  *   a9 block     — the histcs block holds exactly seven types (HistcsFlags, OlderDrop, HistoryOlderRules, OlderBusy, OlderPushGate + its
  *                  nested Ticket and its private OtherLoad); it names no Logging / P1Perf / bridge / task / thread / file word, reads three
@@ -285,7 +285,7 @@ const REPLACES = [[FILE_NEW, FILE_BASE], [PPJ_NEW_MID, PPJ_BASE_MID]];
 const BASE = {
   onLoadMoreBody: '1654585d367832a696da37dff471c581df9f2cc854f0eaa50dd7c368fa98883d',
   sclRest: 'bb80f7ab9a79221ae83680e42dbb94a993b69cebe0a3a3e6b34a8ad1df108396',
-  flagsRest: 'f211ffbdb81cd43e0a44fe2154404d8d521d057c3d8aaf0eacae940f5ab204d9',
+  flagsRest: '01ea238585608e5697a17b500dc749153d29215dcbb33bbe9ae08fb075e448ee',   // ★ histcs merge re-base (2026-11-23, the merge of work/fixb4 @ 8ce1215d, ruling 1834): = flagsRest(SpixiFlags.cs at 8ce1215d), after a look at the diff — fixb4 added 36 lines outside the histcs block (its block + `readFixb4();` after `readPhoto1b();`), 0 deleted; the merged file minus the histcs block = the fixb4 file exactly. Superseded f211ffbd… (338d30f4)
 };
 
 /* ★ histcs #46 r1 — the frozen values of the NEW code (a11), computed with regionHashes() over SingleChatPage.xaml.cs;
@@ -667,12 +667,12 @@ export default async function (h) {
   const a8 = {
     found: initS.end > 0 && count(fBare, 'public static void init()') === 1,
     noReadLine: readLines.length === 0 && count(fCode, 'HistcsFlags.read(') === 0,   // lead (merge): the switches are read LAZILY (HistcsFlags.ensureRead), not by init()
-    initUntouched: initN.endsWith('readPhoto1b(); }') && count(initN, 'HistcsFlags') === 0,
+    initUntouched: initN.endsWith('readPhoto1b(); readFixb4(); }') && count(initN, 'HistcsFlags') === 0,   // ★ histcs merge re-base (2026-11-23): init() of the merged base ends with fixb4's `readFixb4();` (was `readPhoto1b(); }` at 338d30f4)
     noUseOutsideTheBlock: words(mask(outside), 'HistcsFlags') === 0,
     sameAsBase: sha(flagsNow) === BASE.flagsRest,
   };
   ok(F(a8).length === 0,
-    '★ histcs a8 flagsRest: SpixiFlags.cs minus the histcs block is the base (raw text, whitespace collapsed; SHA-256 at 338d30f4): init() is untouched (it still ends with `readPhoto1b();`) and NO line outside the block names HistcsFlags — the two switches are read lazily, once per process, at their first use (HistcsFlags.ensureRead; csh flags_read_lazily_once_not_by_init) — failing: ' + JSON.stringify(F(a8)) + ' got ' + sha(flagsNow));
+    '★ histcs a8 flagsRest: SpixiFlags.cs minus the histcs block is the base (raw text, whitespace collapsed; SHA-256 at 338d30f4): init() is untouched (it still ends with `readPhoto1b(); readFixb4();`, the merged base 8ce1215d) and NO line outside the block names HistcsFlags — the two switches are read lazily, once per process, at their first use (HistcsFlags.ensureRead; csh flags_read_lazily_once_not_by_init) — failing: ' + JSON.stringify(F(a8)) + ' got ' + sha(flagsNow));
 
   /* ───────────────────────── a9 — the block ───────────────────────── */
   const blockAt = flagsRaw.indexOf(BLOCK_OPEN);

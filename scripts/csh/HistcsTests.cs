@@ -359,11 +359,12 @@ public class HistcsTests
                     }
                 }
             }
-            // init: no histcs line at all; the photo1b line stays the very last line (the csh tests of photo1b / defaultsb / fixb2 pin that position)
+            // init: no histcs line at all; the order of the merged tree (work/fixb4 @ 8ce1215d, ruling 1834) stays: defaultsb, then photo1b, then fixb4 last (re-based 2026-11-23 from "photo1b last": fixb4 added readFixb4() after readPhoto1b())
             initWith(false, null, null);
             Assert.IsTrue(Lines.All(l => !l.Contains("histcs") && !l.Contains("loadmoreoffui") && !l.Contains("firstpage50")), "init writes no histcs line — " + string.Join("|", Lines));
-            Assert.IsTrue(Lines.Count >= 1 && Lines[Lines.Count - 1].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), "the very last line of init is still the photo1b line — " + (Lines.Count > 0 ? Lines[Lines.Count - 1] : "(none)"));
-            Assert.IsTrue(Lines.Count >= 3 && Lines[Lines.Count - 2].StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal), "…and the defaultsb line directly before it");
+            Assert.IsTrue(Lines.Count >= 1 && Lines[Lines.Count - 1].StartsWith("[FLAGS] fixb4 ", StringComparison.Ordinal), "the very last line of init is still the fixb4 line — " + (Lines.Count > 0 ? Lines[Lines.Count - 1] : "(none)"));
+            Assert.IsTrue(Lines.Count >= 2 && Lines[Lines.Count - 2].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), "…the photo1b line directly before it");
+            Assert.IsTrue(Lines.Count >= 3 && Lines[Lines.Count - 3].StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal), "…and the defaultsb line directly before that");
             // init stores nothing and removes nothing of its own keys
             initWith(true, 1, 1);
             Assert.IsTrue(P.d.ContainsKey(HistcsFlags.LoadMoreOffUiKey) && P.d.ContainsKey(HistcsFlags.FirstOlderPage50Key), "init does not remove the two keys");

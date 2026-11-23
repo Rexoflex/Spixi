@@ -593,6 +593,7 @@ namespace SPIXI
 
                         Preferences.Default.Remove("lockenabled");
                         DefaultsRules.writeNewAccount(SpixiFlags.DefaultAppLockOn, SpixiFlags.DefaultPayConfirmOn, SPayments.paymentAuthSupported(), SPayments.PAYMENT_AUTH_PREF);   // ★ defaultsb (#1750)
+                        pushNewAccountPageDefaults();   // ★ fixb4 (#1750): the page defaults of a new account (one push, before the navigation below)
                         Preferences.Default.Remove("walletpass");   // ★ A-13 (#1245): the `waletpass` typo removed a key nothing ever wrote (none at 0e85a4b8 either)
                         /* ★ N12 (#383), amended by N76 (#391): a CREATE is not a restore.
                          * Clearing the reminder stamp is what ARMS the first-asset backup
@@ -787,6 +788,38 @@ namespace SPIXI
 
             // ★ S16 L8 (#1312): through the store (verified secure write with the flag on); a false return is logged inside.
             WalletPassStore.write(pass);
+        }
+
+        /* ★ fixb4 (items 3 + 4, ruling 1750; contract-fixb4 § 3; PageDefaultsRules.cs): the two WebView-store defaults of a NEW
+         * account — P1 "Load pictures and GIFs" Off, and A9 "List density" Compact on the desktop only. Called from the three
+         * new-account sites ONLY (the create body right after the defaultsb new-account write, and both restore paths after
+         * applyRestorePrefs — after the verify); never from proceed, onLoad, the retry view or a start path. Two FIXED digits
+         * ("1"/"0") from two switches and the platform test of HomePage.isDesktopPlatform (WinUI or MacCatalyst); both 0 = no
+         * push (the old path). The push goes through sendMessage on THIS page before the caller posts its navigation to Home, so
+         * it is evaluated first (the wipeLocalState ordering of the create body). Never throws: a throw is logged by its exception
+         * TYPE only and the create / restore goes on. ★ review round 1 (reader S MINOR-1): when the push turns P1 Off, C#'s own
+         * mirror of P1 (SAutoDownload.loadPictures) is written Off as well — a fixed value; with the switch off nothing is written. */
+        private void pushNewAccountPageDefaults()
+        {
+            try
+            {
+                bool desktop = Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.WinUI
+                    || Microsoft.Maui.Devices.DeviceInfo.Platform == Microsoft.Maui.Devices.DevicePlatform.MacCatalyst;
+                string[]? args = PageDefaultsRules.newAccountArgs(SpixiFlags.DefaultMediaTapToLoad, SpixiFlags.DefaultListCompact, desktop);
+                Logging.info(PageDefaultsRules.logLine(args));
+                if (args != null)
+                {
+                    Utils.sendUiCommand(this, PageDefaultsRules.PushName, args[0], args[1]);
+                    if (PageDefaultsRules.mirrorLoadPicturesOff(args))
+                    {
+                        SAutoDownload.loadPictures = false;   // ★ fixb4 r1: C#'s mirror of P1 Off too (the auto-download decision reads it); the setter logs a failure by TYPE
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.warn("[DEFAULTS] new account page failed (" + ex.GetType().Name + ")");
+            }
         }
 
         // Attempt to restore the wallet
@@ -1161,6 +1194,7 @@ namespace SPIXI
                 ChatMediaStore.wipe();   // ★ photo1a PO-3 / PO-6: the restored account starts with no kept thumbnail or peaks of whatever was on this device before (never throws; needs no wallet)
 
                 applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
+                pushNewAccountPageDefaults();   // ★ fixb4 (#1750): the page defaults of a restored account (one push, before goHome)
                 Node.loadWallet(pass);   // ★ S16 L8: the password verifyWallet accepted — the open never depends on the store's round trip
                 restoreCommitted = true;          // round-2 MINOR-2: past this line the account IS restored
                 Directory.Delete(tmpDirectory, true);
@@ -1239,6 +1273,7 @@ namespace SPIXI
                 File.Move(source_path, target_filepath);
                 ChatMediaStore.wipe();   // ★ photo1a PO-3 / PO-6: as the account restore above — the restored wallet starts with nothing kept (never throws; needs no wallet)
                 applyRestorePrefs(pass);   // ★ A-13: verified above — only now the preferences change
+                pushNewAccountPageDefaults();   // ★ fixb4 (#1750): the page defaults of a restored account (one push, before goHome)
                 Node.loadWallet(pass);   // ★ S16 L8: the verified password (as the account restore above)
             }
             goHome();

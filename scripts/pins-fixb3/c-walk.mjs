@@ -40,7 +40,9 @@
  *   d3 (round 2, m2 a) finallyDeletes — the checks of cal-17s run in a try whose finally deletes the picture whenever the key is set and a Path is left
  *   d5 (round 2) limitStated + invalidKeyUsage — the one-row-offset limit and the advice (one probe on a feature that does not repeat: text only, not enforced) in the
  *                        two headers and the calibrate note; a PRESENT but invalid screens.accountScrolled is a load-time usage error (only an ABSENT key keeps cal-17s)
- *   h4d firstPage      — review round 2 NIT 2: first swipe -> 1st page of history-seed-kNN = the first `chat load` AFTER the first `shell send loadmore` line
+ *   h4d firstPage      — REWRITTEN walktools (item 3, contract I-3a; the rule of review round 2 NIT 2 is gone): first swipe -> 1st page of history-seed-kNN = (1) the first `chat load` at or after the first
+ *                        `[P1] chat loadmore in` line (C#), when that line is in the window (none after it = no data, no fall-through); else (2) the first `chat load` of the window when a `[P1] shell send loadmore`
+ *                        line is there AND the number of `chat load` lines equals the number of send lines (unequal = no data, "cannot pair"; no load = no data) (its stamp is not an order); else (3) no data
  *   m1 addedLines      — review round 2 m1: the added single lines and blocks held by their exact text / SHA-256 (see above)
  *   (d2 realFileGap and d5 realFileInert read the REAL scripts/device/a52s.json: when the operator block commits the hub keys to it they turn red BY DESIGN —
  *    re-base them after the map commit, the same tripwire as filewalk b6, #1674; review round 3 n2)
@@ -50,6 +52,8 @@
  *   o1 oldStatements   — the statements of both scripts minus exactly the statements of this batch hash to the base (the c8 method of photo1a)
  *   o2 logRe           — $script:LogRe byte-identical to the base
  *   o3 allowlist       — no new adb command shape: the allowlist functions are byte-identical; every command the new code sends passes it
+ * 2026-11-22 (walktools, re-base pass; after a look at the diff, #1596 / #1634): the walk scripts changed in items 2 (probe `sets`, adb-walk.ps1) and 3 (per-page rows + the first-page rule, adb-walk-parse.ps1): d4 (BASE_FN_SHA Invoke-FileShot), h4d REWRITTEN to the
+ *   I-3a rule, h4 / h4c (the table cuts end at the new closings; X-SeedPagesGate 3 -> 4 references), m1 (legend hash; defsClosing added), n1 (X-SeedFirstPage), o1 (both statement hashes); the exported cutParen takes the closing, stripText cuts the HistorySeedDefs table at its own closing.
  * Deliberate breaks (#802): the builder's report, one one-token mutation per key in a full copy. */
 import { createHash } from 'node:crypto';
 
@@ -79,7 +83,11 @@ const js = (re) => new RegExp(re.replace(/\\A/g, '^').replace(/\\z/g, '$'));
 const psList = (t, lhs) => { const i = t.indexOf(lhs); if (i < 0) return null; const o = t.indexOf('@(', i); const e = t.indexOf(')', o); return (o < 0 || e < 0) ? null : [...t.slice(o, e).matchAll(/'([^']*)'/g)].map((m) => m[1]); };
 const fnStm = (t, n) => lines(fnPS(t, n));
 const cutBlock = (t, start) => { const i = t.indexOf(start); if (i < 0) return t + '\n#MISSING ' + start; const b = psMatch(t, i); return b ? t.slice(0, i) + t.slice(t.indexOf(b, i) + b.length) : t; };
-const cutParen = (t, start) => { const i = t.indexOf(start); if (i < 0) return t + '\n#MISSING ' + start; const e = t.indexOf('\n)\n', i); return e < 0 ? t : t.slice(0, i) + t.slice(e + 3); };
+// re-based walktools (item 3): the table closing is now `) + $script:HistorySeedPageDefs` (the page rows are appended), so the closing is a parameter: the cut ends at
+// the closing line that is really the table's own (the first one after `start`); a closing that is not found is #MISSING, never "cut nothing" / "cut to the next table".
+const cutParen = (t, start, close = '\n)\n') => { const i = t.indexOf(start); if (i < 0) return t + '\n#MISSING ' + start; const e = t.indexOf(close, i); return e < 0 ? t + '\n#MISSING closing ' + JSON.stringify(close) : t.slice(0, i) + t.slice(e + close.length); };
+export const SEED_DEFS_CLOSE = '\n) + $script:HistorySeedPageDefs\n';   // walktools (item 3): the closing line of $script:HistorySeedDefs (the old closing was `)`)
+export const HIST_DEFS_CLOSE = ') + $script:HistoryPageDefs }';          // walktools (item 3): the closing of the `history` entry of the step table (the old closing was `) }`)
 const hit = (l, a) => (a instanceof RegExp ? a.test(l) : l.startsWith(a));
 
 // ── what this batch ADDED (removed before hashing) and the two lines it CHANGED (put back to the base form) ──
@@ -143,7 +151,7 @@ export function stripText(drv, par) {
   let p = code(par);
   for (const n of NEW_PAR_FNS) { const w = fnWhole(p, n); p = w ? p.replace(w, '') : p + '\n#MISSING ' + n; }
   for (const b of PAR_BLOCKS) p = cutBlock(p, b);
-  p = cutParen(p, '$script:HistorySeedDefs = @(');
+  p = cutParen(p, '$script:HistorySeedDefs = @(', SEED_DEFS_CLOSE);
   const pl = p.split('\n');
   for (const a of ADDED_PAR) { const j = pl.findIndex((l) => hit(l.trim(), a)); if (j >= 0) pl.splice(j, 1); else pl.push('#MISSING ' + a); }
   return { drv: dl.map(backDrv).join('\n'), par: pl.join('\n') };
@@ -155,11 +163,20 @@ export const exclView = (dText) => { let d = dText; for (const n of O1_EXCLUDED_
 export function oldView(drv, par) { const t = stripText(drv, par); return { drv: exclView(t.drv), par: lines(t.par) }; }
 
 // ── the frozen base values: SHA-256 of the statements of the BASE scripts (work/fixb3 @ 14ae57f2: comments and blank lines dropped) ──
-const BASE_DRV_VIEW_SHA = 'a5d38ee1c0d1405860e99b7a55ace2ed4951576f011363c9fd71b66ea756f2cd';
-const BASE_PAR_VIEW_SHA = '6278daa717a5df1b7b16db0f28c855bbd48e1296806a10115e6c575d43cff193';
+// re-based walktools (items 2 + 3; after a look at the diff, #1596 / #1634). The view of the BASE scripts (338d30f4) with the previous code of this pin still gives a5d38ee1... / 6278daa7... (checked);
+// the new values are the view of the merged tree = base + exactly the statements of walktools: driver (item 2) Test-HasField, Get-ProbeListGap (the old Get-ScreenGap checks, the same texts, with a label),
+// Get-ScreenGap (the `sets` branch), Get-ScreenProbeSets, Test-ProbeSetPixels, Get-ProbeVerdict, Test-Probes, the Test-Screen return, Get-PreCheckText, the calibrate lines (no `check: set` note lines: removed in review round 1), the load block;
+// parser (item 3) five $script:L line defs, Get-WordTok, X-PageGate / X-PageTok / X-PagePush / X-Page, $script:PageRows, New-PageDefs + the two page-def tables, New-Def `$Arg`, the `history` table closing
+// `) + $script:HistoryPageDefs }`, Get-DataRow `& $Def.Extract $c $Def.Arg` + the insertmode note, the page legend line. (X-SeedFirstPage, the seed legend and HistorySeedDefs are cut by stripText: n1 / m1 hold them.)
+// driver a5d38ee1c0d1... -> e14bc9974205... (round 1: dfa45ee27fc4...; round 2: `1 or 2 sets`, compact counts, Get-PreCheckText strips `no set matches: `); parser 6278daa717a5... -> c253da66335a... (review round 1 of walktools: + Get-PreCheckText, `sets must be a list`, compact failure note, Get-NoPair, the count guards of X-PageTok / X-PagePush; Invoke-FileShot / Invoke-ShotCheck are pre-batch text again)
+const BASE_DRV_VIEW_SHA = 'e14bc997420587141ff363332d8c9dbf415b1ba5fb8a3933629a4952bd44c226';
+const BASE_PAR_VIEW_SHA = 'c253da66335adb639e489c457630a73a16ffeee77b4cdfeaadeb7f00b3344520';
 const BASE_DEVADDR_SHA = '62dc3e08437c570d9f286f89de3f4e8399c650650981945999b51a6d46b8a00e';
-const HELD_BLOCKS = { usage: '3179a74a115e7f90fd751db739449a626cefc0ffd0b4bb68eb8abb71aa7a5557', legend: 'd910369342b7e91e2e354b9fa1f599749071692299479947d83d0cae4aa0219f', defs: '165d5f386cfadad852f8da6c500ec5fd858c8e875f12509a6b551cb6724dcac8' };   // m1: SHA-256 of the statements of the added blocks (round 2)
+// re-based walktools (item 3): `legend` d910369342b7... -> 7b9085e25805... (review round 1: + the equal-counts clause of branch 2) — the history-seed-kNN legend line of Invoke-Main states the NEW first-page rule (C# `chat loadmore in` pair, else the first chat load of the window when a send line is there, else no data)
+// instead of "after the first shell send loadmore line"; the rest of the line (pages gate, the rows of history) is the same text. `defs` is unchanged (165d5f38...): the cut now ends at the table's new closing (see defsBlock), the closing is held by defsClosing.
+const HELD_BLOCKS = { usage: '3179a74a115e7f90fd751db739449a626cefc0ffd0b4bb68eb8abb71aa7a5557', legend: '7b9085e25805ec7bb636942fa42b235fdb45257488dbe08d556741041c8f22ba', defs: '165d5f386cfadad852f8da6c500ec5fd858c8e875f12509a6b551cb6724dcac8' };   // m1: SHA-256 of the statements of the added blocks (round 2)
 const BASE_LOGRE_SHA = 'a22d2dbaa96566788330114cca740fed5851d4ba7dafe55b115fea6195bfde3b';
+// walktools (item 2): Invoke-FileShot is byte-identical to its pre-batch text again (review round 1: the success note was dropped), so its value is the ORIGINAL base value d83c6fa80965 (an interim re-base to e36ce6b8c6c3 was undone).
 const BASE_FN_SHA = { 'Initialize-Allowlist': 'b083355a9f0ab001d9766e4096b381e8c7237e2e58c1796f2bb8f327c10026ab', 'Test-ShellAllowed': '1645be543b1068a00d68c9ad40ca27a9ea225a66684e84b687764f21f22f58f5', 'Assert-AdbCommand': '6907f808b2b25b6d46feb2973ad67a10649c48b724df88a17ebb69cf548e3ca6', 'Get-LogPullCmd': '11401bdd230fe9d0245955048f6d99162e4a75fb17b2646b4f8d89fb7dcc56e1', 'Invoke-FileShot': 'd83c6fa809657089c4cc0891fba848ba7a1723d272fd7bea907a3ddaf27a15a9', 'Invoke-FileReset': '19fbc7f9194ae92b1a852445769781b5c83db461f803130a840c4fd767ec0e1c' };
 const fnSha = (t, n) => sha(fnStm(code(t), n).join('\n'));
 export const _h = { sha, code, lines, fnPS, fnStm, fnSha };
@@ -413,9 +430,11 @@ export default async function (h) {
   /* ── h4 · the parser rows ── */
   const nameRe = (/'(\\Ahistory-seed-k[^']*)'/.exec(fnP('Test-HistorySeedName')) || [])[1] || '';
   const nJs = nameRe ? js(nameRe) : /(?!)/;
-  const defsBlock = (() => { const i = P.indexOf('$script:HistorySeedDefs = @('); return i < 0 ? '' : P.slice(i, P.indexOf('\n)\n', i)); })();
+  // re-based walktools (item 3): both tables now close with the page rows appended (`) + $script:HistorySeedPageDefs`, `) + $script:HistoryPageDefs }`); the cut ends at THAT closing, so the
+  // block is still exactly the old head + the eight old seed rows / the old rows of history (a cut at `\n)\n` would run on into $script:MemDefs; a cut at `) }` into resume-now). The closing itself is held by m1 (defsClosing).
+  const defsBlock = (() => { const i = P.indexOf('$script:HistorySeedDefs = @('); const e = i < 0 ? -1 : P.indexOf(SEED_DEFS_CLOSE, i); return e < 0 ? '' : P.slice(i, e); })();
   const defsRows = [...defsBlock.matchAll(/\(New-Def '([^']*)' '([^']*)' \$(true|false) '([a-z]*)' \{ param\(\$c\) ([^}]*) \}\)/g)].map((m) => [m[1], m[2], m[3] === 'true', m[4], m[5].trim()]);
-  const histBlock = (() => { const i = P.indexOf("'history'     = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @("); return i < 0 ? '' : P.slice(i, P.indexOf(') }', i)); })();
+  const histBlock = (() => { const i = P.indexOf("'history'     = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @("); const e = i < 0 ? -1 : P.indexOf(HIST_DEFS_CLOSE, i); return e < 0 ? '' : P.slice(i, e); })();
   const histRows = [...histBlock.matchAll(/\(New-Def '([^']*)' '([^']*)' \$(true|false) '([a-z]*)' \{ param\(\$c\) ([^}]*) \}\)/g)].map((m) => [m[1], m[2], m[3] === 'true', m[4], m[5].trim()]);
   const refsOf = (b) => [...b.matchAll(/^\s*\$script:(\w+),?$/gm)].map((m) => m[1]);
   const gsi = stm(fnP('Get-HistorySeedIndex')).join('\n');
@@ -441,8 +460,8 @@ export default async function (h) {
       const want = ['ScrollGapDef', 'ScrollDropDef', 'ScrollFramesDef', 'LongCountDef', 'LongMaxDef'].map(base);
       return want.every((w) => w !== null) && want.every((w, i) => JSON.stringify(defsRows[2 + i]) === JSON.stringify(w));
     })(),
-    required: defsRows.slice(0, 3).every((r) => r[2] === true) && defsRows[7][2] === true && defsRows[5][2] === false && defsRows[6][2] === false && histRows.every((r) => r[2] === true),   // the long-task rows stay optional as in history
-    pageRowsFirstPage: defsRows[0][4] === "X-SeedPage $c 'count'" && defsRows[1][4] === "X-SeedPage $c 'first'" && defsRows[7][4] === "X-SeedGated $c 'X-Field' 'swipes'" && histRows[0][4] === 'X-Count $c $script:L.Load 3' && histRows[1][4] === 'X-NthDelta $c $script:L.Load 3' && histRows[2][4] === "X-Field $c 'swipes'",
+    required: defsRows.length === 8 && defsRows.slice(0, 3).every((r) => r[2] === true) && defsRows[7][2] === true && defsRows[5][2] === false && defsRows[6][2] === false && histRows.every((r) => r[2] === true),   // the long-task rows stay optional as in history
+    pageRowsFirstPage: defsRows.length === 8 && histRows.length === 3 && defsRows[0][4] === "X-SeedPage $c 'count'" && defsRows[1][4] === "X-SeedPage $c 'first'" && defsRows[7][4] === "X-SeedGated $c 'X-Field' 'swipes'" && histRows[0][4] === 'X-Count $c $script:L.Load 3' && histRows[1][4] === 'X-NthDelta $c $script:L.Load 3' && histRows[2][4] === "X-Field $c 'swipes'",
     historyRowsKept: HIST_NAMES === 'older pages loaded|first swipe -> 3rd page|swipes',
     routes: keyFn.includes('if (Test-HistorySeedName $Name) { return $Name }') && defFn.includes("if (Test-HistorySeedName $k) { return @{ Kind = 'reps'; Reps = 'repeats'; Defs = $script:HistorySeedDefs } }") && safeFn.includes("$alt = $alt + '|history-seed-k(?:[0-4][0-9]|5[0-5])'"),
     stepsReplaced: mainP.includes('$histSeedK = Get-HistorySeedIndex $m') && mainP.includes("if (($histSeedK -ge 0) -and $steps.Contains('history')) { $steps[$steps.IndexOf('history')] = 'history-seed-k' + $histSeedK.ToString('00', $script:Inv) }")
@@ -472,38 +491,74 @@ export default async function (h) {
     everyRowGated: defsRows.length === 8 && defsRows.every(rowGated) && mirrorRow(0).every((x) => x === 'missing') && mirrorRow(null).every((x) => x === 'missing') && mirrorRow(1).every((x) => x === 'value'),
     parseBehaviour: [1.5, 1001, 5000].every((n) => parseNulls(n) === true) && [0, 1, 2, 1000].every((n) => parseNulls(n) === false) && rcFn.includes("$pg = Get-Num (Get-Prop $Entry 'pages')") && rcFn.includes('$c.Pages = $pg'),
     ctxHasPages: stm(fnP('New-Ctx')).includes('Pages = $null'),
-    onlySeedRows: count(P, 'X-SeedPagesGate') === 3 && (P.match(/X-SeedPage\b/g) || []).length === 3 && count(P, 'X-SeedGated') === 7 && !/X-SeedPage|X-SeedGated|X-SeedPagesGate/.test(histBlock),   // the gate: its definition + the two wrappers; the page rows: the definition + 2 rows; the others: the definition + 6 rows; the old history rows use none
+    // re-based walktools (item 3): X-SeedPagesGate 3 -> 4 references: + `return (X-SeedPagesGate $C)` in X-PageGate (the optional page rows of history-seed ask the SAME gate; whether they do is held by pins-walktools/c-parser seedGate)
+    onlySeedRows: count(P, 'X-SeedPagesGate') === 4 && stm(fnP('X-PageGate')).includes('return (X-SeedPagesGate $C)') && (P.match(/X-SeedPage\b/g) || []).length === 3 && count(P, 'X-SeedGated') === 7 && !/X-SeedPage|X-SeedGated|X-SeedPagesGate/.test(histBlock),   // the gate: its definition + the two wrappers + X-PageGate (walktools); the page rows: the definition + 2 rows; the others: the definition + 6 rows; the old history rows use none
   };
-  // review round 2 (NIT 2): first swipe -> 1st page = the FIRST `chat load` line AFTER the first `shell send loadmore` line of the window (a chat load before
-  // the page request, e.g. the open of the chat, is not the page). The condition is extracted and the algorithm is mirrored in JavaScript.
+  // REWRITTEN walktools (item 3, contract I-3a, #1827 (3)): the rule of review round 2 NIT 2 ("the first `chat load` AFTER the first `shell send loadmore` line") is gone — it
+  // excluded the very load it should find (the shell's console line reaches the C# log AFTER the C# answer: real run 20261122-1350, chat load 13:51:31.7693, send line 13:51:31.8216).
+  // The NEW rule, three branches IN THIS ORDER (X-SeedFirstPage): (1) the window holds a `[P1] chat loadmore in` line (C#): the first `chat load` line AT OR AFTER the first such line
+  // (an exact pair, both C# lines; none after it = no data, NO fall-through to branch 2); (2) else the window holds a `[P1] shell send loadmore` line: the first `chat load` line of the
+  // WINDOW, but ONLY when the number of `chat load` lines equals the number of send lines (review round 1: a stray load would silently become "1st page"; unequal = no data, "<n> chat load lines for <m>
+  // page requests in the window (cannot pair; ...)"; no load at all = no data) — the send line's stamp is NOT compared; (3) else no data (no request proven). Minus t0. The conditions are extracted and the three
+  // branches are mirrored in JavaScript with the extracted operators / indices, on thirteen cases (one is the shape of the real run).
   const sfp = stm(fnP('X-SeedFirstPage'));
-  const cmpM = /^if \(\$ld\.Stamp -(ge|gt) \$req\[(\d+)\]\.Stamp\) \{ return \(New-Res 'value' \(\(\$ld\.Stamp - \$C\.T0\)\.Ticks \/ 10000\.0\) ''\) \}\z?$/.exec(sfp.find((l) => l.startsWith('if ($ld.Stamp')) || '') || [];
-  const mirrorFirst = (evs, t0) => {   // evs in window order: { k: 'req' | 'load', t }
-    const reqs = evs.filter((e) => e.k === 'req'), loads = evs.filter((e) => e.k === 'load');
-    if (reqs.length === 0) return 'missing: no loadmore';
-    for (const ld of loads) { if (cmpM[1] === 'ge' ? ld.t >= reqs[Number(cmpM[2])].t : ld.t > reqs[Number(cmpM[2])].t) return ld.t - t0; }
-    return 'missing: no load after';
+  const SFP_WANT = ['{', 'param($C)', '$r = Test-Ready $C', 'if ($null -ne $r) { return $r }', '$loads = (Get-Hits $C $script:L.Load).Items', '$csharp = (Get-Hits $C $script:L.LoadMoreIn).Items', 'if ($csharp.Count -gt 0) {',
+    'foreach ($ld in $loads) {', "if ($ld.Stamp -ge $csharp[0].Stamp) { return (New-Res 'value' (($ld.Stamp - $C.T0).Ticks / 10000.0) '') }", '}',
+    "return (New-Res 'missing' $null ($C.Label + ': no \"' + $script:L.Load.Label + '\" line after the first \"' + $script:L.LoadMoreIn.Label + '\" line in ' + $C.LogName))", '}',
+    '$req = (Get-Hits $C $script:L.SendLoadMore).Items', 'if ($req.Count -gt 0) {',
+    "if ($loads.Count -eq 0) { return (New-Res 'missing' $null ($C.Label + ': no \"' + $script:L.Load.Label + '\" line in the window although a \"' + $script:L.SendLoadMore.Label + '\" line is there, in ' + $C.LogName)) }",
+    "if ($loads.Count -ne $req.Count) { return (New-Res 'missing' $null ($C.Label + ': ' + $loads.Count.ToString($script:Inv) + ' chat load lines for ' + $req.Count.ToString($script:Inv) + ' page requests in the window (cannot pair; ' + $C.LogName + ')')) }",
+    "return (New-Res 'value' (($loads[0].Stamp - $C.T0).Ticks / 10000.0) '')", '}',
+    "return (New-Res 'missing' $null ($C.Label + ': no \"' + $script:L.LoadMoreIn.Label + '\" line and no \"' + $script:L.SendLoadMore.Label + '\" line (no page request is proven) in ' + $C.LogName))", '}'];
+  const cmpM = /^if \(\$ld\.Stamp -(ge|gt) \$csharp\[(\d+)\]\.Stamp\) \{ return \(New-Res 'value' \(\(\$ld\.Stamp - \$C\.T0\)\.Ticks \/ 10000\.0\) ''\) \}$/.exec(sfp[8] || '') || [];   // branch 1: the compare and the reference index
+  const c1M = /^if \(\$csharp\.Count -(gt|ge|eq) (\d+)\) \{$/.exec(sfp[6] || '') || [];                                                                                                          // branch 1: the condition
+  const c2M = /^if \(\$req\.Count -(gt|ge|eq) (\d+)\) \{$/.exec(sfp[13] || '') || [];                                                                                                            // branch 2: the condition
+  const b2M = /^if \(\$loads\.Count -(gt|ge|eq|lt) (\d+)\) \{ return \(New-Res 'missing' \$null /.exec(sfp[14] || '') || [];                                                              // branch 2: no load at all = no data
+  const b3M = /^if \(\$loads\.Count -(ne|gt|lt) \$req\.Count\) \{ return \(New-Res 'missing' \$null /.exec(sfp[15] || '') || [];                                                           // branch 2: the counts must be EQUAL
+  const b4M = /^return \(New-Res 'value' \(\(\$loads\[(\d+)\]\.Stamp - \$C\.T0\)\.Ticks \/ 10000\.0\) ''\)$/.exec(sfp[16] || '') || [];                                                   // branch 2: which load
+  const opJs = (op, a, n) => (op === 'gt' ? a > n : op === 'ge' ? a >= n : op === 'eq' ? a === n : op === 'lt' ? a < n : op === 'ne' ? a !== n : null);
+  const mirrorFirst = (evs, t0) => {   // evs in window order: { k: 'cs' (C# loadmore in) | 'req' (shell send loadmore) | 'load' (C# chat load), t }
+    const cs = evs.filter((e) => e.k === 'cs'), req = evs.filter((e) => e.k === 'req'), loads = evs.filter((e) => e.k === 'load');
+    if (opJs(c1M[1], cs.length, Number(c1M[2]))) {
+      for (const ld of loads) { if (cmpM[1] === 'ge' ? ld.t >= cs[Number(cmpM[2])].t : ld.t > cs[Number(cmpM[2])].t) return ld.t - t0; }
+      return 'missing: no load after the C# line';
+    }
+    if (opJs(c2M[1], req.length, Number(c2M[2]))) {
+      if (opJs(b2M[1], loads.length, Number(b2M[2]))) return 'missing: no load although a send line';
+      if (opJs(b3M[1], loads.length, req.length)) return 'missing: cannot pair';
+      return loads[Number(b4M[1])].t - t0;
+    }
+    return 'missing: no page request proven';
   };
   const lmRe = (/SendLoadMore = @\{ Gram = \$true; Label = 'shell send loadmore';\s+Rx = \(New-Rx \(\$script:Cm \+ '([^']*)'\)\) \}/.exec(P) || [])[1] || '';
+  const csRe = (/LoadMoreIn\s+= @\{ Gram = \$true; Label = 'chat loadmore in';\s+Rx = \(New-Rx \(\$script:Cm \+ '([^']*)'\)\) \}/.exec(P) || [])[1] || '';
   const CmJs = /^[A-Za-z]{1,10}\|[0-9]{1,6}: (?:\[WEBVIEW\] [A-Z]{1,12} )?/;
   const lmJs = lmRe ? new RegExp(CmJs.source.replace(/^\^/, '^') + lmRe) : /(?!)/;
+  const csJs = csRe ? new RegExp(CmJs.source.replace(/^\^/, '^') + csRe) : /(?!)/;
   const h4d = {
-    found: sfp.length > 0 && cmpM.length > 0,
-    statements: sfp[1] === 'param($C)' && sfp[2] === '$r = Test-Ready $C' && sfp[3] === 'if ($null -ne $r) { return $r }' && sfp[4] === '$req = (Get-Hits $C $script:L.SendLoadMore).Items'
-      && sfp[5] === 'if ($req.Count -eq 0) { return (Get-MissingLine $C $script:L.SendLoadMore) }' && sfp[6] === 'foreach ($ld in (Get-Hits $C $script:L.Load).Items) {' && sfp[7].startsWith('if ($ld.Stamp -ge $req[0].Stamp) { return (New-Res ') && sfp[8] === '}'
-      && sfp[9] === "return (New-Res 'missing' $null ($C.Label + ': no \"' + $script:L.Load.Label + '\" line after the first \"' + $script:L.SendLoadMore.Label + '\" line in ' + $C.LogName))",
-    behaviour: cmpM[1] === 'ge' && cmpM[2] === '0'
-      && mirrorFirst([{ k: 'load', t: 100 }, { k: 'req', t: 200 }, { k: 'load', t: 350 }], 50) === 300      // the open load (100) is not the page: the first load AFTER the request (350)
-      && mirrorFirst([{ k: 'load', t: 100 }, { k: 'req', t: 200 }], 50) === 'missing: no load after'          // only a load before the request = no data, with a reason
-      && mirrorFirst([{ k: 'load', t: 100 }], 50) === 'missing: no loadmore'                                  // no request line = no data
-      && mirrorFirst([{ k: 'req', t: 200 }, { k: 'load', t: 200 }], 0) === 200                                // the same stamp counts as after
-      && mirrorFirst([{ k: 'load', t: 100 }, { k: 'req', t: 200 }, { k: 'req', t: 300 }, { k: 'load', t: 250 }, { k: 'load', t: 400 }], 0) === 250   // the FIRST request is the reference
-      && mirrorFirst([{ k: 'req', t: 10 }, { k: 'load', t: 20 }, { k: 'load', t: 30 }], 0) === 20,            // the FIRST load after it, not a later one
+    found: sfp.length > 0 && cmpM.length > 0 && c1M.length > 0 && c2M.length > 0 && b2M.length > 0 && b3M.length > 0 && b4M.length > 0,
+    statements: sfp.length === SFP_WANT.length && sfp.every((l, n) => l === SFP_WANT[n]),
+    oldRuleGone: !sfp.some((l) => /\$req\[\d+\]\.Stamp/.test(l)) && !sfp.some((l) => /\$ld\.Stamp -(ge|gt) \$req/.test(l)),   // the stamp of the send line is NOT an order: no compare against it
+    behaviour: cmpM[1] === 'ge' && cmpM[2] === '0' && c1M[1] === 'gt' && c1M[2] === '0' && c2M[1] === 'gt' && c2M[2] === '0' && b2M[1] === 'eq' && b2M[2] === '0' && b3M[1] === 'ne' && b4M[1] === '0'
+      && mirrorFirst([{ k: 'load', t: 31769 }, { k: 'req', t: 31821 }], 20787) === 10982                                             // (2) the shape of run 20261122-1350: the C# load stamp is BEFORE the send line's stamp -> still the first swipe's page
+      && mirrorFirst([{ k: 'req', t: 10 }, { k: 'req', t: 15 }, { k: 'load', t: 20 }, { k: 'load', t: 30 }], 0) === 20              // (2) equal counts (2 / 2): the FIRST load of the window, not a later one
+      && mirrorFirst([{ k: 'load', t: 5 }, { k: 'req', t: 10 }], 0) === 5                                                            // (2) the send line's stamp is not an order: a load before it counts
+      && mirrorFirst([{ k: 'load', t: 5 }, { k: 'req', t: 10 }, { k: 'load', t: 20 }], 0) === 'missing: cannot pair'                 // (2) a stray load (2 loads, 1 request) is not "1st page": no data
+      && mirrorFirst([{ k: 'req', t: 10 }, { k: 'req', t: 15 }, { k: 'load', t: 20 }], 0) === 'missing: cannot pair'                 // (2) a lost load (1 load, 2 requests): no data
+      && mirrorFirst([{ k: 'req', t: 10 }], 0) === 'missing: no load although a send line'                                          // (2) a send line and no load = no data
+      && mirrorFirst([{ k: 'cs', t: 200 }, { k: 'load', t: 230 }], 50) === 180                                                       // (1) the exact pair
+      && mirrorFirst([{ k: 'load', t: 100 }, { k: 'cs', t: 200 }, { k: 'load', t: 350 }], 50) === 300                               // (1) a load BEFORE the C# line is not the page
+      && mirrorFirst([{ k: 'cs', t: 200 }, { k: 'load', t: 200 }], 0) === 200                                                        // (1) the same stamp counts as at-or-after
+      && mirrorFirst([{ k: 'cs', t: 200 }, { k: 'cs', t: 300 }, { k: 'load', t: 250 }, { k: 'load', t: 400 }], 0) === 250            // (1) the FIRST C# line is the reference, the first load after it
+      && mirrorFirst([{ k: 'req', t: 5 }, { k: 'load', t: 6 }, { k: 'cs', t: 10 }, { k: 'load', t: 12 }], 0) === 12                  // (1) before (2): with the C# line present the load before it is not taken
+      && mirrorFirst([{ k: 'load', t: 100 }, { k: 'cs', t: 200 }, { k: 'req', t: 210 }], 0) === 'missing: no load after the C# line' // (1) none after it = no data: NO fall-through to the send line
+      && mirrorFirst([{ k: 'load', t: 100 }], 50) === 'missing: no page request proven' && mirrorFirst([], 0) === 'missing: no page request proven',   // (3) no request line of either kind = no data
     lineDef: lmRe.length > 0 && lmJs.test('I|123: [P1] shell send loadmore dt=3') && lmJs.test('I|123: [WEBVIEW] LOG [P1] shell send loadmore') && !lmJs.test('I|123: [P1] shell send loadmorex') && !lmJs.test('I|123: [P1] shell send chat n=1') && !lmJs.test('I|123: [P1] chat load n=1') && !lmJs.test('1I|123: [P1] shell send loadmore'),
+    lineDefCs: csRe.length > 0 && csJs.test('I|123: [P1] chat loadmore in') && csJs.test('I|123: [P1] chat loadmore in n=3') && !csJs.test('I|123: [P1] chat loadmore inx') && !csJs.test('I|123: [P1] chat loadmore out') && !csJs.test('I|123: [P1] chat load n=1') && !csJs.test('1I|123: [P1] chat loadmore in'),
     oldRowsNotUsing: !/X-SeedFirstPage/.test(histBlock) && count(P, 'X-SeedFirstPage') === 2 && count(P, 'SendLoadMore') >= 4,
   };
   ok(F(h4d).length === 0,
-    '★ fixb3 walk (h4d firstPage): first swipe -> 1st page of history-seed-kNN is the stamp of the FIRST `[P1] chat load` line AFTER the first `[P1] shell send loadmore` line of the rep window, minus t0 (X-SeedFirstPage; a chat load before the page request — the open of the chat — is not the page); no loadmore line, or no chat load after it = "no data" with a reason; the comparison (`-ge`, request index 0) is extracted and the algorithm run in JavaScript on six cases; the loadmore line definition is anchored like the others; the old history rows do not use it — failing: ' + JSON.stringify(F(h4d)));
+    '★ fixb3 walk (h4d firstPage) [REWRITTEN walktools item 3, contract I-3a: the fixb3 rule "the first chat load AFTER the first shell send loadmore line" is replaced]: first swipe -> 1st page of history-seed-kNN is the stamp of ONE `[P1] chat load` line minus t0, chosen by three branches IN THIS ORDER (X-SeedFirstPage): (1) the window holds a `[P1] chat loadmore in` line (C#): the first `chat load` line AT OR AFTER the first such line (an exact pair of two C# lines; none after it = "no data" with the reason, NO fall-through to (2)); (2) else the window holds a `[P1] shell send loadmore` line: the first `chat load` line of the WINDOW, but ONLY when the number of `chat load` lines equals the number of send lines (review round 1: a stray or a lost load = "no data", "<n> chat load lines for <m> page requests in the window (cannot pair; ...)"; no load at all = "no data") — the send line is only the proof that a page was asked for, its stamp is NOT compared (the shell console line reaches the C# log after the C# answer, so the old "after the send line" excluded the very load; the open of the chat loads before t0, outside the window); (3) else "no data" with the reason (no request is proven); the function is held statement by statement, no compare against the send line is left, the conditions / operators / indices are extracted and the three branches are mirrored in JavaScript with them on thirteen cases (one has the shape of the real run); both line definitions are anchored like the others; the old history rows do not use it. LIMITS (#1735): a source pin plus a JavaScript mirror of the branches — it does not run PowerShell and does not prove the order the statements RUN in; that is proven by hand on pwsh 7.4.6 by scripts/pins-walktools/c-parser-run.mjs (r4 pair, r5 send line only, r6 none), not in CI; the `[P1] chat loadmore in` line is written by C# (batch histcs) — a build without it takes branch (2); nothing ran on Windows PowerShell 5.1 or on a phone — failing: ' + JSON.stringify(F(h4d)));
   ok(F(h4c).length === 0,
     '★ fixb3 walk (h4c zeroPages): EVERY row of history-seed-kNN (review round 3 m1: the two page rows through X-SeedPage, the scroll, long-task and swipes rows through X-SeedGated) is "no data" (missing + the reason) unless the rep carries `pages` >= 1 in run.json, through ONE gate function X-SeedPagesGate — a rep whose driver counted ZERO page requests, or has no / a non-integer `pages` (New-RepCtx reads a whole number 0..1000, else $null), is never a measurement in any row (it may have hit historyMaxSwipes and would skew a median), whatever a stray `chat load` line says; the gate and the parse conditions are extracted and run in JavaScript, and a node mirror of the eight rows checks that pages 0 / missing gives missing in all of them; the old history rows do not use it — failing: ' + JSON.stringify(F(h4c)));
   ok(F(h4).length === 0 && F(h4b).length === 0,
@@ -610,14 +665,18 @@ export default async function (h) {
     usageBlock: usageSha === HELD_BLOCKS.usage,
     legendBlock: sha(stm(legendBlock).join('\n')) === HELD_BLOCKS.legend,
     defsBlock: sha(defsBlockSt) === HELD_BLOCKS.defs,
+    // walktools (item 3): the table closing, held by its exact text: the closing line of $script:HistorySeedDefs is `) + $script:HistorySeedPageDefs` (once), and the `history` entry closes with `) + $script:HistoryPageDefs }` (once)
+    defsClosing: count(P, SEED_DEFS_CLOSE) === 1 && count(P, HIST_DEFS_CLOSE) === 1 && P.indexOf(SEED_DEFS_CLOSE) > P.indexOf('$script:HistorySeedDefs = @(') && P.indexOf(HIST_DEFS_CLOSE) > P.indexOf("'history'     = @{ Kind = 'reps'")
+      && P.includes('$script:HistorySeedPageDefs = New-PageDefs 1 $true') && P.includes('$script:HistoryPageDefs = New-PageDefs 3 $false'),
   };
   ok(F(m1).length === 0,
     '★ fixb3 walk (m1 addedLines): every line this batch ADDED to (or changed in) an old function or a table — 21 driver lines, 10 parser lines — is held by its EXACT trimmed text, its number of occurrences and the SHA-256 of the statement before and after it (a changed, deleted, duplicated or moved line turns this key red), and the added blocks are held whole by the SHA-256 of their statements: the -HistorySeed usage block (the refusals; an inserted `$script:FlagsAsked = ...` or `$Calibrate = $false` changes it; the screens.accountScrolled hub-probe block is held by d5), the parser legend block and the HistorySeedDefs table. LIMITS (#1735): a line is compared as its trimmed text (spaces inside a line and a trailing comment ARE part of it, so such an edit is caught; only whole-line comments, blank lines and the indentation are not code); the context is the two neighbouring statements, so a line moved between two places with the same neighbours is not seen; an added line is not run (no PowerShell here), so a statement-identical line can still behave differently if a name it uses is redefined elsewhere (names ignore case); nothing ran on Windows PowerShell 5.1 or on a phone — failing: ' + JSON.stringify(F(m1)) + ' ' + JSON.stringify(heldOk(LD, HELD.drv).concat(heldOk(LP, HELD.par))) + ' usage=' + usageSha + ' legend=' + sha(stm(legendBlock).join('\n')) + ' defs=' + sha(defsBlockSt));
 
   /* ── n1 · review round 1 (m1): the new functions are frozen statement by statement ── */
+  // re-based walktools (item 3): X-SeedFirstPage b5701ebe6ea0... -> c843188a690f... (branch 2 needs equal counts of chat load and send lines) (rewritten to the three-branch rule of contract I-3a; the rule itself is asserted by h4d, this key holds the text).
   const NEW_FN_SHA = {
     drv: { 'Invoke-HistorySeedStep': 'ce29888a8297cc6be5250dfc907df9e95105dbc15c3ca010b6ec2e469e2d66d5', 'Invoke-HistorySeedRestart': '9122a8497d85179a693af138db808b0ea11e416178ae30ecc6a257effbdec49a', 'Invoke-HistorySeedRep': '714bc2323e1669ed71abb277e40452b89f87f19ba634ab4adce3839585aae670', 'Invoke-CalAccountScroll': '7d23c29b22f5aa2ab1ea7a1b926b55ee869c5632aab185746fcc54515a9db0bc', 'Invoke-CalHubBack': '11c9c1d3c33d1e83d3145690052f96ec5fa539c20baa7aa9e11983e8e6fc526d', 'Clear-CalAccountPng': '4c71ea1e053a9a3a3259ac0dadb06e5af8303c23dea5a8eeeee1023bcefedda2' },
-    par: { 'Test-HistorySeedName': 'dc58c9c80c0dd9d0809aad7b6c8e38926b957730040da91ae6d7ea080cbd6653', 'Get-HistorySeedIndex': '34696f786f00556a174e6ed8426dc67893f7a419837c6d33a80c5cad291fc163', 'X-SeedPagesGate': '8af99715aca7d0da38994997d836f99283af22705c9d79654af5361af5768e46', 'X-SeedPage': '5f0a539648bbea8ed8e8875bc30a415a0d1c57bffc38b8f473619ca92fedafce', 'X-SeedGated': '7bc362b1df5f20064135cd47dde41631e1eb1284c12b47801670e9702ac81783', 'X-SeedFirstPage': 'b5701ebe6ea095bcadd64036dd667179ae09e83a1c4eb815e47b26cbe75d1f7f' },
+    par: { 'Test-HistorySeedName': 'dc58c9c80c0dd9d0809aad7b6c8e38926b957730040da91ae6d7ea080cbd6653', 'Get-HistorySeedIndex': '34696f786f00556a174e6ed8426dc67893f7a419837c6d33a80c5cad291fc163', 'X-SeedPagesGate': '8af99715aca7d0da38994997d836f99283af22705c9d79654af5361af5768e46', 'X-SeedPage': '5f0a539648bbea8ed8e8875bc30a415a0d1c57bffc38b8f473619ca92fedafce', 'X-SeedGated': '7bc362b1df5f20064135cd47dde41631e1eb1284c12b47801670e9702ac81783', 'X-SeedFirstPage': 'c843188a690f4c8f5d22647d7752480448959e2ff97b343dd0338b9bc9e3d6c1' },
   };
   const n1 = { found: Object.keys(NEW_FN_SHA.drv).every((n) => fnD(n).length > 0) && Object.keys(NEW_FN_SHA.par).every((n) => fnP(n).length > 0) };
   for (const [n, s] of Object.entries(NEW_FN_SHA.drv)) n1[n] = fnSha(DRV, n) === s && count(D, '\nfunction ' + n + ' ') + count(D, '\nfunction ' + n + '(') === 1;

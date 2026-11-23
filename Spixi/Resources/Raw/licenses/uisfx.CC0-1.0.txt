@@ -1,0 +1,12 @@
+Component: UI SFX 0.4.0 audio (the source of message_sent.mp3 and message_received.mp3, by the repo docs)
+Licence: CC0 1.0 Universal (the audio dedication)
+Source of this text: npm uisfx@0.4.0 package/LICENSE-AUDIO · upstream SHA-256 e0ba86134c566659a19dc73993e594c88a282b99f8f300d83de98acec1c99f1f
+
+The audio files under `sounds/` are dedicated to the public domain under the
+Creative Commons CC0 1.0 Universal Public Domain Dedication.
+
+You may copy, modify, distribute, and use these files, including commercially,
+without asking permission. Attribution is appreciated but not required.
+
+Legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+SPDX identifier: CC0-1.0

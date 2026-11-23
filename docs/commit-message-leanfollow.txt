@@ -1,0 +1,21 @@
+Session Speed lean follow-up: the records of review round 6 and the delivery
+
+Review round 5 was not CLEAN (r5C-1, a pin gap) and the lead's packaged
+runs found L-1 after it. Damir's ruling 1753 permitted one fix round in
+scripts/pins-leanfollow/b-refusals.mjs and one fresh reader. Round 6 is
+CLEAN: 0 MAJOR; R6-1 (MINOR) and three NITs are recorded.
+
+- DECISIONS 1783 (round 6) and 1784 (the delivery record); 1777, 1781 and
+  1782 marked; the decisions index.
+- The review brief: round 6 and the final verdict.
+- P78, the packet index and the gate section: L-1 and r5C-1 closed, R6-1.
+- The handoff, the status-log entry, CLAUDE.md "Where we are now".
+- Numbers on the merged tree (redesign/frontend 338d30f): smoke BASELINE OK
+  6928 / the 2 KNOWN (6774 + 154), smoke-packaged plain and lean GATE 2 OK,
+  CSH 806, the gates pass.
+
+The unit commits of the batch (base 55feaddc): the third-party notices;
+the packaging refusals; the plain packaged smoke; the parser cross-check
+and the MSBuild harness in redesign-ci; the pin registration and the work
+docs; the records of rounds 1-5; the round 6 fix. Three merges of
+redesign/frontend (c9d6bf6, 1ad3a44, 338d30f).

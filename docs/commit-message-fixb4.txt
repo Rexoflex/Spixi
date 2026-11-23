@@ -1,0 +1,31 @@
+Fix batch 4 — the three commits on work/fixb4 (no attribution lines; author and committer = Damir's identity, unsigned)
+
+== Commit 1 (code) ==
+Fix batch 4: slide 4 names only Blitz Chess, the protect-account fields on Android, two new-account defaults, the Developer log
+
+Rulings 1747 (1), 1748 (3), 1750 (P1, A9). Welcome slide 4: "Mini apps like Blitz Chess open right in your chats." in
+en-us and 13 locales; the key is renamed slide4Copy2 -> slide4Copy3 so that no stale value can ship. launch.html: on the
+Android UA (adjustResize) the focused launch field and its ring are brought into the step's body by its scrollTop only;
+iOS, Mac and Windows unchanged. A new or restored account: one push setNewAccountDefaults from the three new-account
+sites of LaunchPage (create, both restores after the verify) writes spixi.media.autoload = off and, on Windows and Mac,
+spixi.chat.listdensity = compact; C#'s own copy of Load pictures goes Off too. Two switches DefaultMediaTapToLoad and
+DefaultListCompact (absent = on; off = the old path, no push). PageDefaultsRules.cs is new; SpixiFlags has one block.
+The Developer log gets a floor of 60vh. No new ixian: verb; chat.html is not changed.
+
+== Commit 2 (tests) ==
+Fix batch 4: the pins, the C# tests and the re-bases
+
+pins-fixb4: a-slide4, b-defaults, c-keyboard, d-devlog, e-tile-states (40 rows) and two Chromium scripts by hand
+(c-keyboard-render, d-devlog-render); csh PageDefaultsTests (11); one registration line in smoke-test.mjs. Re-based
+after a look at the diff: pins-defaultsb/a-defaults (the LaunchPage hash, the init tail), pins-fixb1/g-sparekeep (the
+SpixiFlags hash, the tail), pins-fixb2/d-pay-confirm, pins-perfb1/f-flags, pins-v1am/c-csharp (the tail), pins-s16/b-l8
+(the restore order), pins-s20f/l-slides (the key name), pins-on1/ring-geometry.json (the slide-4 lines; the 320 px create
+views 14 px higher after a focus); csh DefaultsTests, FixB2PayTests, Photo1bFlagsTests (the order of the init lines).
+
+== Commit 3 (docs) ==
+Fix batch 4: mechanisms, contract, review, packets P87 and P88, the walk, the record
+
+The mechanisms of seven items (docs/fixb4-mechanisms.md): the broken-picture tile is the state of a file a Seed contact
+never takes (rows W-2 and A-2 of docs/walk-photo1b.md corrected); drag and drop into a chat was never built (a question;
+the inherited file navigation is listed in legacy-not-ours.md). Decisions 1845 to 1855, lessons L265 to L268, the gate
+section, the walk sheet docs/walk-fixb4.md, the handoff, the status log, CLAUDE.md.

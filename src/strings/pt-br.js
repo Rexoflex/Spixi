@@ -969,7 +969,7 @@ export const ptbr = {
   slide2Title2: "Privado por natureza.",
   slide3Copy: "Uma carteira IXI privada vive dentro de cada chat. Envie e solicite IXI com um toque.",
   slide3Title: "Envie IXI como uma mensagem.",
-  slide4Copy2: "Mini apps como Blitz Chess e Split abrem direto nos seus chats.",
+  slide4Copy3: "Mini apps como Blitz Chess abrem direto nos seus chats.",
   slide4Title2: "Jogue e planeje juntos.",
   source: "Fonte",
   splitPasteAction: "Enviar como {n} mensagens separadas",

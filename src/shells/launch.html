@@ -232,7 +232,9 @@
    *   ★ S9 (#1246, 🟡 NEW): reportTranslation:<langCode> (the language note's link)
    * Pushes: setVersion · showTerms · showOnboardingSection · loadAvatar ·
    *   setUploadedFileName · showPasswordError · removeLoadingOverlay ·
-   *   setLaunchView · ★ S15 (O-04): wipeLocalState (the existing settings push, no new verb).
+   *   setLaunchView · ★ S15 (O-04): wipeLocalState (the existing settings push, no new verb) ·
+   *   ★ fixb4 (#1750): setNewAccountDefaults(media, density) — the ONE new push of the batch (no new verb): '1' writes
+   *   spixi.media.autoload = 'off' / spixi.chat.listdensity = 'compact'; sent only for a new or restored account.
    *
    * Contract source of truth: Spixi/Pages/Launch/LaunchPage.xaml.cs.
    * Spec: docs/launch-spec.md.
@@ -412,6 +414,14 @@
         for (const k of keys) { try { localStorage.removeItem(k); } catch (e) { /* one key must not stop the sweep */ } }
       } catch (e) { /* storage unavailable — nothing to wipe */ }
     },
+    /* ★ fixb4 (items 3 + 4, ruling 1750; contract-fixb4 § 3): the page defaults of a NEW account. C# pushes this ONLY from the
+       three new-account sites of LaunchPage (create, both restores — after the verify), each argument exactly '1' or '0', and
+       not at all when both are '0'. '1' writes the one fixed value; any other value leaves that key alone. Writes no other key,
+       removes nothing, sends no verb, logs nothing. */
+    setNewAccountDefaults(media, density) {
+      if (media === '1') { try { localStorage.setItem('spixi.media.autoload', 'off'); } catch (e) { /* storage unavailable */ } }
+      if (density === '1') { try { localStorage.setItem('spixi.chat.listdensity', 'compact'); } catch (e) { /* storage unavailable */ } }
+    },
     // ★ N75: C# view router (hardware back, and the retry lockout falling back to
     // welcome). setLaunchView ignores an unknown or unchanged view.
     setLaunchView: (v) => setLaunchViewOf(el, String(v || '')),
@@ -527,7 +537,34 @@
       if (r.top >= lo.top && r.bottom <= lo.bottom) return;
       try { box.scrollIntoView({ block: 'nearest' }); } catch (e) { /* a courtesy */ }
     }
+    /* ★ fixb4 item 2 (#1748 (3); mechanism doc § 2): THE RESIZE MODEL (Android adjustResize). Android shrinks the LAYOUT viewport,
+       so `delta` above is 0, `--kb-inset` stays 0 and revealFocused never runs — while the body (`.c-launch__body`, the only
+       scroller; the footer button sits outside it, already above the keyboard) shrinks under the focused field and nothing
+       scrolls the field back in (step 2 focuses with preventScroll, and the keyboard may already be up from the nickname).
+       So on the Android UA (chat.html's AND-16 check) the SAME triggers (focusin / the visualViewport events / the re-check
+       timers, through apply) plus window resize bring the focused launch field box fully into the body — by writing ONLY
+       that body's scrollTop (never scrollIntoView: no ancestor can move). iOS / Mac / Windows: resizeModel is false, nothing
+       below runs for them and no listener is added. */
+    const resizeModel = /Android/i.test(navigator.userAgent || '');
+    const RING = 4;   // the focus ring is `0 0 0 4px` outside the field box (launch-form.css `.c-launch__field[data-focus]`): it counts as part of the box
+    function revealResized() {
+      if (!resizeModel) return;
+      const a = document.activeElement;
+      /* text-like fields only (a checkbox / radio inside .c-launch is not a field to reveal) */
+      if (!a || typeof a.matches !== 'function' || !a.matches('.c-launch input:not([type=checkbox]):not([type=radio]), .c-launch textarea')) return;
+      const sc = a.closest('.c-launch__body');
+      if (!sc) return;
+      const r = (a.closest('.c-launch__field') || a).getBoundingClientRect();
+      const lo = sc.getBoundingClientRect();
+      const top = r.top - RING, bottom = r.bottom + RING;
+      if (top >= lo.top && bottom <= lo.bottom) return;
+      /* below the body: up by the overshoot, but never past the box's own top (a box taller than the body shows its top);
+         above it: back by the gap. The box is grown by the ring width, so the ring is not cut at the body edge. */
+      const d = bottom > lo.bottom ? Math.min(bottom - lo.bottom, top - lo.top) : top - lo.top;
+      try { sc.scrollTop += d; } catch (e) { /* a courtesy */ }
+    }
     function apply() {
+      revealResized();
       if (!vv || nativeKb) return;
       const delta = window.innerHeight - vv.height;
       setInset(delta > 60 ? Math.round(delta) : 0);   // 60px separates a keyboard from chrome jitter
@@ -541,6 +578,7 @@
       timers = [80, 240, 480, 900, 1400].map((ms) => setTimeout(apply, ms));
     }
     if (vv) { vv.addEventListener('resize', kick); vv.addEventListener('scroll', kick); }
+    if (resizeModel) window.addEventListener('resize', kick);   // ★ fixb4 item 2: adjustResize moves the layout viewport itself
     document.addEventListener('focusin', (e) => {
       const t = e && e.target;
       if (t && typeof t.matches === 'function' && t.matches('input, textarea')) kick();

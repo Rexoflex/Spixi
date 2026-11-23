@@ -140,7 +140,28 @@ Steps (default order; the walk-steps-2 steps run after the old ones so the old r
             see a fling that stops short by a whole row (the rows repeat): also put ONE probe on a feature that does not repeat, the
             end of the hub or its last row (text only, not enforced). Once screens.accountScrolled is set, cal-17s is deleted even
             after an error (a finally; the sweep of the run deletes it too); only an absent key keeps it.
-Inputs: a52s.json next to this script (timing, taps, swipes, screen probes; the package is pinned below);
+Batch walktools (item 2) - the screen map has a second form, ONLY for screens.chat and screens.viewer. A screen of a52s.json is
+  EITHER { "probes": [ {x, y, rgb, tol}, ... ], "minMatch": n }   (today's form, every screen; unchanged)
+  OR     { "sets": [ { "name": "light" | "dark", "probes": [ ... ], "minMatch": n }, ... ] }   (chat and viewer only)
+  The chat and the viewer are drawn with the chat appearance (the colour of the sent bubble, the ground) and in a light or a dark
+  theme, so one list of probes cannot fit every appearance: put the probes on the parts that do NOT follow the appearance (the pill
+  of the composer, the top bar, the close button of the viewer) and give one set per theme. 1 or 2 sets (the names are unique and one
+  of light, dark); every set follows the rules of the old form (1 to 16 probes, each with x, y, rgb "#RRGGBB" and tol 0..255, on the
+  screen, not the placeholder, minMatch 1..the number of ITS probes). A key that holds both forms (sets and probes or minMatch) is
+  invalid (the screen is a gap: "no data"); sets on any other screen is a usage error before any adb command (accountScrolled keeps
+  its own rule and its own old form); "sets" must be a list (null or an object is invalid: "screens.<name>.sets must be a list of 1 or 2
+  sets"). A screen passes when AT LEAST ONE set passes. The calibrate names the set that passed in calibrate.json (probes: "ok (set
+  light)", sets: one line per set with its counts, probeDetail: every probe with the set it belongs to); the rep notes of a walk do NOT
+  name the passing set (a rep note is cut at 120 characters), and when none passes the note is "no set matches: light 2/4 (4), dark
+  0/4 (4)" (every set: probes matched / probes in the set, then its minMatch in brackets; a pre-check says "<screen> check failed: light 2/4
+  (4), dark 0/4 (4)"). Example, the chat: { "sets": [ { "name": "light", "probes": [ pill, pill, pill, Aa ], "minMatch": 4 }, { "name":
+  "dark", "probes": [ pill, pill, pill, Aa ], "minMatch": 4 } ] }. The chat set holds THREE probes inside the pill of the
+  composer AND ONE probe on the "Aa" glyph of the message field: the glyph is a chat-only chrome feature, the pill alone is a white strip
+  that a settings or Downloads card could match. The viewer is calibrated only AFTER the chat check passes (cal-14 must confirm the chat,
+  then cal-15 taps the photo), so the chat sets must be in the map BEFORE the calibrate that reads the viewer. No new step, no new adb
+  command, no typed input: only the way a PNG is judged changes. The values of the sets are filled by ONE calibrate run of the operator
+  block (read the pixels from cal-14 / cal-15 in each theme), never by hand from a guess.
+Inputs: a52s.json next to this script (timing, taps, swipes, screen probes or, for chat and viewer, probe sets; the package is pinned below);
         <repo>\Claude outputs\adbwalk\walk.local.json (optional, never in git): { "seedAddresses": [...],
         "imageChatAddress": "...", "fileChatAddress": "...", "voiceChatAddress": "...", "photoChatAddress": "..."
         (each optional) }; all are masked in everything the script writes.
@@ -812,6 +833,13 @@ function Get-Field($Obj, [string]$Name) {
     return $p.Value
 }
 
+function Test-HasField($Obj, [string]$Name) {
+    # Batch walktools (item 2): is the key PRESENT (Get-Field gives $null for an absent key and for a JSON null alike).
+    if ($null -eq $Obj) { return $false }
+    if ($Obj -isnot [System.Management.Automation.PSCustomObject]) { return $false }
+    return ($null -ne $Obj.PSObject.Properties[$Name])
+}
+
 function Test-IsInt($V) {
     if ($null -eq $V) { return $false }
     if (-not ($V -is [int] -or $V -is [long] -or $V -is [double] -or $V -is [decimal])) { return $false }
@@ -864,11 +892,12 @@ function Get-SwipeGap([string]$Name) {
     return ''
 }
 
-function Get-ScreenGap([string]$Name) {
-    $scr = Get-Field (Get-Field $script:Cfg 'screens') $Name
-    if ($null -eq $scr) { return ('a52s.json has no screens.' + $Name) }
-    $probes = @(Get-Field $scr 'probes')
-    if ($probes.Count -eq 0) { return ('screens.' + $Name + ' not calibrated (no probes)') }
+function Get-ProbeListGap([string]$Label, $Probes, $Min) {
+    # Batch walktools (item 2): the checks of the old Get-ScreenGap, unchanged (the same order and the same texts), taken out so that a
+    # set of the new form is validated by exactly the same rules. $Label = 'screens.<name>' (the old form: the texts are byte-equal to
+    # the old ones) or 'screens.<name>.sets[<set name>]'. Returns '' when the list is valid.
+    $probes = @($Probes)
+    if ($probes.Count -eq 0) { return ($Label + ' not calibrated (no probes)') }
     $i = 0
     $placeholder = 0
     foreach ($pr in $probes) {
@@ -878,18 +907,45 @@ function Get-ScreenGap([string]$Name) {
         $rgb = [string](Get-Field $pr 'rgb')
         $tol = Get-Field $pr 'tol'
         if (-not (Test-IsInt $x) -or -not (Test-IsInt $y) -or -not (Test-IsInt $tol) -or $rgb -cnotmatch '^#[0-9A-Fa-f]{6}\z') {
-            return ('screens.' + $Name + ' probe ' + $i + ' is invalid')
+            return ($Label + ' probe ' + $i + ' is invalid')
         }
         if (-not (Test-OnScreen $x $y) -or $tol -lt 0 -or $tol -gt 255) {
-            return ('screens.' + $Name + ' probe ' + $i + ' is off the screen or tol is not 0..255')
+            return ($Label + ' probe ' + $i + ' is off the screen or tol is not 0..255')
         }
         # The contract's sample probe {0,0,#000000} is a placeholder, not a calibration.
         if ($x -eq 0 -and $y -eq 0 -and $rgb -eq '#000000') { $placeholder++ }
     }
-    if ($placeholder -eq $probes.Count) { return ('screens.' + $Name + ' not calibrated (placeholder probe)') }
-    $min = Get-Field $scr 'minMatch'
-    if (-not (Test-IsInt $min) -or $min -lt 1 -or $min -gt $probes.Count) { return ('screens.' + $Name + '.minMatch is not 1..' + $probes.Count) }
+    if ($placeholder -eq $probes.Count) { return ($Label + ' not calibrated (placeholder probe)') }
+    if (-not (Test-IsInt $Min) -or $Min -lt 1 -or $Min -gt $probes.Count) { return ($Label + '.minMatch is not 1..' + $probes.Count) }
     return ''
+}
+
+function Get-ScreenGap([string]$Name) {
+    # Batch walktools (item 2): a screen is EITHER { probes, minMatch } (the old form: the checks and texts are unchanged, they now
+    # live in Get-ProbeListGap) OR, for chat and viewer ONLY, { sets: [ { name, probes, minMatch } ] }: 1 or 2 sets, the names unique and
+    # light or dark, each set checked by Get-ProbeListGap. A key with both forms, and sets on another screen, are gaps (invalid).
+    $scr = Get-Field (Get-Field $script:Cfg 'screens') $Name
+    if ($null -eq $scr) { return ('a52s.json has no screens.' + $Name) }
+    if (Test-HasField $scr 'sets') {
+        if (@('chat', 'viewer') -cnotcontains $Name) { return ('screens.' + $Name + ' may not use sets (only chat and viewer)') }
+        if ((Test-HasField $scr 'probes') -or (Test-HasField $scr 'minMatch')) { return ('screens.' + $Name + ' holds sets and probes / minMatch (one form only)') }
+        # The raw property value (Get-Field would unroll a one-element list): null and an object are no list.
+        $rawSets = $scr.PSObject.Properties['sets'].Value
+        if ($rawSets -isnot [System.Array]) { return ('screens.' + $Name + '.sets must be a list of 1 or 2 sets') }
+        $sets = @($rawSets)
+        if ($sets.Count -lt 1 -or $sets.Count -gt 2) { return ('screens.' + $Name + '.sets must be a list of 1 or 2 sets') }
+        $seen = @{}
+        foreach ($st in $sets) {
+            $sn = [string](Get-Field $st 'name')
+            if ($sn -cnotmatch '\A(light|dark)\z') { return ('screens.' + $Name + '.sets has a set whose name is not light or dark') }
+            if ($seen.ContainsKey($sn)) { return ('screens.' + $Name + '.sets has the name ' + $sn + ' twice') }
+            $seen[$sn] = $true
+            $gap = Get-ProbeListGap ('screens.' + $Name + '.sets[' + $sn + ']') @(Get-Field $st 'probes') (Get-Field $st 'minMatch')
+            if ($gap) { return $gap }
+        }
+        return ''
+    }
+    return (Get-ProbeListGap ('screens.' + $Name) @(Get-Field $scr 'probes') (Get-Field $scr 'minMatch'))
 }
 
 function Get-StepGap([string]$Step) {
@@ -1065,11 +1121,74 @@ function Get-PngSize([string]$Path) {
     return @{ W = $w; H = $h }
 }
 
+function Get-ScreenProbeSets($Scr) {
+    # Batch walktools (item 2): the probe sets of a screen as a list of @{ Name; Probes; Min; IsSets }: the old form is ONE entry (Name '',
+    # IsSets $false, its own probes and minMatch), the sets form is its sets in the order of the file. Min is the raw value (the caller casts
+    # it inside its try, as the old Test-Probes did). The screen was validated by Get-ScreenGap.
+    $list = New-Object System.Collections.Generic.List[object]
+    if (Test-HasField $Scr 'sets') {
+        foreach ($st in @(Get-Field $Scr 'sets')) { $list.Add(@{ Name = [string](Get-Field $st 'name'); Probes = @(Get-Field $st 'probes'); Min = (Get-Field $st 'minMatch'); IsSets = $true }) }
+    } else {
+        $list.Add(@{ Name = ''; Probes = @(Get-Field $Scr 'probes'); Min = (Get-Field $Scr 'minMatch'); IsSets = $false })
+    }
+    return ,$list
+}
+
+function Test-ProbeSetPixels($Probes, [int]$Min, $Pixels) {
+    # Batch walktools (item 2): the pure decision "does this probe set match these pixels", taken out of Test-Probes: no System.Drawing, so
+    # it runs on Linux too. $Pixels[i] = @(R, G, B) = the pixel read at the point of $Probes[i]. The arithmetic is the old inline loop's.
+    $r = @{ Ok = $false; Matched = 0; Of = @($Probes).Count; Detail = (New-Object System.Collections.Generic.List[object]) }
+    $i = 0
+    foreach ($pr in $Probes) {
+        $x = [int](Get-Field $pr 'x'); $y = [int](Get-Field $pr 'y'); $tol = [int](Get-Field $pr 'tol')
+        $hex = ([string](Get-Field $pr 'rgb')).Substring(1)
+        $wr = [Convert]::ToInt32($hex.Substring(0, 2), 16)
+        $wg = [Convert]::ToInt32($hex.Substring(2, 2), 16)
+        $wb = [Convert]::ToInt32($hex.Substring(4, 2), 16)
+        $c = $Pixels[$i]
+        $i++
+        $hit = ([math]::Abs([int]$c[0] - $wr) -le $tol) -and ([math]::Abs([int]$c[1] - $wg) -le $tol) -and ([math]::Abs([int]$c[2] - $wb) -le $tol)
+        if ($hit) { $r.Matched++ }
+        $r.Detail.Add([ordered]@{ x = $x; y = $y; want = ('#' + $hex.ToUpperInvariant()); actual = ('#{0:X2}{1:X2}{2:X2}' -f [int]$c[0], [int]$c[1], [int]$c[2]); tol = $tol; match = [bool]$hit })
+    }
+    $r.Ok = ($r.Matched -ge $Min)
+    return $r
+}
+
+function Get-ProbeVerdict($Sets, $PixelLists) {
+    # Batch walktools (item 2): the verdict of a screen from its sets ($Sets of Get-ScreenProbeSets) and the pixels of each set
+    # ($PixelLists[k] = the pixels of $Sets[k], as Test-ProbeSetPixels takes them). Pure, no System.Drawing.
+    # The old form (one entry, IsSets $false): the old result, byte for byte (Note 'probes m of n match (minMatch k)' when it fails).
+    # The sets form: Ok when AT LEAST ONE set passes; Set = the first passing set in file order, Matched / Of = that set's; when none
+    # passes Matched / Of stay $null (no number of a set that was not the one) and Note names EVERY set's count in the compact form
+    # 'no set matches: light 2/4 (4), dark 0/4 (4)' (matched/of, then the minMatch in brackets; a rep note is cut at 120 characters by Get-SafeNote). Sets = one line per set.
+    $v = @{ Ok = $false; Note = ''; Matched = 0; Of = 0; Set = ''; Sets = (New-Object System.Collections.Generic.List[object]); Detail = (New-Object System.Collections.Generic.List[object]) }
+    if (-not $Sets[0].IsSets) {
+        $res = Test-ProbeSetPixels $Sets[0].Probes ([int]$Sets[0].Min) $PixelLists[0]
+        $v.Ok = $res.Ok; $v.Matched = $res.Matched; $v.Of = $res.Of; $v.Detail = $res.Detail
+        if (-not $v.Ok) { $v.Note = 'probes ' + $v.Matched + ' of ' + $v.Of + ' match (minMatch ' + [int]$Sets[0].Min + ')' }
+        return $v
+    }
+    $parts = New-Object System.Collections.Generic.List[string]
+    for ($k = 0; $k -lt $Sets.Count; $k++) {
+        $min = [int]$Sets[$k].Min
+        $res = Test-ProbeSetPixels $Sets[$k].Probes $min $PixelLists[$k]
+        $v.Sets.Add([ordered]@{ set = $Sets[$k].Name; matched = $res.Matched; of = $res.Of; minMatch = $min; ok = [bool]$res.Ok })
+        foreach ($d in $res.Detail) { $d['set'] = $Sets[$k].Name; $v.Detail.Add($d) }
+        $parts.Add($Sets[$k].Name + ' ' + $res.Matched + '/' + $res.Of + ' (' + $min + ')')
+        if ($res.Ok -and -not $v.Ok) { $v.Ok = $true; $v.Set = $Sets[$k].Name; $v.Matched = $res.Matched; $v.Of = $res.Of }
+    }
+    if (-not $v.Ok) { $v.Matched = $null; $v.Of = $null; $v.Note = 'no set matches: ' + ($parts -join ', ') }
+    return $v
+}
+
 function Test-Probes([string]$Path, [string]$Name) {
-    $o = @{ Ok = $false; Note = ''; Matched = 0; Of = 0; Detail = (New-Object System.Collections.Generic.List[object]) }
+    # Batch walktools (item 2): the PNG reading stays here (System.Drawing); the pixel of every probe of every set is read, the decision is
+    # Get-ProbeVerdict. The old form gives the old result; the sets form adds Set, Sets and (in Detail) the set of each probe.
+    $o = @{ Ok = $false; Note = ''; Matched = 0; Of = 0; Set = ''; Sets = (New-Object System.Collections.Generic.List[object]); Detail = (New-Object System.Collections.Generic.List[object]) }
     $scr = Get-Field (Get-Field $script:Cfg 'screens') $Name
-    $probes = @(Get-Field $scr 'probes')
-    $o.Of = $probes.Count
+    $sets = Get-ScreenProbeSets $scr
+    if (-not $sets[0].IsSets) { $o.Of = $sets[0].Probes.Count } else { $o.Matched = $null; $o.Of = $null }
     if (-not (Initialize-Drawing)) { $o.Note = 'cannot read PNG'; return $o }
     $ms = $null
     $bmp = $null
@@ -1078,20 +1197,16 @@ function Test-Probes([string]$Path, [string]$Name) {
         $bytes = [System.IO.File]::ReadAllBytes($Path)
         $ms = New-Object System.IO.MemoryStream(, $bytes)
         $bmp = New-Object System.Drawing.Bitmap($ms)
-        foreach ($pr in $probes) {
-            $x = [int](Get-Field $pr 'x'); $y = [int](Get-Field $pr 'y'); $tol = [int](Get-Field $pr 'tol')
-            $hex = ([string](Get-Field $pr 'rgb')).Substring(1)
-            $wr = [Convert]::ToInt32($hex.Substring(0, 2), 16)
-            $wg = [Convert]::ToInt32($hex.Substring(2, 2), 16)
-            $wb = [Convert]::ToInt32($hex.Substring(4, 2), 16)
-            $c = $bmp.GetPixel($x, $y)
-            $hit = ([math]::Abs([int]$c.R - $wr) -le $tol) -and ([math]::Abs([int]$c.G - $wg) -le $tol) -and ([math]::Abs([int]$c.B - $wb) -le $tol)
-            if ($hit) { $o.Matched++ }
-            $o.Detail.Add([ordered]@{ x = $x; y = $y; want = ('#' + $hex.ToUpperInvariant()); actual = ('#{0:X2}{1:X2}{2:X2}' -f $c.R, $c.G, $c.B); tol = $tol; match = [bool]$hit })
+        $lists = New-Object System.Collections.Generic.List[object]
+        foreach ($st in $sets) {
+            $pix = New-Object System.Collections.Generic.List[object]
+            foreach ($pr in $st.Probes) {
+                $c = $bmp.GetPixel([int](Get-Field $pr 'x'), [int](Get-Field $pr 'y'))
+                $pix.Add(@([int]$c.R, [int]$c.G, [int]$c.B))
+            }
+            $lists.Add($pix)
         }
-        $min = [int](Get-Field $scr 'minMatch')
-        $o.Ok = ($o.Matched -ge $min)
-        if (-not $o.Ok) { $o.Note = 'probes ' + $o.Matched + ' of ' + $o.Of + ' match (minMatch ' + $min + ')' }
+        $o = Get-ProbeVerdict $sets $lists
     } catch {
         $o.Ok = $false
         $o.Note = 'cannot read PNG'
@@ -1105,14 +1220,17 @@ function Test-Probes([string]$Path, [string]$Name) {
 
 function Test-Screen([string]$Png, [string]$Name) {
     # Focus was checked before the screenshot; here: (2) the PNG size, then (3) at least minMatch probes.
+    # Batch walktools (item 2): a pass of the sets form also carries Set = the name of the set that passed ('' for the old form); a failure carries
+    # Sets = the number of sets that were judged (0 for the old form and for a PNG that could not be read). The walk's rep notes do NOT name the passing set
+    # (a rep note is cut at 120 characters: the success note would eat the room of a failure note); calibrate.json keeps the set of each check.
     $size = Get-PngSize $Png
     if ($null -eq $size) { return @{ Ok = $false; Note = 'screenshot is not a PNG' } }
     if ($size.W -ne $script:W -or $size.H -ne $script:H) {
         return @{ Ok = $false; Note = ('screenshot is ' + $size.W + 'x' + $size.H + ', a52s.json wants ' + $script:W + 'x' + $script:H) }
     }
     $pr = Test-Probes $Png $Name
-    if (-not $pr.Ok) { return @{ Ok = $false; Note = $pr.Note } }
-    return @{ Ok = $true; Note = '' }
+    if (-not $pr.Ok) { return @{ Ok = $false; Note = $pr.Note; Sets = [int]$pr.Sets.Count } }
+    return @{ Ok = $true; Note = ''; Set = $pr.Set }
 }
 
 function Save-Shot([string]$LocalName) {
@@ -1661,6 +1779,16 @@ function Invoke-ResumeRep($Rec, [int]$WaitSec, [int]$TapWaitMs, [switch]$DropOnF
     Wait-Ms $script:Tm['backSettleMs'] 'backSettleMs'
 }
 
+function Get-PreCheckText([string]$Expect, $Chk, [string]$Left) {
+    # Batch walktools (item 2): the text of the pre-check failure. The old form keeps the old words byte for byte. The sets form is shorter
+    # (no "before the input the ... screen", no "no set matches: ") so that the counts of EVERY set fit the 120 characters of a rep note after
+    # the two notes a -HistorySeed rep already holds: "PNG deleted (home check), restart proven before this rep, " (24 + 2 + 30 + 2 = 58) + "chat check
+    # failed: " (19) + "light 2/4 (4), dark 0/4 (4)" (27, two sets of 4 probes) + " (PNG deleted)" (14) = 118. With the longer tail " (local file not
+    # deleted)" (25) the total is 129 and Get-SafeNote cuts the END: the last 9 characters of the tail, the counts stay whole.
+    if ($Chk.Sets -gt 0) { return ('ADBWALK-NOSCREEN: ' + $Expect + ' check failed: ' + ($Chk.Note -replace '^no set matches: ', '') + $Left) }
+    return ('ADBWALK-NOSCREEN: before the input the ' + $Expect + ' screen check failed: ' + $Chk.Note + $Left)
+}
+
 function Invoke-PreCheck($Rec, [string]$Expect) {
     # The screen check BEFORE the input: focus first, then one screenshot (shot-<step>-NN-pre.png) and its probes.
     # A failed check stops the rep before any input (no-screen) and DELETES the PNG: the screen may be Wallet or
@@ -1676,7 +1804,7 @@ function Invoke-PreCheck($Rec, [string]$Expect) {
     if (-not $chk.Ok) {
         $left = ' (PNG deleted)'
         if (-not (Remove-LocalFile $local)) { $left = ' (local file not deleted)' }
-        throw ('ADBWALK-NOSCREEN: before the input the ' + $Expect + ' screen check failed: ' + $chk.Note + $left)
+        throw (Get-PreCheckText $Expect $chk $left)
     }
     $Rec['shotPre'] = $name
 }
@@ -3270,6 +3398,12 @@ function Invoke-Calibrate {
     } catch { $cal.notes.Add('cal-log.txt: ' + (Get-ErrText $_)) }
     $cal.files.Add('tries.txt')
 
+    # Batch walktools (item 2): the notes for the sets form of screens.chat and screens.viewer, ONLY when a screen of the map holds sets (a map in
+    # the old form gives the same calibrate.json as before). No new step, no new input. Each note is one line inside Get-SafeNote's alphabet.
+    if ((Test-HasField (Get-Field (Get-Field $script:Cfg 'screens') 'chat') 'sets') -or (Test-HasField (Get-Field (Get-Field $script:Cfg 'screens') 'viewer') 'sets')) {
+        $cal.notes.Add('chat sets: 3 pill probes and 1 on the Aa glyph of the message field (chat only, the pill alone is a white strip)')
+        $cal.notes.Add('viewer is checked only after the chat check passes: fill the chat sets before the calibrate that reads the viewer')
+    }
     foreach ($s in $script:CalShots) {
         $e = $s.Entry
         if ($s.Path) {
@@ -3282,9 +3416,12 @@ function Invoke-Calibrate {
             elseif ($gap) { $e['probes'] = 'not calibrated: ' + $gap }
             else {
                 $pr = Test-Probes $s.Path $e.expect
-                if ($pr.Ok) { $e['probes'] = 'ok' } else { $e['probes'] = $pr.Note }
+                # Batch walktools (item 2): the sets form: 'ok (set light)', matched / of of the passing set (none: null), one line per set in
+                # 'sets', and every probe with its set in probeDetail. The old form writes exactly what it wrote before.
+                if ($pr.Ok) { if ($pr.Set) { $e['probes'] = 'ok (set ' + $pr.Set + ')' } else { $e['probes'] = 'ok' } } else { $e['probes'] = $pr.Note }
                 $e['matched'] = $pr.Matched
                 $e['of'] = $pr.Of
+                if ($pr.Sets.Count -gt 0) { $e['sets'] = $pr.Sets }
                 $e['probeDetail'] = $pr.Detail
             }
             Say ('  check ' + $e.file + ': size ' + $e['width'] + 'x' + $e['height'] + ', probes: ' + $e['probes'])
@@ -3448,8 +3585,20 @@ $cfgPkg = [string](Get-Field $script:Cfg 'package')
 # The store app holds a real account: only the pinned package is ever driven.
 if ($cfgPkg -cne $script:PinnedPackage) { Exit-Usage ('a52s.json package "' + (Get-SafeNote $cfgPkg) + '" is not the pinned ' + $script:PinnedPackage + ': refused') }
 $script:Pkg = $script:PinnedPackage
+# Batch walktools (item 2): the sets form is for screens.chat and screens.viewer ONLY. Any other screen with a sets key (accountScrolled
+# included: it keeps its old form and its own rule below) is a usage error before any adb command.
+$scrAll = Get-Field $script:Cfg 'screens'
+if ($scrAll -is [System.Management.Automation.PSCustomObject]) {
+    foreach ($scrKey in @($scrAll.PSObject.Properties.Name)) {
+        if ((Test-HasField (Get-Field $scrAll $scrKey) 'sets') -and (@('chat', 'viewer') -cnotcontains $scrKey)) { Exit-Usage ('a52s.json screens.' + $scrKey + ' has sets: only screens.chat and screens.viewer may use sets') }
+    }
+}
 foreach ($scrName in @('home', 'chat', 'chatinfo', 'viewer', 'downloads')) {
     if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') $scrName) 'probes').Count -gt 16) { Exit-Usage ('a52s.json screens.' + $scrName + ' has more than 16 probes') }
+    # Batch walktools (item 2): the same limit for every set of chat / viewer (more than 4 sets is a gap in Get-ScreenGap, so the loop stays short).
+    foreach ($limSet in @(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') $scrName) 'sets' | Select-Object -First 4)) {
+        if (@(Get-Field $limSet 'probes').Count -gt 16) { Exit-Usage ('a52s.json screens.' + $scrName + ' has a set with more than 16 probes') }
+    }
 }
 # Batch fixb3 (item 3): the new screen of the Account hub has the same probe limit.
 if (@(Get-Field (Get-Field (Get-Field $script:Cfg 'screens') 'accountScrolled') 'probes').Count -gt 16) { Exit-Usage 'a52s.json screens.accountScrolled has more than 16 probes' }

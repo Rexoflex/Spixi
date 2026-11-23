@@ -729,7 +729,7 @@ Summary: **1121** keys · **158** map to a legacy id · **963** new · legacy di
 | `slide2Title2` | Private by design. | title | short |  | — |
 | `slide3Copy` | A private IXI wallet lives inside every chat. Send and request IXI in a tap. | title | long |  | — |
 | `slide3Title` | Send IXI like a message. | title | medium |  | — |
-| `slide4Copy2` | Mini apps like Blitz Chess and Split open right in your chats. | title | long |  | — |
+| `slide4Copy3` | Mini apps like Blitz Chess open right in your chats. | title | medium |  | — |
 | `slide4Title2` | Play and plan together. | title | medium |  | — |
 | `stepOf` | {n} of {total} | aria | short | {n} {total} | `create-account-step-of` |
 | `strengthFair` | Fair | text | short |  | — |

@@ -36,10 +36,10 @@ A change to this table goes through the lead; both sides get the new text.
 1. Copy back per agent, changed files only → the FULL pipeline (bundle BEFORE shells) → the `--check` gates.
 2. Pin registrations in `scripts/smoke-test.mjs`: check the scope each line landed in; grep the smoke for the tokens
    of every edited line (the INLINE pins, L84).
-3. The full smoke (one at a time, nothing that executes beside it, L153) + CSH → the #46 loop until CLEAN (a full
-   smoke between fix and review rounds — the Hard rule) → the export docs →
-   commit, ONE push of `work/<batch>`, the pull request inside the fork, wait for `redesign-ci`
-   (`docs/orchestration.md` § 4).
+3. The full smoke (one at a time, nothing that executes beside it, L153) + CSH → the #46 loop until CLEAN (between
+   rounds the pins the fix touches; the full smoke ONCE after the last fix — #1503) → the export docs →
+   commit, ONE push of `work/<batch>`, read each commit back, the compare link for Damir's pull request (#1546),
+   `redesign-ci` is read on that pull request (`docs/orchestration.md` § 4).
 
 ## 6 · Escalation log
 | Item | Attempt | Model | Result | Next |

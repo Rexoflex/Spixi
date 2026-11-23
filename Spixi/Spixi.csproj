@@ -457,7 +457,8 @@
 	       JS strip found a fault that is not fixed and only one review round remained, so no build may pack
 	       the output of that strip. The JS strip code, its pins and the script flag lean-js stay (tools and
 	       pins use them), and so do this property and the js branch of SpixiLeanReleaseHtml (now unreachable;
-	       byte for byte as it was) for the session that finishes P-07. Removing THIS one Error re-opens the
+	       byte for byte as it was) for the session that finishes P-07. Removing THIS one Error AND the
+	       first Error of SpixiLeanReleaseHtml (its twin, see the comment above that target) re-opens the
 	       path, and only after a CLEAN review of the JS strip. The typo Error above comes first (a typo
 	       still gets the typo text), and this Error comes before every store / dev / Android / app-id /
 	       strip / folder / stamp test: a js build gets this text whatever else is wrong with it. With
@@ -499,8 +500,29 @@
 	     - an IntermediateOutputPath that is empty, only white space, or the project folder itself after
 	       normalization (., ./, obj/../): the tokens-only strip runs BEFORE the lean target and has no
 	       such check, so it would write spixi-strip/html/ beside the sources, and the lean target would
-	       write and REMOVE spixi-lean/html/ there. Any other folder (below obj, elsewhere below the
-	       project folder, or outside it) is accepted;
+	       write and REMOVE spixi-lean/html/ there. A folder below obj or bin of the project folder, or outside the
+	       project folder, passes this test; Resources\Raw is refused by the next bullet, and the rest of the
+	       project folder (and Resources and Platforms) by the packed-folder bullet after it;
+	     - an IntermediateOutputPath that is Resources\Raw or inside it (review round 5 of Speed lean,
+	       r5B-2): the asset glob of this file is Resources\Raw\**, so every file under that folder ships.
+	       A strip output written there would be packed by the NEXT build as extra assets, and the lean
+	       target would empty a folder there. The test compares the normalized IntermediateOutputPath
+	       with the normalized Resources\Raw folder (both end in a separator, so Resources\RawX is not
+	       inside) by StartsWith with the ordinal ignore-case comparison; a different letter case or a
+	       ..\ spelling does not get round it. The strip script refuses the same folders for its out folder
+	       (the tokens-only target runs it too and is not edited: its Exec fails on that refusal, so that build
+	       stops as well). This test compares SPELLINGS: it cannot see a link. An IntermediateOutputPath that
+	       reaches Resources\Raw through a link is caught by the script's refusal in the tokens-only call, which
+	       runs first (the script tests the real path, links followed; the msbuild harness proves it);
+	     - an IntermediateOutputPath that is Resources or Platforms or inside one of them (review round 1 of
+	       leanfollow, r1S-4): the build packs more than Resources\Raw\** (the default globs of the MAUI SDK:
+	       Resources\Fonts, Resources\Images, Resources\AppIcon, Resources\Splash, and under Platforms the
+	       Android Assets and Resources), so a second Error with the same function refuses the two whole folders
+	       (Resources includes Raw: the Error before it keeps the text that names Raw). Round 2 (r2S-2): the same Error
+	       also refuses an IntermediateOutputPath inside the project folder that is not under obj or bin (outside the
+	       project folder stays allowed): the MAUI default items also embed every **\*.css of the project folder (MauiCss,
+	       minus bin and obj). THAT CLAIM WAS READ FROM THE UPSTREAM TARGETS, NOT PROVEN BY A MAUI BUILD; the refusal costs
+	       nothing for the default obj folder;
 	     - THE STAMP (#46 perflean D-1). When SpixiLeanReleaseHtml ENDS (its swap passed every check) it
 	       writes <obj>/spixi-lean.stamp with the evaluated switches as one line, css=true js=false (yes, on
 	       and True give the same text as true). That is before the rest of the build: a lean build that
@@ -545,6 +567,9 @@
 		<Error Condition="'$(ApplicationId)' != 'com.ixilabs.spixi.dev'" Text="Spixi lean packaging: a lean package is allowed only with the dev app id before the ruling of the lean defaults, and ApplicationId is '$(ApplicationId)' (SpixiDevCoexist=$(SpixiDevCoexist), TargetFramework=$(TargetFramework)): the id is decided when the project file is read, so a SpixiDevCoexist that is set later (a .csproj.user file, a Directory.Build.targets file) or an ApplicationId on the build line does not give the dev id. Pass -p:SpixiDevCoexist=true -f net10.0-android on the build line, or remove the lean property (a -p: switch, an environment variable, or a props / .user file)." />
 		<Error Condition="'$(SpixiStripHtml)' != 'true'" Text="Spixi lean packaging: SpixiLeanCss=$(SpixiLeanCss) / SpixiLeanJs=$(SpixiLeanJs) needs the Release packaging strip, but SpixiStripHtml is '$(SpixiStripHtml)' (Configuration=$(Configuration)). A lean switch needs SpixiStripHtml=true, which is on by default only in Release: build -c Release without SpixiStripHtml=false, or remove the lean property (a -p: switch, an environment variable, or a props / .user file)." />
 		<Error Condition="'$(IntermediateOutputPath.Trim())' == '' or '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`))' == '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))'" Text="Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is empty, only white space, or the project folder itself — refusing a lean build (its output directory would be inside the working tree, beside the sources). Leave IntermediateOutputPath to the SDK, or set it to another folder." />
+		<Error Condition="$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`, `Raw`))`, System.StringComparison.OrdinalIgnoreCase))" Text="Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is the asset folder Resources\Raw or inside it — refusing a lean build (the asset glob packs every file under Resources\Raw, so a file written there ships in the next package). Leave IntermediateOutputPath to the SDK, or set it to another folder." />
+		<Error Condition="$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`))`, System.StringComparison.OrdinalIgnoreCase)) or $([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Platforms`))`, System.StringComparison.OrdinalIgnoreCase)) or ($([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))`, System.StringComparison.OrdinalIgnoreCase)) and !$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `obj`))`, System.StringComparison.OrdinalIgnoreCase)) and !$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `bin`))`, System.StringComparison.OrdinalIgnoreCase)))" Text="Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them — refusing a lean build (the build packs files under Resources, for example Fonts, Images, AppIcon and Splash, and under Platforms, for example Android Assets and Resources, so a file written there ships in the next package). Leave IntermediateOutputPath to the SDK, or set it to another folder." />
+		<Error Condition="Exists('$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean.stamp`))') and $([System.IO.File]::GetAttributes(`$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean.stamp`))`).ToString().Contains(`ReparsePoint`))" Text="Spixi lean packaging: the stamp file spixi-lean.stamp under IntermediateOutputPath='$(IntermediateOutputPath)' is a link (a symbolic link, a junction or another reparse point) — refusing a lean build: the stamp is read and written through it, and a write would change the file it points to. Delete the link, or delete Spixi\obj." />
 		<PropertyGroup>
 			<_SpixiLeanStamp>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-lean.stamp'))</_SpixiLeanStamp>
 			<_SpixiLeanState>css=false</_SpixiLeanState>
@@ -605,6 +630,31 @@
 	     SpixiStripHtml is true AND SpixiLeanCss and / or SpixiLeanJs is true (SpixiLeanGuard has already
 	     refused every other lean combination, and every one with SpixiLeanJs on: the park of P-07, so the
 	     js branches below are unreachable in this batch and stay for the session that finishes P-07).
+	     THE BELTS come first, before the folder is emptied and before node runs (review round 5 of Speed
+	     lean, r5B-1 and r5B-2; the link belts are round 1 of leanfollow, r1S-1). (1) The park of P-07 again: an Error when SpixiLeanJs is not false. The
+	     guard reads the property when IT runs; a target that runs after the guard (an imported targets
+	     file with AfterTargets="SpixiLeanGuard", or a Directory.Build.targets file above the repo) could
+	     set it to true and reach the js flag line and the js must-write line below, which would pack the
+	     output of the parked JS strip. This Error reads the property again at its own run, so that road is
+	     closed. The js lines of this target stay as they were. (2) The folder test again at target time:
+	     an IntermediateOutputPath that is Resources\Raw or inside it is refused before RemoveDir (the
+	     guard's test, the same Condition: a later target could change the property too), and the same
+	     for the packed folders Resources and Platforms (one more Error, the guard's second test). (3) A link
+	     at spixi-lean or at spixi-lean\html (planted in obj, or left by a tool): RemoveDir follows a link and
+	     would empty its target, for example Resources\Raw\html. Two Errors with the same Condition shape
+	     refuse it before RemoveDir: Exists of the path and GetAttributes(path).ToString().Contains(ReparsePoint)
+	     (a symbolic link on Linux and macOS, a junction or symlink on Windows. SHOWN on Linux only: with no trailing
+	     separator GetAttributes reads the link itself, not its target; the Windows behaviour was not run). A dangling link: Exists is TRUE for it on .NET 10 on
+	     Linux (shown with a symlink to nothing), GetAttributes returns ReparsePoint, so the Error refuses it; the script also refuses
+	     a dangling link (its dangling-link rule) at the Exec. A link at the IntermediateOutputPath
+	     level (obj\Release\net10.0-android itself) whose target is in Resources\Raw, Resources or Platforms is refused
+	     earlier, by the script's real-path refusal in the tokens-only call, which runs first;
+	     a link to a folder outside the project folder is accepted, as before. LIMIT (review round 4): a link planted inside obj or bin that points into the project folder (outside Resources / Platforms) is not refused — the exception is granted when any view says the folder is under obj or bin (a stricter test refused every build of a checkout reached through a linked folder, review round 4); a link into Resources/Raw, Resources or Platforms is still refused. "ReparsePoint" also marks
+	     OneDrive Files-On-Demand folders (r3S-7): a lean build whose obj folder is one can be refused by these link
+	     Errors; NOT run on Windows. LIMIT (r2S-9): every link test here is check-then-act. A local process that
+	     plants a link in obj after the test and before RemoveDir, the Exec or the stamp write (a local writer during the
+	     build) is not stopped; the threat modelled is a link that is already there. The Error before the stamp read is the
+	     guard's (r2S-7): a link at spixi-lean.stamp is refused before the stamp is read or written.
 	     Defined AFTER SpixiStripReleaseHtml, on the same hook (BeforeTargets run in file order), and
 	     DependsOnTargets names both, so the order holds even if this block moves: the guard first,
 	     then the tokens-only strip, exactly as today, and then this target replaces, by LogicalName,
@@ -632,12 +682,17 @@
 	     5. only after every check above: the stamp (SpixiLeanGuard's comment) is written with the
 	        evaluated switches that SpixiLeanGuard computed and compared. Not in a design-time build. -->
 	<Target Name="SpixiLeanReleaseHtml" BeforeTargets="PrepareForBuild" DependsOnTargets="SpixiLeanGuard;SpixiStripReleaseHtml" Condition="'$(DesignTimeBuild)' != 'true' and '$(SpixiStripHtml)' == 'true' and ('$(SpixiLeanCss)' == 'true' or '$(SpixiLeanJs)' == 'true')">
+		<Error Condition="'$(SpixiLeanJs)' != 'false'" Text="Spixi lean packaging: SpixiLeanJs='$(SpixiLeanJs)' reached the lean target after SpixiLeanGuard had passed (a target or an imported file set it late): the comment strip of the scripts (P-07) is PARKED in this batch, so no build may pack its output (DECISIONS 1583 and 1589). Remove the late setting of the property; the comment strip of the stylesheets is SpixiLeanCss=true." />
 		<!-- Evaluated INSIDE the target for the reason SpixiStripReleaseHtml gives (#46 auditor A
 		     MAJOR-1): in the project body $(IntermediateOutputPath) is still empty, so the directory
 		     would land in the working tree, ONE directory for four TFMs. RemoveDir deletes it, so an
 		     IntermediateOutputPath that is empty, white space or the project folder is refused before
 		     anything is deleted (a belt: SpixiLeanGuard refuses the same values first). -->
 		<Error Condition="'$(IntermediateOutputPath.Trim())' == '' or '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`))' == '$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))'" Text="Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is empty, only white space, or the project folder itself at target time — refusing to empty a directory in the working tree" />
+		<Error Condition="$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`, `Raw`))`, System.StringComparison.OrdinalIgnoreCase))" Text="Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is the asset folder Resources\Raw or inside it at target time — refusing to empty a directory there" />
+		<Error Condition="$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Resources`))`, System.StringComparison.OrdinalIgnoreCase)) or $([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `Platforms`))`, System.StringComparison.OrdinalIgnoreCase)) or ($([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`))`, System.StringComparison.OrdinalIgnoreCase)) and !$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `obj`))`, System.StringComparison.OrdinalIgnoreCase)) and !$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`).StartsWith(`$([MSBuild]::NormalizeDirectory(`$(MSBuildProjectDirectory)`, `bin`))`, System.StringComparison.OrdinalIgnoreCase)))" Text="Spixi lean packaging: IntermediateOutputPath='$(IntermediateOutputPath)' is the packed folder Resources or Platforms, the rest of the project folder outside obj and bin, or inside one of them at target time — refusing to empty a directory there" />
+		<Error Condition="Exists('$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean`))') and $([System.IO.File]::GetAttributes(`$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean`))`).ToString().Contains(`ReparsePoint`))" Text="Spixi lean packaging: the folder spixi-lean under IntermediateOutputPath='$(IntermediateOutputPath)' is a link (a symbolic link, a junction or another reparse point) — refusing to empty it: RemoveDir would follow it and could empty a folder of the working tree, for example Resources\Raw\html. Delete the link, or delete Spixi\obj." />
+		<Error Condition="Exists('$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean`, `html`))') and $([System.IO.File]::GetAttributes(`$([MSBuild]::NormalizePath(`$(MSBuildProjectDirectory)`, `$(IntermediateOutputPath)`, `spixi-lean`, `html`))`).ToString().Contains(`ReparsePoint`))" Text="Spixi lean packaging: the folder spixi-lean\html under IntermediateOutputPath='$(IntermediateOutputPath)' is a link (a symbolic link, a junction or another reparse point) — refusing to empty it: RemoveDir would follow it and could empty a folder of the working tree, for example Resources\Raw\html. Delete the link, or delete Spixi\obj." />
 		<PropertyGroup>
 			<SpixiLeanHtmlDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'spixi-lean', 'html'))</SpixiLeanHtmlDir>
 			<SpixiLeanScript>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '..', 'scripts', 'strip-release.mjs'))</SpixiLeanScript>

@@ -1,0 +1,6 @@
+12-01 10:00:00.800 4242 4243 I DOTNET  : 12-01 10:00:00.8000|info|1: [WEBVIEW] WARNING [P1] shell scroll older ms=700 n=40 drop=1 max=28 (file:///android_asset/html/spixi.bundle.js:47)
+12-01 10:00:01.000 4242 4243 I DOTNET  : 12-01 10:00:01.0000|info|1: [P1] chat load last-in-window=0 type=4 local=0
+12-01 10:00:02.055 4242 4243 I DOTNET  : 12-01 10:00:02.0550|info|1: [P1] chat load last-in-window=0 type=4 local=0
+12-01 10:00:02.107 4242 4243 I DOTNET  : 12-01 10:00:02.1070|info|1: [WEBVIEW] WARNING [P1] shell send loadmore dt=70 (file:///android_asset/html/spixi.bundle.js:47)
+12-01 10:00:02.350 4242 4243 I DOTNET  : 12-01 10:00:02.3500|info|1: [WEBVIEW] WARNING [P1] shell older insert rows=50 mode=insert build=12 swap=3 fix=2 fade=4 ms=26 (file:///android_asset/html/spixi.bundle.js:47)
+12-01 10:00:02.950 4242 4243 I DOTNET  : 12-01 10:00:02.9500|info|1: [WEBVIEW] WARNING [P1] shell older frames n=35 max=33 (file:///android_asset/html/spixi.bundle.js:47)

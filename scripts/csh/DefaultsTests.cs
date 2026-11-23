@@ -85,9 +85,12 @@ public class DefaultsTests
         var mine = Lines.Where(l => l.StartsWith("[FLAGS] defaultsb ", StringComparison.Ordinal)).ToList();
         Assert.AreEqual(1, mine.Count, why + ": the line is logged exactly once — " + string.Join("|", Lines));
         Assert.AreEqual(want, mine[0], why + ": the line matches the state");
-        Assert.AreEqual(Lines.Count - 2, Lines.IndexOf(mine[0]), why + ": the second to last line of init (only the photo1b line follows)");
-        Assert.IsTrue(Lines.Count >= 3 && Lines[Lines.Count - 3].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal), why + ": directly after the photo1a line");
-        Assert.IsTrue(Lines[Lines.Count - 1].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": the photo1b line is the very last line");
+        // ★ fixb4 re-base (2026-11-22, after a look at init's diff: + `readFixb4();` after `readPhoto1b();`, its ONE [FLAGS] fixb4 line): init now ends
+        // photo1a line, defaultsb line, photo1b line, fixb4 line — so this line is THIRD from the end.
+        Assert.AreEqual(Lines.Count - 3, Lines.IndexOf(mine[0]), why + ": the third to last line of init (only the photo1b and the fixb4 lines follow)");
+        Assert.IsTrue(Lines.Count >= 4 && Lines[Lines.Count - 4].StartsWith("[FLAGS] photo1a ", StringComparison.Ordinal), why + ": directly after the photo1a line");
+        Assert.IsTrue(Lines[Lines.Count - 2].StartsWith("[FLAGS] photo1b ", StringComparison.Ordinal), why + ": the photo1b line right after this one");
+        Assert.IsTrue(Lines[Lines.Count - 1].StartsWith("[FLAGS] fixb4 ", StringComparison.Ordinal), why + ": the fixb4 line is the very last line");
     }
 
     /* ===================== the App lock reader (an existing account) ===================== */

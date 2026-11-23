@@ -1,0 +1,10 @@
+Component: MurmurHash (Austin Appleby) as vendored in facebook/rocksdb util/murmurhash.cc — the exported MurmurHashNeutral2 of the Android librocksdb.so and the murmurhash.cc use of the iOS build
+Licence: the statement in the file: "All code is released to the public domain. For business purposes, Murmurhash is under the MIT license."; the file holds no MIT text and no copyright line of the author
+Source of this text: https://raw.githubusercontent.com/facebook/rocksdb/3f51c0a185cd5bf43e7056c8f8010d7375346272/util/murmurhash.cc lines 6-11 · upstream SHA-256 c25d33a5cc9bda709c346499947289c60792fdbda9bb36382c6c6109a2993cca
+
+/*
+  Murmurhash from http://sites.google.com/site/murmurhash/
+
+  All code is released to the public domain. For business purposes, Murmurhash
+  is under the MIT license.
+*/

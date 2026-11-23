@@ -105,6 +105,7 @@
     <Compile Include="../../Spixi/Utils/FixB3Rules.cs" />   <!-- ★ fixb3 item 1 (#1744 (4), P84): the mini-app action guard before ixian:onload + the two catch lines — fixed words, the command NAME from a list, the exception TYPE word (tests: FixB3GuardTests.cs; MiniAppPage.handleAction calls it) -->
     <Compile Include="../../Spixi/Utils/FixB3ChatInfoRules.cs" />   <!-- ★ fixb3 (item 2, P85): the chat-info shared-items scan gate — only the latest scan pushes setSharedItems (tests: FixB3ChatInfoTests.cs; ContactDetails.pushSharedItems calls it) -->
     <Compile Include="../../Spixi/Utils/DefaultsRules.cs" />   <!-- ★ defaultsb (ruling 1750): the new-account defaults (App lock, Confirm payments), the lock delay bound, the [FLAGS] line (tests: DefaultsTests.cs; SpixiFlags.init calls it) -->
+    <Compile Include="../../Spixi/Utils/PageDefaultsRules.cs" />   <!-- ★ fixb4 (ruling 1750): the new-account page defaults (P1 Off, A9 Compact on the desktop) — the push arguments, the [DEFAULTS] page line, the [FLAGS] fixb4 line (tests: PageDefaultsTests.cs; SpixiFlags.readFixb4 and LaunchPage call it) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

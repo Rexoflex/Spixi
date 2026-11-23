@@ -103,7 +103,7 @@ export default async function (h) {
     viaStore: /^\{\s*if \(!WalletPassStore\.readForColdStart\(out string\? password\) \|\| password == null\)\s*return false;\s*return loadWallet\(password\);\s*\}$/.test(lwNone),
     givenBody: /new WalletStorage\(Path\.Combine\(Config\.spixiUserFolder, Config\.walletFile\)\)/.test(lwPass) && /walletStorage\.readWallet\(password\)/.test(lwPass),
     noPrefs: !/Preferences\./.test(lwNone + lwPass),
-    restores: (LP.match(/applyRestorePrefs\(pass\);\s*Node\.loadWallet\(pass\);/g) || []).length === 2 && !/Node\.loadWallet\(\);/.test(LP),
+    restores: (LP.match(/applyRestorePrefs\(pass\);\s*(?:pushNewAccountPageDefaults\(\);\s*)?Node\.loadWallet\(pass\);/g) || []).length === 2   /* ★ fixb4 re-base (2026-11-22): the one optional `pushNewAccountPageDefaults();` (no password, pins-fixb4/b-defaults b1) may sit between */ && !/Node\.loadWallet\(\);/.test(LP),
   };
   ok(Object.values(c).every(Boolean),
     '★ S16 L8-c (#1312): Node.loadWallet() reads the password ONLY through WalletPassStore.readForColdStart (no value → false → the retry view) and opens via loadWallet(string); both restore paths open with the password verifyWallet accepted — ' + JSON.stringify(c));

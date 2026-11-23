@@ -8799,7 +8799,27 @@ console.log('#343 — instant chrome, first-commit fade, message window');
     const compDir = join(root, 'src/styles/components');
     const compCss = readdirSync(compDir).filter((f) => f.endsWith('.css'))
       .map((f) => readFileSync(join(compDir, f), 'utf8')).join('\n');
-    const probe = new JSDOM('<!doctype html><html><head><style>' + baseCss + '</style><style>'
+    /* ★ jsdom-version-proof reads (MC n-20261111-jsdom31-smoke-rows, #1749 (1); walktools #46 r1 m3 / n1, r2 MINOR-1 / NIT-1).
+     * jsdom 29 hands a cascade-winning declaration back AS WRITTEN (`transition` / `border-bottom-color` read
+     * `var(--duration-100) …` verbatim); jsdom 31 resolves var() at computed-value time like a browser (an undefined name
+     * makes the whole declaration invalid: `transition` reads the initial `all`, the border colour `rgb(0, 0, 0)`). So:
+     * (1) the probe loads the REAL token sheet, src/styles/tokens.css — the SOURCE sheet, because every other sheet of
+     *     this probe is a source sheet (base.css + src/styles/components); the built spixi.tokens.css is generated from it.
+     *     Every real token (`--easing-accelerate` …) and every component custom property (`--chip-dur: var(--duration-100)`)
+     *     is then defined exactly as in the app — no hand-kept subset that a valid rule can fall outside of.
+     * (2) `sub(value, el)` resolves what jsdom 29 left literal through the probe's OWN computed custom properties of the
+     *     element the row reads (`getComputedStyle(el).getPropertyValue(name)`, inherited like the cascade, recursively,
+     *     depth-capped at 16): a defined name gives its value (its fallback is not evaluated); an empty one gives its
+     *     fallback, resolved the same way; an empty one WITHOUT a fallback, an unbalanced `var(` or a too-deep chain makes
+     *     the WHOLE value the bare SUB_INVALID marker (no token name in it, so no row regex can match it), as strict as 31.
+     *     On jsdom 31 the value has no var() left and `sub()` changes nothing.
+     * (3) an expected value is read the SAME way from a reference element (`#ref-d100`, `#ref-hair`) that declares just
+     *     `var(--token)`, so each version compares its own serialization (29: `100ms` / `#…`, 31: `0.1s` / `rgb(…)`).
+     * Limit: a custom property is resolved at the element that READS it, not at the element that declares it (a token
+     * that refers to a name redefined lower in the tree would differ from a browser); no rule of this tree does that. */
+    const SUB_INVALID = 'INVALID-VAR';
+    const tokensCss = readFileSync(join(root, 'src/styles/tokens.css'), 'utf8');
+    const probe = new JSDOM('<!doctype html><html><head><style>' + tokensCss + '</style><style>' + baseCss + '</style><style>'
       + compCss + '</style></head><body>'
       + '<button class="c-button" data-morphing id="m"></button>'
       + '<button class="c-button" id="b"></button>'
@@ -8838,18 +8858,45 @@ console.log('#343 — instant chrome, first-commit fade, message window');
        * ⚠ DARK ONLY here, and deliberately: jsdom's cssstyle drops a `border-bottom`
        * shorthand containing var(), so the light bars would report transparent for
        * the wrong reason. Light is pinned by source order in the topbarCss block. */
+      + '<div id="ref-d100" style="transition-duration: var(--duration-100)"></div>'   // the expected values, read the same way
       + '<div data-theme="dark">'
+      + '<div id="ref-hair" style="border-bottom-color: var(--outline-neutral-02)"></div>'
       + '<header class="c-topbar" data-variant="chat" id="tbdc"></header>'
       + '<header class="c-topbar" data-variant="chat" data-connecting-bar id="tbdcc"></header>'
       + '<header class="c-topbar" data-variant="view" data-connecting-bar id="tbdvc"></header>'
       + '</div></body></html>');
     const pw = probe.window;
-    const tr = (id) => pw.getComputedStyle(pw.document.getElementById(id)).transition;
+    const sub = (v, el, depth = 0) => {
+      const s = String(v);
+      if (depth > 16) return SUB_INVALID;
+      let out = '', i = 0;
+      for (;;) {
+        const k = s.indexOf('var(', i);
+        if (k < 0) return out + s.slice(i);
+        let open = 0, j = k + 3;
+        for (; j < s.length; j++) { if (s[j] === '(') open += 1; else if (s[j] === ')' && --open === 0) break; }
+        if (j >= s.length) return SUB_INVALID;
+        const inner = s.slice(k + 4, j);
+        const comma = inner.indexOf(',');
+        const name = (comma < 0 ? inner : inner.slice(0, comma)).trim();
+        const raw = pw.getComputedStyle(el).getPropertyValue(name).trim();
+        let val = raw ? sub(raw, el, depth + 1) : SUB_INVALID;
+        if (val === SUB_INVALID && comma >= 0) val = sub(inner.slice(comma + 1).trim(), el, depth + 1);
+        if (val === SUB_INVALID) return SUB_INVALID;
+        out += s.slice(i, k) + val;
+        i = j + 1;
+      }
+    };
+    const read = (id, prop) => { const el = pw.document.getElementById(id); return sub(pw.getComputedStyle(el)[prop], el); };
+    const tr = (id) => read(id, 'transition');
+    const dur100 = read('ref-d100', 'transitionDuration');   // what --duration-100 serializes to in THIS jsdom
     ok(/width/.test(tr('m')) && /transform/.test(tr('m')),
       '★ #346: .c-button[data-morphing] keeps `width` AND gains `transform`. button.css:39 exists solely to animate width during the #29 success morph, and the press rule had deleted it');
-    ok(/color/.test(tr('n')) && /background-color/.test(tr('n')) && /transform/.test(tr('n')),
+    /* `color` as its OWN list item: a bare /color/ also matches inside `background-color`,
+       so dropping the #39 ink-fade left this row green on jsdom 29 too (found by the #802 break). */
+    ok(/(^|,\s*)color\s/.test(tr('n')) && /background-color/.test(tr('n')) && /transform/.test(tr('n')),
       '★ #346: .c-bottomnav__item keeps its #39 `color` ink-fade and gains the press properties. Losing `color` made the icon ink snap while the ::before pill still animated — one control animating two ways');
-    ok(/--duration-100/.test(tr('c')) && /--duration-100/.test(tr('r')),
+    ok(/^\d/.test(dur100) && tr('c').includes(dur100) && tr('r').includes(dur100),
       '★ #346: .c-chip and the list rows keep their INTENTIONAL 100 ms micro-interaction timing (chip.css:20), which the 200 ms blanket had overridden');
     ok(/border-color/.test(tr('b')) && /transform/.test(tr('b')),
       '#346: .c-button keeps color/border-color (the #28/#49 outline and text hover ink) and gains the press transform');
@@ -8879,7 +8926,8 @@ console.log('#343 — instant chrome, first-commit fade, message window');
     /* ★ N19 (#428) — the connecting line's border reset, resolved through the real
      * cascade rather than read off the file. */
     {
-      const bbc = (id) => pw.getComputedStyle(pw.document.getElementById(id)).borderBottomColor;
+      const bbc = (id) => read(id, 'borderBottomColor');
+      const hair = bbc('ref-hair');   // what dark --outline-neutral-02 serializes to in THIS jsdom
       const isTransparent = (v) => /^(transparent|rgba\(0,\s*0,\s*0,\s*0\))$/.test(String(v).trim());
       /* ★ HARNESS HONESTY, and it changes what can be claimed here. jsdom's cssstyle
        * DROPS a `border-bottom` SHORTHAND that contains var() — which is exactly how
@@ -8890,7 +8938,7 @@ console.log('#343 — instant chrome, first-commit fade, message window');
        * `border-bottom-color` with var(), which cssstyle keeps — so dark is where the
        * cascade is genuinely observable, and dark is also the half that actually
        * broke. Light is pinned by SOURCE ORDER below, which is its real mechanism. */
-      ok(bbc('tbdc') === 'var(--outline-neutral-02)',
+      ok(hair !== SUB_INVALID && /\S/.test(hair) && !isTransparent(hair) && bbc('tbdc') === hair,
         '★ N19 harness self-check: a non-connecting DARK bar still reports its longhand hairline, so the assertions below are reading a live cascade and not an empty one');
       ok(isTransparent(bbc('tbdcc')) && isTransparent(bbc('tbdvc')),
         '★ N19 (#428): a CONNECTING bar drops its own hairline in DARK, both bordered variants — the sweep IS the bottom border while the state is live. The dark overrides are (0,3,0), so without the [data-theme="dark"] twin the reset loses HERE ONLY: the single-theme miss this project has shipped before (#423 MAJOR-3)');
@@ -34412,14 +34460,67 @@ console.log('#907: the history window counts visible messages');
     viewS.addRequestResult('0', '');       // no-op here; keeps the panel's ctrl bookkeeping honest
     panelS && panelS.querySelector('.c-topbar button') && panelS.querySelector('.c-topbar button').click();   // form's own Back → picker
     await new Promise((r) => setTimeout(r, 30));
+    /* ★ walktools item 1 (2026-11-22; #46 r1 m1 m2 n3 n5, r2 MINOR-3): the row waits for STATES, never for a time or a
+       frame count. It used to sleep 50 ms ("still sliding out") and then 30 ms ("data-open lands two frames after open").
+       The 30 ms raced the page's frame chain (overlay.js openOverlay: requestAnimationFrame(() => requestAnimationFrame(…))
+       sets data-open; the stub above is setTimeout(…, 0)): when the loop was busy for ≥ 30 ms, frame 1 and the 30 ms timer
+       fell due in the SAME timers pass, frame 1 queued frame 2 behind it and the assertion ran BETWEEN the frames → count 0
+       (CI run 38). Now the user's path, each step a checked state; every wait is a MutationObserver that checks the state
+       BEFORE it observes, with a 10 s hang guard that only fails the row (with the reason in the PREMISE suffix):
+       (0) every chooser of an EARLIER clause leaves the DOM (its removal = its onDismiss ran), and none of them carries or
+           re-acquires data-open while it lingers — the (a3) Scan chooser was dismissed INSIDE its enter frames (R3-1,
+           overlay.js `if (!stack.some(…)) return;`); observed from its state now until its removal, whatever the frame count.
+           ⚠ The (a3) Scan chooser's 400 ms fallback runs `onDismiss: () => { addSheet = null; }` (src/bridge/contacts-page.js:295,
+           no identity check) and would clear the handle of the chooser opened HERE, so (a5)'s close would leave it open.
+           (a5) still depends on S1's OWN 400 ms fallback not firing before `viewS.close` (only a block of ≥ ~400 ms between
+           the Esc and the close does that); the real fix is the identity check in contacts-page.js (#1877), not this test;
+       (1) tap → S1 is on the stack, then S1 gets data-open (PRESENTED);
+       (2) Esc → S1 is still in the DOM (the 400 ms exit fallback), without data-open and OFF the overlay stack — the re-tap
+           goes in at once, inside that window, whatever the load;
+       (3) re-tap → right away exactly ONE chooser is on the stack, and it is not S1 nor any older node;
+       (4) that chooser gets data-open → exactly one chooser has data-open, and it is that fresh one. */
+    const HANG54 = 10000;   // hang guard (wall clock): it can only FAIL the row, never pass it or retry
+    const whenOpen54 = (el) => new Promise((resolve) => {
+      if (!el) { resolve(false); return; }
+      if (el.hasAttribute('data-open')) { resolve(true); return; }
+      let guard = null;
+      const mo = new w54.MutationObserver(() => { if (el.hasAttribute('data-open')) { mo.disconnect(); clearTimeout(guard); resolve(true); } });
+      mo.observe(el, { attributes: true, attributeFilter: ['data-open'] });
+      guard = setTimeout(() => { mo.disconnect(); resolve(false); }, HANG54);
+    });
+    const earlier54 = [...w54.document.querySelectorAll('.c-sheet--add-contact')];
+    const { earlierDark54, earlierGone54 } = await new Promise((resolve) => {
+      let lit = earlier54.some((e) => e.hasAttribute('data-open'));
+      const gone = () => earlier54.every((e) => !e.isConnected);
+      if (gone()) { resolve({ earlierDark54: !lit, earlierGone54: true }); return; }
+      let guard = null;
+      const mo = new w54.MutationObserver((recs) => {
+        for (const r of recs) if (r.type === 'attributes' && earlier54.includes(r.target) && r.oldValue === null) lit = true;   // data-open ADDED
+        if (gone()) { mo.disconnect(); clearTimeout(guard); resolve({ earlierDark54: !lit, earlierGone54: true }); }
+      });
+      mo.observe(w54.document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-open'], attributeOldValue: true });
+      guard = setTimeout(() => { mo.disconnect(); resolve({ earlierDark54: !lit, earlierGone54: false }); }, HANG54);
+    });
+    const sheetsBefore54 = new Set(w54.document.querySelectorAll('.c-sheet--add-contact'));
     if (rowS) rowS.click();
+    const s1of54 = [...w54.document.querySelectorAll('.c-sheet--add-contact')].find((e) => !sheetsBefore54.has(e)) || null;
+    const s1Opened54 = !!s1of54 && S54.isOverlayOpen(s1of54);
+    const s1Presented54 = await whenOpen54(s1of54);
     w54.document.dispatchEvent(new w54.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await new Promise((r) => setTimeout(r, 50));      // still sliding out
-    if (rowS) rowS.click();
-    await new Promise((r) => setTimeout(r, 30));      // data-open lands two frames after open (R3-1)
-    const openNow = w54.document.querySelectorAll('.c-sheet--add-contact[data-open]').length;
-    ok(openNow === 1 && !w54.document.querySelector('.c-contacts-add'),
-      '★ GATE 54 (a4) #863 Esc closes the chooser with nothing mounted, and a re-tap during its exit transition opens exactly one fresh chooser (' + openNow + ') — `isOverlayOpen` is the re-entrancy oracle, not the handle');
+    const exitPremise54 = { earlierDark: earlierDark54, earlierGone: earlierGone54, opened: s1Opened54, presented: s1Presented54, connected: !!s1of54 && s1of54.isConnected, dataOpen: !!s1of54 && s1of54.hasAttribute('data-open'), onStack: !!s1of54 && S54.isOverlayOpen(s1of54) };
+    const premiseOk54 = exitPremise54.earlierDark && exitPremise54.earlierGone && exitPremise54.opened && exitPremise54.presented && exitPremise54.connected && !exitPremise54.dataOpen && !exitPremise54.onStack;
+    if (rowS) rowS.click();                           // still sliding out: S1 is connected, closed and off the stack (checked above)
+    const onStack54 = [...w54.document.querySelectorAll('.c-sheet--add-contact')].filter((e) => S54.isOverlayOpen(e));
+    const stackFresh54 = onStack54.length === 1 && onStack54[0] !== s1of54 && !sheetsBefore54.has(onStack54[0]);
+    const freshPresented54 = await whenOpen54(onStack54[0]);   // data-open lands after the open's frames (R3-1): the state itself, any frame count
+    const openEls54 = [...w54.document.querySelectorAll('.c-sheet--add-contact[data-open]')];
+    const openNow = openEls54.length;
+    const openFresh54 = freshPresented54 && openNow === 1 && openEls54[0] !== s1of54 && !sheetsBefore54.has(openEls54[0]) && openEls54[0] === onStack54[0];
+    const rowOk54 = premiseOk54 && stackFresh54 && openFresh54;
+    ok(rowOk54 && openNow === 1 && !w54.document.querySelector('.c-contacts-add'),
+      '★ GATE 54 (a4) #863 Esc closes the chooser with nothing mounted, and a re-tap during its exit transition opens exactly one fresh chooser (' + openNow + ') — `isOverlayOpen` is the re-entrancy oracle, not the handle'
+      + (rowOk54 ? '' : ' ✗ PREMISE NOT MET (earlier choosers without data-open and gone, the first chooser opened and presented, then still in the DOM, closed and off the overlay stack at the re-tap; after it exactly one chooser on the stack and then one with data-open, neither the first one nor an older node): '
+        + JSON.stringify({ ...exitPremise54, onStackAfterRetap: onStack54.length, stackFresh: stackFresh54, freshPresented: freshPresented54, openFresh: openFresh54 })));
     viewS.close('auto');
     await new Promise((r) => setTimeout(r, 450));
     ok(!w54.document.querySelector('.c-sheet--add-contact[data-open]'),
@@ -42536,6 +42637,9 @@ for (const mod of ['a-open', 'b-store', 'c-walk']) await (await import(new URL('
 for (const mod of ['a-insert', 'b-anchor', 'c-fade', 'd-lines', 'e-tile', 'f-voice', 'g-tokens']) await (await import(new URL('./pins-photo1b/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Chat shell batch (photo1b, #1641 / #1643 / #1644 / #1742, DECISIONS #1755–#1774): a = HV-1 an older page inserts only its rows, byte-equal to a full render (cap olderInsert) · b = HV-3 the position fix in one task (olderAnchor1) · c = HV-4 the fade pass from the band (fadeBand) · d = the dev-only shell lines of HV-0 / PO-0 · e = PO-4 the lighter photo tile (photoTileLite) · f = the shell half of PO-6, fewer wave writes (voiceWaveLite) · g = the #1644 chat-background tokens + the light Aurora ring (harness-history / harness-photos / render-grounds run by hand)
 for (const mod of ['a-miniapp-guard', 'b-delete-history', 'c-walk']) await (await import(new URL('./pins-fixb3/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Fix batch 3 (fixb3, #1744 (3) / (4), #1739 (3), #1742 (2), DECISIONS #1810–#1824): a = a mini-app action before ixian:onload is refused "not ready" and the two catches log the command NAME only (P84) · b = Delete history: chat info re-scans and pushes the empty list, one scan gate, the Sent sweep through SContacts.removeHistory (P85) · c = the walk: downloads scrolls the Account hub first, -HistorySeed (P86)
 for (const mod of ['a-defaults']) await (await import(new URL('./pins-defaultsb/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch defaultsb (Defaults batch, Damir's ruling 1750) — a = a NEW account (create / restore) starts with App lock On and Confirm payments On (DefaultsRules.writeNewAccount at the two new-account sites, FIXED values, each behind its own switch), the no-auth window is one minute (DefaultsRules.withinGrace; the old 5 s behind the switch), an existing account is not touched (no reader changed, no start path writes a key); a SOURCE pin — its limits are its first lines
+for (const mod of ['a-notices', 'b-refusals', 'c-plain-packaged', 'd-ci']) await (await import(new URL('./pins-leanfollow/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Speed lean follow-up (leanfollow, #1775–#1789) — a = the third-party notices against the BUILT html folder (every file and data: URL has an inventory entry, every third-party component its shipped licence text under Raw/licenses and its notices heading) · b = the two packaging refusals (no --out under Spixi/Resources/Raw but the in-place source folder; SpixiLeanJs refused inside SpixiLeanReleaseHtml; a lean IntermediateOutputPath under Resources/Raw refused) · c = the plain smoke-packaged (the copy is a git work tree, the Ixian-Core sibling is linked, every link is removed by itself) · d = the two new redesign-ci steps (the parser cross-check, the MSBuild harness) and the frozen workflow surface
+for (const mod of ['b-screens', 'c-parser']) await (await import(new URL('./pins-walktools/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Walk tools (walktools, DECISIONS #1875–#1889) — b = the chat / viewer screen probe SETS of the device map (one set per theme; only chrome colours; the map VALUES come from the operator block) · c = the walk parser: "first swipe -> 1st page" of -HistorySeed (rule I-3a) + the per-page rows of the older pages (all optional), the old rows held (by-hand executing twins: b-screens-run.mjs, c-parser-run.mjs — they need pwsh)
+for (const mod of ['a-slide4', 'b-defaults', 'c-keyboard', 'd-devlog', 'e-tile-states']) await (await import(new URL('./pins-fixb4/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Fix batch 4 (fixb4, rulings #1747 (1), #1748 (3), #1750; WALK #1829; DECISIONS #1845–#1859): a = welcome slide 4 names only Blitz Chess in every locale · b = a NEW or RESTORED account starts with Load pictures Off and the Compact desktop list (one push setNewAccountDefaults from the three new-account sites; switches DefaultMediaTapToLoad / DefaultListCompact; P87, P88) · c = the protect-account field is brought into the body on Android (adjustResize; jsdom stubs — the geometry proof is c-keyboard-render.mjs by hand) · d = the Developer log has a floor (60vh) · e = a picture-named file that is not a picture: the sending / complete / reopen states, cap photoTileLite ON = OFF where it must be
 for (const mod of ['a-path', 'b-lines']) await (await import(new URL('./pins-histcs/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch histcs (History C#: P-28 an older page read and built off the UI thread, HV-5 the first older page holds 50 rows, the HV-0 C# lines) — a = the path (loadMoreIn behind the ixian:loadmore branch, onLoadMore() byte for byte, the order of loadMoreIn, the insertions of loadMessages, the exact name table, the rest of SingleChatPage.xaml.cs and of SpixiFlags.cs = the base by SHA-256, the histcs block, the csh harness), b = the lines (the four HistoryOlderRules bodies only as P1Perf.line arguments under P1Perf.enabled with int / long arguments, no other new log call, the two keys C#-only, no new bridge surface); SOURCE pins — their limits are their first lines; the behaviour runs in csh HistcsTests
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

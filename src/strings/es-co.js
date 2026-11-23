@@ -969,7 +969,7 @@ export const esco = {
   slide2Title2: "Privado por diseño.",
   slide3Copy: "Un monedero IXI privado vive en cada chat. Envía y solicita IXI con un toque.",
   slide3Title: "Envía IXI como un mensaje.",
-  slide4Copy2: "Las mini apps como Blitz Chess y Split se abren dentro de tus chats.",
+  slide4Copy3: "Las mini apps como Blitz Chess se abren dentro de tus chats.",
   slide4Title2: "Juega y organiza con otros.",
   source: "Fuente",
   splitPasteAction: "Enviar como {n} mensajes separados",

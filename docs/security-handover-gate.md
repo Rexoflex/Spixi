@@ -2364,6 +2364,39 @@ Packets: [P84](be-review-pack/P84-miniapp-action-before-onload.md) (item 1) · [
 | the adb walk: `downloads` swipe + a check of the scrolled Account hub; `-HistorySeed` | developer tooling on Damir's PC; no app file; no new adb command shape; `$script:LogRe` unchanged; one Account-hub screenshot per rep for its probes, deleted at once; the calibrate keeps cal-17s only while its key is absent | baseline: **no** (the walk is ours). Ours, safe (#1522 holds; #1666 ④ moved by Damir's #1739 (3): no Account picture is KEPT by the walk) |
 
 Surface counts: verbs **+0** · pushes **+0** (call sites +2) · caps **+0** · `spixi.*` keys **+0** · prefs **+0** · log lines **3 changed + 2 new** (fixed words / type names) · files deleted on a new path **+1** (the Sent sweep, an existing rule) · network fetches **+0** · walk steps **+1** (`history-seed-kNN`, opt-in). Legacy seen and NOT changed: the error alert shows the action text; `e.Message` to the same mini app (P61 (6)); Core's `writeMessages` copies before its lock (CORE-18, `core-asks.md`). Pin limits: stated in each module (#1735).
+## Session Speed lean follow-up (#1775–#1789) — the licence texts in the package, two packaging refusals, the plain packaged smoke, two CI steps (2026-11-18 → 22; CLEAN at round 6, #1783; delivered by #1546, #1784)
+
+Packets: [P77](be-review-pack/P77-licence-texts.md) (the licence texts) · [P78](be-review-pack/P78-packaging-refusals-and-ci.md) (the refusals, the packaged smoke, the CI steps).
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| 🟡 49 licence text files in `Spixi/Resources/Raw/licenses/` (packed by the existing `MauiAsset Include="Resources\Raw\**"`) | files in the app package; read by no code | baseline: **no**. Ours, safe: public plain text, no script, no secret, no user data; outside `Raw/html` (the built html folder is byte-equal to the base, #1780); a WebView page COULD read them (same package) — nothing to leak |
+| 🟡 the `<Error>` tasks in `SpixiLeanGuard` / `SpixiLeanReleaseHtml` and `outFolderRefusal` in `strip-release.mjs` | build time only | baseline: **no**. Ours, safe: each refuses MORE (no path that built before and was safe is refused but the obj / bin exception's stated form); with the lean switches off the targets do not run |
+| 🟡 the obj / bin limit (r4S-1 → round-2 form; r5C-2 the other direction) and the pin gap r5C-1 (closed in round 6, #1783; R6-1: on a linked temp folder two link cases are skipped) | none: a refusal's blind spot; a link must be PLANTED in the developer's own checkout | baseline: at `55feaddc` the script refused only an out folder inside `Raw/html` itself (`strip-release.mjs:532-537` of the base); every other folder of the project was accepted. The new rule narrows that inherited hole; its limit does not open a new one. Recorded, not fixed (lead rule 8) |
+| 🟡 `smoke-packaged` (plain): `git init` in the temp copy, a link to the Core sibling, signal handlers | dev / CI only | baseline: **no**. Ours, safe: the caller's `GIT_*` removed but `GIT_EXEC_PATH`; links recorded before they are made, removed in `finally` before any recursive delete |
+| 🟡 two `redesign-ci` steps `xparser`, `msbuildh` | CI only; no new action, secret, permission, trigger or fetch | baseline: **no**. Ours, safe: repo code with the installed Node / .NET; dotnet telemetry off; the rest of the workflow held by the base SHA-256 (`d-ci` row 17; r5C-3: the new region itself is held by line rows only) |
+| r5S-1 — `Spixi-PushService/Resources/**` is outside `Spixi/`, so `--out` there is accepted | none | baseline: **yes** (at the base every `--out` outside `Raw/html` was accepted). Legacy of the tool, recorded |
+
+Surface counts: verbs **+0** · pushes **+0** · `spixi.*` keys **+0** · prefs **+0** · log lines **+0** · WebView settings **+0** · HTML sinks **+0** · fetches **+0** · shell changes **+0** · C# files **+0** · files in the package **+49** (plain text) · CI steps **+2**.
+
+
+## Session Fix batch 4 (`fixb4`, #1845–#1859) — welcome slide 4, the protect-account fields on Android, two page defaults of a new account, the Developer log, three walk findings (2026-11-22)
+
+Packets: [P87](be-review-pack/P87-new-account-media-tap-to-load.md) (item 3) · [P88](be-review-pack/P88-new-account-list-compact.md) (item 4). Files: `Spixi/Utils/PageDefaultsRules.cs` (new), `Spixi/Utils/SpixiFlags.cs` (one block + `readFixb4()`), `Spixi/Pages/Launch/LaunchPage.xaml.cs` (one helper + three call lines), `src/shells/launch.html` (the push handler; the keyboard reveal), `src/components/launch-shell.js` (one string line), `src/strings/**`, `src/styles/components/settings-app.css` (one rule). `chat.html` is not touched.
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| 🟡 the push `setNewAccountDefaults(media, density)` (C# → the launch shell only) from the three new-account sites | +1 push; two arguments, C# literals `"1"` / `"0"` from two switches and the desktop test; no WebView input; not sent when both are `"0"` | baseline: **no**. Ours, safe: no verb; the launch document loads no remote content; a lost push = the old screen value with the C# mirror Off (more private; r2 MINOR-2); never sent by `proceed`, `onLoad`, the retry view or a start path (r1 S Q2) |
+| 🟡 `spixi.media.autoload = 'off'` and `spixi.chat.listdensity = 'compact'` written at create / restore | two EXISTING `spixi.*` keys get a value; the values the Settings screens write | baseline: the keys are ours (earlier batches); the new-account write is **ours**. Ours, safe: a more private and a cosmetic default; an existing account is not touched; the density only on Windows / Mac |
+| 🟡 the C# mirror `photoAutoDlLoadPictures = false` at create / restore (r1 S MINOR-1) | one EXISTING native pref gets the fixed `false` with the media default | baseline: the mirror is ours (S11); the write is **ours**. Ours, safe: it only stops auto-download while pictures are off |
+| 🟡 2 int prefs `flagDefaultMediaTap`, `flagDefaultListCompact` | read once at start; no writer; no WebView reach | baseline: **no**. Ours, safe: absent = ON; a stored 0 acts only in dev mode; OFF = the old path |
+| 🟡 log lines `[FLAGS] fixb4 mediatap=<0\|1> listcompact=<0\|1>` · `[DEFAULTS] new account page: mediatap=<0\|1> compact=<0\|1>` · `[DEFAULTS] new account page failed (<Type>)` | `ixian.log` | baseline: **no**. Ours, safe: fixed words, digits, an exception TYPE |
+| the keyboard reveal (`launch.html`, Android UA) and the dev-log floor (`settings-app.css`) | layout only: one element's `scrollTop`; one CSS declaration | ours, safe: no sink, no key, no verb |
+| the slide-4 text (14 locales) | static strings | ours, safe: the claims rules hold |
+| FILE-NAV: a `file:` navigation allowed in the page WebViews; no `AllowExternalDrop` (a dropped file may replace the chat document) | — | baseline: **yes** (the allow and `IsAllowedURL` at `0e85a4b8`). NOT ours; recorded in `legacy-not-ours.md`; drag and drop is a question (#1852) |
+
+Surface counts: verbs **+0** · pushes **+1** · push arguments **+2** (fixed digits) · caps **+0** · `spixi.*` keys **+0** (2 existing written at create / restore) · prefs **+2** (read only) · existing prefs written at create / restore **+1** · log lines **+3** (fixed) · WebView settings **+0** · HTML sinks **+0** · fetches **+0** · files at rest **+0**.
+
 
 ## Session History C# (`histcs`, #1860–#1868) — an older page read and built on a pool thread, the first older page of 50 rows, the C# history lines (2026-11-22)
 
@@ -2377,3 +2410,15 @@ Packets: [P90](be-review-pack/P90-older-page-off-ui-thread.md) (P-28) · [P91](b
 | 🟡 log lines `[P1] chat loadmore in` · `[P1] chat older read passes= window= ms= flush=` · `[P1] chat older push n= json= build=` · `[P1] chat older drop why=<word>` (developer builds) · `[FLAGS] histcs loadmoreoffui=<0\|1> firstpage50=<0\|1>` (every build, once) · `loadmore: the older page failed (<Type>)` | `ixian.log` / logcat | baseline: **no**. Ours, safe: fixed words and integers (builders take int / long / an enum only), the exception TYPE name only |
 
 Surface counts: verbs **+0** · pushes **+0** · push arguments **+0** · caps **+0** · `spixi.*` keys **+0** · prefs **+2** (read only) · log lines **+2** (every build) **+4** (developer builds) · WebView settings **+0** · HTML sinks **+0** · fetches **+0** · threads: the load-more's read + build move to the pool (the open's path). Seen by the security reader, NOT this delta (for the handover sweep): `Logging.error("Error loading message: {0}", e)` in `loadMessages` logs a row's whole exception, and a `voiceCallEnd` row's `Int32.Parse(message.message)` puts the input text into that exception (inherited at `338d30f4`; not checked at `0e85a4b8`). Pin limits: stated in each module (#1735).
+
+## Session Walk tools (`walktools`, #1875–#1889) — two timing flakes, the screen probe sets, the parser rows, the seed voice ids, the jsdom rows (2026-11-22)
+
+Packet: [P93](be-review-pack/P93-walktools-seed-voice-ids-walk-scripts.md) (items 2–4). Files: `Spixi/Utils/SDevSeedPlan.cs` (`rowIdFor`, `chatComplete`), `Spixi/Utils/SDevSeed.cs` (one writer line), `scripts/device/adb-walk.ps1`, `scripts/device/adb-walk-parse.ps1`; test code only otherwise (`scripts/smoke-test.mjs`, `scripts/pins-*`, `scripts/csh/*`).
+
+| item | verb / key / sink / fetch / log? | verdict |
+|---|---|---|
+| the dev seed's voice rows get 16-byte ids (`SDevSeedPlan.rowIdFor`; the writer and the top-up test use it) | none: no verb, push, key, fetch, log line or file path; the same rows and files, only the id bytes of 20 voice rows; both files wholly inside `#if SPIXI_DEV_COEXIST` (`Spixi/Spixi.csproj:40`, `:43`; the store gate `:428` unchanged) | baseline: **no** (the dev seed is ours, #1665). Ours, safe: developer builds only; the play check of the chat page is unchanged |
+| the adb walk: `sets` of screen probes (chat, viewer), chrome-only probe values (operator block) | developer tooling on Damir's PC; no app file; no new adb command shape; the allowlist functions byte-identical (pin `pins-walktools/b-screens` k6); no new screenshot, no kept picture; no typed input (#1522 ②) | baseline: **no** (the walk is ours). Ours, safe |
+| the walk parser: the first-page rule I-3a, 17 optional rows per older page | reads the pulled log of the run folder; writes only its summary files; the raw-line guard unchanged (only `key=<int>` and one `[a-z]{1,16}` word are read from a line) | baseline: **no**. Ours, safe |
+
+Surface counts: verbs **+0** · pushes **+0** · caps **+0** · `spixi.*` keys **+0** · prefs **+0** · log lines **+0** · files written or deleted on a new path **+0** · network fetches **+0** · adb commands **+0** · walk steps **+0** (rows +17 per older page, optional). Pin limits: stated in each module (#1735).

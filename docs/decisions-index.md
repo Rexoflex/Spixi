@@ -160,14 +160,14 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | Row | Rule |
 |---|---|
 | #1695 | Windows safe-default confirm: on `Opened` (+ once at Low priority) the KEYBOARD focus goes to the Cancel (Close) part only, then its accent; the text sits in a non-focusable ScrollViewer (P59). |
-| #1696 🟡 | Item 3 has no switch of its own: the focus step is part of `ConfirmSafeDefault`. |
-| #1697 | Windows: the payment send confirm and the three mini-app confirms use `SConfirm.askPlainSafeWinAsync` (switches `PayConfirmSafeDefault`, `MiniAppConfirmSafeDefault`; `useSafeDialog` = own switch AND `NativeConfirm`); 🟡 D-1 the entry holds the ConfirmGate (P60, P61). |
+| #1696 ✅ | Item 3 has no switch of its own: the focus step is part of `ConfirmSafeDefault` (✅ by #1739 (1)). |
+| #1697 | Windows: the payment send confirm and the three mini-app confirms use `SConfirm.askPlainSafeWinAsync` (switches `PayConfirmSafeDefault`, `MiniAppConfirmSafeDefault`; `useSafeDialog` = own switch AND `NativeConfirm`); D-1 the entry holds the ConfirmGate (✅ by #1739 (2)) (P60, P61). |
 | #1698 | The payment confirm's recorded limits — every one toward Cancel (P60). |
 | #1699 | What each mini-app yes approves (unchanged) + the legacy risks seen on those paths (P61). |
-| #1700 🟡 | Divider line `Margin 0,0,0,0` = on the hairline; reset / default width 400 → 440 (dial); the reset re-fits chat info (P62). |
+| #1700 ✅ | Divider line `Margin 0,0,0,0` = on the hairline; reset / default width 400 → 440 (dial); the reset re-fits chat info (P62). |
 | #1701 | "Unread messages" = a centred pill like the date pill on every platform; the both-edges gutter stays. |
 | #1702 | Centred desktop sheets: `max-height: max(76%, min(100% − 48px, 608px))`; the chat app picker shares it. |
-| #1703 🟡 | Desktop wallet tx rows take the chat row's inset (8 / 1 / radius 12) + padding 8 (dial). |
+| #1703 ✅ | Desktop wallet tx rows take the chat row's inset (8 / 1 / radius 12) + padding 8 (dial; ✅ by WALK #1743). |
 | #1704 | Light Aurora ring: the dedicated token `--outline-select-ring` (#2B47A9, 3.05 : 1); the global action token unchanged. |
 | #1705 | #46 stopped at round 3 by rule 9 (three pin scanners); answered by #1735 (a): the pin limits are accepted and recorded; the final readers: 0 MAJOR in the code. |
 | #1706 | Session record (walk-ready by #1546 after #1735; merged tree 6617 / CSH 643). |
@@ -201,7 +201,7 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1760 | PO-4 (P74, `PhotoTileLite` / `photoTileLite`): the lighter photo tile; the file face made when needed. |
 | #1761 | PO-6 shell half (P75, `VoiceWaveLite` / `voiceWaveLite`): fewer wave writes; the one-element wave not built (reason). |
 | #1762 | The chat backgrounds of #1644 built; dark Mist `#0C0E10` / `#272B2D` / `#151819`; the light Aurora ring stays (3.024 : 1); the Settings preview = the chat. |
-| #1763 🟡 | The floors that moved by the picks of #1644 (recorded; the main chat confirms). |
+| #1763 ✅ | The floors that moved by the picks of #1644 (recorded; confirmed by WALK #1829, W-6 / A-6). |
 | #1764 | The five switches (int prefs), their cap words, one `[FLAGS] photo1b` line (P76). |
 | #1765 | The chat.html size ceiling 964 → 995 KB (delta stated). |
 | #1766 | The #46 loop of the batch (verdict in `docs/review-brief-photo1b.md` § 5). |
@@ -210,11 +210,11 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1791 | A NEW or RESTORED account is written with App lock On (`DefaultAppLockOn`; create body + `applyRestorePrefs`, after the verify; readers unchanged, absent = Off; P79). |
 | #1792 | A NEW or RESTORED account is written with Confirm payments On where the row exists (`DefaultPayConfirmOn`; not Windows; `SPayments.cs` / `SConfirm.cs` untouched; P80). |
 | #1793 | The app lock's no-auth window is 60 s on the phone and the Mac (`LockDelayOneMinute`, OFF = 5 s; `DefaultsRules.withinGrace`); a verified unlock clears the leaving stamp (R1-2); Windows unchanged (P81). |
-| #1794 🟡 | The no-credential device: the lock falls back to the Spixi password, a send to the native confirm alone; D-1 (the "Authentication Failed" alert) proposed for a later lock batch. |
-| #1795 🟡 | The Android lock flash: the shell's 3 s belt fires during the absence + an animated pop; the fix needs `lock.html` → a question (A / B / C). |
-| #1796 🟡 | Review round 1: 0 MAJOR; R1-1 (the wall-clock measure, inherited) a question; R1-2 fixed; R1-3 Mac plugin unproven. |
+| #1794 | The no-credential device: the lock falls back to the Spixi password, a send to the native confirm alone; D-1 (the "Authentication Failed" alert): answered by #1825 (2). |
+| #1795 | The Android lock flash: the shell's 3 s belt fires during the absence + an animated pop; the fix needs `lock.html` → answered by #1825 (1) (A, a lock batch). |
+| #1796 | Review round 1: 0 MAJOR; R1-1 (the wall-clock measure, inherited): answered by #1825 (3); R1-2 fixed; R1-3 Mac plugin unproven. |
 | #1797 | The walk: a new Windows account through `ixian.cfg`; no safe new account on the test phone (emulator / spare phone / launch walk); the pin re-bases of other batches. |
-| #1798 🟡 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1). |
+| #1798 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1): a Moment sheet by #1825 (4). |
 | #1799 | The #46 verdict of the batch. |
 | #1800 | Session "Defaults batch" — the record (numbers, models, owed). |
 
@@ -230,7 +230,68 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1815 | Question Q-2: received downloads after chat info › Delete history (answered by #1816). |
 | #1816 | Q-2 answered (Damir #1754): option (a), received downloads stay after chat info › Delete history for v1. |
 | #1817 | Fix batch 3 operator block: the four map keys, the `-HistorySeed` state renamed (`$script:HistSeedIdx`; round 5 CLEAN), the device runs. |
-| #1818 | Finding: the `-HistorySeed` row "first swipe -> 1st page" gives no data (log order); recorded, fix direction in a later scripts batch (Q-3). |
+| #1818 | Finding: the `-HistorySeed` row "first swipe -> 1st page" gives no data (log order); recorded, fix direction in a later scripts batch (Q-3; answered by #1827 (3)). |
+| #1775 | The third-party notices against what ships: one inventory (37 components), 49 licence texts in `Spixi/Resources/Raw/licenses/`, UNPROVEN facts as questions (packet P77). |
+| #1776 | The two packaging refusals (the P-07 park inside the lean target; no out folder in the project folder but under obj / bin) and the link refusals; the recorded obj / bin limit (P78). |
+| #1777 | The plain `smoke-packaged` fixed at its cause (the copy is a git work tree, Core linked beside it, links removed first); L-1 closed by #1783. |
+| #1778 | CI runs the parser cross-check and the MSBuild harness (`--fake`, `--real`) after CSH; no new action, secret, permission or fetch. |
+| #1779 | The lean expected reds re-based (`copy: []`; css / js lists checked by GATE 2). |
+| #1780 | With the lean switches off the package is byte-equal to the base but `Raw/licenses/**`. |
+| #1781 | ⛔ #46 of the follow-up: NOT CLEAN at round 5 — superseded by #1783. |
+| #1782 | Session "Speed lean follow-up" — the record (stopped before the push; models; numbers). |
+| #1783 | #46 round 6 of the follow-up (ruling #1753): L-1 and r5C-1 closed in `b-refusals.mjs`; CLEAN (one Opus reader); R6-1 recorded (outbound link cases skipped where the temp folder is linked). |
+| #1784 | Session "Speed lean follow-up" — the delivery record (three base merges, numbers, push by #1546). |
+
+### The main chat's rows of 2026-11-17 → 22 (#1641–#1644, #1735–#1754, #1825–#1830; written word for word by session `docsb`, #1890)
+These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #NNNN ' DECISIONS.md`).
+
+| Row | Rule |
+|---|---|
+| #1641 | "Photo open 1": the quick fixes and "made once" (PO-0, PO-1, PO-5, PO-4, PO-3, PO-6) + an open-chat walk step; cut into 1a (C#) and 1b (shell). |
+| #1642 | Images by URL instead of base64 text (P-25): its own batch before the launch (`imgurl`); C# serves its own id with a revocable grant; changes #1473 for P-25. |
+| #1643 | A second chat-open budget: ≤ 150 ms for a chat with 24 or more photos in the first batch; #1517's 120 / 160 ms stay for the rest. |
+| #1644 | The chat-background picks per appearance and theme (Calmer 1 / 2, one rule of steps); dark Mist ground back to `#0C0E10`. |
+| #1735 | Fix batch 2: the limits of its three pin scanners are accepted; one fresh reader per scope; a source-text pin states its limits, a gap of the stated class is a NIT. |
+| #1736 | Photo open 1a: one more round; one shared builder of the command text (S15 O-11 stays). |
+| #1737 | PO-3 / PO-6 (the kept thumbnails and waveforms) are finished in `photo1a` with Fable 5.2. |
+| #1738 | The speed plan before the launch: only what a number asks for; 1b / 1c after the launch; history research first; P-14 / P-15 into `imgurl`; the smoothness pass in the Apple phase. |
+| #1739 | Fix batch 2: #1696 and #1697 (D-1) → ✅; the `downloads` walk step gets a scroll step; the lock flash after the launch ((4) replaced by #1750 (3)). |
+| #1740 | Four placements: the seed findings after the launch; the Mac spare page in the Apple phase; the phone colours look right; Tic-tac-toe and slide 4 after the launch. |
+| #1741 | Process: the Mac re-sync reminder stays; "Spixi CI watch" off; the Speed lean follow-up after Fix batch 2; the BE asks go with the handover. |
+| #1742 | The history view: "History 1" (HV-0, HV-1, HV-5, HV-4, P-28, HV-3); the photo chat's older page is measured first; the early load after the launch. |
+| #1743 | WALK #1743: 10 P · 1 F · 1 N/A — Fix batch 2 on Windows and Android; the missing focus ring is accepted for v1; the dials of W-6 / W-8 → ✅. |
+| #1744 | Mini-app signatures in v1.1; the Perf-R rows replaced; "Delete history" on Windows and the mini-app action guard before the launch (Fix batch 3). |
+| #1745 | Session `leanfollow` is Ready; it runs beside the two photo sessions. |
+| #1746 | Photo open 1a: the two gaps of the S15 transport pin are inherited limits; the session pushes. |
+| #1747 | The launch count (151 open); slide 4 and the store screens name only Blitz Chess; P-22 / P-23 in the Apple phase; the other speed ideas after the launch. |
+| #1748 | `m226` in v1.1; the Split test and the push load test after the launch; the password fields under the keyboard before it. |
+| #1749 | Two tool items stay; one page for the default settings (session `defaults`); the grants Later; the permission change after the launch. |
+| #1750 | The default settings of a NEW or RESTORED account: four change (pictures on a tap, Compact list, App lock On, Confirm payments On); the lock delay 1 minute; the lock flash before the launch. |
+| #1751 | Photo open 1a measured, merged (`14ae57f2`), done; the photo chat at 137 ms (under 150); the Defaults batch Ready. |
+| #1752 | "Fix batch 3" is cut in two by file area; `fixb3` Ready, `fixb4` Planned. |
+| #1753 | `leanfollow`: one more fix round (L-1, r5C-1), then the gates on the final tree, then one Opus reader. |
+| #1754 | Q-2 of Fix batch 3: received downloads stay after chat info › Delete history (v1). |
+| #1825 | The four questions of the Defaults batch: (A) a lock batch with the shell; (A) no alert; (A) a clock the user cannot set; a Moment sheet as the first notice. |
+| #1826 | The goal and the pace until v0.9.30: work that is easy for the BE to review; 3–4 sessions and 1–2 walks a day; ★ #1472 stays. |
+| #1827 | Two merges (`c9d6bf64`, `1ad3a44e`); one combined walk; Q-3 (a); `GATE 54 (a4)` is a timing flake — re-run first; the handoff count. |
+| #1828 | WALK Fix batch 3: 5 P · 0 F · 1 N/A (W-2 owed to the launch walk). |
+| #1829 | WALK Chat shell batch: 14 P · 1 F · 1 N/A (W-2 F, the broken-picture tile; #1763 confirmed). |
+| #1830 | Four sessions Ready: `fixb4`, `histcs`, `walktools`, `docsb`; Fix batch 4 cut by file area. |
+
+### Session Fix batch 4 (`fixb4`, 2026-11-22 / 23, #1845–#1855, L265–L268, packets P87–P88)
+| Row | Rule |
+|---|---|
+| #1845 | The two page defaults of a new account: ONE push `setNewAccountDefaults` to the launch shell from the three new-account sites of LaunchPage (no new verb; a lost push = the old defaults); `PageDefaultsRules.cs`; `readFixb4`. |
+| #1846 | Item 3: "Load pictures and GIFs" Off for a new or restored account (switch `DefaultMediaTapToLoad`); the C# mirror `SAutoDownload.loadPictures` Off at the same site (P87). |
+| #1847 | Item 4: the Compact chat list for a new or restored DESKTOP account (switch `DefaultListCompact`; Windows / Mac only) (P88). |
+| #1848 | Item 1: welcome slide 4 names only Blitz Chess; the key renamed `slide4Copy2` → `slide4Copy3` (no stale value can ship). |
+| #1849 | Item 2: the protect-account fields above the keyboard on Android (adjustResize): the focused field box + ring into the body by `scrollTop` only; no switch. |
+| #1850 | Item 6: the Developer log floor `min-height: 60vh`; no switch. |
+| #1851 | Item 5: the "sending" broken-picture tile = an unsent file (a Seed contact never takes a file); W-2 / A-2 of `docs/walk-photo1b.md` corrected. |
+| #1852 | Item 7: drag and drop into a chat was never built; question Q-DD; the inherited `file:` navigation (FILE-NAV, legacy). |
+| #1853 | Question Q-T: the slide-4 title "Play and plan together." |
+| #1854 | Fix batch 4: the #46 verdict. |
+| #1855 | Session "Fix batch 4" — the record (numbers, models, owed). |
 
 ### Session History C# (`histcs`, 2026-11-22 / 23, #1860–#1868, L269–L272, packets P90–P92)
 | Row | Rule |
@@ -244,3 +305,30 @@ Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follo
 | #1866 | The #46 verdict; the rule: the push gate must order the DELIVERIES (a main-thread send runs inline, a pool-thread send posts). |
 | #1867 | Session "History C#" — the record. |
 | #1868 🟡 | Proposed follow-up "History C# 2": the peer updates of a row while a background page is in flight (the round-5 records). |
+
+### Session Walk tools (`walktools`, 2026-11-22 / 23, #1875–#1887, L273–L276, packet P93)
+| Row | Rule |
+|---|---|
+| #1875 | `GATE 54 (a4)` waits for states (the chooser presented, the exit premise checked, one fresh chooser on the stack, its `data-open` awaited), never for a time. |
+| #1876 | `pins-fixb1/e-header` waits for the page's own `ixian:onload` (jsdom 29.1.1) or window `load` (jsdom 31); no sleep left. |
+| #1877 🟡 | Finding: the add-contact chooser's `onDismiss` clears the NEW chooser's handle (`src/bridge/contacts-page.js:295`); `GATE 54 (a5)` can miss under a long block; fix in the batch that owns `src/**`. |
+| #1878 | The device map: one probe set per theme (`sets`, chat and viewer only); chrome-only probes (the message field, its "Aa", the viewer's close button and scrims). |
+| #1879 | The map values move only with the operator block: the proposed sets first, then ONE calibrate confirms (the calibrate needs a passing chat check for cal-14 / cal-15). |
+| #1880 | The parser: "first swipe -> 1st page" of `-HistorySeed` by rule I-3a (the C# `chat loadmore in` pair, else equal counts in the window, else no data). |
+| #1881 | 17 OPTIONAL rows per older page; a page value only when the line counts equal the page requests ("cannot pair" otherwise). |
+| #1882 | The dev seed's voice rows get 16-byte ids (`SDevSeedPlan.rowIdFor`); a fresh seed on the phone; the reply / edit / quote gap on 32-byte seed rows recorded. |
+| #1883 | The six `#346` / `N19` rows read the same values on jsdom 29.1.1 and 31.0.1 (the real token sheet in the probe, `sub()` through the probe's own custom properties). |
+| #1884 | The re-bases of the hashed walk pins after a look at the diff (fixb3 h4d rewritten to I-3a). |
+| #1885 | The #46 verdict of the batch. |
+| #1886 🟡 | Finding + question: on jsdom 31.0.1 the full smoke is red in 200 more rows (the `ixian:` capture of the shared pin kits, token-less probes); options: keep the 29.1.1 pin + a lockfile (recommended) / a follow-up batch / both. |
+| #1887 | Session "Walk tools" — the record (numbers, models, owed, the operator block). |
+
+### Session Docs batch (`docsb`, 2026-11-22, #1890–#1895, L277–L278, no packet)
+| Row | Rule |
+|---|---|
+| #1890 | The main chat's rows are in `DECISIONS.md` word for word as heading blocks (one empty line around each run); the insert and compare scripts in `scripts/docs/`. |
+| #1891 🟡 | The status cells extended (26); three already said it; Q-1 (#82 against #190 / #206) and Q-2 (#1642 on #1513) for the main chat. |
+| #1892 🟡 | The rule texts follow #1546, #1606, #1612, #1735, #1500–#1511 and four walk lessons; `docs/process.md`, two project docs and four skills owed; Q-3 (#1546 for the main chat's own pull requests). |
+| #1893 🟡 | The walk kit (icon, the load signal), the #1542 rows of the Safety sheet, the new launch walk sheet, the readiness section S12w; the two Artifacts and the `fixb3` sheet pointer owed. |
+| #1894 | The #46 verdict of the batch (readers: Opus only). |
+| #1895 | Session "Docs batch" — the record. |

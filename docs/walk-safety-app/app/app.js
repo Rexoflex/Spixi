@@ -1,5 +1,6 @@
 /* Session Safety walk test app (docs/walk-safety.md). It talks to Spixi with the plain action bridge:
- * `xa:` + base64(JSON) — the same path the mini app SDK uses — and shows each answer on screen. */
+ * `xa:` + base64(JSON) — the same path the mini app SDK uses — and shows each answer on screen. It sends the load signal
+ * `ixian:onload` at page load and defines `SpixiAppSdk.onInit`, as the real SDK does (below). */
 (function () {
   var out = document.getElementById('out');
   function show(t) { out.textContent = 'Result: ' + t; }
@@ -18,6 +19,30 @@
     };
   }
   window.SpixiAppSdk = window.SpixiAppSdk || {};
+  /* The load signal — the mechanism of the real SDK (spixi-app-sdk.js of the Spixi-Mini-Apps repo, mini-apps-sdk/, version 0.51;
+   * the file is not in this repo): `fireOnLoad` navigates to `ixian:onload:<version>` one tick later, and an app calls it from the
+   * window `load` event. MiniAppPage.onLoad (the `ixian:onload` verb) makes the action handler and answers with
+   * `SpixiAppSdk.onInit`; since Fix batch 3 (P84) an action sent before it is refused "not ready".
+   * `config.js` (loaded first) may set `window.SAFETY_WALK_NO_ONLOAD = true`: then the app never sends it, as the Fix batch 3
+   * walk needs (docs/walk-safety.md, "The Fix batch 3 variant"). The file as shipped sets it to false. */
+  window.SpixiAppSdk.version = 0.51;
+  window.SpixiAppSdk.fireOnLoad = function () {
+    setTimeout(function () { location.href = 'ixian:onload:' + window.SpixiAppSdk.version; }, 0);
+  };
+  /* The host answers the load signal with onInit(sessionIdHex, hostAddress) (SDK 0.50 or newer, i.e. sdkVersion >= 50, single-user app). The line under the
+   * title shows that it came: the first 8 characters of the session id only, never an address. */
+  window.SpixiAppSdk.onInit = function (sessionId) {
+    var st = document.getElementById('state');
+    if (st) { st.textContent = 'Host: connected (onInit received, session ' + String(sessionId || '').slice(0, 8) + ')'; }
+  };
+  window.addEventListener('load', function () {
+    if (window.SAFETY_WALK_NO_ONLOAD === true) {
+      var st = document.getElementById('state');
+      if (st) { st.textContent = 'Host: no load signal sent (SAFETY_WALK_NO_ONLOAD)'; }
+      return;
+    }
+    window.SpixiAppSdk.fireOnLoad();
+  });
   window.SpixiAppSdk.ar = function (r) {
     var o = r;
     try { if (typeof r === 'string') o = JSON.parse(r); } catch (e) { show('answer ' + r); return; }

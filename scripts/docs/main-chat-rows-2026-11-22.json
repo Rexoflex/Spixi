@@ -1,0 +1,316 @@
+{
+  "about": "The main chat's rows of 2026-11-17 to 2026-11-22, inserted into DECISIONS.md word for word (session docsb, DECISIONS 1890). Each row = the heading block of its project doc claude/<doc>, byte for byte. Each run goes right after the highest table row with a lower number, with one empty line before the run, one between two rows and one after the run (the separation that a heading block needs in a file of table lines). cells = the status cells of older table rows, extended by ' → <text>' (old text kept, 215). statusLines = a suffix added to the Status line of an inserted heading row. lines = the number of lines of each source block; sha256 = the SHA-256 of each source block (its lines joined with a newline, no final newline, before a statusLines suffix).",
+  "runs": [
+    {
+      "first": 1641,
+      "rows": [
+        [
+          1641,
+          "talk-rulings-2026-11-17-evening.md"
+        ],
+        [
+          1642,
+          "talk-rulings-2026-11-17-evening.md"
+        ],
+        [
+          1643,
+          "talk-rulings-2026-11-17-evening.md"
+        ],
+        [
+          1644,
+          "talk-rulings-2026-11-17-night.md"
+        ]
+      ]
+    },
+    {
+      "first": 1735,
+      "rows": [
+        [
+          1735,
+          "talk-rulings-2026-11-18.md"
+        ],
+        [
+          1736,
+          "talk-rulings-2026-11-18.md"
+        ],
+        [
+          1737,
+          "talk-rulings-2026-11-18.md"
+        ],
+        [
+          1738,
+          "talk-rulings-2026-11-18.md"
+        ],
+        [
+          1739,
+          "talk-rulings-2026-11-18.md"
+        ],
+        [
+          1740,
+          "talk-rulings-2026-11-18.md"
+        ],
+        [
+          1741,
+          "talk-rulings-2026-11-18.md"
+        ],
+        [
+          1742,
+          "talk-rulings-2026-11-18-afternoon.md"
+        ],
+        [
+          1743,
+          "talk-rulings-2026-11-18-afternoon.md"
+        ],
+        [
+          1744,
+          "talk-rulings-2026-11-18-interview-5.md"
+        ],
+        [
+          1745,
+          "talk-rulings-2026-11-18-interview-5.md"
+        ],
+        [
+          1746,
+          "talk-rulings-2026-11-18-photo1a-1727.md"
+        ],
+        [
+          1747,
+          "talk-rulings-2026-11-18-interview-6.md"
+        ],
+        [
+          1748,
+          "talk-rulings-2026-11-18-interview-7-8.md"
+        ],
+        [
+          1749,
+          "talk-rulings-2026-11-18-interview-7-8.md"
+        ],
+        [
+          1750,
+          "talk-rulings-2026-11-18-defaults.md"
+        ],
+        [
+          1751,
+          "talk-rulings-2026-11-18-evening.md"
+        ],
+        [
+          1752,
+          "talk-rulings-2026-11-18-evening-2.md"
+        ],
+        [
+          1753,
+          "talk-rulings-2026-11-22.md"
+        ],
+        [
+          1754,
+          "talk-rulings-2026-11-22.md"
+        ]
+      ]
+    },
+    {
+      "first": 1825,
+      "rows": [
+        [
+          1825,
+          "talk-rulings-2026-11-22-interview.md"
+        ],
+        [
+          1826,
+          "talk-rulings-2026-11-22-interview.md"
+        ],
+        [
+          1827,
+          "talk-rulings-2026-11-22-afternoon.md"
+        ],
+        [
+          1828,
+          "talk-rulings-2026-11-22-walk.md"
+        ],
+        [
+          1829,
+          "talk-rulings-2026-11-22-walk.md"
+        ],
+        [
+          1830,
+          "talk-rulings-2026-11-22-evening.md"
+        ]
+      ]
+    }
+  ],
+  "cells": [
+    {
+      "row": 1696,
+      "add": "✅ #1739 (1) (Damir, 2026-11-18): one switch for the dialog"
+    },
+    {
+      "row": 1697,
+      "add": "✅ #1739 (2) (Damir, 2026-11-18): D-1 accepted"
+    },
+    {
+      "row": 1700,
+      "add": "✅ the dial is accepted by WALK #1743 (W-6 P)"
+    },
+    {
+      "row": 1703,
+      "add": "✅ accepted by WALK #1743 (W-8 P)"
+    },
+    {
+      "row": 1719,
+      "add": "#1737 (the main chat, 2026-11-18): PO-3 and PO-6 are to be finished in session `photo1a` with Fable 5.2"
+    },
+    {
+      "row": 1724,
+      "add": "#1736 (the main chat, 2026-11-18): option (a), one more round"
+    },
+    {
+      "row": 1608,
+      "add": "changed by #1740 (4) (Tic-tac-toe and welcome slide 4 after the launch) and #1747 (1), (2) (slide 4 and the store screens name only Blitz Chess)"
+    },
+    {
+      "row": 1614,
+      "add": "(6) changed by #1740 (4) and #1747 (1)"
+    },
+    {
+      "row": 1518,
+      "add": "the two steps are replaced before the launch by #1742 (\"History 1\"; research first by #1738 (2)); the requirement stays"
+    },
+    {
+      "row": 1473,
+      "add": "amended by #1642 (P-25 is its own batch before the launch), #1738 (1) (1b and 1c after the launch) and #1747 (4) (the other speed ideas after the launch)"
+    },
+    {
+      "row": 1513,
+      "add": "amended by #1738 (1) (an idea is built only when a device number fails its budget) and #1747 (4) (the other unbuilt speed ideas without a built place go after the launch)"
+    },
+    {
+      "row": 1475,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1476,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1477,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1482,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1483,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1484,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1485,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1486,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1487,
+      "add": "replaced by the speed plan of #1473, #1513, #1534 and #1738 (#1744 (2))"
+    },
+    {
+      "row": 1794,
+      "add": "answered by #1825 (2): option (A), no alert; built in the lock batch"
+    },
+    {
+      "row": 1795,
+      "add": "answered by #1825 (1): option (A), a lock batch with the shell"
+    },
+    {
+      "row": 1796,
+      "add": "answered by #1825 (3): option (A), a clock that the user cannot set"
+    },
+    {
+      "row": 1798,
+      "add": "the first notice: answered by #1825 (4), a Moment sheet"
+    },
+    {
+      "row": 1818,
+      "add": "answered by #1827 (3): option (a), the row stays \"no data\"; the parser fix in a later scripts batch"
+    },
+    {
+      "row": 1763,
+      "add": "✅ confirmed by WALK #1829 (W-6 P on Windows; A-6 P on Android)"
+    }
+  ],
+  "statusLines": [
+    {
+      "row": 1739,
+      "add": " → (4) replaced by #1750 (3): the Android lock flash is fixed before the launch"
+    }
+  ],
+  "lines": {
+    "1641": 27,
+    "1642": 15,
+    "1643": 8,
+    "1644": 52,
+    "1735": 19,
+    "1736": 17,
+    "1737": 13,
+    "1738": 17,
+    "1739": 17,
+    "1740": 19,
+    "1741": 15,
+    "1742": 33,
+    "1743": 24,
+    "1744": 25,
+    "1745": 16,
+    "1746": 20,
+    "1747": 34,
+    "1748": 12,
+    "1749": 24,
+    "1750": 36,
+    "1751": 27,
+    "1752": 16,
+    "1753": 18,
+    "1754": 6,
+    "1825": 20,
+    "1826": 16,
+    "1827": 24,
+    "1828": 10,
+    "1829": 13,
+    "1830": 35
+  },
+  "sha256": {
+    "1641": "8ef278f24e46ef2d7bb357d25bfe1abaf3ddd15cc1e29b44654290c2203b076c",
+    "1642": "c6cf7f61bfbf8a32aa5215fa871592a07c61a14609a1f716740d5aa359ad8aad",
+    "1643": "211a695ce6f564557b709397a6999758f4ff3ea5e86222a92e5eebbd6b3884a7",
+    "1644": "4afa64b319d5ba2974c11c13334878d3a3d0ddb939835d4a370067d69cbf9b62",
+    "1735": "29f85951e4430b1a1fcba40e1c218ba90e808a9a159bf794241c4724b1699337",
+    "1736": "927eedff7a4668a5466148cb3787c60993f4a21abc0bc7e7ba9922b860f8f685",
+    "1737": "14c490ff023faf5c4a39bf33da7a784d4d51e3d833dfca18855c2b0479e3dc0e",
+    "1738": "fbe4c6f5834d809d1036674bd1b309703119a8728a45932c2e7417412682ee3a",
+    "1739": "d6929c28d19844285fe5006c02b03712590d50c3e6cb90772981be566918ee1f",
+    "1740": "560f9fc8b62565752872a81fc6b7e73fdb61c9d8f0edaf7d30bffbc11eb27dde",
+    "1741": "045b9643467a1a8878f4253bba3f9f6ae6ea206c46f322d8d56420bf3b09a299",
+    "1742": "8dd7bca38d383f910ff49c8a98ab78e4d8afcdbb67a5b292703716988f7b3fa8",
+    "1743": "fd855141061c2de4bb2a1083d0b3661a56a07691b90cd7ef2c4bfc9eb2933d49",
+    "1744": "f3c6bbe1bf874ffe82d03fa1a78df3440df178694ed191d7b43549517cd063f7",
+    "1745": "1929e2383f9945edb965778f54ee8c5e11dec858ca0ae5cd31e15cc5e59ccf36",
+    "1746": "07b95415a378875a442d1812b2a93c89ab0c229cc58399aff2891530b2c886a2",
+    "1747": "22e3fa6eb7f976eaadbc03755477eb0817ffd96e9a6c85cb6936f189e62b398b",
+    "1748": "2794bd9beb02f4f81e5f566f604b95c8a1b3aa5c582340c8c4e101d05e48d9a6",
+    "1749": "450423bcb8032ba75d51bbf7bebc9b584c84771d23dc3d77ff8e9e423e31b1b7",
+    "1750": "83b6fb4719b367e91027831744834ffffe06c23f1b2f051f9cf699c0b76140e4",
+    "1751": "c6f3c74a7ef5967126588f60475b78e94bc10a85252e045648c82e1ac4517798",
+    "1752": "f26f88161a0be2da4cbbdc7fff61947cb8c4255716f3ea977c33ad487317a89f",
+    "1753": "e7ad8d3f4dbd7866e12f2fb5a0edcbea3279adaa815dc8aeca955405ca2915a2",
+    "1754": "c38a65fcb4af8067c3ff12bc0013d8a02ad4e232779d54077c8bc9684e06ea7b",
+    "1825": "e5917b8d4cefac904b709cda5b0ae2570adb3e4cc25eb1d43bac183a14fad574",
+    "1826": "687be543076b8af7d36088696ee1a293a630cb213c661902ee180a499e665f84",
+    "1827": "4fc2073f755236ce135780b3277a6db7f956ef7e95220137cf7630bdd1fe7f7b",
+    "1828": "c4f888051674c6a0dbd26d9c3730f8428f47a151ff3e908cac3a17edfc94e7d6",
+    "1829": "8a788da86eff43a49182c02866266aaa0fc1ff9e0343c6aff381dd5e7d290ac4",
+    "1830": "116089dd0970a7126d60230b10fc25494a7c81bec33e6c5f4ddfe9e97c010665"
+  }
+}

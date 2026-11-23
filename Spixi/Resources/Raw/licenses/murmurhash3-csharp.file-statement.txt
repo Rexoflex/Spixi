@@ -1,0 +1,14 @@
+Component: MurmurHash3 C# variant (Elliott B. Edwards; algorithm by Austin Appleby) in Spixi/Platforms/MacCatalyst/RocksDbSharp/BinaryComparer.cs (vendored curiosity-ai/rocksdb-sharp @ f1cf0ba0; a MurMurHash3 string is also in RocksDbSharp.dll of RocksDB.0.0.42.nupkg)
+Licence: the file's own statement: "This code is public domain."; "put into the public domain"; "placed into the public domain as a gist"; no MIT text and no copyright line
+Source of this text: Spixi/Platforms/MacCatalyst/RocksDbSharp/BinaryComparer.cs lines 94-103 (the vendored file, identical to upstream apart from BOM, CRLF and final newline by its header) · upstream SHA-256 45bf43ebadbe093ff5975ffbd4d4317b37fe501e0187650e35a8f4f04b83430a
+
+    /*
+    This code is public domain.
+
+    The MurmurHash3 algorithm was created by Austin Appleby and put into the public domain.  See http://code.google.com/p/smhasher/
+
+    This C# variant was authored by
+    Elliott B. Edwards and was placed into the public domain as a gist
+    Status...Working on verification (Test Suite)
+    Set up to run as a LinqPad (linqpad.net) script (thus the ".Dump()" call)
+    */

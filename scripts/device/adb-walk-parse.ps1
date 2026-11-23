@@ -23,11 +23,27 @@ Steps added in batch photo1a: open-seed (per index k of run.json seedIndex the r
 
 Steps added in batch fixb3: history-seed-kNN (history run with -HistorySeed k: the reps carry that step name, run.json has the integer
          historySeed; the rows are the rows of history with the page rows asking for the FIRST page request, because a dev-seed
-         chat has one older page; first swipe -> 1st page is the stamp of the first `[P1] chat load` line AFTER the first
-         `[P1] shell send loadmore` line of the window minus t0, no such pair = "no data" with the reason; a rep with no page
+         chat has one older page; first swipe -> 1st page (batch walktools, #1827 (3)): the stamp of the first `[P1] chat load`
+         line AFTER the first `[P1] chat loadmore in` line of the window (both C# lines, one thread: an exact pair) when that C#
+         line is in the log; else the first `[P1] chat load` line of the window when the window holds at least one
+         `[P1] shell send loadmore` line AND as many `[P1] chat load` lines as send lines (one answer per request; another number =
+         "no data": a stray load cannot be told from the page) (the send line is the PROOF of the request, its stamp is NOT an order: the shell's
+         console line reaches the C# log AFTER the C# answer, so "after the send line" excluded the very load it should find; the
+         open's own load is before t0, outside the window); else "no data" with the reason; minus t0. A rep with no page
          line is "no data"; review round 3: EVERY row of the step, the scroll, long-task and swipes rows too, is "no data" for a rep
          whose run.json `pages` is missing, not a whole number or 0, because such a rep may have hit historyMaxSwipes and skews a
          median). A run without historySeed reads history as before.
+Rows added in batch walktools (item 3): per page k of older messages, rows `page <k> ...` appended AFTER the old rows of history
+         (pages 1..3) and of history-seed-kNN (page 1, behind the same pages gate). All are OPTIONAL: a line that is absent gives
+         n/a with the reason, never "no data", never exit 2. Page k = the k-th line of its kind in the rep's window, and a row has a
+         value ONLY when the number of lines of its kind equals the number of `[P1] shell send loadmore` lines (page requests) in the
+         window (the C# kinds read / push: the `chat loadmore in` lines too; the C# time: both counts, push k >= loadmore k and before
+         loadmore k+1); else n/a "<n> <kind> lines for <m> page requests (cannot pair)". The lines:
+         `[P1] shell older insert rows= mode= build= swap= fix= fade= ms=` (the page: insert rows / insert mode=insert (1 when the
+         word is `insert`, 0 for any other word of [a-z]{1,16}) / build / swap / fix / fade / ms) - `[P1] shell older frames n= max=`
+         (frames n / frames max) - `[P1] chat loadmore in` + `[P1] chat older push n= json= build=` (push n / json / build, and
+         C# loadmore in -> push = the k-th push stamp minus the k-th loadmore stamp) - `[P1] chat older read passes= window= ms=
+         flush=` (read passes / window / ms / flush). The C# lines come with the batch histcs; a build without them gives n/a.
 
 Safety rules (this script is read by a security reviewer):
 - Reads ONLY files named by run.json inside -RunDir (plain file names; any name with a path part is refused).
@@ -238,6 +254,12 @@ $script:L = @{
     ChatMedia       = @{ Gram = $true; Label = 'chat media';                 Rx = (New-Rx ($script:Cm + '\[P1\] chat media(?=\s)')) }
     ChatBatch       = @{ Gram = $true; Label = 'chat batch';                 Rx = (New-Rx ($script:Cm + '\[CDPERF\] chat batch(?=\s)')) }
     ChatShell       = @{ Gram = $true; Label = 'chat-shell n=';              Rx = (New-Rx ($script:Cm + '\[CDPERF\] chat-shell(?= n=)')) }
+    # Batch walktools (item 3): the per-page lines of an older page. The two shell lines (photo1b) and the three C# lines (histcs).
+    OlderInsert     = @{ Gram = $true; Label = 'shell older insert';         Rx = (New-Rx ($script:Cm + '\[P1\] shell older insert(?=\s|$)')) }
+    OlderFrames     = @{ Gram = $true; Label = 'shell older frames';         Rx = (New-Rx ($script:Cm + '\[P1\] shell older frames(?=\s|$)')) }
+    LoadMoreIn      = @{ Gram = $true; Label = 'chat loadmore in';           Rx = (New-Rx ($script:Cm + '\[P1\] chat loadmore in(?=\s|$)')) }
+    OlderRead       = @{ Gram = $true; Label = 'chat older read';            Rx = (New-Rx ($script:Cm + '\[P1\] chat older read(?=\s|$)')) }
+    OlderPush       = @{ Gram = $true; Label = 'chat older push';            Rx = (New-Rx ($script:Cm + '\[P1\] chat older push(?=\s|$)')) }
     # These two start directly after the colon (no WEBVIEW prefix); the address that follows is never read.
     Conn    = @{ Gram = $false; Label = 'Network client connected to'; Rx = (New-Rx '^[A-Za-z]{1,10}\|[0-9]{1,6}: Network client connected to [A-Za-z0-9-]{1,24}(\.[A-Za-z0-9-]{1,24}){0,7}:[0-9]{1,5}[ \t]*\z') }
     Hello   = @{ Gram = $false; Label = 'Received Hello:';             Rx = (New-Rx '^[A-Za-z]{1,10}\|[0-9]{1,6}: Received Hello: Node version [0-9]{1,6}[ \t]*\z') }
@@ -251,6 +273,15 @@ function Get-TokMs {
     $v = [long]::Parse($m.Groups[1].Value, $script:Inv)
     if (($v -gt 1000000000) -or ($v -lt -1000000000)) { return $null }
     return $v
+}
+
+function Get-WordTok {
+    # Batch walktools (item 3): the WORD value of "key=<word>" in the tail of a line (the mode= of the insert line): only [a-z]{1,16}, then
+    # a boundary; a longer word, a capital letter, a digit or a dot after it = $null (not a word of this grammar).
+    param([string]$Tail, [string]$Key)
+    $m = [regex]::Match($Tail, '(?<![A-Za-z0-9_])' + [regex]::Escape($Key) + '=([a-z]{1,16})(?![A-Za-z0-9_.])')
+    if (-not $m.Success) { return $null }
+    return $m.Groups[1].Value
 }
 
 function Get-Tok {
@@ -558,18 +589,117 @@ function X-SeedGated {
 }
 
 function X-SeedFirstPage {
-    # Batch fixb3 (item 4, review round 2 NIT 2): first swipe -> 1st page of history-seed-kNN = the stamp of the FIRST `[P1] chat load` line
-    # AFTER the first `[P1] shell send loadmore` line of the window, minus t0. A chat load that comes before the page request (the open of
-    # the chat) is not the page; no loadmore line, or no chat load after it = "no data" with the reason. The old history rows do not use this.
+    # Batch walktools (#1827 (3), contract I-3a; replaces the rule of fixb3 review round 2 NIT 2): first swipe -> 1st page of history-seed-kNN =
+    # the stamp of ONE `[P1] chat load` line minus t0, chosen in this order:
+    #   (1) the C# line `[P1] chat loadmore in` is in the window: the first `[P1] chat load` line AFTER it (both are C# lines on one thread:
+    #       an exact pair; none after it = "no data" with that reason, the rule does not fall through);
+    #   (2) else the window holds at least one `[P1] shell send loadmore` line: the first `[P1] chat load` line of the WINDOW, but ONLY when the
+    #       number of `[P1] chat load` lines in the window equals the number of `[P1] shell send loadmore` lines (C# answers one load per request:
+    #       a stray load, e.g. a reload or a jump-widening load, would silently become "1st page"); otherwise "no data" with the reason
+    #       "<n> chat load lines for <m> page requests in the window (cannot pair)". The send line is the proof that the page asked for a page;
+    #       its stamp is NOT an order: the shell's console line reaches the C# log after the C# answer (a different path), so "after the send
+    #       line" excluded the very load it should find (run 20261122-1350: chat load 13:51:31.7693, send line 13:51:31.8216). The open's own
+    #       chat load is before t0 (the driver waits for the open's present first), outside the window;
+    #   (3) else "no data" with the reason (no request is proven). The old history rows do not use this.
     param($C)
     $r = Test-Ready $C
     if ($null -ne $r) { return $r }
-    $req = (Get-Hits $C $script:L.SendLoadMore).Items
-    if ($req.Count -eq 0) { return (Get-MissingLine $C $script:L.SendLoadMore) }
-    foreach ($ld in (Get-Hits $C $script:L.Load).Items) {
-        if ($ld.Stamp -ge $req[0].Stamp) { return (New-Res 'value' (($ld.Stamp - $C.T0).Ticks / 10000.0) '') }
+    $loads = (Get-Hits $C $script:L.Load).Items
+    $csharp = (Get-Hits $C $script:L.LoadMoreIn).Items
+    if ($csharp.Count -gt 0) {
+        foreach ($ld in $loads) {
+            if ($ld.Stamp -ge $csharp[0].Stamp) { return (New-Res 'value' (($ld.Stamp - $C.T0).Ticks / 10000.0) '') }
+        }
+        return (New-Res 'missing' $null ($C.Label + ': no "' + $script:L.Load.Label + '" line after the first "' + $script:L.LoadMoreIn.Label + '" line in ' + $C.LogName))
     }
-    return (New-Res 'missing' $null ($C.Label + ': no "' + $script:L.Load.Label + '" line after the first "' + $script:L.SendLoadMore.Label + '" line in ' + $C.LogName))
+    $req = (Get-Hits $C $script:L.SendLoadMore).Items
+    if ($req.Count -gt 0) {
+        if ($loads.Count -eq 0) { return (New-Res 'missing' $null ($C.Label + ': no "' + $script:L.Load.Label + '" line in the window although a "' + $script:L.SendLoadMore.Label + '" line is there, in ' + $C.LogName)) }
+        if ($loads.Count -ne $req.Count) { return (New-Res 'missing' $null ($C.Label + ': ' + $loads.Count.ToString($script:Inv) + ' chat load lines for ' + $req.Count.ToString($script:Inv) + ' page requests in the window (cannot pair; ' + $C.LogName + ')')) }
+        return (New-Res 'value' (($loads[0].Stamp - $C.T0).Ticks / 10000.0) '')
+    }
+    return (New-Res 'missing' $null ($C.Label + ': no "' + $script:L.LoadMoreIn.Label + '" line and no "' + $script:L.SendLoadMore.Label + '" line (no page request is proven) in ' + $C.LogName))
+}
+
+function X-PageGate {
+    # Batch walktools (item 3): the per-page rows of history-seed-kNN stand behind the SAME gate as every other row of that step (pages >= 1).
+    # $Seed = $false (the step history): no gate, $null.
+    param($C, [bool]$Seed)
+    if (-not $Seed) { return $null }
+    return (X-SeedPagesGate $C)
+}
+
+function Get-NoPair {
+    # Batch walktools (review round 1, M2): the "missing" result of a page row whose lines cannot be paired with the page requests.
+    param($C, $LineDef, [int]$N, [int]$M)
+    return (New-Res 'missing' $null ($C.Label + ': ' + $N.ToString($script:Inv) + ' "' + $LineDef.Label + '" lines for ' + $M.ToString($script:Inv) + ' page requests (cannot pair) in ' + $C.LogName))
+}
+
+function X-PageTok {
+    # Batch walktools (item 3): key= of the K-th (1 = first) line of its kind in the window. Kind = int (a non-negative integer) | mode (the
+    # word of key=, [a-z]{1,16}: 1 for `insert`, 0 for any other such word). A line that is absent, a token that is not readable = missing
+    # with the reason (the rows are optional, so a missing value is n/a, never "no data").
+    # Review round 1 (M2): "the K-th line" is the K-th page ONLY when no line was lost or added: the row has a value only when the number of
+    # lines of this kind in the window equals the number of page requests (`[P1] shell send loadmore` lines), and for the two C# kinds
+    # (read, push) the number of `[P1] chat loadmore in` lines too when that line exists; else missing "<n> <kind> lines for <m> page requests
+    # (cannot pair)" - a lost or an extra line would shift every later page silently.
+    param($C, $LineDef, [int]$K, [string]$Key, [string]$Kind, [bool]$Seed)
+    $g = X-PageGate $C $Seed
+    if ($null -ne $g) { return $g }
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    $hits = (Get-Hits $C $LineDef).Items
+    if ($hits.Count -eq 0) { return (Get-MissingLine $C $LineDef) }
+    $reqN = ((Get-Hits $C $script:L.SendLoadMore).Items).Count
+    if ($hits.Count -ne $reqN) { return (Get-NoPair $C $LineDef $hits.Count $reqN) }
+    if ((Test-Same $LineDef.Label $script:L.OlderRead.Label) -or (Test-Same $LineDef.Label $script:L.OlderPush.Label)) {
+        $inN = ((Get-Hits $C $script:L.LoadMoreIn).Items).Count
+        if (($inN -gt 0) -and ($inN -ne $reqN)) { return (Get-NoPair $C $script:L.LoadMoreIn $inN $reqN) }
+    }
+    if ($hits.Count -lt $K) { return (Get-MissingCount $C $LineDef $hits.Count $K) }
+    $tail = $hits[$K - 1].Tail
+    if ($Kind -eq 'mode') {
+        $w = Get-WordTok $tail $Key
+        if ($null -eq $w) { return (Get-MissingTok $C $LineDef $Key) }
+        if (Test-Same $w 'insert') { return (New-Res 'value' 1.0 '') }
+        return (New-Res 'value' 0.0 '')
+    }
+    $v = Get-Tok $tail $Key
+    if (($null -eq $v) -or ($v -lt 0)) { return (Get-MissingTok $C $LineDef $Key) }
+    return (New-Res 'value' ([double]$v) '')
+}
+
+function X-PagePush {
+    # Batch walktools (item 3): the C# answer time of page K = the stamp of the K-th `[P1] chat older push` line minus the stamp of the K-th
+    # `[P1] chat loadmore in` line, in ms. Either line absent = missing with the reason.
+    # Review round 1 (M2): a value only when BOTH counts equal the number of page requests (`[P1] shell send loadmore` lines) AND the K-th push
+    # is not before the K-th loadmore AND (K < the count) it is before the (K+1)-th loadmore (the push belongs to its own request); else missing
+    # with the reason - a lost push or loadmore line would pair every later page with the wrong partner.
+    param($C, [int]$K, [bool]$Seed)
+    $g = X-PageGate $C $Seed
+    if ($null -ne $g) { return $g }
+    $r = Test-Ready $C
+    if ($null -ne $r) { return $r }
+    $ins = (Get-Hits $C $script:L.LoadMoreIn).Items
+    if ($ins.Count -eq 0) { return (Get-MissingLine $C $script:L.LoadMoreIn) }
+    $push = (Get-Hits $C $script:L.OlderPush).Items
+    if ($push.Count -eq 0) { return (Get-MissingLine $C $script:L.OlderPush) }
+    $reqN = ((Get-Hits $C $script:L.SendLoadMore).Items).Count
+    if ($ins.Count -ne $reqN) { return (Get-NoPair $C $script:L.LoadMoreIn $ins.Count $reqN) }
+    if ($push.Count -ne $reqN) { return (Get-NoPair $C $script:L.OlderPush $push.Count $reqN) }
+    if ($ins.Count -lt $K) { return (Get-MissingCount $C $script:L.LoadMoreIn $ins.Count $K) }
+    $ms = ($push[$K - 1].Stamp - $ins[$K - 1].Stamp).Ticks / 10000.0
+    if ($ms -lt 0) { return (New-Res 'missing' $null ($C.Label + ': the "' + $script:L.OlderPush.Label + '" line is before its "' + $script:L.LoadMoreIn.Label + '" line in ' + $C.LogName)) }
+    if (($K -lt $ins.Count) -and ($push[$K - 1].Stamp -ge $ins[$K].Stamp)) { return (New-Res 'missing' $null ($C.Label + ': the "' + $script:L.OlderPush.Label + '" line of page ' + $K.ToString($script:Inv) + ' is not before the next "' + $script:L.LoadMoreIn.Label + '" line in ' + $C.LogName)) }
+    return (New-Res 'value' $ms '')
+}
+
+function X-Page {
+    # Batch walktools (item 3): one per-page row. $A = { K = page; Spec = one entry of $script:PageRows; Seed = history-seed (the gate) }.
+    param($C, $A)
+    $sp = $A.Spec
+    if ($sp.T -eq 'pair') { return (X-PagePush $C $A.K $A.Seed) }
+    return (X-PageTok $C $script:L[$sp.Line] $A.K $sp.Key $sp.T $A.Seed)
 }
 
 function X-Scroll {
@@ -729,8 +859,10 @@ function X-Mem {
 #   Src = which file(s) the row names: log | run | memapp | memrend | membot
 # ---------------------------------------------------------------------------------------------------------------
 function New-Def {
-    param([string]$Name, [string]$Unit, [bool]$Required, [string]$Src, [scriptblock]$Extract, [string]$Agg = 'stats')
-    return @{ Name = $Name; Unit = $Unit; Required = $Required; Src = $Src; Extract = $Extract; Agg = $Agg }
+    # $Arg (batch walktools): one optional argument handed to the extractor as its second parameter (the per-page rows use it; the old
+    # extractors take one parameter and ignore it).
+    param([string]$Name, [string]$Unit, [bool]$Required, [string]$Src, [scriptblock]$Extract, [string]$Agg = 'stats', $Arg = $null)
+    return @{ Name = $Name; Unit = $Unit; Required = $Required; Src = $Src; Extract = $Extract; Agg = $Agg; Arg = $Arg }
 }
 
 $script:OpenDefs = @(
@@ -793,6 +925,44 @@ function New-OpenSeedDefs {
 $script:OpenSeedWarmDefs = New-OpenSeedDefs ''
 $script:OpenSeedColdDefs = New-OpenSeedDefs 'cold '
 
+# Batch walktools (item 3): the per-page rows of an older page, ALL optional (a line that is absent = n/a with the reason, never "no data").
+# One spec per row: N = the row name after "page <k> ", U = unit, Line = the key of $script:L, Key = the token (pair = the C# answer time),
+# T = int | mode | pair, Agg = the aggregate kind (insertmode: the note "insert in n of m"). Page k = the k-th line of that kind in the rep's window.
+$script:PageRows = @(
+    @{ N = 'insert rows';          U = 'count'; Line = 'OlderInsert'; Key = 'rows';   T = 'int'; Agg = 'stats' },
+    @{ N = 'insert mode=insert';   U = '0/1';   Line = 'OlderInsert'; Key = 'mode';   T = 'mode'; Agg = 'insertmode' },
+    @{ N = 'insert build=';        U = 'ms';    Line = 'OlderInsert'; Key = 'build';  T = 'int'; Agg = 'stats' },
+    @{ N = 'insert swap=';         U = 'ms';    Line = 'OlderInsert'; Key = 'swap';   T = 'int'; Agg = 'stats' },
+    @{ N = 'insert fix=';          U = 'ms';    Line = 'OlderInsert'; Key = 'fix';    T = 'int'; Agg = 'stats' },
+    @{ N = 'insert fade=';         U = 'ms';    Line = 'OlderInsert'; Key = 'fade';   T = 'int'; Agg = 'stats' },
+    @{ N = 'insert ms=';           U = 'ms';    Line = 'OlderInsert'; Key = 'ms';     T = 'int'; Agg = 'stats' },
+    @{ N = 'frames n';             U = 'count'; Line = 'OlderFrames'; Key = 'n';      T = 'int'; Agg = 'stats' },
+    @{ N = 'frames max';           U = 'ms';    Line = 'OlderFrames'; Key = 'max';    T = 'int'; Agg = 'stats' },
+    @{ N = 'C# loadmore in -> push'; U = 'ms';  Line = 'OlderPush';   Key = '';       T = 'pair'; Agg = 'stats' },
+    @{ N = 'read passes';          U = 'count'; Line = 'OlderRead';   Key = 'passes'; T = 'int'; Agg = 'stats' },
+    @{ N = 'read window';          U = 'count'; Line = 'OlderRead';   Key = 'window'; T = 'int'; Agg = 'stats' },
+    @{ N = 'read ms=';             U = 'ms';    Line = 'OlderRead';   Key = 'ms';     T = 'int'; Agg = 'stats' },
+    @{ N = 'read flush';           U = 'value'; Line = 'OlderRead';   Key = 'flush';  T = 'int'; Agg = 'stats' },
+    @{ N = 'push n';               U = 'count'; Line = 'OlderPush';   Key = 'n';      T = 'int'; Agg = 'stats' },
+    @{ N = 'push json=';           U = 'chars'; Line = 'OlderPush';   Key = 'json';   T = 'int'; Agg = 'stats' },
+    @{ N = 'push build=';          U = 'ms';    Line = 'OlderPush';   Key = 'build';  T = 'int'; Agg = 'stats' }
+)
+
+function New-PageDefs {
+    # The rows of pages 1..$Pages (names "page <k> <row>"), all optional. $Seed = history-seed-kNN (behind its pages gate).
+    param([int]$Pages, [bool]$Seed)
+    $out = New-Object System.Collections.Generic.List[object]
+    for ($k = 1; $k -le $Pages; $k++) {
+        foreach ($sp in $script:PageRows) {
+            $arg = [pscustomobject]@{ K = $k; Spec = $sp; Seed = $Seed }
+            $out.Add((New-Def ('page ' + $k.ToString($script:Inv) + ' ' + $sp.N) $sp.U $false 'log' { param($c, $a) X-Page $c $a } $sp.Agg $arg))
+        }
+    }
+    return $out.ToArray()
+}
+$script:HistoryPageDefs = New-PageDefs 3 $false
+$script:HistorySeedPageDefs = New-PageDefs 1 $true
+
 $script:StepTable = [ordered]@{
     'coldstart'   = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
             (New-Def 'am TotalTime' 'ms' $true 'run' { param($c) X-Am $c $false }),
@@ -854,7 +1024,7 @@ $script:StepTable = [ordered]@{
             $script:LongCountDef,
             $script:LongMaxDef,
             (New-Def 'swipes' 'count' $true 'run' { param($c) X-Field $c 'swipes' })
-        ) }
+        ) + $script:HistoryPageDefs }
     'resume-now'  = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @() + $script:OpenDefs + @($script:SendDef, $script:AmOptDef) }
     'resume-3s'   = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @() + $script:OpenDefs + @($script:SendDef, $script:AmOptDef) }
     'scroll-image' = @{ Kind = 'reps'; Reps = 'repeats'; Defs = @(
@@ -892,7 +1062,7 @@ $script:StepTable = [ordered]@{
 
 # Batch fixb3 (item 4): the rows of history-seed-kNN = the rows of history with their own step name. The dev-seed chat has ONE older page
 # (Seed 56: 100 messages), so the page rows ask for the FIRST page request (history asks for three): older pages loaded needs at least
-# one `[P1] chat load` line, first swipe -> 1st page is the stamp of the first chat load line after the first `shell send loadmore` line minus t0.
+# one `[P1] chat load` line, first swipe -> 1st page follows the three-branch rule of X-SeedFirstPage (walktools #1827 (3): the load after the first `chat loadmore in` line; else the window's load when the number of loads equals the number of `shell send loadmore` lines; else no data) minus t0.
 # Review round 3 (m1): EVERY row is behind the gate pages >= 1 (X-SeedPagesGate: the page rows through X-SeedPage, the others through
 # X-SeedGated): a rep with no page request (zero pages, or no `pages` in run.json) is "no data" in every row, not only in the two page rows.
 # The scroll and long-task rows repeat the old defs by name, unit and flag (the old defs are not shared: they have no gate).
@@ -905,7 +1075,7 @@ $script:HistorySeedDefs = @(
     (New-Def 'long tasks' 'count' $false 'log' { param($c) X-SeedGated $c 'X-Long' 'count' }),
     (New-Def 'longest long task' 'ms' $false 'log' { param($c) X-SeedGated $c 'X-Long' 'longest' }),
     (New-Def 'swipes' 'count' $true 'run' { param($c) X-SeedGated $c 'X-Field' 'swipes' })
-)
+) + $script:HistorySeedPageDefs
 
 $script:MemDefs = @(
     (New-Def 'app PSS' 'kB' $true 'memapp' { param($c) X-Mem $c 'app' }),
@@ -995,7 +1165,7 @@ function Get-DataRow {
     $why = New-Object System.Collections.Generic.List[string]
     $total = @($Ctxs).Count
     foreach ($c in $Ctxs) {
-        $r = & $Def.Extract $c
+        $r = & $Def.Extract $c $Def.Arg
         if ($r.State -eq 'value') { $vals.Add([double]$r.Value) }
         elseif ($r.State -eq 'missing') { $why.Add([string]$r.Why) }
         elseif ($Def.Required) { $why.Add($c.Label + ': no value') }
@@ -1028,6 +1198,12 @@ function Get-DataRow {
         $k = 0
         foreach ($v in $arr) { if ($v -eq 1) { $k++ } }
         $notes.Add('spare=1 in ' + $k.ToString($script:Inv) + ' of ' + $arr.Length.ToString($script:Inv))
+    }
+    if ($Def.Agg -eq 'insertmode') {
+        # Batch walktools (item 3): the 0/1 rows of mode=insert: how many reps wrote the word `insert` (the other word is `full`).
+        $k = 0
+        foreach ($v in $arr) { if ($v -eq 1) { $k++ } }
+        $notes.Add('insert in ' + $k.ToString($script:Inv) + ' of ' + $arr.Length.ToString($script:Inv))
     }
     if ((-not $Def.Required) -and ($arr.Length -lt $total)) {
         $notes.Add('value in ' + $arr.Length.ToString($script:Inv) + ' of ' + $total.ToString($script:Inv) + ' reps')
@@ -1692,7 +1868,13 @@ function Invoke-Main {
         if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }
     }
     if ($histSeedK -ge 0) {
-        [void]$md.Append('- history-seed-k' + $histSeedK.ToString('00', $script:Inv) + ': history on the dev-seed chat of index ' + $histSeedK.ToString($script:Inv) + ' (-HistorySeed; the address is derived by the script), after a proven restart of the app in every rep; t0 = the first swipe to older messages; the swipes stop at the FIRST page request (a seed chat has ONE older page), so older pages loaded needs one `[P1] chat load` line AND pages >= 1 in run.json, and first swipe -> 1st page is the stamp of the first `[P1] chat load` line after the first `[P1] shell send loadmore` line minus t0 (history asks for three pages); a rep with no page line, or with pages 0 / missing in run.json (the driver counted no page request) = "no data" in EVERY row of the step (the scroll, long-task and swipes rows too: such a rep may have hit historyMaxSwipes); the scroll and long-task rows as for history.' + "`n")
+        [void]$md.Append('- history-seed-k' + $histSeedK.ToString('00', $script:Inv) + ': history on the dev-seed chat of index ' + $histSeedK.ToString($script:Inv) + ' (-HistorySeed; the address is derived by the script), after a proven restart of the app in every rep; t0 = the first swipe to older messages; the swipes stop at the FIRST page request (a seed chat has ONE older page), so older pages loaded needs one `[P1] chat load` line AND pages >= 1 in run.json, and first swipe -> 1st page is the stamp of the first `[P1] chat load` line after the first `[P1] chat loadmore in` line when that C# line is in the log, else of the first `[P1] chat load` line of the rep when the rep holds a `[P1] shell send loadmore` line and as many `[P1] chat load` lines as send lines (the send line is the proof of the request; the shell line reaches the log after the C# answer, so its stamp is not an order; another number of loads cannot be paired = no data), else no data, minus t0 (history asks for three pages); a rep with no page line, or with pages 0 / missing in run.json (the driver counted no page request) = "no data" in EVERY row of the step (the scroll, long-task and swipes rows too: such a rep may have hit historyMaxSwipes); the scroll and long-task rows as for history.' + "`n")
+    }
+    # Batch walktools (item 3): the note of the per-page rows, printed only when one of them has a value (a run without the new lines prints none).
+    $pageNote = $false
+    foreach ($r in $rows) { if (($r.Kind -eq 'data') -and $r.Metric.StartsWith('page ', [StringComparison]::Ordinal)) { $pageNote = $true } }
+    if ($pageNote) {
+        [void]$md.Append('- page <k> rows (history pages 1..3, history-seed page 1; optional, n/a when the line is absent; page k = the k-th line of its kind in the rep, only when the lines of that kind and the `[P1] shell send loadmore` lines are equal in number): insert rows / mode=insert (1 = the word `insert`, 0 = any other word; the note counts the 1s) / build / swap / fix / fade / ms= = the `[P1] shell older insert` line; frames n / max = the `[P1] shell older frames` line; C# loadmore in -> push = the k-th `[P1] chat older push` stamp minus the k-th `[P1] chat loadmore in` stamp; read passes / window / ms= / flush = the `[P1] chat older read` line; push n / json= / build= = the `[P1] chat older push` line.' + "`n")
     }
     [void]$md.Append("`nFiles`n`n")
     $seen = New-Object System.Collections.Generic.List[string]

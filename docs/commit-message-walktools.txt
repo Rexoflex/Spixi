@@ -1,0 +1,21 @@
+Walk tools: two smoke modules wait for states, chrome-only screen probe sets, parser rows per older page, seed voice ids, the jsdom 31 rows
+
+Commits of work/walktools (base redesign/frontend @ 338d30f4), one logical unit each:
+
+1. Walk tools: the device map takes one probe set per theme; the parser gives the first page of -HistorySeed and rows per older page (scripts only)
+   scripts/device/adb-walk.ps1, scripts/device/adb-walk-parse.ps1, scripts/pins-walktools/** (b-screens, c-parser, the by-hand
+   runners, the synthetic fixtures), the re-based walk pins: scripts/pins-perfb1toggle/b-walk.mjs, scripts/pins-photo1a/c-walk.mjs,
+   scripts/pins-filewalk/b-walk-steps.mjs, scripts/pins-fixb3/c-walk.mjs. Decisions 1878-1881, 1884.
+
+2. Walk tools: the developer seed gives its voice messages 16-byte ids, so they play (developer builds only)
+   Spixi/Utils/SDevSeedPlan.cs, Spixi/Utils/SDevSeed.cs, scripts/csh/WalkToolsSeedTests.cs, scripts/csh/FileWalkSeedTests.cs,
+   scripts/pins-filewalk/a-file-seed.mjs. Decision 1882, packet P93.
+
+3. Walk tools: GATE 54 (a4) and the Account header pin wait for states, not for a time; the six jsdom 31 rows (test code only)
+   scripts/smoke-test.mjs (the GATE 54 (a4) clause, the six rows of the 343 block, one registration line for pins-walktools),
+   scripts/pins-fixb1/e-header.mjs. Decisions 1875-1877, 1883.
+
+4. Walk tools: the record (decisions 1875-1887, lessons L273-L276, packet P93, the gate section, mechanisms, contract, review brief, handoff)
+   DECISIONS.md, docs/decisions-index.md, docs/lessons.md, docs/status-log.md, CLAUDE.md, docs/security-handover-gate.md,
+   docs/be-review-pack/P93-walktools-seed-voice-ids-walk-scripts.md, docs/walktools-mechanisms.md, docs/contract-walktools.md,
+   docs/review-brief-walktools.md, docs/handoff-2026-11-22-walktools.md, docs/commit-message-walktools.txt.

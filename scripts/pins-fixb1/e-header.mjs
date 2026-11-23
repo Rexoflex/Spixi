@@ -37,11 +37,63 @@
  *   #46 r2 (R2-5), each rebuilt: a read-only <input> holding the address in the hero → (A3) + (A4); a <p> with the full address right after the hero → (A4)
  *   text; the address in groups of 4 → (A4) text; `slice(0,5) + '…' + slice(-5)` → (A4) text; a <style> with `.c-settings__hero::after{content:"<address>"}` →
  *   (A4) style; a custom property carrying the address on the root → (A4) root. Restored.
- *   #46 r1 (fixb1 fixer): `hero.title = address` (settings-shell.js, in the hero build) → (A2) fails in all three forms. */
+ *   #46 r1 (fixb1 fixer): `hero.title = address` (settings-shell.js, in the hero build) → (A2) fails in all three forms.
+ *   walktools item 1 (+ #46 r1 / r2): `signalReady` without `bridge.ready()` (settings.html) → every row of every form fails "never sent
+ *   ixian:onload (hang guard …)" (jsdom 29.1.1; the same page with `requestAnimationFrame(() => bridge.ready())` is VALID and green);
+ *   `setTimeout(installExecuteUiCommand, 300)` → "sent ixian:onload before executeUiCommand existed" (29) / "executeUiCommand is not a
+ *   function" (31); a page whose shared assets never load → red, not a hang. */
 import { b2Kit } from '../pins-s9/b2-kit.mjs';
 export default async function (h) {
-  const { ok, sleep } = h;
+  const { ok } = h;
   const { boot } = b2Kit(h);
+  /* ★ walktools item 1 (2026-11-22; round 1 of #46: M1 m4): every wait is a STATE of the page, never a time.
+   * (1) THE BOOT. It was `boot(…, { wait: 900 })`: settings.html loads spixi.icons.js / spixi.strings.js / spixi.bundle.js
+   *     as external scripts (jsdom `resources: 'usable'` reads them asynchronously), and `executeUiCommand` exists only
+   *     after they ran — inside a full smoke (a loaded loop) the 900 ms timer could fire first, and the first push threw
+   *     "W.executeUiCommand is not a function" (session defaultsb, 2 of 3 full runs). Now the boot waits for the state C#
+   *     waits for (#177): the page's own `ixian:onload`. Where b2Kit can capture `ixian:` commands (the Location impl
+   *     symbol exists — jsdom 29.1.1, the CI line), the row awaits the moment onSend sees `ixian:onload` — whenever the page
+   *     sends it (in the load handler, a frame later as home.html does, or later through the serialized outbox) — and
+   *     REQUIRES that `executeUiCommand` existed at that moment (C# pushes as soon as it reads onload). Where the capture
+   *     cannot work (jsdom 31: `Object.getOwnPropertySymbols(location)` is []), the state is the window `load` (at once
+   *     when readyState is already 'complete'); the contract half is then not checked (no row text says so: the rows are
+   *     unchanged). b2-kit.mjs is shared and unchanged.
+   *     HANG GUARD: LOAD_GUARD_MS is a WALL-CLOCK bound that can only FAIL a row (with the reason), never pass one or retry —
+   *     a page that loads crosses it only under an extreme block: #46 r2 (reader X) measured jsdom 31 under a 450 ms busy
+   *     loop every 400 ms reaching it; under the 40–120 ms loads of the re-checks the boot stays far below it.
+   * (2) AFTER A PUSH. setNickname / setAddress re-render through scheduleRebuild → requestAnimationFrame (settings.html).
+   *     The row awaits ONE frame of the page's own `W.requestAnimationFrame`, requested after the push's: jsdom runs one
+   *     tick's callbacks in request order, so the rebuild ran first. (A sleep(150/250) could be overtaken: an OLDER timer
+   *     of the same length reorders the lists — #46 r1 m4, case B.)
+   * (3) THE SHEET is built synchronously by the row's click (openAddressSheet → createSheet → openSheet appends it); it is
+   *     read right after the click. (4) THE COPY ✓ lands in the click's promise chain; the row awaits the `data-state`
+   *     attribute itself (a MutationObserver, hang-guarded) — the 1400 ms reset timer can no longer win a race. */
+  const LOAD_GUARD_MS = 20000;
+  const frame = (W) => new Promise((r) => W.requestAnimationFrame(() => r()));
+  const bootLoaded = async (query) => {
+    const at = { execAtOnload: null };
+    let sawOnload = null;
+    const onloadSeen = new Promise((r) => { sawOnload = r; });
+    const s = await boot('settings.html', { query, wait: 0, onSend: (c, w) => { if (c === 'ixian:onload' && at.execAtOnload === null) { at.execAtOnload = typeof w.executeUiCommand === 'function'; sawOnload(true); } } });
+    const W = s.dom.window;
+    const canCapture = Object.getOwnPropertySymbols(W.location).some((y) => y.description === 'impl');
+    const state = canCapture ? onloadSeen
+      : (W.document.readyState === 'complete' ? Promise.resolve(true) : new Promise((r) => W.addEventListener('load', () => r(true), { once: true })));
+    let guard = null;
+    const reached = await Promise.race([state, new Promise((r) => { guard = setTimeout(() => r(false), LOAD_GUARD_MS); })]);
+    clearTimeout(guard);
+    const fail = (why) => { try { W.close(); } catch (e) {} throw new Error(why + ' — C# pushes only after ixian:onload, and at once (#177); sent=' + JSON.stringify(s.sent)); };
+    if (!reached) fail(canCapture ? 'settings.html never sent ixian:onload (hang guard ' + LOAD_GUARD_MS + ' ms)' : 'settings.html never fired window load (hang guard ' + LOAD_GUARD_MS + ' ms)');
+    if (canCapture && !at.execAtOnload) fail('settings.html sent ixian:onload before executeUiCommand existed');
+    return s;
+  };
+  const copyStateAfter = (W, copy, click) => new Promise((resolve) => {
+    let guard = null;
+    const mo = new W.MutationObserver(() => { if (copy.dataset.state) { mo.disconnect(); clearTimeout(guard); resolve(copy.dataset.state); } });
+    mo.observe(copy, { attributes: true, attributeFilter: ['data-state'] });
+    guard = setTimeout(() => { mo.disconnect(); resolve(null); }, LOAD_GUARD_MS);   // hang guard: no ✓ / ✗ ever
+    click();
+  });
   const ADDR = '425HqzWpMkV3dTgJnS85CQenAbCdEf9XyZ12';
   const FORMS = [['phone', 'mobile=1'], ['desktop', 'desktop=1'], ['pane', 'pane=1&desktop=1']];
   /* the whitelist: depth + tag + class list of every element of the hero, in document order (built settings.html, all three forms alike) */
@@ -80,14 +132,14 @@ export default async function (h) {
     let s = null;
     const r = {};
     try {
-      s = await boot('settings.html', { query, wait: 900 });
+      s = await bootLoaded(query);
       const { W, d, push } = s;
       /* no address pushed yet → no row (B, negative leg) */
       push('setNickname', 'Ana');
-      await sleep(150);
+      await frame(W);
       r.noAddrNoRow = !d.querySelector('.c-settings__row[data-setting-key="address"]');
       push('setAddress', ADDR);
-      await sleep(250);
+      await frame(W);
       /* (A) the header */
       const hero = d.querySelector('.c-settings__hero');
       const heroBtns = hero ? [...hero.querySelectorAll('button')] : [];
@@ -137,7 +189,6 @@ export default async function (h) {
       const copied = [];
       W.__spixiNativeCopy = (t) => { copied.push(t); return Promise.resolve(true); };   // the shell's copy path hands the text to C# first (clipboard.js #1028); the stub answers 'copied'
       if (row) row.click();
-      await sleep(350);
       const sheet = d.querySelector('.c-addr-sheet');
       const qr = sheet && sheet.querySelector('.c-addr-sheet__qrcard svg');
       const full = sheet && sheet.querySelector('.c-wallet-receive__addrvalue');
@@ -155,16 +206,15 @@ export default async function (h) {
         explainer: infos.length === 2 && infos[0].textContent.trim() === bodyTxt.trim() && !infos[0].classList.contains('c-addr-sheet__info--safe')
           && infos[1].classList.contains('c-addr-sheet__info--safe') && infos[1].textContent.trim() === safeTxt.trim(),
       };
-      if (copy) copy.click();
-      await sleep(300);
-      r.sheet.copyWalk = copied.length === 1 && copied[0] === ADDR && !!copy && copy.dataset.state === 'ok';
+      const copyState = copy ? await copyStateAfter(W, copy, () => copy.click()) : null;
+      r.sheet.copyWalk = copied.length === 1 && copied[0] === ADDR && !!copy && copyState === 'ok' && copy.dataset.state === 'ok';
     } catch (e) { r.threw = String(e && e.message || e); }
     finally { try { s && s.dom.window.close(); } catch (e) {} }
     /* ★ #46 r4 (R4-7): the same form with the address pushed and an EMPTY nickname — a name that falls back to the address (`name || address`) must not show it */
     let s2 = null;
     try {
-      s2 = await boot('settings.html', { query, wait: 900 });
-      s2.push('setNickname', ''); await sleep(150); s2.push('setAddress', ADDR); await sleep(250);
+      s2 = await bootLoaded(query);
+      s2.push('setNickname', ''); await frame(s2.W); s2.push('setAddress', ADDR); await frame(s2.W);
       const hero2 = s2.d.querySelector('.c-settings__hero');
       const pr = probe(s2.d, hero2);
       r.empty = { hero: !!hero2, shadow: pr.shadow, leakText: pr.leakText, leakHero: pr.leakHero, heroText: hero2 ? hero2.textContent : null };

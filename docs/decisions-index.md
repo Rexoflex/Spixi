@@ -347,17 +347,6 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1894 | The #46 verdict of the batch (readers: Opus only). |
 | #1895 | Session "Docs batch" — the record. |
 
-### Session Docs batch 2 (`docsb2`, 2026-11-23, #1950–#1956, L293–L294, no packet)
-| Row | Rule |
-|---|---|
-| #1950 | The main chat's rows #1831–#1838 in `DECISIONS.md` word for word, right after #1830; the scripts take `--manifest` and a heading row as a run's predecessor. |
-| #1951 | 13 status cells extended (#1886, #1852, #1853, #1849, #1848, #1850, #1846, #1847, #1845, #1860, #1877, #1796, #1798); the rest listed as not changed. |
-| #1952 🟡 | `docs/process.md` follows #1503, #1606, #1735, #1546, #1507 (13 proposals of `docsb` + three contradicting sentences); Q-2: is branch protection set? |
-| #1953 | The readiness rows of 2026-11-23; the Windows walk set-up: the page store and `ixian.cfg` beside `Spixi.exe`, the store copied after the first start, full PowerShell lines. |
-| #1954 🟡 | The doubled numbers #1420–#1423 are two sets (ON-1 and S20G), not a copy; Q-1: keep both and cite with the session (recommended) / renumber / mark. |
-| #1955 | The #46 verdict of the batch (readers: Opus only): CLEAN at r4; the compare script's relaxed cell check stays a stated limit (rule 9). |
-| #1956 | Session "Docs batch 2" — the record. |
-
 ### Session Voice fix (`voicefix`, 2026-11-23, #1900–#1906, L279–L280; no packet)
 | Row | Rule |
 |---|---|
@@ -368,3 +357,29 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1904 🟡 | Proposal: a Windows walk leg starts with Ctrl+F5 unless a row needs the debugger. |
 | #1905 | The security record: the peer-voice exposure is withdrawn; the inherited Concentus native-library probe goes to BE, its trigger widened by ours (Q-3 open; on Android API 23 possibly the system libopus, not verified). |
 | #1906 | The record of the session (export, review verdict). |
+
+### Session Lock batch (`lockb`, 2026-11-23, #1915–#1925, L283–L287, packets P97–P99)
+| Row | Rule |
+|---|---|
+| #1915 | Lock batch: three changes, three switches (`LockbFlags`, read lazily); all OFF = the base. |
+| #1916 | Item 1: the pause lock holds its form until the prompt (`setAuthPending` `"True"` / `"1"`, values every shell already ignores); `releaseHold` releases a return with no stop; an un-animated pop (P97). |
+| #1917 | Item 2: no "Authentication Failed" alert for `NotAvailable` / `Denied` (P98). |
+| #1918 | Item 3: the lock delay also on Android `ElapsedRealtime`; an override that can only add a lock (P99). |
+| #1919 | Per platform: Windows nothing; iPhone / Mac item 2 only; Android all three. |
+| #1920 🟡 | Finding: the own-intent return is on the wall clock too (inherited); a twin proposed. |
+| #1921 🟡 | Question: the Apple twin of the second clock (A `CLOCK_MONOTONIC` · B wall clock for v1 · C `systemUptime` ruled out). |
+| #1922 | The re-bases of other batches' rows (named). |
+| #1923 | The #46 verdict: CLEAN at round 3 (MAJOR 2 · 0 · 0). |
+| #1924 🟡 | Proposal: close the inherited pre-`boot()` edge of `lock.html` with a one-line shell guard. |
+| #1925 | Session "Lock batch" — the record. |
+
+### Session Docs batch 2 (`docsb2`, 2026-11-23, #1950–#1956, L293–L294, no packet)
+| Row | Rule |
+|---|---|
+| #1950 | The main chat's rows #1831–#1838 in `DECISIONS.md` word for word, right after #1830; the scripts take `--manifest` and a heading row as a run's predecessor. |
+| #1951 | 13 status cells extended (#1886, #1852, #1853, #1849, #1848, #1850, #1846, #1847, #1845, #1860, #1877, #1796, #1798); the rest listed as not changed. |
+| #1952 🟡 | `docs/process.md` follows #1503, #1606, #1735, #1546, #1507 (13 proposals of `docsb` + three contradicting sentences); Q-2: is branch protection set? |
+| #1953 | The readiness rows of 2026-11-23; the Windows walk set-up: the page store and `ixian.cfg` beside `Spixi.exe`, the store copied after the first start, full PowerShell lines. |
+| #1954 🟡 | The doubled numbers #1420–#1423 are two sets (ON-1 and S20G), not a copy; Q-1: keep both and cite with the session (recommended) / renumber / mark. |
+| #1955 | The #46 verdict of the batch (readers: Opus only): CLEAN at r4; the compare script's relaxed cell check stays a stated limit (rule 9). |
+| #1956 | Session "Docs batch 2" — the record. |

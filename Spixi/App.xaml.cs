@@ -50,6 +50,28 @@ public partial class App : Application
             pendingForegroundAuth = null;
             if (held == null)
             {
+                /* ★ lockb (#1825 (1), review r1 M-1 / m-2) — THE BACKSTOP. MainActivity.OnPostResume posts this at EVERY
+                 * return to the foreground, with or without a stop. Application.OnResume is NOT raised at every return: MAUI
+                 * raises it from the activity's OnRestart (OnRestart → Window.Resumed → SendResume; the activity's OnResume
+                 * maps to Activated only), i.e. only after an OnStop — and when it runs, it runs before this post. So
+                 * "nothing handed over and the pause lock up" means App.OnResume did not hand a prompt over in this return:
+                 * a pause with no stop (a translucent permission dialog, the camera before its own-intent stamp) or a throw in
+                 * App.OnResume before the hand-off. The pause lock's prompt is still deferred and no prompt comes, but R1 sent
+                 * "True" at its load (the shell's belt stopped): reveal the form, as the base's belt did. LockPage.releaseHold
+                 * is a reveal only (no unlock, no pop, no latch), never throws, and is a no-op that logs nothing with
+                 * LockbFlags.HoldWhileDeferred off. It reveals ONLY while the lock's prompt is still deferred (R5 reads
+                 * authDeferred, review r2 X2 MINOR-1): once a hand-off was consumed (onForegroundReturned cleared it), a later
+                 * OnPostResume with no restart — the prompt's own credential UI pausing without a stop, a notification tap, a
+                 * multi-window tap — is a no-op, and the shell has "1" (the belt) already or gets it at onLoad. It cannot
+                 * fire where App.OnResume kept the form held for a coming prompt:
+                 * that path hands the lock over (`held != null`, below, unchanged); a lock App.OnResume dismissed
+                 * (dismissPauseLock: pauseLock is cleared before its pop is posted) and a lock that never presented leave
+                 * pauseLock null → nothing. */
+                LockPage? up = pauseLock;   // ★ lockb (#1825 (1))
+                if (up != null)   // ★ lockb (#1825 (1))
+                {
+                    up.releaseHold("post-resume");   // ★ lockb (#1825 (1))
+                }
                 return;
             }
             SLockDiag.mark("resume/deferred-auth-released", "activity is resumed");
@@ -65,6 +87,11 @@ public partial class App : Application
 
     private bool isLockScreenActive = false;
     private DateTime unlockedDate = DateTime.Now; // Store the last time when the app was unlocked via lockscreen
+    /* ★ lockb (#1825 (3)): the SECOND-CLOCK TWIN of `unlockedDate` — the same moment read on the clock the user cannot set
+     * (LockClockRules.nowMs(): Android elapsedRealtime, ms; null on every other platform). Written wherever `unlockedDate`
+     * is written (here and in onUnlock) and nowhere else, so it never stands for another moment than its wall stamp. Read
+     * only by OnResume, only with LockbFlags.SecondClock on, only on the no-stamp fallback. Unlocks nothing. */
+    private long? unlockedMono = LockClockRules.nowMs();
 
     /* ★★ #496 (#484) — DAMIR'S CALL, 2026-08-21: THE APP-LOCK GRACE WINDOW MEASURES FROM
      * BACKGROUNDING, NOT FROM THE LAST UNLOCK. This is the security dial, so it is written
@@ -95,6 +122,14 @@ public partial class App : Application
      * the OLD measure is used, which is exactly today's behaviour and the conservative
      * direction. */
     private DateTime? backgroundedDate = null;
+    /* ★ lockb (#1825 (3)): the SECOND-CLOCK TWIN of `backgroundedDate` (LockClockRules.nowMs() at the same leaving edge).
+     * THE INVARIANT: it is written, cleared and put back ONLY together with `backgroundedDate`, at the same five sites —
+     * this field, markBackgrounded (inside the same "first edge wins" block), OnResume's read-and-clear, OnResume's #500
+     * restore, and onUnlock (LockClockRules.keepTwin, right after the defaultsb statement that decides the stamp). So a
+     * twin never outlives its wall stamp and is never younger than it — a YOUNGER twin is the unsafe direction: it would
+     * make a long absence read as a short one on the second clock. Non-null only on Android. With LockbFlags.SecondClock
+     * off it is written but no decision reads it (the base). */
+    private long? backgroundedMono = null;
 
     /* ONE constant for both grace tests below. They were two separately-written `5`s, and
      * the second one had already been wrong once (#229: `ts.Seconds` is the 0-59 component,
@@ -158,6 +193,7 @@ public partial class App : Application
         if (backgroundedDate == null)
         {
             backgroundedDate = DateTime.Now;
+            backgroundedMono = LockClockRules.nowMs();   // ★ lockb (#1825 (3)): the twin, at the SAME first edge — only when the wall stamp is laid
         }
     }
 
@@ -509,6 +545,8 @@ public partial class App : Application
         isLockScreenActive = false;
         unlockedDate = DateTime.Now;
         backgroundedDate = DefaultsRules.stampAfterUnlock(backgroundedDate, SpixiFlags.LockDelayOneMinute);   // ★ defaultsb (#1750): a verified unlock clears the leaving stamp
+        unlockedMono = LockClockRules.nowMs();   // ★ lockb (#1825 (3)): the twin of `unlockedDate`, same moment (a verified unlock only: after the guard above)
+        backgroundedMono = LockClockRules.keepTwin(backgroundedDate, backgroundedMono);   // ★ lockb (#1825 (3)): the leaving twin goes with its wall stamp — cleared when the line above cleared the stamp, kept when it kept it
         /* ★ #438 break-my-verdict MAJOR-2: AUTH IS THE DEFINITIVE RELEASE. Background
          * while the lock is on screen and OnSleep raised a shield that nothing else
          * would ever take down: the resume skips the lock branch (a lock is already up)
@@ -749,12 +787,17 @@ public partial class App : Application
                     // AUDIT MINOR-2: hideSurface() already ran. Nothing else re-asserts a
                     // live call's ring or bar on this path.
                     UIHelpers.refreshAppRequests = true;
+                    /* ★ lockb (#1825 (1), review r2 S2 MINOR-1): pauseLock is dropped above, so no backstop finds this
+                     * page again. If any of it is on screen, its form is held by R1's "True" (no belt): reveal it (the
+                     * base's state). A reveal only; a no-op on a page that never showed; never throws. */
+                    lockPage.releaseHold("not-presented");   // ★ lockb (#1825 (1))
                 });
             });
         }
         catch (Exception e)
         {
             Logging.error("lockOnPause failed: " + e);
+            LockPage? failed = pauseLock;   // ★ lockb (#1825 (1), review r2 S2 MINOR-1): taken BEFORE the line below drops it
             // ★ F3 (audit MINOR): the deferred-auth handoff dies with the lock. Now that the
             // release genuinely POSTS, a lock dismissed inside that window would otherwise get
             // onForegroundReturned() on a popped page — and LockPage.pageVisible is only ever set
@@ -764,6 +807,10 @@ public partial class App : Application
             pendingForegroundAuth = null;
             isLockScreenActive = false;
             UIHelpers.refreshAppRequests = true;   // AUDIT MINOR-2, the other failure path
+            /* ★ lockb (#1825 (1), review r2 S2 MINOR-1): the same as the handler above — no backstop finds this page
+             * again; reveal its form if it is on screen. A reveal only; null (the throw came before the lock was built)
+             * or a page that never showed = nothing. Never throws. */
+            failed?.releaseHold("not-presented");   // ★ lockb (#1825 (1))
         }
     }
 
@@ -807,6 +854,12 @@ public partial class App : Application
                     catch (Exception e)
                     {
                         Logging.error("dismissPauseLock: pop failed: " + e);
+                        /* ★ lockb (#1825 (1), review r1 m-1): the page stays on screen, still deferred, its form held by R1's
+                         * "True" (no belt), and pauseLock is already null, so nothing else releases it. Reveal its form (the
+                         * base's state) so the password can clear it. A reveal only; never throws. ⚠ It helps only for a throw
+                         * BEFORE MAUI's PopModalAsync removed the page (review r2 S2 NIT-3); after that the page is disposed
+                         * and this is a no-op on the base's same dead page. */
+                        lp.releaseHold("pop-failed");   // ★ lockb (#1825 (1))
                     }
                 });
             }
@@ -1196,8 +1249,35 @@ public partial class App : Application
          * same guard already protects ownIntentFresh() a few lines up. */
         DateTime? wentAway = backgroundedDate;
         backgroundedDate = null;
+        long? wentAwayMono = backgroundedMono;   // ★ lockb (#1825 (3)): the twin is read ONCE with its wall stamp …
+        backgroundedMono = null;                 // ★ lockb (#1825 (3)): … and cleared with it (every early return leaves a clean pair)
         TimeSpan sinceBackground = wentAway.HasValue ? (DateTime.Now - wentAway.Value) : sinceUnlock;
         bool withinGrace = DefaultsRules.withinGrace(sinceBackground.TotalSeconds, SpixiFlags.LockDelayOneMinute);
+        /* ★ lockb (#1825 (3), R1-1) — THE SECOND CLOCK. The statement above is the base's and is not changed: it measures
+         * the absence with DateTime.Now, which the person holding the unlocked phone can set (the clock or the zone moved
+         * back to 0–60 s after the stamp → "inside" → dismissPauseLock with no authentication). With LockbFlags.SecondClock
+         * on, the absence must ALSO be inside the bound on the clock nobody can set (Android elapsedRealtime; contract
+         * docs/contract-lockb.md § 3, LockClockRules.cs).
+         *   · Switch OFF: `secondClock` is false, `nowMono` stays null, the `if` below does not run and the diag tail is
+         *     empty — `withinGrace` is the base's value and the log line is the base's, byte for byte.
+         *   · Switch ON: the `if` runs ONLY when the base already said "inside", and its one statement can only keep that
+         *     `true` or turn it to `false`. So this block can add a lock and can never take one down: wherever the base
+         *     keeps the lock up, it stays up. (LockClockRules.withinGrace repeats the wall rule as its own first step, so
+         *     the value is the contract's rule whole; the `&& withinGrace` is the belt that makes "only more locks" true by
+         *     the shape of this statement, whatever the rule file holds.)
+         *   · ONE reading of the second clock per resume (as AUDIT NIT-2 for the wall clock): `nowMono` feeds the rule and
+         *     the diag line.
+         *   · `stampMono` = the twin of the wall stamp `sinceBackground` was measured from: the leaving twin when there was
+         *     a leaving stamp, else the unlock twin (the no-stamp fallback, `sinceUnlock`). On Android a missing twin is
+         *     "outside" (fail closed); where the platform has no second clock (nowMs() == null: iPhone, Mac, Windows) the
+         *     rule is the wall rule alone = the base. */
+        bool secondClock = LockbFlags.SecondClock;
+        long? nowMono = secondClock ? LockClockRules.nowMs() : null;
+        long? stampMono = wentAway.HasValue ? wentAwayMono : unlockedMono;
+        if (secondClock && withinGrace)
+        {
+            withinGrace = LockClockRules.withinGrace(sinceBackground.TotalSeconds, nowMono, stampMono, SpixiFlags.LockDelayOneMinute);
+        }
         /* ★ F3 (audit MINOR): log the resume UNCONDITIONALLY. Instrumented only inside the
          * branch, silence was ambiguous between "OnResume never ran" and "no pause lock was
          * held" — and that exact ambiguity, a lifecycle callback not firing where it was
@@ -1217,7 +1297,10 @@ public partial class App : Application
                 // and "stamped=False" names the fallback rather than hiding it in a number.
                 + " sinceBackground=" + ((long)sinceBackground.TotalSeconds) + "s"
                 + " stamped=" + wentAway.HasValue
-                + " withinGrace=" + withinGrace);
+                + " withinGrace=" + withinGrace
+                // ★ lockb (#1825 (3)): ` mono=<n>s` = the whole seconds away by the second clock (-1 = a negative difference
+                // or a failed read, clamped; -2 = no twin). "" with the switch off or with no second clock: the base's line.
+                + LockClockRules.diagSuffix(secondClock, nowMono, stampMono));
             if (!(ownIntentReturn || withinGrace) || !dismissPauseLock(held))
             {
                 /* Stays up — either it is still required, or the push has not committed
@@ -1252,8 +1335,20 @@ public partial class App : Application
                  * the lock stayed up — so shipping #496 without this line would have made
                  * the lock strictly weaker than the design it replaced, which is not what
                  * was offered to him. */
+                backgroundedMono = wentAwayMono;   // ★ lockb (#1825 (3)): #500 for the twin — it goes back exactly as found, with its wall stamp (the next line)
                 backgroundedDate = wentAway;
                 SLockDiag.mark("resume/lock-stays-up", "releasing deferred auth · stamp restored (#500)");
+                /* ★ lockb (#1825 (1)) — for the Android block's own statement `held.promptWindowOpens();`, directly before the hand-off.
+                 * The lock stays up and its prompt is about to be released by MainActivity's OnPostResume post. The lock
+                 * page is told NOW, directly, on the UI thread, that the prompt's window opens (it sends the existing push
+                 * setAuthPending("1"): hold the form, the 3 s belt counts from this return) — so on THIS path (the
+                 * stop-and-return: App.OnResume is raised only from the activity's OnRestart) a lost or late post cannot
+                 * hold the spinner past the belt. It does not cover a return with no stop (App.OnResume does not run) or a
+                 * throw in App.OnResume before this line: those are covered by releaseDeferredAuth's backstop
+                 * (LockPage.releaseHold("post-resume") when nothing was handed over). LockPage.promptWindowOpens() never
+                 * throws (its own try / catch), is a no-op that logs nothing with LockbFlags.HoldWhileDeferred off or for a
+                 * lock not built deferred, and it never unlocks, never pops and never changes the deferral: the hand-off
+                 * below is the base's, unchanged. */
 #if ANDROID
                 /* ★ F3 — THE FIX, and it is a TIMING fix, not a gating one. The 2026-08-21
                  * device log settled three rounds of guessing: all four gates read correctly
@@ -1281,6 +1376,7 @@ public partial class App : Application
                  * delay — #442, #460 and this row are all the same lesson: a lifecycle flag
                  * or callback that turns over at a different edge from the one you are
                  * reasoning about is worse than none. The latch itself is untouched. */
+                held.promptWindowOpens();   // ★ lockb (#1825 (1)): the note above this Android block
                 pendingForegroundAuth = held;
 #else
                 // Every other platform keeps the original edge. None of them presents the

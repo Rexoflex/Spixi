@@ -762,4 +762,89 @@ namespace SPIXI
             }
         }
     }
+
+    /* ★ lockb (Lock batch, ruling #1825 (1)–(3), DECISIONS #1915–#1934, contract docs/contract-lockb.md § 3) — mechanisms
+     * docs/lockb-mechanisms.md. Three switches, one per change (#1478); all three OFF = the base behaviour:
+     *   HoldWhileDeferred   — item 1: the pause lock holds its form while the deferred prompt waits (the existing push
+     *                         setAuthPending "True" / "1") and is popped with no animation;
+     *   NoAlertNoCredential — item 2: no "Authentication Failed" alert when the prompt returns NotAvailable or Denied;
+     *   SecondClock         — item 3: the no-auth window is measured with a second clock the user cannot set too (Android).
+     * Absent = ON; a stored 0 acts only while devMode is on (S16PassRules.effectiveFlag); read LAZILY, once per process, at the
+     * first use — NOT from SpixiFlags.init() (L269: init's tail is held by the pins of other batches). Log text: fixed words and
+     * 0|1 only (the handover-gate log rule). */
+    public static class LockbFlags
+    {
+        public const string HoldWhileDeferredKey = "flagLockHoldWhileDeferred";       // int pref; absent = default (1) — item 1
+        public const string NoAlertNoCredentialKey = "flagLockNoAlertNoCredential";   // int pref; absent = default (1) — item 2
+        public const string SecondClockKey = "flagLockSecondClock";                   // int pref; absent = default (1) — item 3
+        /** Item 1. OFF = the base: no hold push, the animated pop. */
+        public static bool HoldWhileDeferred { get { ensureRead(); return hold; } }
+        /** Item 2. OFF = the base: the alert after every not-authenticated prompt. */
+        public static bool NoAlertNoCredential { get { ensureRead(); return noAlert; } }
+        /** Item 3. OFF = the base: the wall clock alone. */
+        public static bool SecondClock { get { ensureRead(); return clock; } }
+        private static bool hold = false;
+        private static bool noAlert = false;
+        private static bool clock = false;
+        private static int readDone = 0;                     // 1 once read() has set the three values
+        private static readonly object readLock = new object();
+
+        /** Once per process (the first property read); the [FLAGS] lockb line is written once, here. */
+        internal static void ensureRead()
+        {
+            if (System.Threading.Volatile.Read(ref readDone) != 0)
+            {
+                return;
+            }
+            bool first = false;
+            lock (readLock)
+            {
+                if (readDone == 0)
+                {
+                    read();
+                    first = true;
+                }
+            }
+            if (first)
+            {
+                try
+                {
+                    Logging.info(flagsLine(hold, noAlert, clock));
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+
+        /** The read (ensureRead calls it once; the csh tests call it again over a changed store): absent = ON; a stored 0 acts
+         *  only while devMode is on; a store that throws keeps all three ON. Logs NOTHING. */
+        internal static void read()
+        {
+            bool dev = false;
+            int h = 1, n = 1, c = 1;
+            try
+            {
+                dev = Preferences.Default.Get("devMode", false);
+                h = Preferences.Default.Get(HoldWhileDeferredKey, 1);
+                n = Preferences.Default.Get(NoAlertNoCredentialKey, 1);
+                c = Preferences.Default.Get(SecondClockKey, 1);
+            }
+            catch (Exception)
+            {
+                dev = false;   // the flags only ever turn OFF on purpose
+                h = n = c = 1;
+            }
+            hold = S16PassRules.effectiveFlag(dev, h);
+            noAlert = S16PassRules.effectiveFlag(dev, n);
+            clock = S16PassRules.effectiveFlag(dev, c);
+            System.Threading.Volatile.Write(ref readDone, 1);
+        }
+
+        /** `[FLAGS] lockb hold=<0|1> noalert=<0|1> clock=<0|1>` — fixed words and 0|1 only. */
+        public static string flagsLine(bool hold, bool noAlert, bool clock)
+        {
+            return "[FLAGS] lockb hold=" + (hold ? "1" : "0") + " noalert=" + (noAlert ? "1" : "0") + " clock=" + (clock ? "1" : "0");
+        }
+    }
 }

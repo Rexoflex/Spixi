@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Session voicefix, item 2 (the probe). A console program that decodes voice clips the way the chat page makes a
+       waveform (VoiceClips.peaksCsvOf: OpusDecoder, 16 kHz mono, one packet per decode call) and runs itself as a child
+       process once per switch set, so that one bad decode does not end the run. It prints counts, switch names and exit
+       codes only. Full text: docs/voicefix-mechanisms.md and the head of Program.cs.
+       It compiles the REAL files of the app (links, no copies): VoiceCodec.cs, SDevSeedPlan.cs (the dev seed's clips),
+       PhotoRules.cs (SDevSeedPlan needs it), IAudioDecoder.cs, OpusDecoder.cs. Concentus: the same version as Spixi.csproj (2.2.2) from NuGet, or -p:ConcentusDll=<a file> for
+       a machine with no NuGet access (the cloud twin used the Concentus.dll of the Windows build output).
+       The target framework follows the running SDK (as scripts/csh does): net10.0 with the .NET 10 SDK. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net$(BundledNETCoreAppTargetFrameworkVersion)</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>VoiceFixProbe</AssemblyName>
+    <RootNamespace>VoiceFixProbe</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TieredPGO>true</TieredPGO>
+    <!-- SDevSeedPlan.cs is the dev build's file (SPIXI_DEV_COEXIST, as in scripts/csh): the probe is a dev tool -->
+    <DefineConstants>$(DefineConstants);SPIXI_DEV_COEXIST</DefineConstants>
+    <NoWarn>CS8618;CS8600;CS8602;CS8604;CS8625;CS0168</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Spixi/Utils/VoiceCodec.cs" Link="App/VoiceCodec.cs" />
+    <Compile Include="../../Spixi/Utils/SDevSeedPlan.cs" Link="App/SDevSeedPlan.cs" />
+    <Compile Include="../../Spixi/Utils/PhotoRules.cs" Link="App/PhotoRules.cs" />
+    <Compile Include="../../Spixi/VoIP/IAudioDecoder.cs" Link="App/IAudioDecoder.cs" />
+    <Compile Include="../../Spixi/VoIP/OpusDecoder.cs" Link="App/OpusDecoder.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- the encoder clips (make-clip, a synthetic signal) are read from clips/ beside the program -->
+    <None Include="clips/*.txt" CopyToOutputDirectory="PreserveNewest" LinkBase="clips" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConcentusDll)' == ''">
+    <PackageReference Include="Concentus" Version="2.2.2" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConcentusDll)' != ''">
+    <Reference Include="Concentus">
+      <HintPath>$(ConcentusDll)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

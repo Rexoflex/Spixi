@@ -75,6 +75,10 @@ const BASE = {
 };
 export const CHANGED_FNS = ['New-Def', 'Get-DataRow', 'X-SeedFirstPage', 'Invoke-Main'];
 export const NEW_FNS = ['Get-WordTok', 'X-PageGate', 'Get-NoPair', 'X-PageTok', 'X-PagePush', 'X-Page', 'New-PageDefs'];   // review round 1: + Get-NoPair
+// ★ walktools2 re-base (2026-11-23; after a look at the diff, #1596 / #1634): the parser gained the opt-in step coldstart-watch — exactly ONE step table entry (`'coldstart-watch' = @{ Kind = 'coldwatch' }`, c stepTable) and exactly EIGHT new functions (d), nothing else among the old statements
+// (Invoke-Main, already a CHANGED function, got the branch + facts block + legend line); the 68 old functions keep the base hash.
+export const WATCH_FNS = ['Get-WatchFileName', 'Get-WatchNumList', 'Read-WatchEvents', 'Get-WatchShape', 'Read-WatchAppLog', 'Format-WatchSec', 'Get-WatchRep', 'Get-WatchRows'];
+export const WATCH_TABLE_LINE = "'coldstart-watch' = @{ Kind = 'coldwatch' }";
 export const _h = { sha, code, lines, fnPS, fnStm, fnNames, psMatch, tableText };
 
 export function oldBlocks(par) {   // the four held old blocks of a parser text, as statement-list hashes
@@ -85,14 +89,16 @@ export function oldBlocks(par) {   // the four held old blocks of a parser text,
   const iEnd = [nb, P.indexOf('$script:StepTable = [ordered]@{')].filter((i) => i > iOpen).sort((a, b) => a - b)[0];
   const openDefs = iOpen < 0 || iEnd === undefined ? '' : P.slice(iOpen, iEnd);
   const iStep = P.indexOf('$script:StepTable = [ordered]@{');
-  const stepBlock = iStep < 0 ? '' : (psMatch(P, iStep) || '').replace(' + $script:HistoryPageDefs', '');
+  const stepBlockAll = iStep < 0 ? '' : (psMatch(P, iStep) || '').replace(' + $script:HistoryPageDefs', '');
+  const stepBlock = lines(stepBlockAll).filter((l) => l !== WATCH_TABLE_LINE).join('\n');   // ★ walktools2 re-base: the one new entry is taken out before the hash (it must be there exactly once: `watchEntries`)
+  const watchEntries = lines(stepBlockAll).filter((l) => l === WATCH_TABLE_LINE).length;
   const seed = tableText(P, '$script:HistorySeedDefs = @(');
   const mem = tableText(P, '$script:MemDefs = @(');
-  return { openDefs: sha(lines(openDefs).join('\n')), stepTable: sha(lines(stepBlock).join('\n')), seedDefs: sha(lines(seed).join('\n')), memDefs: sha(lines(mem).join('\n')) };
+  return { openDefs: sha(lines(openDefs).join('\n')), stepTable: sha(lines(stepBlock).join('\n')), watchEntries, seedDefs: sha(lines(seed).join('\n')), memDefs: sha(lines(mem).join('\n')) };
 }
 export function oldFnHash(par) {
   const P = code(par);
-  const names = fnNames(P).filter((n) => !CHANGED_FNS.includes(n) && !NEW_FNS.includes(n));
+  const names = fnNames(P).filter((n) => !CHANGED_FNS.includes(n) && !NEW_FNS.includes(n) && !WATCH_FNS.includes(n));
   const rows = names.map((n) => n + ':' + sha(fnStm(P, n).join('\n'))).sort();
   return { hash: sha(rows.join('\n')), n: names.length, all: fnNames(P).length };
 }
@@ -165,7 +171,7 @@ export default async function (h) {
 
   /* ── c · the old defs blocks, as at the base ── */
   const ob = oldBlocks(PAR);
-  const c = { openDefs: ob.openDefs === BASE.openDefs, stepTable: ob.stepTable === BASE.stepTable, seedDefs: ob.seedDefs === BASE.seedDefs, memDefs: ob.memDefs === BASE.memDefs };
+  const c = { openDefs: ob.openDefs === BASE.openDefs, stepTable: ob.stepTable === BASE.stepTable && ob.watchEntries === 1, seedDefs: ob.seedDefs === BASE.seedDefs, memDefs: ob.memDefs === BASE.memDefs };
   ok(F(c).length === 0,
     '★ walktools parser (c oldBlocks): every OLD def stays byte-identical in text and order (SHA-256 of the statements as at the base): the defs from $script:OpenDefs (the open rows, the scroll and long-task defs, the chat scroll defs, the open-seed defs) to the new block, the step table (the one appended token removed), $script:HistorySeedDefs (the first-page row keeps its old def line; only the extractor changed) and $script:MemDefs — failing: ' + JSON.stringify(F(c)));
 
@@ -174,12 +180,12 @@ export default async function (h) {
   const allNames = fnNames(P);
   const d = {
     hash: of.hash === BASE.fns,
-    count: of.n === BASE.fnCount && allNames.length === BASE.fnCount + CHANGED_FNS.length + NEW_FNS.length,
+    count: of.n === BASE.fnCount && allNames.length === BASE.fnCount + CHANGED_FNS.length + NEW_FNS.length + WATCH_FNS.length,
     changedExist: CHANGED_FNS.every((n) => allNames.filter((x) => x === n).length === 1),
-    newOnce: NEW_FNS.every((n) => allNames.filter((x) => x === n).length === 1),
+    newOnce: NEW_FNS.concat(WATCH_FNS).every((n) => allNames.filter((x) => x === n).length === 1),
   };
   ok(F(d).length === 0,
-    '★ walktools parser (d oldFunctions): every function of the base parser except New-Def, Get-DataRow, X-SeedFirstPage and Invoke-Main is byte-identical (SHA-256 of its statements, comments dropped; ' + BASE.fnCount + ' functions) and the seven new functions (Get-WordTok, X-PageGate, Get-NoPair, X-PageTok, X-PagePush, X-Page, New-PageDefs) exist once each — failing: ' + JSON.stringify(F(d)));
+    '★ walktools parser (d oldFunctions): every function of the base parser except New-Def, Get-DataRow, X-SeedFirstPage and Invoke-Main is byte-identical (SHA-256 of its statements, comments dropped; ' + BASE.fnCount + ' functions) and the seven new functions (Get-WordTok, X-PageGate, Get-NoPair, X-PageTok, X-PagePush, X-Page, New-PageDefs) exist once each; walktools2 re-base: plus the eight new functions of the step coldstart-watch (Get-WatchFileName, Get-WatchNumList, Read-WatchEvents, Get-WatchShape, Read-WatchAppLog, Format-WatchSec, Get-WatchRep, Get-WatchRows), once each, and the ONE step table entry of c — failing: ' + JSON.stringify(F(d)));
 
   /* ── e · the first-page rule: three branches in order ── */
   const fp = stm('X-SeedFirstPage');

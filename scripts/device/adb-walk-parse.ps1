@@ -44,6 +44,23 @@ Rows added in batch walktools (item 3): per page k of older messages, rows `page
          (frames n / frames max) - `[P1] chat loadmore in` + `[P1] chat older push n= json= build=` (push n / json / build, and
          C# loadmore in -> push = the k-th push stamp minus the k-th loadmore stamp) - `[P1] chat older read passes= window= ms=
          flush=` (read passes / window / ms / flush). The C# lines come with the batch histcs; a build without them gives n/a.
+Step added in batch walktools2 (item 2): coldstart-watch. Five COUNT rows over the reps (n = the reps asked, median = min = max = the
+         count): starts - in front after <n> s (n = run.json coldstartWatch.waitSec; proven = exactly one pid after the wait, the pid
+         of the start, and the app in front) - ends with no kill - ends with a kill - not in front, process alive. A start that was not
+         proven is read from its events pull android-walk-coldstart-watch-NN-events.txt (the phone kept only the time, the pid / tid
+         columns, the priority letter, the tag and the numeric fields of six am_* tags of the pinned package and of killinfo) and its
+         app log android-walk-coldstart-watch-NN.txt. An event counts only when its OWN threadtime stamp is >= the rep's t0 and <=
+         stamp2 + 60 s (logcat -c does not clear the events buffer: a record of an earlier start must not count) and its pid is the pid
+         of the start (no pid read: a pid that an am_proc_start of the package in the window names; its am_* events and its killinfo
+         count). Both stamps have no year: the event is put within 180 days of t0 (a run over New Year keeps its order). A kill = an
+         am_kill or killinfo event of that pid. An end needs proof: with a pid, P is not among the pids after the wait (run.json
+         watch.pidInAfter), or an am_proc_died / am_kill / killinfo of P is there (it overrides "alive": P died between pidof and the
+         focus check); with no pid read, such an event of a started pid. Any rep that cannot be read (its status, its watch facts, a
+         failed or missing evidence pull, no am_proc_start of the start in the events, no pid read and no end event, P and another pid
+         after the wait with the app in front) = every row of the step "no data", exit 2. summary.md gets one facts line per start that
+         run.json does not mark proven: the tags with their offset in s from t0, the oom_adj / procstate of am_proc_died, the number of
+         app-log lines and the shape word of the last one (P1, CDPERF, Starting Spixi, connect, Hello, FLAGS) - never a raw line; a rep
+         with no data gets "rep N: no data (<a fixed reason>)".
 
 Safety rules (this script is read by a security reviewer):
 - Reads ONLY files named by run.json inside -RunDir (plain file names; any name with a path part is refused).
@@ -1058,6 +1075,8 @@ $script:StepTable = [ordered]@{
         ) }
     # Batch photo1a: the rows are built per index in Invoke-Main (the step names of the reps are open-seed-kNN[-cold]).
     'open-seed'   = @{ Kind = 'open-seed' }
+    # Batch walktools2 (item 2): the rows are COUNTS over the reps, built in Invoke-Main (Get-WatchRep per rep).
+    'coldstart-watch' = @{ Kind = 'coldwatch' }
 }
 
 # Batch fixb3 (item 4): the rows of history-seed-kNN = the rows of history with their own step name. The dev-seed chat has ONE older page
@@ -1491,6 +1510,354 @@ function Get-FlagsStatus {
 }
 
 # ---------------------------------------------------------------------------------------------------------------
+# Batch walktools2 (item 2): the cold start watch. Per rep run.json holds the proof facts (watch: pid, pidsAfter, samePid, front,
+# proven, eventsPull, events, logPull); a start that was not proven has its events pull (android-walk-coldstart-watch-NN-events.txt,
+# the phone kept only times, pids, the tags and the numeric fields) and the app log of its pid (android-walk-coldstart-watch-NN.txt).
+# An event counts only when its OWN time is >= the rep's t0 and <= stamp2 + 60 s (logcat -c does not clear the events buffer: an older
+# record of an earlier start must not count) and its pid is the pid of the start (no pid read: a pid that an am_proc_start of the
+# package in the window names; killinfo names no package, so it counts by that pid). No raw line is copied: the facts line is built
+# from numbers and fixed words.
+# ---------------------------------------------------------------------------------------------------------------
+$script:WatchStep = 'coldstart-watch'
+$script:WatchAfterSec = 60
+$script:RxWatchAm = New-Rx '^([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})\.([0-9]{3}) +[0-9]{1,9} +[0-9]{1,9} [A-Z] (am_proc_start|am_proc_died|am_kill|am_crash|am_anr|am_wtf) *: \[([0-9]{1,10}(?:,[0-9]{1,10})*),com\.ixilabs\.spixi\.dev((?:,-?[0-9]{1,10})*)[\],]\z'
+$script:RxWatchKill = New-Rx '^([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})\.([0-9]{3}) +[0-9]{1,9} +[0-9]{1,9} [A-Z] killinfo *: \[(-?[0-9]{1,10}(?:,-?[0-9]{1,10})*)\z'
+
+function Get-WatchFileName {
+    # The ONLY names of the evidence of rep NN: the events pull and the app log.
+    param($Rep, [string]$Kind)
+    if ($null -eq $Rep) { return $null }
+    $n = [long][Math]::Floor([double]$Rep)
+    if (($n -lt 1) -or ($n -gt 99)) { return $null }
+    $nn = $n.ToString('00', $script:Inv)
+    if ($Kind -eq 'events') { return ('android-walk-coldstart-watch-' + $nn + '-events.txt') }
+    return ('android-walk-coldstart-watch-' + $nn + '.txt')
+}
+
+function Get-WatchNumList {
+    # "0,12216,-3" -> long[]; $null when a field is not a number of at most 10 digits.
+    param([string]$Text)
+    $out = New-Object System.Collections.Generic.List[long]
+    if ([string]::IsNullOrEmpty($Text)) { return ,$out.ToArray() }
+    foreach ($f in $Text.Split(',')) {
+        if ($f -eq '') { continue }
+        $v = 0L
+        if (-not [long]::TryParse($f, [System.Globalization.NumberStyles]::AllowLeadingSign, $script:Inv, [ref]$v)) { return $null }
+        $out.Add($v)
+    }
+    return ,$out.ToArray()
+}
+
+function Read-WatchEvents {
+    # The events pull of one rep. State: ok | missing | toolarge | unreadable. A line that is not exactly one of the two shapes is skipped.
+    param([string]$Name, [string]$RunPath)
+    $events = New-Object System.Collections.Generic.List[object]
+    $state = 'ok'
+    $path = Join-Path $RunPath $Name
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $state = 'missing' }
+    else {
+        try {
+            if ((New-Object System.IO.FileInfo -ArgumentList $path).Length -gt 4194304) { throw 'toolarge' }
+            foreach ($line in [regex]::Split((Read-TextFile $path), '\r\n|\n|\r')) {
+                if (($line.Length -eq 0) -or ($line.Length -gt 1000)) { continue }
+                $tag = ''
+                $pidV = $null
+                $oom = $null
+                $proc = $null
+                $g = $null
+                $m = $script:RxWatchAm.Match($line)
+                if ($m.Success) {
+                    $g = $m.Groups
+                    $lead = Get-WatchNumList $g[8].Value
+                    $tail = Get-WatchNumList $g[9].Value
+                    if (($null -eq $lead) -or ($null -eq $tail) -or (@($lead).Count -lt 2)) { continue }
+                    $tag = $g[7].Value
+                    $pidV = $lead[1]
+                    if ((Test-Same $tag 'am_proc_died') -and (@($tail).Count -ge 2)) { $oom = $tail[0]; $proc = $tail[1] }
+                }
+                else {
+                    $m = $script:RxWatchKill.Match($line)
+                    if (-not $m.Success) { continue }
+                    $g = $m.Groups
+                    $nums = Get-WatchNumList $g[7].Value
+                    if (($null -eq $nums) -or (@($nums).Count -lt 1)) { continue }
+                    $tag = 'killinfo'
+                    $pidV = $nums[0]
+                }
+                $events.Add([pscustomobject]@{
+                    Mo = [int]$g[1].Value; Dy = [int]$g[2].Value; H = [int]$g[3].Value; Mi = [int]$g[4].Value; S = [int]$g[5].Value
+                    Ticks = (Get-FracTicks $g[6].Value); Tag = $tag; Pid = $pidV; Pkg = (-not (Test-Same $tag 'killinfo')); Oom = $oom; Proc = $proc
+                })
+            }
+        }
+        catch {
+            if ($_.Exception.Message -eq 'toolarge') { $state = 'toolarge' } else { $state = 'unreadable' }
+            $events.Clear()
+        }
+    }
+    return [pscustomobject]@{ State = $state; Events = $events.ToArray() }
+}
+
+function Get-WatchShape {
+    # The emitter shape WORD of one app-log message (after the Core stamp): fixed words only, never text of the line.
+    param([string]$Msg)
+    if ($Msg -cmatch ($script:Cm + '\[P1\] ')) {
+        if ($Msg -cmatch '^[A-Za-z]{1,10}\|[0-9]{1,6}: \[WEBVIEW\] ') { return 'WEBVIEW P1' }
+        return 'P1'
+    }
+    if ($Msg -cmatch ($script:Cm + '\[CDPERF\] ')) {
+        if ($Msg -cmatch '^[A-Za-z]{1,10}\|[0-9]{1,6}: \[WEBVIEW\] ') { return 'WEBVIEW CDPERF' }
+        return 'CDPERF'
+    }
+    if ($Msg -cmatch '^[A-Za-z]{1,10}\|[0-9]{1,6}: Starting Spixi ') { return 'Starting Spixi' }
+    if ($Msg -cmatch '^[A-Za-z]{1,10}\|[0-9]{1,6}: Network client connected to ') { return 'connect' }
+    if ($Msg -cmatch '^[A-Za-z]{1,10}\|[0-9]{1,6}: Received Hello: ') { return 'Hello' }
+    if ($Msg -cmatch '^[A-Za-z]{1,10}\|[0-9]{1,6}: \[FLAGS\] ') { return 'FLAGS' }
+    return 'other'
+}
+
+function Read-WatchAppLog {
+    # The app log of the pid of the start: the number of lines with the Core stamp, and the LAST one's shape word and stamp.
+    param([string]$Name, [string]$RunPath)
+    $state = 'ok'
+    $count = 0
+    $last = $null
+    $shape = ''
+    $path = Join-Path $RunPath $Name
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $state = 'missing' }
+    else {
+        try {
+            if ((New-Object System.IO.FileInfo -ArgumentList $path).Length -gt 4194304) { throw 'toolarge' }
+            foreach ($line in [regex]::Split((Read-TextFile $path), '\r\n|\n|\r')) {
+                if (($line.Length -eq 0) -or ($line.Length -gt 1000)) { continue }
+                $m = $script:RxStamp.Match($line)
+                if (-not $m.Success) { continue }
+                $g = $m.Groups
+                $count++
+                $last = [pscustomobject]@{ Mo = [int]$g[1].Value; Dy = [int]$g[2].Value; H = [int]$g[3].Value; Mi = [int]$g[4].Value; S = [int]$g[5].Value; Ticks = (Get-FracTicks $g[6].Value) }
+                $shape = Get-WatchShape ($line.Substring($m.Index + $m.Length))
+            }
+        }
+        catch {
+            if ($_.Exception.Message -eq 'toolarge') { $state = 'toolarge' } else { $state = 'unreadable' }
+            $count = 0; $last = $null; $shape = ''
+        }
+    }
+    return [pscustomobject]@{ State = $state; Count = $count; Last = $last; Shape = $shape }
+}
+
+function Format-WatchSec {
+    # An offset in seconds from the rep's t0, as "+1.25 s" (invariant culture).
+    param([double]$Sec)
+    $sign = '+'
+    if ($Sec -lt 0) { $sign = '-'; $Sec = -$Sec }
+    return ($sign + (Format-Num $Sec) + ' s')
+}
+
+function Get-WatchRep {
+    # One rep of coldstart-watch -> Class (front | nokill | kill | alive) or Class '' with Why (the row note) and Word (a FIXED reason
+    # word for the facts line); Line = the rep gets a facts line (every start that run.json does not mark proven, #46 r1 F-6); Facts =
+    # the facts line text of a start that was not proven (numbers and fixed words only); Files = the evidence files it read.
+    param($Entry, $T0, [string]$T0Why, [string]$RunPath)
+    $repN = Get-Num (Get-Prop $Entry 'rep')
+    $repText = '?'
+    if ($null -ne $repN) { $repText = ([long][Math]::Floor($repN)).ToString($script:Inv) }
+    $label = 'rep ' + $repText
+    $w = Get-Prop $Entry 'watch'
+    $wp = Get-Prop $w 'proven'
+    $o = [pscustomobject]@{ Rep = $repText; Class = ''; Why = ''; Word = ''; Line = (-not (($wp -is [bool]) -and ($wp -eq $true))); Facts = ''; Files = @() }
+    $status = [string](Get-Prop $Entry 'status')
+    if (-not (Test-Same $status 'ok')) {
+        $o.Why = Get-StatusWhy $label $status ([string](Get-Prop $Entry 'note'))
+        $o.Word = 'status not ok'
+        foreach ($st in @('error', 'skipped', 'no-screen')) { if (Test-Same $status $st) { $o.Word = 'status ' + $st } }
+        return $o
+    }
+    if (($null -eq $w) -or ($w -isnot [System.Management.Automation.PSCustomObject])) { $o.Why = $label + ': no watch facts in run.json'; $o.Word = 'no watch facts'; return $o }
+    if ($null -eq $T0) { $o.Why = $T0Why; if ($o.Why -eq '') { $o.Why = $label + ': no t0 in run.json' }; $o.Word = 'no t0'; return $o }
+    $pidRaw = Get-Prop $w 'pid'
+    $pidV = $null
+    if ($null -ne $pidRaw) {
+        $pn = Get-Num $pidRaw
+        if (($null -eq $pn) -or ($pn -ne [Math]::Floor($pn)) -or ($pn -lt 1) -or ($pn -gt 999999999)) { $o.Why = $label + ': watch.pid is not a pid'; $o.Word = 'watch facts not readable'; return $o }
+        $pidV = [long]$pn
+    }
+    $same = ((Get-Prop $w 'samePid') -is [bool]) -and ((Get-Prop $w 'samePid') -eq $true)
+    $front = ((Get-Prop $w 'front') -is [bool]) -and ((Get-Prop $w 'front') -eq $true)
+    $inAfter = ((Get-Prop $w 'pidInAfter') -is [bool]) -and ((Get-Prop $w 'pidInAfter') -eq $true)
+    $nAfter = Get-Num (Get-Prop $w 'pidsAfter')
+    $stated = Get-Prop $w 'proven'
+    if (($stated -isnot [bool]) -or ((Get-Prop $w 'front') -isnot [bool]) -or ((Get-Prop $w 'samePid') -isnot [bool]) -or ((Get-Prop $w 'pidInAfter') -isnot [bool]) -or ($null -eq $nAfter) -or ($nAfter -ne [Math]::Floor($nAfter)) -or ($nAfter -lt 0) -or ($nAfter -gt 99)) { $o.Why = $label + ': watch facts are not readable'; $o.Word = 'watch facts not readable'; return $o }
+    # #46 r1 F-2: the facts must agree: one pid = P means P is among the pids after the wait; P among them needs a pid and at least one.
+    if (($same -and (($null -eq $pidV) -or (-not $inAfter) -or ($nAfter -ne 1))) -or ($inAfter -and (($null -eq $pidV) -or ($nAfter -lt 1)))) { $o.Why = $label + ': watch facts do not agree (samePid / pidInAfter / pidsAfter)'; $o.Word = 'watch facts do not agree'; return $o }
+    $proven = ($null -ne $pidV) -and $same -and $front
+    if ($proven -ne $stated) { $o.Why = $label + ': watch facts do not agree (proven)'; $o.Word = 'watch facts do not agree'; return $o }
+    if ($proven) { $o.Class = 'front'; return $o }
+
+    # Not proven: the evidence must be complete.
+    $s2 = Get-Prop $Entry 'stamp2'
+    $t2 = $null
+    if (($null -ne $s2) -and ([string]$s2 -ne '')) { $t2 = Convert-T0 ([string]$s2) $T0 $T0 }
+    if (($null -eq $t2) -or ($t2 -lt $T0)) { $o.Why = $label + ': no readable stamp2 in run.json'; $o.Word = 'no stamp2'; return $o }
+    $expEv = Get-WatchFileName $repN 'events'
+    if (-not (Test-Same ([string](Get-Prop $w 'eventsPull')) 'ok')) { $o.Why = $label + ': the events pull failed'; $o.Word = 'events pull failed'; return $o }
+    if (-not (Test-Same ([string](Get-Prop $w 'events')) $expEv)) { $o.Why = $label + ': events file name not accepted'; $o.Word = 'events file name not accepted'; return $o }
+    $ev = Read-WatchEvents $expEv $RunPath
+    if ($ev.State -ne 'ok') { $o.Why = $label + ': events file ' + $expEv + ' ' + $ev.State; $o.Word = 'events file ' + $ev.State; return $o }
+    $files = New-Object System.Collections.Generic.List[string]
+    $files.Add($expEv)
+    $logPull = [string](Get-Prop $w 'logPull')
+    $app = $null
+    if (Test-Same $logPull 'ok') {
+        $expLog = Get-WatchFileName $repN 'log'
+        if (-not (Test-Same ([string](Get-Prop $Entry 'log')) $expLog)) { $o.Why = $label + ': app log file name not accepted'; $o.Word = 'app log file name not accepted'; return $o }
+        $app = Read-WatchAppLog $expLog $RunPath
+        if ($app.State -ne 'ok') { $o.Why = $label + ': app log file ' + $expLog + ' ' + $app.State; $o.Word = 'app log file ' + $app.State; return $o }
+        $files.Add($expLog)
+    }
+    elseif (Test-Same $logPull 'nopid') {
+        if ($null -ne $pidV) { $o.Why = $label + ': watch facts do not agree (no app log with a pid)'; $o.Word = 'watch facts do not agree'; return $o }
+    }
+    else { $o.Why = $label + ': the app log pull failed'; $o.Word = 'app log pull failed'; return $o }
+
+    # The events of THIS start: own time in [t0, stamp2 + 60 s] and a pid of the start. With a pid read: P. With no pid read (#46 r1
+    # F-1, F-3): the pids that an am_proc_start of the package in the window names; their am_* events and their killinfo count.
+    $upper = $t2.AddSeconds($script:WatchAfterSec)
+    $inWin = New-Object System.Collections.Generic.List[object]
+    foreach ($e in $ev.Events) {
+        $dt = Convert-LineStamp $e $T0
+        if ($null -eq $dt) { continue }
+        if (($dt -lt $T0) -or ($dt -gt $upper)) { continue }
+        $inWin.Add([pscustomobject]@{ Stamp = $dt; Tag = $e.Tag; Pid = $e.Pid; Pkg = $e.Pkg; Oom = $e.Oom; Proc = $e.Proc })
+    }
+    $ours = New-Object System.Collections.Generic.List[long]
+    if ($null -ne $pidV) { $ours.Add($pidV) }
+    else { foreach ($x in $inWin) { if ($x.Pkg -and (Test-Same $x.Tag 'am_proc_start') -and (-not $ours.Contains([long]$x.Pid))) { $ours.Add([long]$x.Pid) } } }
+    $mine = New-Object System.Collections.Generic.List[object]
+    foreach ($x in $inWin) { if ($ours.Contains([long]$x.Pid)) { $mine.Add($x) } }
+    $sorted = @($mine.ToArray() | Sort-Object -Property Stamp)
+    $started = $false
+    $kill = $false
+    $died = $false
+    foreach ($x in $sorted) {
+        if (Test-Same $x.Tag 'am_proc_start') { $started = $true }
+        if (Test-Same $x.Tag 'am_proc_died') { $died = $true }
+        if ((Test-Same $x.Tag 'am_kill') -or (Test-Same $x.Tag 'killinfo')) { $kill = $true }
+    }
+    # The evidence proves that the buffer was read for this start: a cold start writes am_proc_start of the new process.
+    if (-not $started) { $o.Why = $label + ': no am_proc_start of this start in ' + $expEv; $o.Word = 'no am_proc_start of the start'; return $o }
+    # The class. An end needs proof: with a pid, P is not among the pids after the wait, or an am_proc_died / am_kill / killinfo of P
+    # overrides "alive" (F-2: P died between pidof and the focus check); with no pid read, such an event of a started pid (F-1).
+    $ended = $died -or $kill
+    if ($null -ne $pidV) {
+        if ((-not $inAfter) -or $ended) { if ($kill) { $o.Class = 'kill' } else { $o.Class = 'nokill' } }
+        elseif (-not $front) { $o.Class = 'alive' }
+        else { $o.Why = $label + ': the pid of the start and another pid after the wait, our app in front'; $o.Word = 'more than one pid after the wait, in front'; return $o }
+    }
+    elseif ($ended) { if ($kill) { $o.Class = 'kill' } else { $o.Class = 'nokill' } }
+    elseif (($nAfter -eq 1) -and $front) { $o.Why = $label + ': no pid right after the start, one pid after the wait and our app in front, no end event'; $o.Word = 'no pid at the start, one pid in front after the wait'; return $o }
+    else { $o.Why = $label + ': no pid right after the start and no end event of a started pid'; $o.Word = 'no pid at the start, no end event'; return $o }
+    $words = ''
+    if ($o.Class -eq 'alive') { $words = 'not in front, process alive' }
+    elseif ($o.Class -eq 'kill') { $words = 'ends with a kill' }
+    else { $words = 'ends with no kill' }
+    $parts = New-Object System.Collections.Generic.List[string]
+    $k = 0
+    foreach ($x in $sorted) {
+        $k++
+        if ($k -gt 12) { break }
+        $t = $x.Tag + ' ' + (Format-WatchSec (($x.Stamp - $T0).TotalSeconds))
+        if ((Test-Same $x.Tag 'am_proc_died') -and ($null -ne $x.Oom)) { $t = $t + ' (oom_adj ' + $x.Oom.ToString($script:Inv) + ', procstate ' + $x.Proc.ToString($script:Inv) + ')' }
+        $parts.Add($t)
+    }
+    if ($sorted.Count -gt 12) { $parts.Add('and ' + ($sorted.Count - 12).ToString($script:Inv) + ' more') }
+    $f = $label + ': ' + $words
+    if ($null -eq $pidV) { $f = $f + ' (no single pid right after the start: the events of the pids of the am_proc_start of the package)' }
+    elseif ($inAfter -and ($o.Class -ne 'alive')) { $f = $f + ' (the pid of the start was still listed after the wait)' }
+    $f = $f + '; events after the start: ' + ($parts.ToArray() -join ', ')
+    if ($null -eq $app) { $f = $f + '; app log: not pulled (no pid)' }
+    else {
+        $f = $f + '; app log: ' + $app.Count.ToString($script:Inv) + ' lines'
+        if ($null -ne $app.Last) {
+            $lt = Convert-LineStamp $app.Last $T0
+            $f = $f + ', the last a ' + $app.Shape + ' line'
+            if ($null -ne $lt) { $f = $f + ' at ' + (Format-WatchSec (($lt - $T0).TotalSeconds)) }
+        }
+    }
+    $o.Facts = $f
+    $o.Files = $files.ToArray()
+    return $o
+}
+
+function Get-WatchRows {
+    # The five rows of coldstart-watch (COUNTS over the reps: n = the reps, median = min = max = the count) and the facts lines.
+    # Any rep that is not readable (status, facts, evidence) or missing = EVERY row "no data" (the counts would be over fewer starts).
+    param($Manifest, $Reps, $T0s, $T0Why, [long]$Repeats, [string]$RunPath)
+    $waitRaw = Get-Num (Get-Prop (Get-Prop $Manifest 'coldstartWatch') 'waitSec')
+    $waitOk = ($null -ne $waitRaw) -and ($waitRaw -eq [Math]::Floor($waitRaw)) -and ($waitRaw -ge 1) -and ($waitRaw -le 600)
+    $frontName = 'in front after ? s'
+    if ($waitOk) { $frontName = 'in front after ' + ([long]$waitRaw).ToString($script:Inv) + ' s' }
+    $byRep = New-Object System.Collections.Hashtable -ArgumentList ([StringComparer]::Ordinal)
+    for ($i = 0; $i -lt $Reps.Count; $i++) {
+        if (-not (Test-Same ([string](Get-Prop $Reps[$i] 'step')) $script:WatchStep)) { continue }
+        $res = Get-WatchRep $Reps[$i] $T0s[$i] $T0Why[$i] $RunPath
+        if (-not $byRep.ContainsKey($res.Rep)) { $byRep[$res.Rep] = $res }
+    }
+    $why = New-Object System.Collections.Generic.List[string]
+    $facts = New-Object System.Collections.Generic.List[string]
+    $counts = @{ front = 0; nokill = 0; kill = 0; alive = 0 }
+    $repsOf = @{ nokill = (New-Object System.Collections.Generic.List[string]); kill = (New-Object System.Collections.Generic.List[string]); alive = (New-Object System.Collections.Generic.List[string]) }
+    $filesOf = @{ nokill = (New-Object System.Collections.Generic.List[string]); kill = (New-Object System.Collections.Generic.List[string]); alive = (New-Object System.Collections.Generic.List[string]) }
+    if (-not $waitOk) { $why.Add('run.json has no valid coldstartWatch.waitSec') }
+    if ($byRep.Count -eq 0) { $why.Add('no reps in run.json') }
+    else {
+        for ($k = 1; $k -le $Repeats; $k++) {
+            $kt = $k.ToString($script:Inv)
+            if (-not $byRep.ContainsKey($kt)) { $why.Add('rep ' + $kt + ': not in run.json'); continue }
+            $res = $byRep[$kt]
+            # #46 r1 F-6: a facts line only for a start that run.json does not mark proven, with a FIXED reason word (never a note).
+            if ($res.Class -eq '') { $why.Add($res.Why); if ($res.Line) { $facts.Add('rep ' + $res.Rep + ': no data (' + $res.Word + ')') }; continue }
+            $counts[$res.Class] = $counts[$res.Class] + 1
+            if ($res.Class -ne 'front') {
+                $repsOf[$res.Class].Add($kt)
+                foreach ($fn in $res.Files) { $filesOf[$res.Class].Add($fn) }
+                $facts.Add($res.Facts)
+            }
+        }
+    }
+    $rows = New-Object System.Collections.Generic.List[object]
+    $specs = @(
+        @{ N = 'starts'; C = 'all' },
+        @{ N = $frontName; C = 'front' },
+        @{ N = 'ends with no kill'; C = 'nokill' },
+        @{ N = 'ends with a kill'; C = 'kill' },
+        @{ N = 'not in front, process alive'; C = 'alive' }
+    )
+    foreach ($sp in $specs) {
+        if ($why.Count -gt 0) {
+            $note = $why[0]
+            if ($why.Count -gt 1) { $note = $note + '; ' + ($why.Count - 1).ToString($script:Inv) + ' more rep(s) lack it' }
+            $rows.Add((New-Row $script:WatchStep $sp.N '' $script:NoData $script:NoData $script:NoData 'count' $note 'run.json' 'nodata'))
+            continue
+        }
+        $v = $Repeats
+        $note = 'count over the reps'
+        $files = 'run.json'
+        if ($sp.C -ne 'all') {
+            $v = $counts[$sp.C]
+            if (($sp.C -ne 'front') -and ($repsOf[$sp.C].Count -gt 0)) {
+                $note = 'reps ' + (@($repsOf[$sp.C].ToArray() | Select-Object -First 20) -join ' ')
+                if ($repsOf[$sp.C].Count -gt 20) { $note = $note + ' ...' }
+                $files = ($filesOf[$sp.C].ToArray() -join ' ')
+            }
+        }
+        $vt = ([long]$v).ToString($script:Inv)
+        $rows.Add((New-Row $script:WatchStep $sp.N $Repeats.ToString($script:Inv) $vt $vt $vt 'count' $note $files 'data'))
+    }
+    return [pscustomobject]@{ Rows = $rows.ToArray(); Facts = $facts.ToArray() }
+}
+
+# ---------------------------------------------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------------------------------------------
 function Format-MdCell {
@@ -1637,6 +2004,9 @@ function Invoke-Main {
     foreach ($s in $steps) { $stepList.Add($s) }
     # -KillRenderer is a switch of the driver, not a step: show it when the manifest has such a rep.
     if ((-not $stepList.Contains('killrenderer')) -and $stepRepCount.ContainsKey('killrenderer')) { $stepList.Add('killrenderer') }
+    # Batch walktools2 (item 2): the facts lines of the cold start watch (only a run that asked for the step prints them).
+    $watchRan = $false
+    $watchFacts = @()
 
     foreach ($step in $stepList) {
         $safeStep = Format-Safe $step 40
@@ -1647,6 +2017,14 @@ function Invoke-Main {
             continue
         }
         $step = Get-StepKey $step
+        if ($def.Kind -eq 'coldwatch') {
+            # Batch walktools2 (item 2): five count rows over the reps of the step (Get-WatchRows), and one facts line per start that was not proven.
+            $wr = Get-WatchRows $m $reps $t0s $t0Why $repeats $runPath
+            foreach ($wrow in $wr.Rows) { $rows.Add($wrow) }
+            $watchRan = $true
+            $watchFacts = @($wr.Facts)
+            continue
+        }
         if ($def.Kind -eq 'open-seed') {
             # Batch photo1a: per index k of run.json seedIndex, the warm rows (n = repeats) and then the cold rows (n = 1).
             $seedIdx = @(Get-SeedIndexes $m)
@@ -1863,6 +2241,7 @@ function Invoke-Main {
         'downloads'     = '- downloads: t0 = the tap on Downloads in the Account tab; tap -> loaddownloads sent dt= = `dt=` of the first `[P1] shell send loaddownloads` line with dt >= 0; tap -> list shown first= = `first=` of the first `[P1] shell subscreen-open` line with first >= 0; list frames = `drop=` / `max=` of the first `[P1] shell frames-subscreen-open` line; the scroll and long-task rows (`shell scroll` / `shell longtask` lines) count only lines from stamp2 (the first swipe) on.'
         'open-seed'     = '- open-seed k=<k>: the dev-seed chat of index k (0 = Seed 01), opened by the notification intent (address derived by the script); t0 = before the intent; the warm rows (n = repeats) come first, then the same rows prefixed `cold ` (one rep, after a proven restart of the app). intent -> present / present ms= / attach spare= as for chat-intent (required). Optional rows (n/a on a build without the line, never exit 2): onload-main ms= = `ms=` of the first `[P1] chat onload-main` line; read ms= / passes / rows = the first `[P1] chat read` line; batch json= = `json=` of the first `[CDPERF] chat batch` line; shell paint= / glass= = the first `[CDPERF] chat-shell n=` line; media thumbs / hit / pre / voice / vpre = the first `[P1] chat media` line (written once, 2 s after the present).'
         'mem-photos'    = '- mem-photos: the app and renderer PSS read last (after open-seed), as mem-end.'
+        'coldstart-watch' = '- coldstart-watch: COUNTS over the reps (n = the reps asked; median = min = max = the count). Per rep: am force-stop, the idle, logcat -c, t0 + `am start -W`, pidof at once (the pid of the start), the fixed wait (run.json coldstartWatch.waitSec), stamp2 + pidof, the focus check. starts = the reps; in front after <n> s = exactly one pid after the wait, the pid of the start, and our app in front (proven); a start that was not proven is read from its events pull (only times, pids, tags and numeric fields; an event counts only when its own time is >= t0 and <= stamp2 + 60 s and its pid is the pid of the start, or with no pid read a pid that an `am_proc_start` of the package in the window names) and its app log: not in front, process alive = the pid of the start is among the pids after the wait, not in front, and no `am_proc_died` / `am_kill` / `killinfo` of it; ends with a kill = an `am_kill` or `killinfo` of that pid; ends with no kill = an end with no kill (with a pid: the pid is gone after the wait or an `am_proc_died` of it; with no pid read: an `am_proc_died` of a started pid). A not-proven start whose evidence is missing, failed or holds no `am_proc_start` of the start, a start with no pid read and no end event, and a start whose pid and another pid are there after the wait with the app in front = "no data" in every row (exit 2).'
     }
     foreach ($k in $legendNew.Keys) {
         if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }
@@ -1875,6 +2254,12 @@ function Invoke-Main {
     foreach ($r in $rows) { if (($r.Kind -eq 'data') -and $r.Metric.StartsWith('page ', [StringComparison]::Ordinal)) { $pageNote = $true } }
     if ($pageNote) {
         [void]$md.Append('- page <k> rows (history pages 1..3, history-seed page 1; optional, n/a when the line is absent; page k = the k-th line of its kind in the rep, only when the lines of that kind and the `[P1] shell send loadmore` lines are equal in number): insert rows / mode=insert (1 = the word `insert`, 0 = any other word; the note counts the 1s) / build / swap / fix / fade / ms= = the `[P1] shell older insert` line; frames n / max = the `[P1] shell older frames` line; C# loadmore in -> push = the k-th `[P1] chat older push` stamp minus the k-th `[P1] chat loadmore in` stamp; read passes / window / ms= / flush = the `[P1] chat older read` line; push n / json= / build= = the `[P1] chat older push` line.' + "`n")
+    }
+    if ($watchRan) {
+        # Batch walktools2 (item 2): one line per start that was not proven; numbers and fixed words only (Get-WatchRep), never a raw line.
+        [void]$md.Append("`nCold start watch: one line per start that was not proven in front (numbers and fixed words only)`n`n")
+        if ($watchFacts.Count -eq 0) { [void]$md.Append("- none`n") }
+        foreach ($wf in $watchFacts) { [void]$md.Append('- ' + (Format-MdCell ([string]$wf)) + "`n") }
     }
     [void]$md.Append("`nFiles`n`n")
     $seen = New-Object System.Collections.Generic.List[string]
@@ -1899,6 +2284,8 @@ function Invoke-Main {
         $st = [string](Get-Prop $r 'step')
         & $addFile (Get-Prop $r 'log') (Get-RepFileName $st $rn 'log')
         & $addFile (Get-Prop $r 'shot') (Get-RepFileName $st $rn 'shot')
+        # Batch walktools2 (item 2): the events pull of a coldstart-watch rep (no other rep has the key).
+        if (Test-Same $st $script:WatchStep) { & $addFile (Get-Prop (Get-Prop $r 'watch') 'events') (Get-WatchFileName $rn 'events') }
     }
     if ($fs.Mode -eq 'asked') { & $addFile $script:FlagsPullName $script:FlagsPullName }
     foreach ($me in $memEntries) {

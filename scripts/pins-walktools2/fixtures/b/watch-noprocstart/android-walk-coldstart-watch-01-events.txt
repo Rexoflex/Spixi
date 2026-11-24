@@ -1,0 +1,2 @@
+12-01 11:00:00.200  1500  1600 I am_proc_start: [0,4321,10345,com.ixilabs.spixi.dev,
+12-01 11:00:03.000  1500  1600 I am_proc_died: [0,4321,com.ixilabs.spixi.dev,0,2,

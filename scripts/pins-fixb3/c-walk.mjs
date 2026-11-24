@@ -169,8 +169,13 @@ export function oldView(drv, par) { const t = stripText(drv, par); return { drv:
 // parser (item 3) five $script:L line defs, Get-WordTok, X-PageGate / X-PageTok / X-PagePush / X-Page, $script:PageRows, New-PageDefs + the two page-def tables, New-Def `$Arg`, the `history` table closing
 // `) + $script:HistoryPageDefs }`, Get-DataRow `& $Def.Extract $c $Def.Arg` + the insertmode note, the page legend line. (X-SeedFirstPage, the seed legend and HistorySeedDefs are cut by stripText: n1 / m1 hold them.)
 // driver a5d38ee1c0d1... -> e14bc9974205... (round 1: dfa45ee27fc4...; round 2: `1 or 2 sets`, compact counts, Get-PreCheckText strips `no set matches: `); parser 6278daa717a5... -> c253da66335a... (review round 1 of walktools: + Get-PreCheckText, `sets must be a list`, compact failure note, Get-NoPair, the count guards of X-PageTok / X-PagePush; Invoke-FileShot / Invoke-ShotCheck are pre-batch text again)
-const BASE_DRV_VIEW_SHA = 'e14bc997420587141ff363332d8c9dbf415b1ba5fb8a3933629a4952bd44c226';
-const BASE_PAR_VIEW_SHA = 'c253da66335adb639e489c457630a73a16ffeee77b4cdfeaadeb7f00b3344520';
+// ★ walktools2 re-base (2026-11-23; after a look at the diff, #1596 / #1634): the view of the merged tree = the walktools value + exactly the statements of walktools2 — driver: coldstart-watch at the end of AllSteps / OptInSteps (two lines),
+// $script:WatchWaitSec / WatchEventRe / WatchEventsCmd, Save-WatchPull, Save-WatchEvidence, Invoke-ColdWatchRep, the run.json / Complete-Rep / Invoke-RepBody / Get-EstimateSec / Invoke-Walk lines of the step, the usage refusals (-Calibrate, -Flags), the home `sets` lines (Get-ScreenGap, the load block, the calibrate note);
+// parser: only ADDED statements (the StepTable entry, the Watch* regexes and helpers, Get-WatchRep, Get-WatchRows, the Invoke-Main branch, the facts block, the legend line, the events file line); no statement of the walktools view was removed or changed except the five lines above (the two list lines and the two `sets` rules).
+// ★ walktools2 re-base, #46 round 1: only coldstart-watch statements changed; driver 1c137bf8... -> 7c649eaa..., parser 3e41f3db... -> 7ffb0711...
+// driver e14bc9974205... -> 1c137bf8a027...; parser c253da66335a... -> 3e41f3db4310...  (the view of the base scripts 462ba3e4 with this pin's code still gives e14bc997... / c253da66..., checked)
+const BASE_DRV_VIEW_SHA = '7c649eaad0758e78a3c07f4ae54e791ef7f0d010c175f4dd08bb5db0e4486aad';
+const BASE_PAR_VIEW_SHA = '7ffb0711d4c9c10fc77514693bc9c300fd547e9b04b1eeaea6660285dfbda4a7';
 const BASE_DEVADDR_SHA = '62dc3e08437c570d9f286f89de3f4e8399c650650981945999b51a6d46b8a00e';
 // re-based walktools (item 3): `legend` d910369342b7... -> 7b9085e25805... (review round 1: + the equal-counts clause of branch 2) — the history-seed-kNN legend line of Invoke-Main states the NEW first-page rule (C# `chat loadmore in` pair, else the first chat load of the window when a send line is there, else no data)
 // instead of "after the first shell send loadmore line"; the rest of the line (pages gate, the rows of history) is the same text. `defs` is unchanged (165d5f38...): the cut now ends at the table's new closing (see defsBlock), the closing is held by defsClosing.
@@ -617,8 +622,9 @@ export default async function (h) {
     ["$script:CalHubReady = $false", ["91a82bad67cc069c","f476acb2286b2a82"]],
     ["if ($Step -eq 'downloads') { $need = @($need) + @('swipe:accountDownloads', 'screen:accountScrolled') }", ["0bb4dbe2a7db52d0"]],
     ["if ($Step -cmatch '\\Ahistory-seed-k[0-9]{2}\\z') { $need = @('swipe:historyOlder', 'screen:chat', 'screen:home', 'count:historyMaxSwipes') }", ["cfcac9668ba400e2"]],
-    ["if ($script:HistSeedIdx -ge 0) { $doc['historySeed'] = [int]$script:HistSeedIdx }", ["b1a4af7313989c81"]],
-    ["if ($Rec.ContainsKey('pages')) { $out['pages'] = [int]$Rec['pages'] }", ["60cb44e5e84656c9"]],
+    // ★ walktools2 re-base (2026-11-23): the next statement of each of these two lines is now a walktools2 line (run.json `coldstartWatch`, Complete-Rep `watch`), so only the context hash moved: b1a4af7313989c81 -> 45258ac138bd83a3, 60cb44e5e84656c9 -> 3985427942170052 (the line text and the count are unchanged)
+    ["if ($script:HistSeedIdx -ge 0) { $doc['historySeed'] = [int]$script:HistSeedIdx }", ["45258ac138bd83a3"]],
+    ["if ($Rec.ContainsKey('pages')) { $out['pages'] = [int]$Rec['pages'] }", ["3985427942170052"]],
     ["elseif ($s -cmatch '\\Ahistory-seed-k[0-9]{2}\\z') { Invoke-HistorySeedRep $Rec }", ["0f2ffb21cc558130"]],
     ["elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { $sum += $n * ($t['coldStartSettleSec'] + 12 + ($t['chatSettleMs'] + $t['scrollSettleMs'] + $t['backSettleMs']) / 1000 + 6 * ($t['historySwipeMs'] / 1000 + 1) + 8) }", ["ad5d21add9db57c6"]],
     ["elseif ($s -eq 'history' -and $script:HistSeedIdx -ge 0) { Invoke-HistorySeedStep }", ["3e9e2795431fd87b"]],
@@ -693,7 +699,8 @@ export default async function (h) {
     driverStatements: drvSha === BASE_DRV_VIEW_SHA,
     parserStatements: parSha === BASE_PAR_VIEW_SHA,
     noMissingAdded: !ov.drv.some((l) => l.startsWith('#MISSING')) && !ov.par.some((l) => l.startsWith('#MISSING')),
-    stepsUnchanged: allSteps.length === 25 && allSteps.slice(0, 5).join() === 'coldstart,mem-home,chat-intent,chat-tap,scroll' && !allSteps.some((s) => s.startsWith('history-seed')),
+    // ★ walktools2 re-base (2026-11-23): AllSteps holds 26 names now (the opt-in coldstart-watch is the new last one; the first five and the no-history-seed rule are unchanged)
+    stepsUnchanged: allSteps.length === 26 && allSteps.slice(0, 5).join() === 'coldstart,mem-home,chat-intent,chat-tap,scroll' && !allSteps.some((s) => s.startsWith('history-seed')),
     oldHistoryBranch: stm(fnD('Invoke-Walk')).includes("elseif ($s -eq 'history') {") && stm(fnD('Invoke-Walk')).includes("Invoke-Step 'history' $script:RepeatsN $true"),
   };
   ok(F(o1).length === 0,
@@ -719,7 +726,9 @@ export default async function (h) {
   const faRe = allowRes.find((r) => r.includes('--es fa')) || '';
   const o3 = {
     found: allowFn.length > 0,
-    allowlistFrozen: ['Initialize-Allowlist', 'Test-ShellAllowed', 'Assert-AdbCommand', 'Get-LogPullCmd'].every((n) => fnSha(DRV, n) === BASE_FN_SHA[n]),
+    // ★ walktools2 re-base (2026-11-23): Test-ShellAllowed, Assert-AdbCommand and Get-LogPullCmd stay byte-identical to the base; Initialize-Allowlist = the base + exactly ONE statement, `$script:WatchEventsCmd,` (once): without that line its statements hash to the base value again (the exact string of the command is held by pins-walktools2/b-coldwatch k1)
+    allowlistFrozen: ['Test-ShellAllowed', 'Assert-AdbCommand', 'Get-LogPullCmd'].every((n) => fnSha(DRV, n) === BASE_FN_SHA[n])
+      && (() => { const st = fnStm(code(DRV), 'Initialize-Allowlist'); return st.filter((l) => l === '$script:WatchEventsCmd,').length === 1 && sha(st.filter((l) => l !== '$script:WatchEventsCmd,').join('\n')) === BASE_FN_SHA['Initialize-Allowlist']; })(),
     newCommandsOnlyKnown: (() => {
       const cmds = [...(newBody + fnD('Invoke-CalAccountScroll') + fnD('Invoke-CalHubBack')).matchAll(/Invoke-(?:Shell|ShellReq|CalInput)[^\n]*?\(?'((?:am|input|logcat|date)[^']*)'/g)].map((m) => m[1]);
       return cmds.length > 0 && cmds.every((c) => !/^(am force-stop|pm |rm |kill|input text|settings)/.test(c));

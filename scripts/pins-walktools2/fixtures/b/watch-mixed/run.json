@@ -1,0 +1,158 @@
+{
+  "schema": 1,
+  "tool": "adb-walk",
+  "run": "synthetic-watch-mixed",
+  "mode": "walk",
+  "adbHook": true,
+  "device": {
+    "model": "synthetic",
+    "release": "14",
+    "refresh": "renderFrameRate=60",
+    "dnd": "on"
+  },
+  "app": {
+    "package": "com.example.synthetic",
+    "versionName": "0.0.0",
+    "versionCode": "1"
+  },
+  "flags": {
+    "asked": null,
+    "logged": "not read",
+    "ok": true
+  },
+  "repeats": 5,
+  "stepsRequested": [
+    "coldstart-watch"
+  ],
+  "coldstartWatch": {
+    "waitSec": 10
+  },
+  "reps": [
+    {
+      "step": "coldstart-watch",
+      "rep": 1,
+      "status": "ok",
+      "t0": "12-01T10:00:00.000",
+      "stamp2": "12-01T10:00:10.000",
+      "am": {
+        "totalTime": 1201,
+        "waitTime": 1211,
+        "launchState": "COLD"
+      },
+      "watch": {
+        "proven": true,
+        "pidsAtStart": 1,
+        "pid": 4301,
+        "pidsAfter": 1,
+        "pidInAfter": true,
+        "samePid": true,
+        "front": true
+      },
+      "note": ""
+    },
+    {
+      "step": "coldstart-watch",
+      "rep": 2,
+      "status": "ok",
+      "t0": "12-01T10:01:00.000",
+      "stamp2": "12-01T10:01:10.000",
+      "log": "android-walk-coldstart-watch-02.txt",
+      "am": {
+        "totalTime": 1202,
+        "waitTime": 1212,
+        "launchState": "COLD"
+      },
+      "watch": {
+        "proven": false,
+        "pidsAtStart": 1,
+        "pid": 4302,
+        "pidsAfter": 0,
+        "pidInAfter": false,
+        "samePid": false,
+        "front": false,
+        "eventsPull": "ok",
+        "events": "android-walk-coldstart-watch-02-events.txt",
+        "logPull": "ok"
+      },
+      "note": "not proven: the process of the start is gone"
+    },
+    {
+      "step": "coldstart-watch",
+      "rep": 3,
+      "status": "ok",
+      "t0": "12-01T10:02:00.000",
+      "stamp2": "12-01T10:02:10.000",
+      "log": "android-walk-coldstart-watch-03.txt",
+      "am": {
+        "totalTime": 1203,
+        "waitTime": 1213,
+        "launchState": "COLD"
+      },
+      "watch": {
+        "proven": false,
+        "pidsAtStart": 1,
+        "pid": 4303,
+        "pidsAfter": 0,
+        "pidInAfter": false,
+        "samePid": false,
+        "front": false,
+        "eventsPull": "ok",
+        "events": "android-walk-coldstart-watch-03-events.txt",
+        "logPull": "ok"
+      },
+      "note": "not proven: the process of the start is gone"
+    },
+    {
+      "step": "coldstart-watch",
+      "rep": 4,
+      "status": "ok",
+      "t0": "12-01T10:03:00.000",
+      "stamp2": "12-01T10:03:10.000",
+      "log": "android-walk-coldstart-watch-04.txt",
+      "am": {
+        "totalTime": 1204,
+        "waitTime": 1214,
+        "launchState": "COLD"
+      },
+      "watch": {
+        "proven": false,
+        "pidsAtStart": 1,
+        "pid": 4304,
+        "pidsAfter": 1,
+        "pidInAfter": true,
+        "samePid": true,
+        "front": false,
+        "eventsPull": "ok",
+        "events": "android-walk-coldstart-watch-04-events.txt",
+        "logPull": "ok"
+      },
+      "note": "not proven: the process is alive, our app is not in front"
+    },
+    {
+      "step": "coldstart-watch",
+      "rep": 5,
+      "status": "ok",
+      "t0": "12-01T10:04:00.000",
+      "stamp2": "12-01T10:04:10.000",
+      "am": {
+        "totalTime": 1205,
+        "waitTime": 1215,
+        "launchState": "COLD"
+      },
+      "watch": {
+        "proven": false,
+        "pidsAtStart": 0,
+        "pidsAfter": 0,
+        "pidInAfter": false,
+        "samePid": false,
+        "front": false,
+        "eventsPull": "ok",
+        "events": "android-walk-coldstart-watch-05-events.txt",
+        "logPull": "nopid"
+      },
+      "note": "not proven: no single pid right after the start (0 pids)"
+    }
+  ],
+  "memory": [],
+  "finished": true
+}

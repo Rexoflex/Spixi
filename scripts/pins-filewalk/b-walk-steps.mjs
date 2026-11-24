@@ -111,6 +111,7 @@ export default async function (h) {
   const listItems = (t, start) => { const a = t.indexOf(start); if (a < 0) return []; const s = a + start.length; const e = t.indexOf('\n    )', s); return t.slice(s, e).split('\n').map((l) => l.trim()).filter(Boolean).map((l) => l.replace(/,$/, '')); };
   const idx = (st, pred) => st.findIndex(pred);
   const NEW5 = ['scroll-files', 'scroll-voice', 'scroll-photos', 'viewer', 'downloads'];
+  const WALKTOOLS2 = ['coldstart-watch'];   // ★ walktools2 re-base (2026-11-23): one more opt-in step, LAST in AllSteps / OptInSteps (b1, b10)
   const PHOTO1A = ['open-seed', 'mem-photos'];   // photo1a (2026-11-17): two more opt-in steps at the END of AllSteps / OptInSteps (b1, b10 re-based)
   const BASE17 = ['coldstart', 'mem-home', 'chat-intent', 'chat-tap', 'scroll', 'resume', 'resume-long', 'network', 'mem-end', 'mem-trim', 'resume-now', 'resume-3s', 'chatinfo', 'tab-apps', 'tab-wallet', 'tab-account', 'history'];
   // an input call = anything that sends a tap / swipe / key / start to the phone
@@ -123,9 +124,9 @@ export default async function (h) {
   const defLine = D.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('$script:DefaultSteps ='));
   const b1 = {
     found: all.length > 0 && opt.length > 0,
-    allOrder: all.join() === [...BASE17, 'scroll-image', ...NEW5, ...PHOTO1A].join(),
+    allOrder: all.join() === [...BASE17, 'scroll-image', ...NEW5, ...PHOTO1A, ...WALKTOOLS2].join(),
     afterScrollImage: all.indexOf('scroll-image') === 17 && NEW5.every((s, i) => all[18 + i] === s),
-    optIn: opt.join() === ['scroll-image', ...NEW5, ...PHOTO1A].join(),
+    optIn: opt.join() === ['scroll-image', ...NEW5, ...PHOTO1A, ...WALKTOOLS2].join(),
     defaultRule: defLine.length === 1 && defLine[0] === '$script:DefaultSteps = @($script:AllSteps | Where-Object { $script:OptInSteps -cnotcontains $_ })',
     defaultList: defJs.join() === BASE17.join() && NEW5.every((s) => !defJs.includes(s)),
     oneAssign: count(D, '$script:DefaultSteps =') === 1 && count(D, '$script:OptInSteps =') === 1 && count(D, '$script:AllSteps =') === 1,
@@ -202,6 +203,7 @@ export default async function (h) {
   ];
   const allowFn = fnD('Initialize-Allowlist');
   const pipedNow = listItems(allowFn, '$script:PipedCmds = @('), allowNow = listItems(allowFn, '$script:ShellAllow = @(');
+  const WATCH_PIPED = ['$script:WatchEventsCmd'];   // ★ walktools2 re-base (2026-11-23): the base + the eight count polls + exactly ONE more PipedCmds string, the events pull of coldstart-watch (exact string held by pins-walktools2/b-coldwatch k1)
   const NEW_PIPED = ['viewimage', 'overlayopen', 'loaddownloads', 'subscreenopen', 'subscreenclose', 'scrolllines', 'overlayclose', 'chatmedia'].map((k) => "$script:FramePoll['" + k + "']");
   const NEW_CMDS = ['P1..shell.send.viewimage', 'P1..shell.frames-overlay-open', 'P1..shell.send.loaddownloads', 'P1..shell.frames-subscreen-open', 'P1..shell.frames-subscreen-close', 'P1..shell.scroll', 'P1..shell.frames-overlay-close', 'P1..chat.media']
     .map((t) => 'logcat -d -v threadtime -s DOTNET:I | grep -c -e ' + t);
@@ -220,8 +222,8 @@ export default async function (h) {
     '[P1] shell scroll settings ms=480 n=29 drop=1 max=35'];
   const b2 = {
     found: allowFn.length > 0 && pipedNow.length > 0 && allowNow.length > 0 && fpBlock.length > 0,
-    pipedBase: pipedNow.filter((x) => !NEW_PIPED.includes(x)).join('\n') === BASE_PIPED.join('\n'),
-    pipedFive: NEW_PIPED.every((x) => pipedNow.filter((y) => y === x).length === 1) && pipedNow.length === BASE_PIPED.length + 8,
+    pipedBase: pipedNow.filter((x) => !NEW_PIPED.includes(x) && !WATCH_PIPED.includes(x)).join('\n') === BASE_PIPED.join('\n'),
+    pipedFive: NEW_PIPED.concat(WATCH_PIPED).every((x) => pipedNow.filter((y) => y === x).length === 1) && pipedNow.length === BASE_PIPED.length + 9,
     shellAllowSame: allowNow.join('\n') === BASE_ALLOW.join('\n') && allowNow.length === 31,
     framePollBase: BASE_FP.every((l) => fpNow.includes(l)) && fpNow.length === BASE_FP.length + 8,
     fiveExact: fpCmds.join('\n') === NEW_CMDS.join('\n'),
@@ -322,7 +324,8 @@ export default async function (h) {
   // Was c69474965f8f28aefa5c49314c36082e935f6a241abee1b9f56701228240f43f (the map of 2026-11-17).
   // ★ walktools operator block 2026-11-23 (#1879; re-based after a look at the diff): screens.chat and screens.viewer in the `sets`
   // form (light / dark, chrome-only probes, minMatch = the probe count); every other key unchanged. Was 898fad40…29ce8 (fixb3).
-  const CAL_A52_SHA = '9e1ece07e2e2c7dbb2ad6b78318783cf3dbb38985a4b5ceaa6372660424ca461';
+  // ★ walktools2 re-base (2026-11-23; after a look at the diff, #1596 / #1634): ONLY screens.home moved, to the `sets` form (light = the old three probes byte for byte, minMatch 3; dark = three new probes); every other key and byte unchanged. Was 9e1ece07…ca461.
+  const CAL_A52_SHA = 'c1262db563a0ba800e3d5a5a001f204550b325d518384f24a44c0109fb75f38e';
   const b6 = {
     found: !!cfgReal.taps,
     sha: sha(A52) === CAL_A52_SHA,
@@ -485,10 +488,10 @@ export default async function (h) {
     downloadsRefs: refs(defsOf(dlBlock)).join() === WREFS.join() && defsOf(dlBlock).filter((r) => r[3] === 'inline').length === 4,
     extractors: EXTRACT.every((l) => pl.includes(l)),
     lineDefs: LDEF.every((l) => pl.includes(l)),
-    tableTail: tableKeys.slice(-7).join() === 'scroll-image,scroll-files,scroll-voice,scroll-photos,viewer,downloads,open-seed',
+    tableTail: tableKeys.slice(-8).join() === 'scroll-image,scroll-files,scroll-voice,scroll-photos,viewer,downloads,open-seed,coldstart-watch',   // ★ walktools2 re-base (2026-11-23): + coldstart-watch, the one new last entry
     oldRowsKept: count(P, 'X-Scroll $c') === 6 && count(P, 'X-Long $c') === 4 && count(P, 'X-Am $c') === 2,   // the counts of the base: the old rows still use the NON-windowed extractors
     absentNoRow: count(P, '$stepList.Add(') === 2 && P.includes('foreach ($s in $steps) { $stepList.Add($s) }') && count(P, '$steps.Add(') === 1 && count(P, 'foreach ($step in $stepList) {') === 1,
-    legendOnlyIfInRun: P.includes('if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }') && [...legendBlock.matchAll(/^\s*'([a-z-]+)'\s*= '/gm)].map((m) => m[1]).join() === [...NEW5, ...PHOTO1A].join(),
+    legendOnlyIfInRun: P.includes('if ($stepList.Contains([string]$k)) { [void]$md.Append($legendNew[$k] + "`n") }') && [...legendBlock.matchAll(/^\s*'([a-z-]+)'\s*= '/gm)].map((m) => m[1]).join() === [...NEW5, ...PHOTO1A, ...WALKTOOLS2].join(),
     windowedFrom: hf.includes('foreach ($h in (Get-Hits $C $LineDef).Items) {') && hf.includes('if ($h.Stamp -ge $C.T2) { $hits.Add($h) }'),
     readyT2: tr.includes('$r = Test-Ready $C') && tr.includes("if ($null -eq $C.T2) { return (New-Res 'missing' $null $C.T2Why) }"),
     windowedUse: [xt, xs, xl].every((f) => f.includes('Test-ReadyT2 $C') && !f.includes('Test-Ready $C') && f.includes('Get-HitsFrom $C')) && xs.includes('Get-HitsFrom $C $script:L.Scroll') && xl.includes('Get-HitsFrom $C $script:L.Long') && xt.includes('Get-HitsFrom $C $LineDef'),
@@ -798,7 +801,9 @@ export default async function (h) {
   // new functions Test-HasField, Get-ProbeListGap, Get-ScreenProbeSets, Test-ProbeSetPixels, Get-ProbeVerdict; Get-ScreenGap / Test-Probes / Invoke-PreCheck (Get-PreCheckText) rewritten; Invoke-FileShot and Invoke-ShotCheck are back to their pre-batch text); parser 4a80770b... -> 873d647b... (item 3: Invoke-Main (two legend
   // lines), the script level (five line defs, Get-WordTok, X-PageGate / X-PageTok / X-PagePush / X-Page, X-SeedFirstPage (I-3a), New-Def, Get-DataRow, the page tables)). The two script-level remainders and the five moved
   // function hashes follow (review rounds 1 + 2 of walktools re-based them again (round 2: only the driver script level moved: Get-ScreenGap `1 or 2 sets`, the compact counts of Get-ProbeVerdict, Get-PreCheckText): success notes dropped, Invoke-FileShot back to its pre-batch text, Get-PreCheckText, Get-NoPair, the equal-counts rule); Get-EstimateSec and Invoke-Walk: the text did not change in this batch - their diagnostic constants were already stale on the base (the diagnostics are not the verdict) and are refreshed.
-  const B24_DRIVER_SHA = '074f7f0e65d1326f68e4aedacb75d4c459627c5fd6ed126c2495c261bbafa6e0', B24_PARSER_SHA = 'e502ac2b6003b4981e044aa9e01dfceb2f54d3f247d4d23ec2ebf9275c10b002', B24_DRIVER_REST = '19c3ac7d5c50272e5c73d04bfdd544762d22899bbefc13e661ac80d5d8f61315', B24_PARSER_REST = '8f0a2440703b5af78d63583681fba8e12865602da144e1e24b9f711af24eefeb';   // the guard (…_SHA) and the diagnostics
+    // ★ walktools2 re-base (2026-11-23; after a look at the diff, #1596 / #1634): driver 074f7f0e65d1... -> 1ac3bf836ef0..., parser e502ac2b6003... -> 73c8dfa1ca0d... — the diff is the step coldstart-watch (driver: the two list lines, WatchWaitSec / WatchEventRe / WatchEventsCmd, the PipedCmds entry, Save-WatchPull / Save-WatchEvidence / Invoke-ColdWatchRep, the run.json / Complete-Rep / Invoke-RepBody / Get-EstimateSec / Invoke-Walk lines, the usage refusals, the help text, the calibrate note) and the home `sets` form (Get-ScreenGap, the load block); parser: only added code (the StepTable entry, the Watch* regexes and helpers, Get-WatchRep, Get-WatchRows, the Invoke-Main branch + facts block + legend line); moved (diagnostic): driver Initialize-Allowlist, Complete-Rep, Invoke-RepBody, Get-EstimateSec, Invoke-Walk, Invoke-Calibrate + the script level; parser Invoke-Main + the script level.
+  // ★ walktools2 re-base, #46 round 1 (2026-11-23): only coldstart-watch code changed (driver Test-WatchPidof, try/finally, pidInAfter: script level; parser Invoke-Main + script level); raw hashes 1ac3bf83... -> 02ef800d..., 73c8dfa1... -> bff0b1dc...
+  const B24_DRIVER_SHA = '02ef800d4cbf3034f4edfcccb2ebbcf425f952e20c1a6a7e34f14e4a9167ab20', B24_PARSER_SHA = 'bff0b1dcff42f16d2766c7221232c14e121ff866f6bdf79147a2d94f211fcbe3', B24_DRIVER_REST = '296fc06595ef37ba1ff59aba6e4468363c5cc8f09b0de2019f48a07d0d45946d', B24_PARSER_REST = '856cc85d3ebb9e49f77e2e267c7db5fd17b0b99de7239ff5900796bb32e651da';   // the guard (…_SHA) and the diagnostics
   const B24_DRIVER_FN = {
     "Set-RepStamp2": "b810fbc48072ef35d08d2ad824f4e6b32b4ec4ee9d169ea01ce27580003a56c7",
     "ConvertTo-Base58": "607782670e7e397d660daaca5f441110ec9e8366c0a8d87ecd05073e3977faa9",
@@ -819,14 +824,14 @@ export default async function (h) {
     "Test-CalGateShot": "9c83fa0e99af74c7022972b7777bff0d7857a86ed3660378a0433db945ed55ed",
     "Invoke-CalReset": "2ab8f9c3169234021d24ced742f94944cb6290a6a34fc4b842cf0ce2d1bd2d90",
     "Invoke-CalFileTaps": "f6e50cac81fb22e3c396a018f6c73684856678b5ffc8ceb228032044995d6a64",
-    "Initialize-Allowlist": "5fb3deea4e1d758e42eca42fcb735814515bfe6ab60de6a6bd40c1880f28b8c4",
+    "Initialize-Allowlist": "05d73b0d2fde3ce945fe5bb97edc85dcc3e07eeaf6191b81a0c6ac7b6d730eaf",
     "Get-StepGap": "f273e5567fbb8d75444c09f6fefe1c0faf01e3ae86cb342b6df9826bca87ef68",
-    "Complete-Rep": "b3eb31eefca4adcc72d0a3659affa6ae3696111f9910a303631a3b7ecefdc4ba",
-    "Invoke-RepBody": "c87669ed2062ccd62869d4b992bba653e1431889e229b44c11b53113b24d462a",
-    "Get-EstimateSec": "0786e4ac70f4ff359d3329819460502ef67daef47633d481b1b7f92e5d99a6c5",
-    "Invoke-Walk": "a0aa305cd44a9dc84c392d08b94fd375a05580f423f82724f2dcc5af4e2df243",
+    "Complete-Rep": "e64bd3b0bfeb0fdebc166a48a0c3996b8a6d3600bb74d01c0ef7e0134070dc29",
+    "Invoke-RepBody": "7ac3df34c9f0e8a1135ef177a1bc7463de1590e8adc9bfa315fb4e94b7ebff53",
+    "Get-EstimateSec": "7dd3259cd6355a29dbe0ef8c8452410752473998240ac381a22f7b601d47851f",
+    "Invoke-Walk": "41626700cd858e9662043348151a112a31d1d94ac5df2603b8d9cafc1247085a",
     "Invoke-CalNewTaps": "82a90e9586891a4405e24aa9578a48f17c33bd0a7edadae48d5960ca6580f335",
-    "Invoke-Calibrate": "c6083d80947e7df37bee29c153e04b47f5646f0ea7083cb136d71648696265be",
+    "Invoke-Calibrate": "68600c6702d3d47c281f89ddd848764afa868a0c353c5bf1a19d0ccff6a63a6a",
     "Assert-AppFront": "2ab25b07f54f84768f166a7285067b238b633ff02a73fc890e6dd4896c6c63f8",
     "Get-LogCount": "d3ae2881a794fb61ffc35947a99bd572a5a6cda2f8bfabc3d5b553f74fc200e8",
     "Wait-LogCount": "8b7129561482fec96bcd5a517a3beb2dbaef1a43df31be29b989640c752ad160",
@@ -861,7 +866,7 @@ export default async function (h) {
     "X-LongW": "ed3d79f0bad44ed63f2b7fba766feb2f9bb6b3d6a378db4c7f0934cc028d0328",
     "New-Ctx": "aa47f939777d49b4c86a96b784fea317c6ed33dbb5aa1340a1e40898eaf630b6",
     "New-RepCtx": "cb832a0d05945c1ea40f885ee5b4b92ad107cff24693e78971e7e23d8fe2ac91",
-    "Invoke-Main": "f5d4bcf6bca04d35a6cdbcd16f2be74275ccdaf3e677fcd4487fc4a3e8eb8efd",
+    "Invoke-Main": "795f70a2bf741a18f4a1191c73954fe0b7360eb9b3cba727d9a81c8d8e4ceb70",
     "Get-Hits": "59e531bfb6a713b9643b8cf057ffd6e8c387a03407bb36e4f27fc5dbfa27436e",
     "Test-Ready": "6113f1d735b818943964016e113a5f8657e9aeb9bc283c37963f7a46eb71cd61",
     "Get-Tok": "095e09a4141a5101c6df2cf550d3983012464626f3e29d9710ca250c34539361",

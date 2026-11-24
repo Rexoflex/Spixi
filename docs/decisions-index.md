@@ -373,6 +373,19 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1924 🟡 | Proposal: close the inherited pre-`boot()` edge of `lock.html` with a one-line shell guard. |
 | #1925 | Session "Lock batch" — the record. |
 
+### Session Walk tools 2 (`walktools2`, 2026-11-23, #1935–#1943, L289–L292, packet P102)
+| Row | Rule |
+|---|---|
+| #1935 | The dev seed's quote chat Seed 57: 1000 text rows, 16-byte ids, four replies in the app's own shape whose targets sit ≥ 3 older pages up in both states of `FirstOlderPage50`. |
+| #1936 | The seed's two files are the item's scope; the seed-pin re-bases (a17 is the #1568 kind). |
+| #1937 | The walk step `coldstart-watch`: a start that is not proven keeps its events and app log before any buffer clear; events count from the rep's own start and pid. |
+| #1938 | ONE new adb command: the events pull, cut on the phone by `grep -o -E` (no free text leaves the phone); what a kept file holds. |
+| #1939 | `screens.home` in the `sets` form; the dark values proposed from the built shell, confirmed by the phone block. |
+| #1940 | The committed lockfile (seeded from the proven install) and `npm ci` in `redesign-ci`; jsdom 29.1.1; the stderr warning recorded; the doc sentences owed. |
+| #1941 | The re-bases of the hashed walk pins and of `pins-leanfollow/d-ci`. |
+| #1942 | The #46 verdict of the batch. |
+| #1943 | Session "Walk tools 2" — the record. |
+
 ### Session Docs batch 2 (`docsb2`, 2026-11-23, #1950–#1956, L293–L294, no packet)
 | Row | Rule |
 |---|---|

@@ -200,13 +200,16 @@ nc('sets/validator/0 sets', { screen: 'chat', screens: chatMap({ sets: [] }) }, 
 nc('sets/validator/sets null', { screen: 'chat', screens: chatMap({ sets: null }) }, (r) => r.gap === 'screens.chat.sets must be a list of 1 or 2 sets');
 nc('sets/validator/sets is an object', { screen: 'chat', screens: chatMap({ sets: CHAT_L }) }, (r) => r.gap === 'screens.chat.sets must be a list of 1 or 2 sets');
 nc('sets/validator/sets is a string', { screen: 'viewer', screens: viewerMap({ sets: 'light' }) }, (r) => r.gap === 'screens.viewer.sets must be a list of 1 or 2 sets');
-nc('sets/validator/sets null on home -> may not use sets', { screen: 'home', screens: withScreens({ home: { sets: null } }) }, (r) => /may not use sets/.test(r.gap));
+// ★ walktools2 re-base (2026-11-23): screens.home may hold sets (item 3), so `sets: null` on home is now the READER's gap, like chat / viewer (the refusal "may not use sets" stays for the other screens: chatinfo below)
+nc('sets/validator/sets null on home -> must be a list (home takes sets since walktools2)', { screen: 'home', screens: withScreens({ home: { sets: null } }) }, (r) => r.gap === 'screens.home.sets must be a list of 1 or 2 sets');
 nc('sets/validator/set with a bad probe', { screen: 'chat', screens: chatMap({ sets: [CHAT_L, { ...CHAT_D, probes: [CHAT_D.probes[0], { ...CHAT_D.probes[1], rgb: 'nope' }, CHAT_D.probes[2]] }] }) }, (r) => r.gap === 'screens.chat.sets[dark] probe 2 is invalid');
 nc('sets/validator/set minMatch above its probes', { screen: 'chat', screens: chatMap({ sets: [{ ...CHAT_L, minMatch: 4 }] }) }, (r) => r.gap === 'screens.chat.sets[light].minMatch is not 1..3');
 nc('sets/validator/set with no probes', { screen: 'chat', screens: chatMap({ sets: [{ name: 'light', probes: [], minMatch: 1 }] }) }, (r) => r.gap === 'screens.chat.sets[light] not calibrated (no probes)');
 nc('sets/validator/set placeholder', { screen: 'chat', screens: chatMap({ sets: [{ name: 'light', probes: [{ x: 0, y: 0, rgb: '#000000', tol: 0 }], minMatch: 1 }] }) }, (r) => /placeholder/.test(r.gap));
 nc('sets/validator/set probe off the screen', { screen: 'chat', screens: chatMap({ sets: [{ ...CHAT_L, probes: [P(5000, 10, '#FFFFFF'), ...CHAT_L.probes.slice(1)] }] }) }, (r) => /off the screen/.test(r.gap));
-nc('sets/validator/sets on home (another screen)', { screen: 'home', screens: withScreens({ home: { sets: [CHAT_L] } }) }, (r) => /may not use sets/.test(r.gap));
+// ★ walktools2 re-base (2026-11-23): home takes a valid set (no gap); the "may not use sets" refusal is kept for another screen, chatinfo
+nc('sets/validator/sets on home (walktools2: allowed, valid set = no gap)', { screen: 'home', screens: withScreens({ home: { sets: [CHAT_L] } }) }, (r) => r.gap === '');
+nc('sets/validator/sets on chatinfo (another screen)', { screen: 'chatinfo', screens: withScreens({ chatinfo: { sets: [CHAT_L] } }) }, (r) => /may not use sets \(only home, chat and viewer\)/.test(r.gap));
 nc('sets/validator/sets on downloads', { screen: 'downloads', screens: withScreens({ downloads: { sets: [CHAT_L] } }) }, (r) => /may not use sets/.test(r.gap));
 nc('sets/validator/accountScrolled with sets', { screen: 'accountScrolled', screens: withScreens({ accountScrolled: { sets: [CHAT_L] } }) }, (r) => /may not use sets/.test(r.gap));
 nc('sets/validator/accountScrolled old form still valid', { screen: 'accountScrolled', screens: REAL.screens }, (r) => r.gap === '');
@@ -297,27 +300,37 @@ function runScript(screens, label) {
   const map = JSON.parse(readFileSync(join(root, 'scripts', 'device', 'a52s.json'), 'utf8'));
   map.screens = screens;
   writeFileSync(join(dir, 'a52s.json'), JSON.stringify(map));
-  const r = spawnSync(PWSH, ['-NoProfile', '-NonInteractive', '-File', join(dir, 'adb-walk.ps1'), '-Steps', 'coldstart'], { encoding: 'utf8', timeout: 60000, cwd: dir });
+  const r = spawnSync(PWSH, ['-NoProfile', '-NonInteractive', '-File', join(dir, 'adb-walk.ps1'), '-Steps', 'coldstart'], { encoding: 'utf8', timeout: 60000, cwd: dir, env: { ...process.env, USERPROFILE: dir, LOCALAPPDATA: dir, TEMP: dir, ADBWALK_ADB: join(dir, 'no-such-adb') } });   // ★ walktools2 #46 r2 NIT-C1 (safety): the test hook names a file that does not exist, so EVERY run stops at "ADBWALK_ADB names no file" (right after the map checks) on a PC that has a real adb on PATH too - never a call to a connected phone   // ★ walktools2 NIT-7: the Windows variables Protect-Text joins (an empty one stopped the run at "Cannot bind ... 'Path'" before the adb check, so a valid map proved nothing)
   return { status: r.status, text: (r.stdout || '') + (r.stderr || '') };
 }
+const STOP_RE = /ADBWALK_ADB names no file/;   // the stop after the map checks (NIT-C1)
 const usage = (label, screens, re) => {
   const r = runScript(screens, label);
   const okk = r.status === 1 && re.test(r.text) && !/adb (devices|start-server)|Starting adb|pre-flight/i.test(r.text);
   say(okk, 'load time: ' + label + (okk ? '' : '\n      exit ' + r.status + ': ' + r.text.slice(0, 400)));
 };
-usage('sets on home -> usage error naming screens.home', withScreens({ home: { sets: [CHAT_L] } }), /adb-walk: a52s\.json screens\.home has sets: only screens\.chat and screens\.viewer may use sets/);
+// ★ walktools2 re-base (2026-11-23): sets on home pass the load-time map checks now (the run then stops at "ADBWALK_ADB names no file", the test hook of runScript, after them; #46 r2 NIT-C1: never "adb is not on PATH", which would let a PC with adb on PATH reach the real adb); the usage error with the new text is kept for another screen, chatinfo
+usage('sets on chatinfo -> usage error naming screens.chatinfo', withScreens({ chatinfo: { sets: [CHAT_L] } }), /adb-walk: a52s\.json screens\.chatinfo has sets: only screens\.home, screens\.chat and screens\.viewer may use sets/);
+{
+  const r = runScript(withScreens({ home: { sets: [CHAT_L, CHAT_D] } }), 'valid home sets');
+  // ★ walktools2 NIT-7: no screens usage error AND the run reached the stage AFTER the map checks (the hook check: "ADBWALK_ADB names no file", exit 1)
+  const okk = !/screens\.[A-Za-z]+ has sets|a52s\.json screens\./.test(r.text) && r.status === 1 && STOP_RE.test(r.text) && !/adb is not on PATH/.test(r.text);
+  say(okk, 'load time: valid sets on home pass the map checks and the run reaches the hook check' + (okk ? '' : '\n      ' + r.text.slice(0, 400)));
+}
+// ★ walktools2 NIT-7: the load-time limit of 16 probes is checked for a home set too (a usage error BEFORE the adb check)
+usage('a set of home with 17 probes -> usage error', withScreens({ home: { sets: [{ name: 'light', probes: Array.from({ length: 17 }, (_, i) => P(10 + i, 20, '#FFFFFF')), minMatch: 1 }] } }), /screens\.home has a set with more than 16 probes/);
 usage('sets on downloads -> usage error', withScreens({ downloads: { sets: [CHAT_L] } }), /screens\.downloads has sets/);
 usage('accountScrolled with sets -> usage error', withScreens({ accountScrolled: { sets: [CHAT_L] } }), /screens\.accountScrolled has sets/);
 usage('a set of chat with 17 probes -> usage error', chatMap({ sets: [{ name: 'light', probes: Array.from({ length: 17 }, (_, i) => P(10 + i, 20, '#FFFFFF')), minMatch: 1 }] }), /screens\.chat has a set with more than 16 probes/);
 {
   const r = runScript(chatMap({ sets: [CHAT_L, CHAT_D] }), 'valid');
-  const okk = !/screens\.[A-Za-z]+ has sets|a52s\.json screens\./.test(r.text);
-  say(okk, 'load time: valid sets on chat pass the map checks (no screens usage error)' + (okk ? '' : '\n      ' + r.text.slice(0, 400)));
+  const okk = !/screens\.[A-Za-z]+ has sets|a52s\.json screens\./.test(r.text) && r.status === 1 && STOP_RE.test(r.text);
+  say(okk, 'load time: valid sets on chat pass the map checks (no screens usage error; the run stopped at the hook check)' + (okk ? '' : '\n      ' + r.text.slice(0, 400)));
 }
 {
   const r = runScript(REAL.screens, 'old map');
-  const okk = !/screens\.[A-Za-z]+ has sets|a52s\.json screens\./.test(r.text);
-  say(okk, 'load time: the real old-form map passes the map checks (no screens usage error)' + (okk ? '' : '\n      ' + r.text.slice(0, 400)));
+  const okk = !/screens\.[A-Za-z]+ has sets|a52s\.json screens\./.test(r.text) && r.status === 1 && STOP_RE.test(r.text);
+  say(okk, 'load time: the real old-form map passes the map checks (no screens usage error; the run stopped at the hook check)' + (okk ? '' : '\n      ' + r.text.slice(0, 400)));
 }
 
 console.log(fails === 0 ? '\nALL PASS (' + cases.length + ' harness cases + the load-time runs)' : '\n' + fails + ' FAIL');

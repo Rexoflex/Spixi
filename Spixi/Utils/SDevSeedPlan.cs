@@ -1,4 +1,4 @@
-/* ★ perfb1 seed (Speed batch 1a, item 4) — THE PURE HALF OF THE DEV SEED. No MAUI, no Core, no disk, no network:
+/* ★ perfb1 seed (Speed batch 1a, item 4) — THE PURE HALF OF THE DEV SEED. No MAUI, no Core calls, no disk, no network (§ 4 uses ReplyQuote, a pure Spixi file, and names the Core enum IXICore.Streaming.FriendMessageType):
  * scripts/csh compiles this file and PerfB1SeedTests.cs executes it.
  *
  *   1. A COPY of SDevSeed's Seed 01–50 rules (salt, address bytes, message ids, counts, times, direction, unread tail),
@@ -788,6 +788,167 @@ namespace SPIXI
         public static bool mayDeleteFileTmp(string? leaf, int i, int j)
         {
             return leaf != null && isFileChat(i) && PhotoRules.isPendingName(leaf) && leaf == fileTmpLeaf(i, j);
+        }
+
+        // ═══ 4 · the quote chat (walktools2 item 1, contract-walktools2 I-1) ═══
+        /* ★ walktools2 — seed index 56 = "Seed 57 Mojca Vrabec" (addressFor(56) like every seed contact), after the file chats without a gap:
+         * EXACTLY QuoteMessages = 1000 TEXT rows (no file, no folder: nothing on disk but Core's own message store), the same in both
+         * profiles. Four of them are REPLIES in the app's own stored shape — ReplyQuote.compose("", ReplyQuote.excerptOf(standard, the
+         * target's text, null, false), body): a 1:1 carries no name (SingleChatPage.replyNameOf → "") — so the walk can tap a quote whose
+         * target the shell has not loaded (W-5 / A-5 of docs/walk-histcs.md, `ixian:quotejump`).
+         * DEPTH = how many rows are newer (0 = the newest row; j = QuoteMessages − 1 − depth):
+         *   reply depth 0   (the peer's,  row 1 of the open chat) → MY target at depth 320     "QUOTE TARGET A …"
+         *   reply depth 1   (mine,        row 2)                  → the PEER's target at 415   "QUOTE TARGET B …"
+         *   reply depth 170 (mine)                                → the PEER's target at 485   "QUOTE TARGET C …"
+         *   reply depth 230 (the peer's)                          → MY target at 640           "QUOTE TARGET D …"
+         * The page math (Config.messagesToLoad = 50, HistoryOlderRules.nextShow): the window after k older pages is
+         *   FirstOlderPage50 OFF: 50, 150, 200, 250, 300 …   ON: 50, 100, 150, 200, 250 …
+         * so every target lies ≥ 3 older pages above its reply in BOTH states, deeper than the window after three older pages (250 / 200),
+         * and below ReplyQuote.DeepSearchMax / SharedItems.JumpCap (1000). Depth 230 is reached after three older pages with the switch
+         * OFF, depth 170 after three with it ON. WalkTools2SeedTests executes all of it. Every target text has its OWN excerpt in the chat.
+         * Every row id = the FIRST 16 bytes of messageIdFor(56, j) (quoteRowIdFor; #1882: SingleChatPage.parseMessageIdHex takes ≤ 32 hex,
+         * so reply, edit and the quote jump work on any row). FIXED times: the newest row = ImageAnchor − 6 h (below the file chats), each
+         * earlier one GapSeconds before; all before the contact's addedTimestamp, so none is unread. */
+        public const int QuoteChatFirst = FileChatFirst + FileChats;   // seed index 56 → "Seed 57"
+        public const int QuoteChats = 1;
+        public const int QuoteChat = QuoteChatFirst;
+        public const int QuoteMessages = 1000;
+        public const long QuoteAnchor = ImageAnchor - 6 * 3600L;       // the newest row of Seed 57 (2026-01-01 06:00 UTC)
+
+        private static readonly string[] QuoteNames = { "Mojca Vrabec" };
+
+        /* the plain rows: a fixed line + its row number from the oldest (1 … 1000), so every plain row is unique and the walk can say where it is */
+        private static readonly string[] QuoteLines = {
+            "Did you see the forecast for the weekend?",
+            "Yes, rain on Saturday and sun on Sunday.",
+            "Let us move the hike to Sunday then.",
+            "Good idea. Same time, eight in the morning?",
+            "Eight is fine. I will bring the map.",
+            "Do not forget the water bottles.",
+            "Packed already. Who drives?",
+            "I can drive, my car has four seats.",
+            "Great, see you at the station.",
+            "See you there.",
+        };
+
+        /* the four replies: their depth, their target's depth, who sent the REPLY (true = I did; the target is always the other side's), the target's text, the reply's body */
+        private static readonly int[] ReplyDepths = { 0, 1, 170, 230 };
+        private static readonly int[] TargetDepths = { 320, 415, 485, 640 };
+        private static readonly bool[] ReplyLocal = { false, true, true, false };
+        private static readonly string[] TargetTexts = {
+            "QUOTE TARGET A — the blue boat leaves at noon.",
+            "QUOTE TARGET B — the red key is under the mat.",
+            "QUOTE TARGET C — the green door opens at nine.",
+            "QUOTE TARGET D — the yellow bike needs a new chain.",
+        };
+        private static readonly string[] ReplyBodies = {
+            "REPLY A — yes, I will be at the boat by noon.",
+            "REPLY B — found the key, thanks.",
+            "REPLY C — nine is fine for the green door.",
+            "REPLY D — I will buy the chain tomorrow.",
+        };
+
+        public sealed class QuoteMsg
+        {
+            public int j;                 // the message index: quoteRowIdFor(i, j)
+            public bool local;            // true = I sent it
+            public string text = "";      // the stored text (a reply: the quote line + "\n" + the body)
+            public long ts;
+            public int targetJ = -1;      // a reply: the j of the row it quotes; -1 = not a reply
+            public bool isTarget;         // a row a reply quotes
+        }
+
+        public static bool isQuoteChat(int i)
+        {
+            return i >= QuoteChatFirst && i < QuoteChatFirst + QuoteChats;
+        }
+
+        /** The contact's name: "Seed 57 Mojca Vrabec" (the "Seed NN " shape of every seed contact). */
+        public static string quoteNick(int i)
+        {
+            if (!isQuoteChat(i))
+            {
+                throw new ArgumentOutOfRangeException(nameof(i));
+            }
+            return "Seed " + (i + 1).ToString("00", CultureInfo.InvariantCulture) + " " + QuoteNames[i - QuoteChatFirst];
+        }
+
+        /** The rows of quote chat `i`, oldest first (j = 0 … QuoteMessages − 1), with their FIXED times. Empty for any other i. */
+        public static List<QuoteMsg> quotePlan(int i)
+        {
+            List<QuoteMsg> l = new List<QuoteMsg>();
+            if (!isQuoteChat(i))
+            {
+                return l;
+            }
+            for (int j = 0; j < QuoteMessages; j++)
+            {
+                l.Add(new QuoteMsg { j = j, local = j % 2 == 1, text = QuoteLines[j % QuoteLines.Length] + " (row " + (j + 1).ToString(CultureInfo.InvariantCulture) + ")" });
+            }
+            for (int r = 0; r < ReplyDepths.Length; r++)
+            {
+                QuoteMsg target = l[QuoteMessages - 1 - TargetDepths[r]];
+                target.local = !ReplyLocal[r];
+                target.text = TargetTexts[r];
+                target.isTarget = true;
+            }
+            for (int r = 0; r < ReplyDepths.Length; r++)
+            {
+                QuoteMsg reply = l[QuoteMessages - 1 - ReplyDepths[r]];
+                QuoteMsg target = l[QuoteMessages - 1 - TargetDepths[r]];
+                // the app's own reply text (SingleChatPage.composeReply): the target's excerpt as the page computes it, no name in a 1:1
+                string? excerpt = ReplyQuote.excerptOf(IXICore.Streaming.FriendMessageType.standard, target.text, null, false);
+                if (excerpt == null)
+                {
+                    throw new InvalidOperationException("quote target");
+                }
+                reply.local = ReplyLocal[r];
+                reply.text = ReplyQuote.compose("", excerpt, ReplyBodies[r]);
+                reply.targetJ = target.j;
+            }
+            // times: the newest = QuoteAnchor (fixed); each earlier one GapSeconds before — strictly increasing
+            long qAt = QuoteAnchor;
+            for (int x = l.Count - 1; x >= 0; x--)
+            {
+                l[x].ts = qAt;
+                qAt -= GapSeconds;
+            }
+            return l;
+        }
+
+        /** The id the seed gives row j of quote chat `i`: the FIRST 16 bytes (RealMessageIdLength) of messageIdFor(i, j) — the length of a
+         *  real message id, so SingleChatPage.parseMessageIdHex (≤ 2 × CoreConfig.maxMessageIdSize hex) accepts it (#1882). */
+        public static byte[] quoteRowIdFor(int i, int j)
+        {
+            byte[] qFull = messageIdFor(i, j);
+            byte[] qId = new byte[RealMessageIdLength];
+            Array.Copy(qFull, 0, qId, 0, RealMessageIdLength);
+            return qId;
+        }
+
+        /** What the seed does with a PRESENT quote chat, given the ids of Core's in-memory list (null = unreadable) — the file chats'
+         *  rule (topUpAction, #46 r2 B2-5): EMPTY → write; the plan's NEWEST row there → skip; anything else → partial (no write,
+         *  "Remove the seed, then Seed"; Core sees only its in-memory window, so a top-up would store the older rows twice, #1571). */
+        public static string quoteTopUpAction(IReadOnlyCollection<byte[]?>? presentIds, int i)
+        {
+            List<QuoteMsg> l = quotePlan(i);
+            if (presentIds == null || l.Count == 0)
+            {
+                return TopUpPartial;
+            }
+            if (presentIds.Count == 0)
+            {
+                return TopUpWrite;
+            }
+            byte[] qNewest = quoteRowIdFor(i, l[l.Count - 1].j);
+            foreach (byte[]? id in presentIds)
+            {
+                if (id != null && id.Length == qNewest.Length && isOurs(id, qNewest))
+                {
+                    return TopUpSkip;
+                }
+            }
+            return TopUpPartial;
         }
 
         // ═══ the PNG ═══

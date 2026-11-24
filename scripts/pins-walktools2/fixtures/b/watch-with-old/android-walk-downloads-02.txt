@@ -1,0 +1,6 @@
+12-01 10:03:00.300 4242 4243 I DOTNET  : 12-01 10:03:00.3000|info|1: [WEBVIEW] WARNING [P1] shell send loaddownloads dt=52 (file:///android_asset/html/spixi.bundle.js:47)
+12-01 10:03:00.600 4242 4243 I DOTNET  : 12-01 10:03:00.6000|info|1: [WEBVIEW] WARNING [P1] shell subscreen-open first=122 (file:///android_asset/html/spixi.bundle.js:47)
+12-01 10:03:00.650 4242 4243 I DOTNET  : 12-01 10:03:00.6500|info|1: [WEBVIEW] WARNING [P1] shell frames-subscreen-open n=30 drop=2 max=37 (file:///android_asset/html/spixi.bundle.js:47)
+12-01 10:03:02.200 4242 4243 I DOTNET  : 12-01 10:03:02.2000|info|1: [WEBVIEW] WARNING [P1] shell scroll down ms=800 n=40 drop=1 max=30 (file:///android_asset/html/spixi.bundle.js:47)
+12-01 10:03:03.200 4242 4243 I DOTNET  : 12-01 10:03:03.2000|info|1: [WEBVIEW] WARNING [P1] shell scroll up ms=800 n=40 drop=2 max=31 (file:///android_asset/html/spixi.bundle.js:47)
+12-01 10:03:03.299 4242 4243 I DOTNET  : 12-01 10:03:03.3000|info|1: [WEBVIEW] WARNING [P1] shell longtask scroll ms=57 (file:///android_asset/html/spixi.bundle.js:47)

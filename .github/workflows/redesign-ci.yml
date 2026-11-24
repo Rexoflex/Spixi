@@ -60,11 +60,12 @@ jobs:
     - name: List the .NET SDKs (CSH uses the newest one)
       run: dotnet --list-sdks
 
-    # Every version is pinned to what the 2026-11-11 run used. jsdom MUST stay pinned: jsdom 31.0.0 (2026-11-05) fails
-    # 6 smoke rows (#346 x5, N19) that pass on 29.1.1 on the same tree (docs/lessons.md L160). Move a pin only together
-    # with a full smoke run on the new version.
-    - name: Install test tools (the ONE npm line, versions pinned)
-      run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5
+    # The committed package-lock.json pins every tool and every package under it (ruling #1831); package.json holds the five
+    # tools at exact versions. jsdom MUST stay pinned: jsdom 31.0.0 (2026-11-05) fails 6 smoke rows (#346 x5, N19) that pass
+    # on 29.1.1 on the same tree (docs/lessons.md L160); it stays 29.1.1. Move a pin only together with a full smoke run on
+    # the new version, and change package.json and the lock in the same commit.
+    - name: Install test tools (the lockfile pins every tool)
+      run: npm ci
 
     - name: Gate - build-shells --check
       id: gate_shells

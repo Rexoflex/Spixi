@@ -27,7 +27,7 @@
  *     written as a flow mapping (`env: { A: b }`);
  *   - "no network tool" (row 11) is checked in the text of the two new steps (the comment lines inside the step included, so they
  *     must not name them; a comment above a step belongs to the step before it): curl, wget, npm i / install / ci, npx, pip,
- *     dotnet tool, git clone; file-wide for curl / wget; the one base `npm i` line is allowed by name. A fetch by `node -e`,
+ *     dotnet tool, git clone; file-wide for curl / wget; the file holds exactly one live npm line (npm i / install / ci), and since walktools2 it is `npm ci`; row 17 holds its exact text. A fetch by `node -e`,
  *     `dotnet restore` or a repo script that opens a socket is NOT matched (the harness is proven offline by a run with the
  *     network blocked, in the builder's report);
  *   - the annotation and upload rows read the lines of those steps; they cannot know that `publish` really prints.
@@ -54,11 +54,26 @@ const FROZEN_JOB_IF = ["    if: github.repository == 'Rexoflex/Spixi'   # the fo
 const BASE_WORKFLOW_SHA256 = '45b8b1fd129e91d6a361fe584030f791ed3a762d8ec602e078d9a21c0d203167';
 const CUT_PIECES = ['        O_XPARSER: ${{ steps.xparser.outcome }}\n', '        O_MSBUILDH: ${{ steps.msbuildh.outcome }}\n',
   '        publish xparser "$O_XPARSER"\n', '        publish msbuild-harness "$O_MSBUILDH"\n', '          xparser.log\n', '          msbuild-harness.log\n'];
+/* ★ walktools2 re-base (2026-11-23; after a look at the diff, #1596 / #1634, ruling #1831): the install step is the ONE piece of the file that moved — its four
+ * comment lines, its name and its run line (`npm i --no-save <five tools>` -> `npm ci`, the lockfile pins every tool). Row 17 puts the EXACT new block back to the
+ * EXACT base block (each found once) before it hashes, so the file admits this block and nothing else: an extra argument (`npm ci --foo`), a changed name or a
+ * second run line is red here. The base hash constant below is unchanged. */
+const NEW_INSTALL = ['    # The committed package-lock.json pins every tool and every package under it (ruling #1831); package.json holds the five',
+  '    # tools at exact versions. jsdom MUST stay pinned: jsdom 31.0.0 (2026-11-05) fails 6 smoke rows (#346 x5, N19) that pass',
+  '    # on 29.1.1 on the same tree (docs/lessons.md L160); it stays 29.1.1. Move a pin only together with a full smoke run on',
+  '    # the new version, and change package.json and the lock in the same commit.',
+  '    - name: Install test tools (the lockfile pins every tool)', '      run: npm ci', ''].join('\n');
+const BASE_INSTALL = ['    # Every version is pinned to what the 2026-11-11 run used. jsdom MUST stay pinned: jsdom 31.0.0 (2026-11-05) fails',
+  '    # 6 smoke rows (#346 x5, N19) that pass on 29.1.1 on the same tree (docs/lessons.md L160). Move a pin only together',
+  '    # with a full smoke run on the new version.',
+  '    - name: Install test tools (the ONE npm line, versions pinned)',
+  '      run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5', ''].join('\n');
 function baseShaOk(t) {
   const a = t.indexOf('    # Proves, with two parsers'); const b = t.indexOf('    # Only for a step that itself failed');
   if (a < 0 || b < a || t.indexOf('    # Proves, with two parsers', a + 1) >= 0) return false;
   let s = t.slice(0, a) + t.slice(b);
   for (const p of CUT_PIECES) { if (s.split(p).length !== 2) return false; s = s.replace(p, ''); }
+  if (s.split(NEW_INSTALL).length !== 2) return false; s = s.replace(NEW_INSTALL, () => BASE_INSTALL);   // ★ walktools2 re-base: the new install block, found once, back to the base block
   return createHash('sha256').update(s).digest('hex') === BASE_WORKFLOW_SHA256;
 }
 
@@ -148,9 +163,9 @@ function rows(t) {
     !/\bsecrets\b/.test(live) && !/\bgithub\.token\b/.test(live) && !/GITHUB_TOKEN/.test(live) && !/pull_request_target/.test(live) &&
     !exprs.some((e) => /\bsecrets\b|\bgithub\.token\b|GITHUB_TOKEN|\bgithub\s*\[\s*['"]token['"]\s*\]/i.test(e));
   const newText = mine.map((m) => m.s.map((s) => s.lines.join('\n')).join('\n')).join('\n');
-  R['11 no curl / wget / npm i / npx / pip / dotnet tool / git clone in a new step; no curl / wget in the file; the one base npm i line only'] =
+  R['11 no curl / wget / npm i / npx / pip / dotnet tool / git clone in a new step; no curl / wget in the file; exactly one live npm line in the file (npm ci)'] =
     newText.length > 0 && !/\b(curl|wget)\b/.test(newText) && !/\bnpm\s+(i|install|ci)\b/.test(newText) && !/\b(npx|pip3?)\b/.test(newText) && !/\bdotnet\s+tool\b/.test(newText) && !/\bgit\s+clone\b/.test(newText) && !/\b(curl|wget)\b/.test(live) &&
-    lines(t).filter((l) => /\bnpm\s+(i|install|ci)\b/.test(noComment(l))).length === 1;
+    lines(t).filter((l) => /\bnpm\s+(i|install|ci)\b/.test(noComment(l))).length === 1;   // ★ walktools2: the one npm line of the file is `npm ci` now (row 17 holds its exact text)
   R['12 every env: line of the file equals the frozen list (the base set + the two new O_* names)'] = same(envLines(t), FROZEN_ENV);
   R['13 the step-level if: lines equal the frozen list (the new steps, the annotation and upload steps)'] = same(lines(t).filter((l) => /^      if: /.test(l)), FROZEN_STEP_IF);
   const dl = lines(t); const dflt = [];
@@ -227,7 +242,8 @@ export default async function ({ ok, root }) {
       const m = rep('        repository: ixian-platform/Ixian-Core\n        ref: ${{ env.IXIAN_CORE_REF }}\n        path: Ixian-Core\n        persist-credentials: false\n', '        repository: ixian-platform/Ixian-Core\n        ref: ${{ env.IXIAN_CORE_REF }}\n        path: Ixian-Core\n');
       return m.replace('        retention-days: 14\n', '        retention-days: 14\n        persist-credentials: false\n'); })()],
     [k17, 'another repository for the Core checkout', rep('        repository: ixian-platform/Ixian-Core\n', '        repository: someone/Ixian-Core\n')],
-    [k17, 'one more package on the npm line', rep('tree-sitter-c-sharp@0.23.5\n', 'tree-sitter-c-sharp@0.23.5 left-pad@1.3.0\n')],
+    // ★ walktools2 re-base (2026-11-23): the npm line is `npm ci` now (was `npm i --no-save <five tools>`); the break keeps its meaning (one more thing on the npm line) with the new anchor
+    [k17, 'one more argument on the npm line', rep('      run: npm ci\n', '      run: npm ci left-pad@1.3.0\n')],
   );
   for (const [key, what, mut] of brk) {
     // row 17 holds the whole file, so every other break turns it red too: it is left out of the "only this row" test of the

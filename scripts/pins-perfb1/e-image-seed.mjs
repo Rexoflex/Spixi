@@ -265,10 +265,11 @@ export default async function (h) {
       completed: /fm\.transferId = SDevSeedPlan\.transferUid\(i, m\.j\);[\s\S]{0,300}?fm\.completed = true;\s*fm\.filePath = path;/.test(sIn) && (sIn.match(/fm\.completed = true;/g) || []).length === 1 && (sIn.match(/fm\.filePath = path;/g) || []).length === 1,
       album: /SPhotoGroups\.setMany\(peer, albumRows, peer\);/.test(sIn) && /PhotoRules\.groupArg\(album, m\.albumIndex, m\.albumCount, ""\)/.test(sIn),
       seedCalls: /status \+= " " \+ seedImageChats\(\);/.test(t),
-      /* the ONE removal loop of unseed walks 0 … 55 — the fifty, the image chats and the file chats (filewalk) — (a second FriendList.removeFriend site would break the S15 O-06 walk,
+      /* the ONE removal loop of unseed walks 0 … 56 — the fifty, the image chats, the file chats (filewalk) and the quote chat (walktools2) — (a second FriendList.removeFriend site would break the S15 O-06 walk,
          scripts/pins-s15/b-native.mjs: 7 sites); unseedImageChats then clears the groups and the files of a REMOVED chat only */
       /* ★ filewalk re-base: the bound now ends at the file chats (FileChatFirst = ImageChatFirst + ImageChats, no gap; pin a14) — still ONE site */
-      unseed: /public static string unseed\(\)\s*\{\s*int removed = 0, missing = 0, refused = 0;\s*for \(int i = 0; i < SDevSeedPlan\.FileChatFirst \+ SDevSeedPlan\.FileChats; i\+\+\)/.test(t)
+      /* ★ walktools2 re-base: … and the quote chat (QuoteChatFirst = FileChatFirst + FileChats, no gap; pins-walktools2/a-quote-seed q2) — still ONE site */
+      unseed: /public static string unseed\(\)\s*\{\s*int removed = 0, missing = 0, refused = 0;\s*for \(int i = 0; i < SDevSeedPlan\.QuoteChatFirst \+ SDevSeedPlan\.QuoteChats; i\+\+\)/.test(t)
         && (t.match(/FriendList\.removeFriend\(/g) || []).length === 1
         && uIn.includes(LOOP) && /if \(FriendList\.getFriend\(address\) != null\)\s*\{\s*refused\+\+;[^}]*continue;\s*\}\s*SPhotoGroups\.clear\(address\.ToString\(\)\);/.test(uIn)
         && /status \+= " " \+ unseedImageChats\(\);/.test(t),
@@ -408,15 +409,15 @@ export default async function (h) {
     const seed1 = bodyOf(/public static string seed\(string profile\)/);
     const WANT = {
       names: 'd126dcf2e31f16f0c1820517d3f6889b27b44c95acd54bdd3f89cc6708441d76', lines: 'a29100b33df4512dd26da5a9d0abb6d8fd6c8809bdb3c91cec67774ca2460489',
-      seed0: '932b132d96d1e310fd69c5274e27935b129a1fda3c1f352f7d92dc0f4d67a325', seedBody: '4e8a6e74a0c6367d426ba5a1521fbbdbcee34880c312da50410b38205ffca367',   // ★ filewalk re-base: + `status += " " + seedFileChats();`
-      unseed: '9bdb6bcdaffdcc81d0ad402c41e1b0bfeae60a6ddbb3f3200ac2e03cf34f6998', status: 'db15f480ecf0dc2c6be0927620b26050ce6d9bedb08e54233df213157923fe47',   // ★ filewalk re-base: + one hook statement each (unseed: `status += " " + unseedFileChats();` + the loop bound FileChatFirst + FileChats; status: the `if (… fileChatsPresent() > 0) return …;` line)
+      seed0: '932b132d96d1e310fd69c5274e27935b129a1fda3c1f352f7d92dc0f4d67a325', seedBody: 'a1f7266372f1c01b6f6236da315d2893210fb593064846b39f0a47b04d0bb4ac',   // ★ filewalk re-base: + `status += " " + seedFileChats();` · ★ walktools2 re-base: + `status += " " + seedQuoteChat();`
+      unseed: '0193d7ee2519c00a94ebd09601945344a8c357a6d90889282945357f151ffc6f', status: '0720fb8c4506167ec1aa90e69bf9f89f53a6f86f39e8abca67d1a5fcfdebd56a',   /* ★ walktools2 re-base: unseed's loop bound → QuoteChatFirst + QuoteChats; status's ONE return statement + `|| quoteChatsPresent() > 0` and ", n of 1 quote chat (Seed 57)" (pins-walktools2/a-quote-seed q2) */   // ★ filewalk re-base: + one hook statement each (unseed: `status += " " + unseedFileChats();` + the loop bound FileChatFirst + FileChats; status: the `if (… fileChatsPresent() > 0) return …;` line)
     };
     const got = {
       names: sha(arr('Names')), lines: sha(arr('Lines')), seed0: sha(bodyOf(/public static string seed\(\)/)), seedBody: sha(seed1),
       unseed: sha(bodyOf(/public static string unseed\(\)/)), status: sha(bodyOf(/public static string status\(\)/)),
     };
     const r = Object.fromEntries(Object.keys(WANT).map((k) => [k, got[k] === WANT[k]]));
-    r.endsAtStatus = seed1.startsWith('if (profile != "heavy") profile = "light";') && seed1.endsWith('status += " " + seedImageChats(); status += " " + seedFileChats(); Logging.info("[DEVSEED] " + status); return status;');   // ★ filewalk re-base
-    ok(Object.values(r).every(Boolean), '★ perfb1 seed (11) (#46 r2 R2-2 + r3 R3-1): the rest of Seed 01–50 is frozen — the Names and Lines arrays and the WHOLE bodies of seed(), seed(string profile), unseed() and status() equal their SHA-256; relative to the base a54808c: Names, Lines and seed() are identical; seed(profile) = base + the S-1 log line + `status += … seedImageChats()`; unseed() = base + the loop bound (now over 56 indexes: the fifty, the image chats and the file chats) + the S-1 log line + `status += … unseedImageChats()` + `status += … unseedFileChats()`; status() = base + the image half. A changed loop start, unread count, saveMetaData, text, name, an added statement after the status line, an unseed address or a status loop bound is red. Re-base: copy got=<hash> — ' + JSON.stringify({ ...r, got: Object.entries(got).filter(([k]) => !r[k]).map(([k, v]) => k + ' got=' + v) }));
+    r.endsAtStatus = seed1.startsWith('if (profile != "heavy") profile = "light";') && seed1.endsWith('status += " " + seedImageChats(); status += " " + seedFileChats(); status += " " + seedQuoteChat(); Logging.info("[DEVSEED] " + status); return status;');   // ★ filewalk re-base · ★ walktools2 re-base: + `status += " " + seedQuoteChat();`
+    ok(Object.values(r).every(Boolean), '★ perfb1 seed (11) (#46 r2 R2-2 + r3 R3-1): the rest of Seed 01–50 is frozen — the Names and Lines arrays and the WHOLE bodies of seed(), seed(string profile), unseed() and status() equal their SHA-256; relative to the base a54808c: Names, Lines and seed() are identical; seed(profile) = base + the S-1 log line + `status += … seedImageChats()`; unseed() = base + the loop bound (now over 57 indexes: the fifty, the image chats, the file chats and the quote chat) + the S-1 log line + `status += … unseedImageChats()` + `status += … unseedFileChats()`; status() = base + the image half. A changed loop start, unread count, saveMetaData, text, name, an added statement after the status line, an unseed address or a status loop bound is red. Re-base: copy got=<hash> — ' + JSON.stringify({ ...r, got: Object.entries(got).filter(([k]) => !r[k]).map(([k, v]) => k + ' got=' + v) }));
   }
 }

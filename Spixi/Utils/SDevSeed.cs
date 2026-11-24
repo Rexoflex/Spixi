@@ -60,6 +60,13 @@
  * (SDevSeedPlan.FileChatFirst + FileChats, so it removes the file chats' contacts too). seedFileChats / unseedFileChats /
  * fileChatsPresent and their helpers are new; no other Seed 01–53 statement changed. unseedFileChats clears files only. status(): when anything is seeded the sentence is the old one with ", n of 3 file chats
  * (Seed 54-56)" before its full stop — always, so it is the same shape on every account; "Nothing seeded." when nothing is.
+ *
+ * ★ walktools2 seed (contract-walktools2 I-1) — THE QUOTE CHAT. Seed index 56 ("Seed 57 Mojca Vrabec") follows the file chats without a
+ * gap: exactly 1000 TEXT rows (SDevSeedPlan.quotePlan), four of them replies in the app's own stored shape, every id 16 bytes
+ * (SDevSeedPlan.quoteRowIdFor), FIXED times below the file chats, the file chats' top-up rule; no file, no network. Three statements hook
+ * it in, one each in seed(profile), unseed() (the ONE removal loop's bound now ends at the quote chat: QuoteChatFirst + QuoteChats) and
+ * status() (", n of 1 quote chat (Seed 57)" before its full stop; the quote chat alone also counts as "seeded"). seedQuoteChat and
+ * quoteChatsPresent are new; no other Seed 01–56 statement changed. So "Remove seeded contacts" now removes 57 contacts.
  */
 #if SPIXI_DEV_COEXIST
 using IXICore;
@@ -222,6 +229,7 @@ namespace SPIXI
                 + (refused > 0 ? ", " + refused + " already present" : "") + ").";
             status += " " + seedImageChats();   // ★ perfb1 seed: after the clock stopped — the ms/msg above stays the fifty's
             status += " " + seedFileChats();   // ★ filewalk seed: Seed 54–56 (documents, voice, the 100-message photo chat)
+            status += " " + seedQuoteChat();   // ★ walktools2: Seed 57 (the quote chat: 1000 text rows, four of them replies)
             Logging.info("[DEVSEED] " + status);
             return status;
         }
@@ -736,12 +744,80 @@ namespace SPIXI
             return ids;
         }
 
+        /* ★ walktools2 item 1 (contract-walktools2 I-1) — THE QUOTE CHAT (SDevSeedPlan.quotePlan: seed index 56, "Seed 57"): exactly
+         * SDevSeedPlan.QuoteMessages TEXT rows through Core's FriendList.addMessageWithType like Seed 01–50 (no file, no folder, no
+         * network), four of them replies in the app's own stored shape (the plan builds them with ReplyQuote.compose / excerptOf). Every
+         * row id = SDevSeedPlan.quoteRowIdFor (16 bytes, #1882). FIXED times (the plan). A PRESENT chat follows the file chats' rule
+         * (SDevSeedPlan.quoteTopUpAction: an EMPTY Core list → write; the newest row there → skip; else partial: "Remove the seed, then
+         * Seed", #1571). Never throws; the log lines carry the seed index, j and exception TYPES only. Runs after the file chats. */
+        private static string seedQuoteChat()
+        {
+            int added = 0, present = 0, newest = 0, partly = 0, texts = 0, refused = 0, rowsRefused = 0;
+            string rowFirst = "";   // ★ #46 r1 NIT-5: the first refused row only (index + type); the count follows after the loop
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                for (int i = SDevSeedPlan.QuoteChatFirst; i < SDevSeedPlan.QuoteChatFirst + SDevSeedPlan.QuoteChats; i++)
+                {
+                    Address address = addressFor(i);
+                    Friend? friend = FriendList.addFriend(FriendType.Normal, FriendState.Approved, address, null, SDevSeedPlan.quoteNick(i), null, null, 0, true);
+                    if (friend == null)
+                    {
+                        friend = FriendList.getFriend(address);   // already there: the top-up rule
+                        if (friend == null) { refused++; continue; }
+                        present++;
+                        string qTopUp = SDevSeedPlan.quoteTopUpAction(presentIds(friend), i);
+                        if (qTopUp == SDevSeedPlan.TopUpSkip) { newest++; continue; }
+                        if (qTopUp != SDevSeedPlan.TopUpWrite) { partly++; continue; }
+                    }
+                    else
+                    {
+                        added++;
+                    }
+                    foreach (SDevSeedPlan.QuoteMsg m in SDevSeedPlan.quotePlan(i))
+                    {
+                        try
+                        {
+                            if (FriendList.addMessageWithType(SDevSeedPlan.quoteRowIdFor(i, m.j), FriendMessageType.standard, address, 0, m.text, m.local, null, m.ts, false, 0) != null) texts++;
+                        }
+                        catch (Exception e)
+                        {
+                            refused++;
+                            if (rowsRefused++ == 0) rowFirst = i + ":" + m.j + " (" + e.GetType().Name + ")";
+                        }
+                    }
+                    friend.save();
+                }
+            }
+            catch (Exception e)
+            {
+                refused++;
+                Logging.warn("[DEVSEED] quote chat stopped (" + e.GetType().Name + ")");
+            }
+            clock.Stop();
+            if (rowsRefused > 0) Logging.warn("[DEVSEED] quote chat: " + rowsRefused + " messages skipped, the first " + rowFirst);
+            UIHelpers.shouldRefreshContacts = true;
+            return "Quote chat (Seed 57): " + added + " added, " + present + " present (" + newest + " with the newest row, skipped" + (partly > 0 ? "; " + partly + " partial: Remove the seed, then Seed" : "") + "), " + texts
+                + " texts written in " + clock.ElapsedMilliseconds + " ms" + (refused > 0 ? ", " + refused + " refused" : "") + ".";
+        }
+
+        /** ★ walktools2: how many quote chats are present (0 or 1). */
+        private static int quoteChatsPresent()
+        {
+            int n = 0;
+            for (int i = SDevSeedPlan.QuoteChatFirst; i < SDevSeedPlan.QuoteChatFirst + SDevSeedPlan.QuoteChats; i++)
+            {
+                if (FriendList.getFriend(addressFor(i)) != null) n++;
+            }
+            return n;
+        }
+
         /// <summary>Remove exactly the seeded contacts. Returns the status sentence.</summary>
         public static string unseed()
         {
             int removed = 0, missing = 0, refused = 0;
             // ★ perfb1 seed: the same ONE removal walks the image chats too (seed index 50–52 follow the fifty)
-            for (int i = 0; i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats; i++)   // ★ filewalk seed: … and the file chats (53–55 follow 52 without a gap)
+            for (int i = 0; i < SDevSeedPlan.QuoteChatFirst + SDevSeedPlan.QuoteChats; i++)   // ★ filewalk seed: … and the file chats (53–55 follow 52 without a gap) · ★ walktools2: … and the quote chat (56 follows 55)
             {
                 Friend? friend = FriendList.getFriend(addressFor(i));
                 if (friend == null) { missing++; continue; }
@@ -777,7 +853,7 @@ namespace SPIXI
             {
                 if (FriendList.getFriend(addressFor(i)) != null) images++;
             }
-            if (present > 0 || images > 0 || fileChatsPresent() > 0) return present + " of " + Count + " seeded contacts present, " + images + " of " + SDevSeedPlan.ImageChats + " image chats (Seed 51-53), " + fileChatsPresent() + " of " + SDevSeedPlan.FileChats + " file chats (Seed 54-56).";   // ★ filewalk seed
+            if (present > 0 || images > 0 || fileChatsPresent() > 0 || quoteChatsPresent() > 0) return present + " of " + Count + " seeded contacts present, " + images + " of " + SDevSeedPlan.ImageChats + " image chats (Seed 51-53), " + fileChatsPresent() + " of " + SDevSeedPlan.FileChats + " file chats (Seed 54-56), " + quoteChatsPresent() + " of " + SDevSeedPlan.QuoteChats + " quote chat (Seed 57).";   // ★ filewalk seed · ★ walktools2: + the quote chat
             if (present == 0 && images == 0)
             {
                 return "Nothing seeded.";

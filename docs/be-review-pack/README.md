@@ -131,6 +131,7 @@ Header row: risk · money / keys · bridge change · status · minutes. Then **L
 | [P97](P97-lock-hold-while-deferred.md) | Lock batch item 1 (#1825 (1)): the Android pause lock holds its form until the prompt (two ignored values of the existing push `setAuthPending`) and pops with no animation (flag `HoldWhileDeferred`) | LOW–MEDIUM | no | none (existing push values) | built · ⚠ uncompiled | 6 min |
 | [P98](P98-lock-no-alert-no-credential.md) | Lock batch item 2 (#1825 (2)): no "Authentication Failed" alert when the prompt returns NotAvailable / Denied (flag `NoAlertNoCredential`) | LOW | no | none | built · ⚠ uncompiled | 3 min |
 | [P99](P99-lock-second-clock.md) | Lock batch item 3 (#1825 (3)): the lock delay is also measured on Android `ElapsedRealtime`; can only add locks (flag `SecondClock`) | MEDIUM | no | none | built · ⚠ uncompiled | 6 min |
+| [P102](P102-walktools2-quote-seed-coldstart-watch-lockfile.md) | Walk tools 2: the dev seed's quote chat Seed 57 (developer builds), the adb walk step `coldstart-watch` and its ONE new adb command (the events pull cut on the phone by `grep -o -E`), home probe sets, the test-tool lockfile + `npm ci` | LOW | no | none | built · ⚠ uncompiled (`SDevSeed.cs`) | 3 min |
 | [Core](core-asks.md) | Everything that needs Ixian-Core (BE-only) | — | — | — | asks | 5 |
 | [Legacy](legacy-not-ours.md) | Inherited exposures we did NOT change | — | — | — | yours | 5 |
 

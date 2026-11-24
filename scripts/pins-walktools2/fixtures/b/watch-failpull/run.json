@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "tool": "adb-walk",
+  "run": "synthetic-watch-failpull",
+  "mode": "walk",
+  "adbHook": true,
+  "device": {
+    "model": "synthetic",
+    "release": "14",
+    "refresh": "renderFrameRate=60",
+    "dnd": "on"
+  },
+  "app": {
+    "package": "com.example.synthetic",
+    "versionName": "0.0.0",
+    "versionCode": "1"
+  },
+  "flags": {
+    "asked": null,
+    "logged": "not read",
+    "ok": true
+  },
+  "repeats": 2,
+  "stepsRequested": [
+    "coldstart-watch"
+  ],
+  "coldstartWatch": {
+    "waitSec": 10
+  },
+  "reps": [
+    {
+      "step": "coldstart-watch",
+      "rep": 1,
+      "status": "ok",
+      "t0": "12-01T11:00:00.000",
+      "stamp2": "12-01T11:00:10.000",
+      "am": {
+        "totalTime": 1201,
+        "waitTime": 1211,
+        "launchState": "COLD"
+      },
+      "watch": {
+        "proven": true,
+        "pidsAtStart": 1,
+        "pid": 4311,
+        "pidsAfter": 1,
+        "pidInAfter": true,
+        "samePid": true,
+        "front": true
+      },
+      "note": ""
+    },
+    {
+      "step": "coldstart-watch",
+      "rep": 2,
+      "status": "error",
+      "t0": "12-01T11:01:00.000",
+      "stamp2": "12-01T11:01:10.000",
+      "log": "android-walk-coldstart-watch-02.txt",
+      "am": {
+        "totalTime": 1202,
+        "waitTime": 1212,
+        "launchState": "COLD"
+      },
+      "watch": {
+        "proven": false,
+        "pidsAtStart": 1,
+        "pid": 4312,
+        "pidsAfter": 0,
+        "pidInAfter": false,
+        "samePid": false,
+        "front": false,
+        "eventsPull": "failed",
+        "logPull": "ok"
+      },
+      "note": "not proven: the process of the start is gone, events pull: filtered write failed (exit 255)"
+    }
+  ],
+  "memory": [],
+  "finished": true
+}

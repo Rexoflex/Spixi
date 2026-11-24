@@ -236,9 +236,10 @@ export default async function (h) {
   /* ── a10 hooks ── */
   {
     const seed1 = bodyN(S, /public static string seed\(string profile\)/), uns = bodyN(S, /public static string unseed\(\)/), st = bodyN(S, /public static string status\(\)/);
-    const STATUS = 'if (present > 0 || images > 0 || fileChatsPresent() > 0) return present + " of " + Count + " seeded contacts present, " + images + " of " + SDevSeedPlan.ImageChats + " image chats (Seed 51-53), " + fileChatsPresent() + " of " + SDevSeedPlan.FileChats + " file chats (Seed 54-56)."; if (present == 0 && images == 0) { return "Nothing seeded."; }';
+    /* ★ walktools2 re-base: the same ONE statement gains `|| quoteChatsPresent() > 0` and ", n of 1 quote chat (Seed 57)" (pins-walktools2/a-quote-seed q2) */
+    const STATUS = 'if (present > 0 || images > 0 || fileChatsPresent() > 0 || quoteChatsPresent() > 0) return present + " of " + Count + " seeded contacts present, " + images + " of " + SDevSeedPlan.ImageChats + " image chats (Seed 51-53), " + fileChatsPresent() + " of " + SDevSeedPlan.FileChats + " file chats (Seed 54-56), " + quoteChatsPresent() + " of " + SDevSeedPlan.QuoteChats + " quote chat (Seed 57)."; if (present == 0 && images == 0) { return "Nothing seeded."; }';
     const r = {
-      seed: seed1.endsWith('status += " " + seedImageChats(); status += " " + seedFileChats(); Logging.info("[DEVSEED] " + status); return status;'),
+      seed: seed1.endsWith('status += " " + seedImageChats(); status += " " + seedFileChats(); status += " " + seedQuoteChat(); Logging.info("[DEVSEED] " + status); return status;'),   // ★ walktools2 re-base: + the quote-chat hook after the file line (pins-walktools2/a-quote-seed q2)
       unseed: uns.includes('status += " " + unseedImageChats(); status += " " + unseedFileChats(); UIHelpers.shouldRefreshContacts = true;'),
       status: st.includes(STATUS) && (st.match(/fileChatsPresent\(\)/g) || []).length === 2,
       once: (S.match(/\bseedFileChats\(\)/g) || []).length === 2 && (S.match(/\bunseedFileChats\(\)/g) || []).length === 2 && (S.match(/\bfileChatsPresent\(\)/g) || []).length === 3,
@@ -285,7 +286,8 @@ export default async function (h) {
     const u = norm(G.unseed);
     const uns = bodyN(S, /public static string unseed\(\)/);
     const r = {
-      loop: uns.startsWith('int removed = 0, missing = 0, refused = 0; for (int i = 0; i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats; i++) { Friend? friend = FriendList.getFriend(addressFor(i)); if (friend == null) { missing++; continue; } try { if (FriendList.removeFriend(friend)) { removed++; SPIXI.Meta.SNotificationPrefs.forgetContact(friend.walletAddress.ToString()); } else refused++; }'),
+      /* ★ walktools2 re-base: the bound ends at the quote chat (QuoteChatFirst = FileChatFirst + FileChats: the file chats are still inside it) */
+      loop: uns.startsWith('int removed = 0, missing = 0, refused = 0; for (int i = 0; i < SDevSeedPlan.QuoteChatFirst + SDevSeedPlan.QuoteChats; i++) { Friend? friend = FriendList.getFriend(addressFor(i)); if (friend == null) { missing++; continue; } try { if (FriendList.removeFriend(friend)) { removed++; SPIXI.Meta.SNotificationPrefs.forgetContact(friend.walletAddress.ToString()); } else refused++; }'),
       noGap: /public const int FileChatFirst = ImageChatFirst \+ ImageChats;/.test(P) && /public const int ImageChatFirst = Count;/.test(P),
       onlyRemoved: u.includes('for (int i = SDevSeedPlan.FileChatFirst; i < SDevSeedPlan.FileChatFirst + SDevSeedPlan.FileChats; i++) { Address address = addressFor(i); if (FriendList.getFriend(address) != null) { refused++; continue; } SPeerLocalStores.forget(address.ToString()); if (!fDirsOk) { continue; } foreach (SDevSeedPlan.FileMsg m in SDevSeedPlan.filePlan(i)) { if (!SDevSeedPlan.hasFile(m)) { continue; }'),
       order: u.indexOf('deleteFileChatTmp(') >= 0 && u.indexOf('deleteFileChatTmp(') < u.indexOf('File.Delete(fPath)'),
@@ -339,7 +341,8 @@ export default async function (h) {
     const got = Object.fromEntries(Object.entries(NAMES).map(([k, re]) => [k, sha(bodyN(S, re))]));
     const bodies = Object.fromEntries(Object.entries(NAMES).map(([k, re]) => [k, bodyN(S, re).length]));
     /* every private static method that is not Seed 01–53 code is one of NAMES (a new helper must be added here) */
-    const OLD = ['addressFor', 'messageIdFor', 'countFor', 'seedImageChats', 'stateOf', 'ensurePhoto', 'deleteOwnTmp', 'unseedImageChats'];
+    /* ★ walktools2 re-base: + the quote chat's two methods (not file-chat glue; frozen by pins-walktools2/a-quote-seed q8) */
+    const OLD = ['addressFor', 'messageIdFor', 'countFor', 'seedImageChats', 'stateOf', 'ensurePhoto', 'deleteOwnTmp', 'unseedImageChats', 'seedQuoteChat', 'quoteChatsPresent'];
     const priv = [...S.matchAll(/private static [\w<>\[\]?, ]+? (\w+)\(/g)].map((m) => m[1]).filter((n) => !OLD.includes(n));
     const r = Object.fromEntries(Object.keys(WANT).map((k) => [k, got[k] === WANT[k] && bodies[k] > 40]));
     r.allNamed = JSON.stringify(priv.slice().sort()) === JSON.stringify(Object.keys(NAMES).sort());

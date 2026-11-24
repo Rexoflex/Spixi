@@ -6214,8 +6214,16 @@ console.log('missing-bits Batch B — B2 pattern default · B3 tx-details shell 
       const fileCount = (lockF4.match(/PopModalAsync\(/g) || []).length;
       const guardAt = pom.indexOf('Navigation.ModalStack.LastOrDefault() == this');
       const popAt = pom.indexOf('Navigation.PopModalAsync(');
-      ok(fileCount === 1 && popCount === 1 && guardAt >= 0 && popAt > guardAt,
-        '★★ PIN-D (#46 loop ROUND 2, comments stripped): the WHOLE FILE calls PopModalAsync exactly ONCE, inside popOwnModal, and `ModalStack.LastOrDefault() == this` is tested BEFORE it. `Contains(this)` proves only that this page is somewhere on the stack; PopModalAsync pops the TOP. Round 1\'s MAJOR-1 fix is what first stacks two LockPages — the idle app lock above a settings authorise lock — so a Cancel on the covered lock would pop the APP LOCK, dismissed with NO password, with isLockScreenActive still latched true so the idle watcher never locks again this session. A second inline PopModalAsync anywhere in this file re-opens that (found ' + fileCount + ' in the file, ' + popCount + ' in popOwnModal)');
+      /* ★ lockb re-base (2026-11-23, after a look at `git diff 462ba3e4 -- Spixi/Pages/Launch/LockPage.xaml.cs`): popOwnModal's ONE pop became the two arms of ONE
+       * `if (LockShellRules.popAnimated(LockbFlags.HoldWhileDeferred, builtDeferred)) { Navigation.PopModalAsync(); } else { Navigation.PopModalAsync(false); }`
+       * (the pause lock, built deferred, pops with no animation as dismissPauseLock does; every other lock and the switch off = the base's animated pop). The pin now
+       * holds: TWO calls in the file, both in popOwnModal, exactly ONE of them `PopModalAsync(false)`, and the if / else is the FIRST statement of the guarded block
+       * (directly after `ModalStack.LastOrDefault() == this`). A third call, a call before the guard, or a changed arm = red (break: a `Navigation.PopModalAsync(false);`
+       * above the guard → red; the arm `PopModalAsync(false)` → `PopModalAsync()` → red; pins-lockb/b-csharp b4 holds the same text by place). */
+      const R3POP = 'Navigation.ModalStack.LastOrDefault() == this) { if (LockShellRules.popAnimated(LockbFlags.HoldWhileDeferred, builtDeferred)) { Navigation.PopModalAsync(); } else { Navigation.PopModalAsync(false); }';
+      ok(fileCount === 2 && popCount === 2 && (pom.match(/PopModalAsync\(false\)/g) || []).length === 1 && guardAt >= 0 && popAt > guardAt
+        && pom.replace(/\s+/g, ' ').includes(R3POP),
+        '★★ PIN-D (#46 loop ROUND 2, comments stripped; ★ lockb re-base 2026-11-23: the one pop is two arms of ONE if / else): the WHOLE FILE calls PopModalAsync exactly TWICE — `PopModalAsync();` and `PopModalAsync(false);`, the two arms of `if (LockShellRules.popAnimated(…))` directly after the guard, inside popOwnModal — and `ModalStack.LastOrDefault() == this` is tested BEFORE them. `Contains(this)` proves only that this page is somewhere on the stack; PopModalAsync pops the TOP. Round 1\'s MAJOR-1 fix is what first stacks two LockPages — the idle app lock above a settings authorise lock — so a Cancel on the covered lock would pop the APP LOCK, dismissed with NO password, with isLockScreenActive still latched true so the idle watcher never locks again this session. A second inline PopModalAsync anywhere in this file re-opens that (found ' + fileCount + ' in the file, ' + popCount + ' in popOwnModal)');
       ok(/popOwnModal\("cancel"\)/.test(chg) && /popOwnModal\("unlock"\)/.test(unlock.slice(0, cut > 0 ? cut : unlock.length)),
         '★★ PIN-D (#46 loop ROUND 2): BOTH legs go through popOwnModal — the ixian:change confirm leg as "cancel", the modal-fallback unlock leg as "unlock". A leg that pops inline again owns none of the guard');
 
@@ -14174,7 +14182,16 @@ console.log('#441–#447 — reply-to · privacy shield · banked bugs · wallet
     '★ #438: the 8s safety release is GENERATION-GUARDED. OnSleep arms it and a delayed continuation does not run while backgrounded, so a long background can land the callback just after OnResume re-armed the shield and tear down the live one');
   ok(/if \(page is LockPage\) continue;/.test(scp438),
     '★ #438 break-my-verdict MAJOR-2: a LOCK is never covered. The ModalStack walk reaches a modally-presented LockPage, whose Content is a Grid like any other — the shield landed ON TOP of the password field and the user saw a blank screen with no way in');
-  ok(/unlockedDate = DateTime\.Now;[\s\S]{0,700}?SpixiContentPage\.hidePrivacyShield\(\);/.test(app438),
+  /* ★ lockb re-base (2026-11-23, after a look at `git diff 462ba3e4 -- Spixi/App.xaml.cs`): onUnlock gained the two second-clock twin statements directly after the defaultsb
+   * stampAfterUnlock statement (`unlockedMono = LockClockRules.nowMs();` and `backgroundedMono = LockClockRules.keepTwin(backgroundedDate, backgroundedMono);`, each with a trailing
+   * comment), so the old window `[\s\S]{0,700}?` ran 995 characters. The window is now: the base's `unlockedDate = DateTime.Now;` + the stampAfterUnlock statement + EXACTLY those two
+   * lockb statements, each on its own line and adjacent, THEN the old 700-character window to the shield release. A third statement between them, or a moved / changed twin
+   * statement = red (break: a `foo();` line between the two twin lines → red; the twin line's `keepTwin(` → `keepTwin2(` → red; run 2026-11-23).
+   * ★ lockb review r1 (P-m2): after EACH of the three statements the rest of its line is now only blanks and ONE `//` comment — `[ \t]*(?:\/\/[^\n]*)?` (the first
+   * version had `[^\n]*`, which admitted any code after the `;` on the same line: `keepTwin(...); return;` or a 900-character statement stayed green). Breaks: `return;` appended
+   * after the keepTwin statement (before its comment) → red; a 900-character statement on that line → red. LIMIT: a slash-star block comment after a statement is not allowed
+   * (the code has none there); a line break inside a statement is not allowed either. */
+  ok(/unlockedDate = DateTime\.Now;\s*\n\s*backgroundedDate = DefaultsRules\.stampAfterUnlock\(backgroundedDate, SpixiFlags\.LockDelayOneMinute\);[ \t]*(?:\/\/[^\n]*)?\n\s*unlockedMono = LockClockRules\.nowMs\(\);[ \t]*(?:\/\/[^\n]*)?\n\s*backgroundedMono = LockClockRules\.keepTwin\(backgroundedDate, backgroundedMono\);[ \t]*(?:\/\/[^\n]*)?\n[\s\S]{0,700}?SpixiContentPage\.hidePrivacyShield\(\);/.test(app438),
     '★ #438 break-my-verdict MAJOR-2: AUTH is the definitive release. Background while the lock is on screen and OnSleep raised a cover that nothing else would ever take down — the resume skips the lock branch (one is already up) and skips the guarded uncover, so unlocking removed the lock and revealed an opaque, input-swallowing shield for up to 8 seconds');
   ok(/if \(isLockEnabled\(\) && !isLockScreenActive\)/.test(app438),
     '★ #438 break-my-verdict MAJOR-2: OnSleep does not shield over a lock that is ALREADY up — the lock IS the cover, and shielding over it is how the strand happened');
@@ -14509,8 +14526,13 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
     "★ #454 COOLDOWN → #496 (Damir's call 2026-08-21) → defaultsb (Damir's ruling 1750, 2026-11-18): the no-auth window is ONE MINUTE (five seconds on the old path, behind the switch LockDelayOneMinute) and still the only gate between a background and a prompt, measured from the BACKGROUND, not from the last unlock. The older assertions are deliberately retired here rather than deleted, because a break-my-verdict pin that is simply removed is a ruling that changed with nobody noticing");
   {
     const iD = appNC.indexOf('private bool dismissPauseLock');
-    const body = appNC.slice(iD, iD + 1400);
-    ok(iD > 0 && !/unlockedDate = /.test(body),
+    /* ★ lockb review r2 (X2 MINOR-2): the body is the EXACT text of dismissPauseLock — from its signature to the next member, `private bool presentAppLock` —
+     * not a character window (the first lockb re-base widened 1400 → 1600 after the pop-failed catch gained `lp.releaseHold("pop-failed");`; a window of any size
+     * would also read the start of the next member). If the next member is not found after it, the body is empty and every row below is red. Break (the reader's):
+     * `UIHelpers.refreshAppRequests = true;` moved from dismissPauseLock into the first statement of presentAppLock → red. */
+    const iP = appNC.indexOf('private bool presentAppLock');
+    const body = iD > 0 && iP > iD ? appNC.slice(iD, iP) : '';
+    ok(iD > 0 && body.length > 0 && !/unlockedDate = /.test(body),
       '★ #454: the grace dismissal is NOT an unlock — it must not touch unlockedDate, or backgrounding the app repeatedly would keep extending the no-auth window indefinitely');
     ok(iD > 0 && /repaintSystemBarsFor\(null\)/.test(body),
       '#454: popping a modal is not a navigation, so nothing else gives the Android system-bar strip back after the lock painted it its own fixed dark (the LockPage F-4 sites, same reason)');
@@ -14657,8 +14679,12 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       '★ #457 (C4.1): the shell is told in the FIRST FRAME, through a generatePage carrier. A push arrives a navigation round-trip after the first paint — it would BE the flash rather than remove it');
     ok((lpCs.match(/markAuthPending\(\);\s*\r?\n\s*loadPage\(webView, "lock\.html"\);/g) || []).length === 2,
       '#457: set in BOTH constructors, immediately before loadPage — addCustomString is global state, so a value left over from an earlier page would hold the form on a host that never prompts. Two call sites, and each one paired with its own load');
-    ok(/revealPasswordForm\(\);\s*\r?\n\s*_ = displaySpixiAlert/.test(lpCs),
-      '★ #457: when the prompt resolves WITHOUT authenticating, the hold is released before the alert — the password field is the way forward from there');
+    /* ★ lockb re-base (2026-11-23, after a look at `git diff 462ba3e4 -- Spixi/Pages/Launch/LockPage.xaml.cs`): the alert statement is now behind ONE `if` (the R4 rule: no alert when
+     * the plugin showed no prompt — NotAvailable / Denied). The reveal still comes FIRST and unconditionally; between it and the alert statement stand only comment lines and the one
+     * exact line `if (LockShellRules.alertAfterPrompt(LockbFlags.NoAlertNoCredential, result.Status.ToString()))` with its `{`. Break: the `if` moved above `revealPasswordForm();`
+     * → red; the reveal moved into the `if` → red; another statement between → red (run 2026-11-23). */
+    ok(/revealPasswordForm\(\);\s*\r?\n(?:\s*\/\/[^\n]*\r?\n)*\s*if \(LockShellRules\.alertAfterPrompt\(LockbFlags\.NoAlertNoCredential, result\.Status\.ToString\(\)\)\)(?:[ \t]*\/\/[^\n]*)?\s*\r?\n\s*\{\s*\r?\n\s*_ = displaySpixiAlert/.test(lpCs),
+      '★ #457 (★ lockb re-base 2026-11-23: the alert is behind the R4 `if`): when the prompt resolves WITHOUT authenticating, the hold is released before the alert (and before the decision about it) — the password field is the way forward from there');
     // Comment-STRIPPED: the docblock inside this catch explains what it does, so an
     // unstripped window either has to be widened until it proves nothing, or it matches
     // the prose instead of the call. The #453 lesson, applied on the way in.
@@ -14965,6 +14991,12 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       'if (Device.RuntimePlatform == Device.WinUI)', '{', 'return;', '}',
       'if (authDeferred)', '{', 'return;', '}',
       'authAttempted = true;',
+      /* ★ lockb re-base (2026-11-23, after a look at `git diff 462ba3e4 -- Spixi/Pages/Launch/LockPage.xaml.cs`): + EXACTLY these three statements (R2: the pause lock's hold push at the
+       * PROMPT: "1" or null from LockShellRules.holdPushAtPrompt, sent through the helper sendAuthPending, i.e. the existing push setAuthPending; it unlocks nothing and gates nothing —
+       * the gates above and the prompt below are the base's). Break: a fourth line, one of the three changed, or one moved above `authAttempted = true;` → red. */
+      'string? promptHold = LockShellRules.holdPushAtPrompt(LockbFlags.HoldWhileDeferred, builtDeferred);',
+      'if (promptHold != null)',
+      'sendAuthPending(promptHold);',
       'try', '{',
       'await AuthenticateAsync(SpixiLocalization._SL("global-lock-auth-text"));', '}',
       'catch (Exception e)', '{',
@@ -14972,7 +15004,7 @@ console.log('#440 — blockchain-scan strip (executed against the built bundle)'
       'revealPasswordForm();', '}', '}',
     ];
     ok(JSON.stringify(behavioural) === JSON.stringify(expected),
-      '★ THE LOCK IS LOG-ONLY: with the diagnostic lines stripped, maybeAuthenticate is EXACTLY the method that shipped — same statements, same order, same gates. F3 has had two wrong fixes in one day and the surface has only just started working, so Damir\'s instruction was to instrument and not attempt a third. If this goes red, something changed lock BEHAVIOUR');
+      '★ THE LOCK IS LOG-ONLY (★ lockb re-base 2026-11-23: + the three-line R2 hold push after `authAttempted = true;`, nothing else): with the diagnostic lines stripped, maybeAuthenticate is EXACTLY the method that shipped — same statements, same order, same gates. F3 has had two wrong fixes in one day and the surface has only just started working, so Damir\'s instruction was to instrument and not attempt a third. If this goes red, something changed lock BEHAVIOUR');
     ok(/if \(authDeferred\)/.test(bodyNC) && /authAttempted = true;/.test(bodyNC),
       '★ LOG-ONLY: the #460 defer latch and the authAttempted latch are UNTOUCHED — the gating logic is exactly what shipped');
   }
@@ -42641,6 +42673,7 @@ for (const mod of ['a-notices', 'b-refusals', 'c-plain-packaged', 'd-ci']) await
 for (const mod of ['b-screens', 'c-parser']) await (await import(new URL('./pins-walktools/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Walk tools (walktools, DECISIONS #1875–#1889) — b = the chat / viewer screen probe SETS of the device map (one set per theme; only chrome colours; the map VALUES come from the operator block) · c = the walk parser: "first swipe -> 1st page" of -HistorySeed (rule I-3a) + the per-page rows of the older pages (all optional), the old rows held (by-hand executing twins: b-screens-run.mjs, c-parser-run.mjs — they need pwsh)
 for (const mod of ['a-slide4', 'b-defaults', 'c-keyboard', 'd-devlog', 'e-tile-states']) await (await import(new URL('./pins-fixb4/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Fix batch 4 (fixb4, rulings #1747 (1), #1748 (3), #1750; WALK #1829; DECISIONS #1845–#1859): a = welcome slide 4 names only Blitz Chess in every locale · b = a NEW or RESTORED account starts with Load pictures Off and the Compact desktop list (one push setNewAccountDefaults from the three new-account sites; switches DefaultMediaTapToLoad / DefaultListCompact; P87, P88) · c = the protect-account field is brought into the body on Android (adjustResize; jsdom stubs — the geometry proof is c-keyboard-render.mjs by hand) · d = the Developer log has a floor (60vh) · e = a picture-named file that is not a picture: the sending / complete / reopen states, cap photoTileLite ON = OFF where it must be
 for (const mod of ['a-path', 'b-lines']) await (await import(new URL('./pins-histcs/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch histcs (History C#: P-28 an older page read and built off the UI thread, HV-5 the first older page holds 50 rows, the HV-0 C# lines) — a = the path (loadMoreIn behind the ixian:loadmore branch, onLoadMore() byte for byte, the order of loadMoreIn, the insertions of loadMessages, the exact name table, the rest of SingleChatPage.xaml.cs and of SpixiFlags.cs = the base by SHA-256, the histcs block, the csh harness), b = the lines (the four HistoryOlderRules bodies only as P1Perf.line arguments under P1Perf.enabled with int / long arguments, no other new log call, the two keys C#-only, no new bridge surface); SOURCE pins — their limits are their first lines; the behaviour runs in csh HistcsTests
+for (const mod of ['a-shell', 'b-csharp']) await (await import(new URL('./pins-lockb/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch lockb (the lock batch, #1825 (1)–(3)) — a = the BUILT lock shell holds its password form while C# says a deferred prompt is pending (S1–S7, jsdom with a modelled clock; the Chromium render a-shell-render.mjs runs by hand) · b = the C# sites that the cloud cannot compile (a SOURCE pin, its limits are its first lines): App.OnResume's second clock after the unchanged grace statement, the twin stamps, the one `held.promptWindowOpens();`, LockPage's hold pushes / un-animated pop / no-alert rule, the push grammar (no new verb, no new push name), the exact name table, App.xaml.cs and LockPage.xaml.cs minus the lockb lines = the base by SHA-256, the rule files and the LockbFlags block; its breaks: b-csharp-breaks.mjs by hand
 for (const mod of ['a-quote-seed', 'b-coldwatch', 'c-home-sets', 'd-lockfile']) await (await import(new URL('./pins-walktools2/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Walk tools 2 (walktools2, ruling #1838; DECISIONS #1935–#1949) — a = the dev seed's quote chat Seed 57 (1000 rows, 16-byte ids, reply rows in the app's own ReplyQuote shape whose targets sit ≥ 3 older pages up; the behaviour runs in csh WalkTools2SeedTests) · b = the walk step coldstart-watch (N cold starts; a start that is not proven keeps its events and its app log; one new whole-string allowlist entry) + home in the sets form (by-hand executing twin: b-coldwatch-run.mjs, needs pwsh) · c = screens.home of the device map in the sets form (light as before + a dark set; by hand: c-home-render.mjs, Chromium) · d = the committed lockfile of the test tools and npm ci in redesign-ci (ruling #1831: jsdom stays 29.1.1)
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known

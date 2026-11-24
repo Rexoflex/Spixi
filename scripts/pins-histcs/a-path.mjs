@@ -76,6 +76,7 @@
  *                  nested Ticket and its private OtherLoad); it names no Logging / P1Perf / bridge / task / thread / file word, reads three
  *                  preferences and writes none; OlderBusy is OWNER-aware with `Interlocked.CompareExchange(ref …)` in both transitions (held
  *                  by SOURCE: the csh break m18, a non-atomic tryEnter, is this key's); schedule leaves twice, both by its owner
+ *                  ★ lockb re-base (2026-11-23): the block ENDS where the lockb block (`/* ★ lockb (Lock batch`, appended after it) begins; break: an eighth type before that comment → a9 red (run 2026-11-23); the lockb block is held by pins-lockb/b-csharp b7 / b8
  *   a10 harness  — csh holds HistcsTests.cs with its 43 tests, compiles the REAL SpixiFlags.cs, no `Compile Remove`, no copy of the types
  *   a11 regionWhole — ★ #46 r4: 21 → 23 statements (+ deleteMessage, updateMessage); the three frozen hashes re-based after a look at the diff (r2, r3, r4).
  *                  ★ #46 r1: the NEW code, whole: the region (loadMoreIn + members), pushPendingJump's body and the list of the 21
@@ -210,6 +211,7 @@ const SCP_F = 'Spixi/Pages/Chat/SingleChatPage.xaml.cs', FLAGS_F = 'Spixi/Utils/
 const SIG_ONLOADMORE = 'private void onLoadMore()';
 const B2_MARK = '/* ★ #1166 B2 (#1142';
 const BLOCK_OPEN = '/* ★ histcs (History C#';
+const LOCKB_OPEN = '/* ★ lockb (Lock batch';   // ★ lockb re-base (2026-11-23): where the block appended after the histcs block begins (a9)
 const BRANCH_OLD = 'else if (current_url.Equals("ixian:loadmore", StringComparison.Ordinal)) { onLoadMore(); }';
 const BRANCH_NEW = 'else if (current_url.Equals("ixian:loadmore", StringComparison.Ordinal)) { loadMoreIn(); }';
 const BRANCH_RE = /else if \(current_url\.Equals\("ixian:loadmore", StringComparison\.Ordinal\)\)\s*\{\s*loadMoreIn\(\);\s*\}/g;
@@ -676,7 +678,14 @@ export default async function (h) {
 
   /* ───────────────────────── a9 — the block ───────────────────────── */
   const blockAt = flagsRaw.indexOf(BLOCK_OPEN);
-  const blockRaw = blockAt >= 0 ? flagsRaw.slice(blockAt, flagsRaw.lastIndexOf('}')) : '';
+  /* ★ lockb re-base (2026-11-23): the lockb batch appended ONE more block (`LockbFlags`) after this one, at the end of the namespace. The histcs block now ends
+     where that block's opening comment starts (LOCKB_OPEN, exactly once, after the histcs block); everything before it is what a9 held before — seven types, no more.
+     The appended block itself is held by pins-lockb/b-csharp b7 (the base + exactly that block, by its masked code) and b8, and the whole file by pins-fixb1/g-sparekeep
+     FLAGSFILE; a8 above cuts through it (BLOCK_OPEN … the namespace's closing brace) and still equals the base. A type put BEFORE the lockb block is red here (the old way);
+     after the lockb block it is red in lockb b7 / b8. Without the lockb block (LOCKB_OPEN absent) the slice is the old one. */
+  const lockbAt = flagsRaw.indexOf(LOCKB_OPEN);
+  const blockEnd = lockbAt > blockAt && count(flagsRaw, LOCKB_OPEN) === 1 ? lockbAt : flagsRaw.lastIndexOf('}');
+  const blockRaw = blockAt >= 0 ? flagsRaw.slice(blockAt, blockEnd) : '';
   const bCode = mask(blockRaw), bBare = mask(blockRaw, true);
   const bN = norm(bCode);
   const typeNames = [...bBare.matchAll(/\b(?:class|struct|enum|interface|record)\s+(\w+)/g)].map((m) => m[1]);

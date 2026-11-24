@@ -103,6 +103,18 @@ namespace SPIXI
          * fingerprint offered. A lifecycle flag that turns over at the wrong moment is
          * worse than none — this is an EXPLICIT latch that App sets and clears itself. */
         private bool authDeferred = false;
+        /* ★ lockb (#1825 (1)): TRUE once deferAuthentication() ran on this lock — App.lockOnPause (Android) is its only caller,
+         * so only the pause lock is "built deferred". Never cleared: it names how the lock was built, not a state. With
+         * LockbFlags.HoldWhileDeferred off, or false, every rule of LockShellRules gives the base. */
+        private bool builtDeferred = false;
+        /* ★ lockb (#1825 (1)): TRUE once App.OnResume said "the lock stays up" (promptWindowOpens), so a load after it sends
+         * "1" (the belt from now), never "True". Never unlocks anything. */
+        private bool promptWindowOpened = false;
+        /* ★ lockb (#1825 (1), review r1 M-1 — the reload gap): TRUE once releaseHold revealed this lock's form with no prompt to
+         * come. Never cleared; set only by releaseHold, and only when it reveals. onLoad passes it to R1 beside
+         * promptWindowOpened, so a reload of a released lock (a theme change re-generates the live page) sends "1" (hold + the
+         * base's 3 s belt), never "True" (hold, no belt). Touches no other latch; never unlocks anything. */
+        private bool holdReleased = false;
 
         /* ★★★ #46 loop, W-4.6 ON #507 — A LOCK THAT PRESENTS WITH NO UI.
          *
@@ -332,6 +344,11 @@ namespace SPIXI
              * they are allowed to disagree exactly here. */
             if (authAttempted)
                 revealPasswordForm();
+            // ★ lockb (#1825 (1)): the pause lock's hold, sent as a STATE at every load (a reload re-boots the shell from the
+            // carrier): "True" while the prompt is deferred, "1" once its window opened; null (no push) = the base.
+            string? loadHold = LockShellRules.holdPushAtLoad(LockbFlags.HoldWhileDeferred, builtDeferred, authDeferred, promptWindowOpened || holdReleased, authAttempted);   // ★ lockb (#1825 (1)); holdReleased: review r1 M-1
+            if (loadHold != null)   // ★ lockb (#1825 (1))
+                sendAuthPending(loadHold);   // ★ lockb (#1825 (1))
 
             uiReady = true;
             /* ★★ #46 loop W-4.6 on #507: the UI arrived. Bump the generation so any armed
@@ -404,6 +421,10 @@ namespace SPIXI
             SPIXI.Meta.SLockDiag.authGates("maybeAuthenticate", uiReady, pageVisible,
                 authAttempted, authDeferred, "PROMPT");
             authAttempted = true;
+            // ★ lockb (#1825 (1)): the prompt's window opens — "1" (hold, the 3 s belt from now) for the pause lock; null = the base.
+            string? promptHold = LockShellRules.holdPushAtPrompt(LockbFlags.HoldWhileDeferred, builtDeferred);   // ★ lockb (#1825 (1))
+            if (promptHold != null)   // ★ lockb (#1825 (1))
+                sendAuthPending(promptHold);   // ★ lockb (#1825 (1))
             // Show biometric and alternative authentication methods
             try
             {
@@ -568,7 +589,16 @@ namespace SPIXI
             {
                 if (Navigation.ModalStack.LastOrDefault() == this)
                 {
-                    Navigation.PopModalAsync();
+                    // ★ lockb (#1825 (1)): the pause lock (built deferred) pops with no animation, as dismissPauseLock does (flash 2);
+                    // every other lock, and the switch off, the base's animated pop.
+                    if (LockShellRules.popAnimated(LockbFlags.HoldWhileDeferred, builtDeferred))   // ★ lockb (#1825 (1))
+                    {
+                        Navigation.PopModalAsync();
+                    }
+                    else
+                    {
+                        Navigation.PopModalAsync(false);   // ★ lockb (#1825 (1))
+                    }
                     // ★ F-4 (#399, audit): the MODAL-FALLBACK leg needs the repaint too.
                     // It is taken whenever the lock could not be shown in place — which
                     // is ALWAYS for the SettingsPage delete flows, because the lock is
@@ -595,6 +625,60 @@ namespace SPIXI
         {
             SPIXI.Meta.SLockDiag.mark("lock/deferAuthentication");
             authDeferred = true;
+            builtDeferred = true;   // ★ lockb (#1825 (1)): this lock is the pause lock
+        }
+
+        /** ★ lockb (#1825 (1)) — App.OnResume, the lock-stays-up branch (Android), directly before `pendingForegroundAuth = held;`:
+         *  the deferred prompt's window opens now. With LockbFlags.HoldWhileDeferred on and this lock built deferred: marks the
+         *  window open and sends setAuthPending("1") (hold, the shell's 3 s belt counts from now; queued by sendMessage when the
+         *  page is not loaded). Otherwise a no-op that logs nothing. It never unlocks, never pops, never changes authDeferred, and
+         *  never throws (its own try / catch). */
+        public void promptWindowOpens()
+        {
+            try
+            {
+                string? hold = LockShellRules.holdPushAtPrompt(LockbFlags.HoldWhileDeferred, builtDeferred);   // ★ lockb (#1825 (1)): "1" or null
+                if (hold == null)   // ★ lockb (#1825 (1)): the switch off, or not the pause lock — the base
+                {
+                    return;
+                }
+                promptWindowOpened = true;   // ★ lockb (#1825 (1))
+                sendAuthPending(hold);   // ★ lockb (#1825 (1))
+            }
+            catch (Exception e)
+            {
+                Logging.error("LockPage: promptWindowOpens failed (" + e.GetType().Name + ")");   // ★ lockb (#1825 (1)): fixed words, the TYPE only
+            }
+        }
+
+        /** ★ lockb (#1825 (1), review r1 M-1 / m-1 / m-2) — App calls this when the pause lock is up and NO prompt will be handed
+         *  to it: App.releaseDeferredAuth with nothing handed over ("post-resume": a return with no stop, or a throw in App.OnResume
+         *  before the hand-off), dismissPauseLock's failed pop ("pop-failed") and lockOnPause's two failure paths ("not-presented").
+         *  R1's "True" stopped the shell's belt, so without this the form would stay behind the spinner. With
+         *  LockbFlags.HoldWhileDeferred on, this lock built deferred and its prompt still deferred (R5; review r2 X2 MINOR-1: a
+         *  consumed hand-off is never revealed):
+         *  revealPasswordForm() — the base's own reveal, setAuthPending("False") — and one diag line of fixed words; otherwise a
+         *  no-op that logs nothing. When it reveals it also sets holdReleased (so a reload re-boots into "1", the belt, never
+         *  "True"). It never unlocks, never pops, never changes authDeferred / authAttempted / promptWindowOpened,
+         *  and never throws (its own try / catch). `why` is logged only as one of the fixed words below ("other" for any other
+         *  text): no caller text reaches the log. */
+        public void releaseHold(string why)
+        {
+            try
+            {
+                if (!LockShellRules.releaseHoldWithoutPrompt(LockbFlags.HoldWhileDeferred, builtDeferred, authDeferred))   // ★ lockb (#1825 (1)): R5
+                {
+                    return;   // ★ lockb (#1825 (1)): the switch off, not the pause lock (the base: its 3 s belt runs), or the hand-off consumed (the shell has "1")
+                }
+                holdReleased = true;   // ★ lockb (#1825 (1)): a later load of this lock sends "1" (the belt), never "True"
+                revealPasswordForm();   // ★ lockb (#1825 (1)): the base's reveal; the shell never hides the form again
+                string word = why == "post-resume" || why == "pop-failed" || why == "not-presented" ? why : "other";   // ★ lockb (#1825 (1)): the fixed set
+                SPIXI.Meta.SLockDiag.mark("lock/hold-released", "why=" + word);   // ★ lockb (#1825 (1))
+            }
+            catch (Exception e)
+            {
+                Logging.error("LockPage: releaseHold failed (" + e.GetType().Name + ")");   // ★ lockb (#1825 (1)): fixed words, the TYPE only
+            }
         }
 
         /* #454: the app is in the foreground again — run the prompt that was deferred
@@ -634,6 +718,20 @@ namespace SPIXI
             }
         }
 
+        /* ★ lockb (#1825 (1)): the hold values of the existing push (mechanisms § 3) — "True" / "1" only, from LockShellRules.
+         * The revealPasswordForm style: its own try / catch, so a failed push never breaks the caller. */
+        private void sendAuthPending(string value)
+        {
+            try
+            {
+                Utils.sendUiCommand(this, "setAuthPending", value);   // ★ lockb (#1825 (1))
+            }
+            catch (Exception e)
+            {
+                Logging.error("LockPage: setAuthPending hold push failed (" + e.GetType().Name + ")");   // ★ lockb (#1825 (1)): fixed words, the TYPE only
+            }
+        }
+
         private async Task AuthenticateAsync(string reason, string cancel = null, string fallback = null, string tooFast = null)
         {
             _cancel = new CancellationTokenSource();
@@ -665,7 +763,12 @@ namespace SPIXI
                 // field is the way forward, so stop holding it behind the boot spinner.
                 // (i18n-C#, Session AD: the alert's button only dismisses it — the localized Ok)
                 revealPasswordForm();
-                _ = displaySpixiAlert(SpixiLocalization._SL("global-lock-invalidpassword-title"), SpixiLocalization._SL("global-lock-invalidpassword-text"), SpixiLocalization._SL("global-dialog-ok"));
+                // ★ lockb (#1825 (2)): no alert when the plugin showed no prompt (NotAvailable: no credential; Denied: Face ID refused) —
+                // the form above is the way in. Every other status, and the switch off, the base's alert.
+                if (LockShellRules.alertAfterPrompt(LockbFlags.NoAlertNoCredential, result.Status.ToString()))   // ★ lockb (#1825 (2))
+                {
+                    _ = displaySpixiAlert(SpixiLocalization._SL("global-lock-invalidpassword-title"), SpixiLocalization._SL("global-lock-invalidpassword-text"), SpixiLocalization._SL("global-dialog-ok"));
+                }
             }
 
             return Task.CompletedTask;

@@ -987,9 +987,22 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    * ⚠ Belt, and it is the important half: a plugin that never returns must not leave
    * the user staring at a spinner with no way in. Reveal unconditionally after 3 s.
    * The password field is the fallback for every biometric failure, so revealing it
-   * early is safe — it is never the thing being protected. */
+   * early is safe — it is never the thing being protected.
+   *
+   * ★ lockb (#1825 (1)): the PAUSE lock loads at the pause and prompts at the return, minutes
+   * later, so the belt above always fired while the app was away and every locked return
+   * drew the form first. C# can now say "a deferred prompt is pending" with two of the four
+   * values this push has always ignored: 'True' = hold the form and STOP the belt (the
+   * prompt has not started); '1' = hold the form and restart the belt from NOW (the prompt's
+   * window opened). They are values a shell built before this change ignores by its own
+   * code, so an older shell behaves as before. Only while the hold is up and the form not yet
+   * revealed: after ANY reveal ('False', the belt, a carrier of "0") both are ignored — the
+   * form is never hidden again. A push before boot() holds and latches nothing. 'true' and
+   * the boolean true stay ignored; no push at all = the hold + the 3 s belt from boot. */
   const AUTH_PENDING = '*SL{LockAuthPending}' === '1';
   let lockRevealed = false;
+  let holdUp = false;      // ★ lockb: set by boot() once it hid the form behind the spinner (false before boot; a push also checks lockRevealed)
+  let beltTimer = 0;       // ★ lockb: the id of the belt, so a push can stop or restart it
   function revealLock() {
     if (lockRevealed) return;
     const lockHost = document.getElementById('lock-root');
@@ -1007,7 +1020,16 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   // that sends it into a shell built before this change throws before the dispatcher
   // can catch it.
   window.setAuthPending = function (pending) {
-    if (pending === 'True' || pending === 'true' || pending === true || pending === '1') return;
+    if (pending === 'True' || pending === '1') {
+      // ★ lockb: a deferred prompt is pending. Only while the hold is up and the form is not revealed;
+      // before boot() (holdUp false) or after a reveal this changes nothing.
+      if (holdUp && !lockRevealed) {
+        clearTimeout(beltTimer);
+        beltTimer = pending === '1' ? setTimeout(revealLock, 3000) : 0;
+      }
+      return;
+    }
+    if (pending === 'true' || pending === true) return;
     revealLock();
   };
 
@@ -1017,7 +1039,8 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
     if (AUTH_PENDING) {
       const screen = lockHost.querySelector('.c-lock');
       if (screen) screen.hidden = true;         // hold behind the spinner
-      setTimeout(revealLock, 3000);             // belt — never strand the user
+      beltTimer = setTimeout(revealLock, 3000); // belt — never strand the user
+      holdUp = !!screen;
       if (!screen) revealLock();                // nothing to hold: fail open
     } else {
       revealLock();

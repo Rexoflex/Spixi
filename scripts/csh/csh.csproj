@@ -106,6 +106,8 @@
     <Compile Include="../../Spixi/Utils/FixB3ChatInfoRules.cs" />   <!-- ★ fixb3 (item 2, P85): the chat-info shared-items scan gate — only the latest scan pushes setSharedItems (tests: FixB3ChatInfoTests.cs; ContactDetails.pushSharedItems calls it) -->
     <Compile Include="../../Spixi/Utils/DefaultsRules.cs" />   <!-- ★ defaultsb (ruling 1750): the new-account defaults (App lock, Confirm payments), the lock delay bound, the [FLAGS] line (tests: DefaultsTests.cs; SpixiFlags.init calls it) -->
     <Compile Include="../../Spixi/Utils/PageDefaultsRules.cs" />   <!-- ★ fixb4 (ruling 1750): the new-account page defaults (P1 Off, A9 Compact on the desktop) — the push arguments, the [DEFAULTS] page line, the [FLAGS] fixb4 line (tests: PageDefaultsTests.cs; SpixiFlags.readFixb4 and LaunchPage call it) -->
+    <Compile Include="../../Spixi/Utils/LockShellRules.cs" />   <!-- ★ lockb (#1825 (1)/(2)): the hold push values, the pop, the no-credential alert rule (tests: LockShellTests.cs; LockPage calls it) -->
+    <Compile Include="../../Spixi/Utils/LockClockRules.cs" />   <!-- ★ lockb (#1825 (3)): the second clock of the lock delay (tests: LockClockTests.cs; App.OnResume calls it) -->
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

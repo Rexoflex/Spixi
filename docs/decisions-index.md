@@ -347,6 +347,32 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1894 | The #46 verdict of the batch (readers: Opus only). |
 | #1895 | Session "Docs batch" — the record. |
 
+### Session Voice fix (`voicefix`, 2026-11-23, #1900–#1906, L279–L280; no packet)
+| Row | Rule |
+|---|---|
+| #1900 | The Windows end of 2026-11-23 is shown only under the Visual Studio debugger (a call through a stale callback target in `DispatcherQueue::DeferInvokeCallback`, consistent with a use-after-free); not the voice decode or the processor. |
+| #1901 🟡 | No app change: the fix, the guard pin and the csh decode test lapse with their premise. |
+| #1902 | `DOTNET_EnableHWIntrinsic=0` is not a fix; it is out of Damir's launch profile. |
+| #1903 | The developer probe `scripts/voicefix/` (prints counts only; not in the app, not in CI). |
+| #1904 🟡 | Proposal: a Windows walk leg starts with Ctrl+F5 unless a row needs the debugger. |
+| #1905 | The security record: the peer-voice exposure is withdrawn; the inherited Concentus native-library probe goes to BE, its trigger widened by ours (Q-3 open; on Android API 23 possibly the system libopus, not verified). |
+| #1906 | The record of the session (export, review verdict). |
+
+### Session Lock batch (`lockb`, 2026-11-23, #1915–#1925, L283–L287, packets P97–P99)
+| Row | Rule |
+|---|---|
+| #1915 | Lock batch: three changes, three switches (`LockbFlags`, read lazily); all OFF = the base. |
+| #1916 | Item 1: the pause lock holds its form until the prompt (`setAuthPending` `"True"` / `"1"`, values every shell already ignores); `releaseHold` releases a return with no stop; an un-animated pop (P97). |
+| #1917 | Item 2: no "Authentication Failed" alert for `NotAvailable` / `Denied` (P98). |
+| #1918 | Item 3: the lock delay also on Android `ElapsedRealtime`; an override that can only add a lock (P99). |
+| #1919 | Per platform: Windows nothing; iPhone / Mac item 2 only; Android all three. |
+| #1920 🟡 | Finding: the own-intent return is on the wall clock too (inherited); a twin proposed. |
+| #1921 🟡 | Question: the Apple twin of the second clock (A `CLOCK_MONOTONIC` · B wall clock for v1 · C `systemUptime` ruled out). |
+| #1922 | The re-bases of other batches' rows (named). |
+| #1923 | The #46 verdict: CLEAN at round 3 (MAJOR 2 · 0 · 0). |
+| #1924 🟡 | Proposal: close the inherited pre-`boot()` edge of `lock.html` with a one-line shell guard. |
+| #1925 | Session "Lock batch" — the record. |
+
 ### Session Walk tools 2 (`walktools2`, 2026-11-23, #1935–#1943, L289–L292, packet P102)
 | Row | Rule |
 |---|---|

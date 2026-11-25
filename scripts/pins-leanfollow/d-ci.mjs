@@ -31,6 +31,8 @@
  *     `dotnet restore` or a repo script that opens a socket is NOT matched (the harness is proven offline by a run with the
  *     network blocked, in the builder's report);
  *   - the annotation and upload rows read the lines of those steps; they cannot know that `publish` really prints.
+ *   - the size step is not one of the two new steps of the rows above: row 17 holds its step lines exactly (its comment lines are cut
+ *     as comments), and pins-sizerule/c-ci holds its rows one by one.
  * Rows (each has its deliberate break below, a mutated text in memory that makes exactly that row fail): see ROWS. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -53,7 +55,20 @@ const FROZEN_JOB_IF = ["    if: github.repository == 'Rexoflex/Spixi'   # the fo
  * and needs an edit of this constant after a look at the diff (#1634). ---- */
 const BASE_WORKFLOW_SHA256 = '45b8b1fd129e91d6a361fe584030f791ed3a762d8ec602e078d9a21c0d203167';
 const CUT_PIECES = ['        O_XPARSER: ${{ steps.xparser.outcome }}\n', '        O_MSBUILDH: ${{ steps.msbuildh.outcome }}\n',
-  '        publish xparser "$O_XPARSER"\n', '        publish msbuild-harness "$O_MSBUILDH"\n', '          xparser.log\n', '          msbuild-harness.log\n'];
+  '        publish xparser "$O_XPARSER"\n', '        publish msbuild-harness "$O_MSBUILDH"\n', '          xparser.log\n', '          msbuild-harness.log\n',
+  '        O_SIZE: ${{ steps.size.outcome }}\n', '        publish size "$O_SIZE"\n', '          size.log\n'];   // the size step re-base: the three size lines of the annotation and upload steps, each cut once
+/* the size step re-base: the size step sits inside the cut region of the two steps above, so the region must hold its exact step lines once (the comment lines
+ * above it are cut with the region, whatever they say; a comment changes nothing GitHub runs). An extra argument, a second run line or a changed name is red here. */
+const SIZE_STEP = ['    - name: Size (the counter and the R2 / R5 / R6 checks)', '      id: size', '      if: ${{ !cancelled() }}', '      timeout-minutes: 10', '      run: |',
+  '        set -eo pipefail', '        node scripts/size-check.mjs --ci --summary "$GITHUB_STEP_SUMMARY" 2>&1 | tee ../size.log', '', ''].join('\n');
+/* the size step re-base: the two changed npm sentences and the fetch depth go back to the base text (each found once); the fetch-depth line is anchored to the
+ * smoke job's checkout, so it cannot sit on the Core or the Windows checkout. */
+const SIZE_SWAPS = [
+  ['# Mirrors the cloud twin: Ixian-Core as a sibling at the pinned commit, the lockfile install (`npm ci`), smoke + CSH', '# Mirrors the cloud twin: Ixian-Core as a sibling at the pinned commit, the ONE npm line (versions pinned), smoke + CSH'],
+  ['result is compared with the source token by token. Runs repo code only; jsdom comes from the lockfile install above and acorn', 'result is compared with the source token by token. Runs repo code only; jsdom is on the npm line above and acorn'],
+  ['        shell: bash\n    steps:\n    - name: Checkout Spixi\n      uses: actions/checkout@v7\n      with:\n        path: Spixi\n        persist-credentials: false\n        fetch-depth: 2\n',
+    '        shell: bash\n    steps:\n    - name: Checkout Spixi\n      uses: actions/checkout@v7\n      with:\n        path: Spixi\n        persist-credentials: false\n'],
+];
 /* ★ walktools2 re-base (2026-11-23; after a look at the diff, #1596 / #1634, ruling #1831): the install step is the ONE piece of the file that moved — its four
  * comment lines, its name and its run line (`npm i --no-save <five tools>` -> `npm ci`, the lockfile pins every tool). Row 17 puts the EXACT new block back to the
  * EXACT base block (each found once) before it hashes, so the file admits this block and nothing else: an extra argument (`npm ci --foo`), a changed name or a
@@ -69,9 +84,14 @@ const BASE_INSTALL = ['    # Every version is pinned to what the 2026-11-11 run 
   '    - name: Install test tools (the ONE npm line, versions pinned)',
   '      run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5', ''].join('\n');
 function baseShaOk(t) {
-  const a = t.indexOf('    # Proves, with two parsers'); const b = t.indexOf('    # Only for a step that itself failed');
-  if (a < 0 || b < a || t.indexOf('    # Proves, with two parsers', a + 1) >= 0) return false;
-  let s = t.slice(0, a) + t.slice(b);
+  let s = t;
+  for (const [from, to] of SIZE_SWAPS) { if (s.split(from).length !== 2) return false; s = s.replace(from, () => to); }   // the size step re-base: the three swaps, each found once
+  const a = s.indexOf('    # Proves, with two parsers'); const b = s.indexOf('    # Only for a step that itself failed');
+  if (a < 0 || b < a || s.indexOf('    # Proves, with two parsers', a + 1) >= 0) return false;
+  const region = s.slice(a, b);   // the size step re-base: the size step lines are found once inside the cut region, and its three steps are the only steps in it (the region is then cut as before)
+  if (region.split(SIZE_STEP).length !== 2) return false;
+  if (!same(region.split('\n').filter((l) => /^    - /.test(l)), ['    - name: ' + NEW_STEPS[0].name, '    - name: ' + NEW_STEPS[1].name, '    - name: Size (the counter and the R2 / R5 / R6 checks)'])) return false;
+  s = s.slice(0, a) + s.slice(b);
   for (const p of CUT_PIECES) { if (s.split(p).length !== 2) return false; s = s.replace(p, ''); }
   if (s.split(NEW_INSTALL).length !== 2) return false; s = s.replace(NEW_INSTALL, () => BASE_INSTALL);   // ★ walktools2 re-base: the new install block, found once, back to the base block
   return createHash('sha256').update(s).digest('hex') === BASE_WORKFLOW_SHA256;
@@ -89,8 +109,10 @@ const FROZEN_DEFAULTS = ['defaults:', 'run:', '  working-directory: Spixi', '  s
 const IF_LINE = '      if: ${{ !cancelled() }}';
 const TIMEOUT_LINE = '      timeout-minutes: 10';
 const FROZEN_ENV = ['IXIAN_CORE_REF: 097341acba9be1855383acf8215d779ca96efa02', 'O_GATE_SHELLS: ${{ steps.gate_shells.outcome }}', 'O_GATE_LOCALES: ${{ steps.gate_locales.outcome }}',
-  'O_SMOKE: ${{ steps.smoke.outcome }}', 'O_CSH: ${{ steps.csh.outcome }}', 'O_XPARSER: ${{ steps.xparser.outcome }}', 'O_MSBUILDH: ${{ steps.msbuildh.outcome }}'];
-const FROZEN_STEP_IF = ['      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ failure() || cancelled() }}', '      if: ${{ failure() || cancelled() }}'];
+  'O_SMOKE: ${{ steps.smoke.outcome }}', 'O_CSH: ${{ steps.csh.outcome }}', 'O_XPARSER: ${{ steps.xparser.outcome }}', 'O_MSBUILDH: ${{ steps.msbuildh.outcome }}',
+  'O_SIZE: ${{ steps.size.outcome }}'];   // the size step re-base (row 12): the annotation step's env gets the size outcome, last, as in the file
+const FROZEN_STEP_IF = ['      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ failure() || cancelled() }}', '      if: ${{ failure() || cancelled() }}'];   // the size step re-base (row 13): the size step adds a fourth `!cancelled()` line, between the harness step and the annotation step
+const SIZE_LOG = { id: 'size', log: 'size', env: 'O_SIZE' };   // the size step re-base (row 4): the annotation step also names the size log
 
 const lines = (t) => t.replace(/\r\n/g, '\n').split('\n');
 const noComment = (l) => {  // a full-line comment is empty; a ` #` tail is cut only OUTSIDE single / double quotes
@@ -148,9 +170,9 @@ function rows(t) {
   R['3 both steps sit after "CSH (C# harness)" and before the annotation step, (a) before (b), in the smoke job'] =
     csh >= 0 && ann > csh && at(mine[0]) > csh && at(mine[1]) > at(mine[0]) && at(mine[1]) < ann && (upl < 0 || upl > ann);
   const annL = ann >= 0 ? st[ann].lines : []; const uplL = upl >= 0 ? st[upl].lines : [];
-  R['4 the annotation step names both logs: an O_* env and a publish line each (the log name = the tee file)'] = NEW_STEPS.every((n) =>
+  R['4 the annotation step names the three logs (the two new steps and the size step): an O_* env and a publish line each (the log name = the tee file)'] = [...NEW_STEPS, SIZE_LOG].every((n) =>
     annL.includes('        ' + n.env + ': ${{ steps.' + n.id + '.outcome }}') && annL.includes('        publish ' + n.log + ' "$' + n.env + '"') &&
-    n.run.slice(1).every((r) => r.endsWith('tee ' + (r.includes('--real') ? '-a ' : '') + '../' + n.log + '.log'))) && annL.filter((l) => /^\s+publish [a-z-]+ "\$O_/.test(l)).length === 6;
+    (n.run || []).slice(1).every((r) => r.endsWith('tee ' + (r.includes('--real') ? '-a ' : '') + '../' + n.log + '.log'))) && annL.filter((l) => /^\s+publish [a-z-]+ "\$O_/.test(l)).length === 7;   // the size step re-base (row 4): the publish-line count is 7 and the size env / publish pieces are named
   R['5 the upload step lists both logs'] = NEW_STEPS.every((n) => uplL.includes('          ' + n.log + '.log')) && uplL.includes('        path: |');
   R['6 the set of uses: values equals the base (frozen list, in file order)'] = same(lines(t).filter((l) => /^\s*(- )?uses:/.test(l)).map((l) => l.replace(/^\s*(- )?uses:\s*/, '').replace(/\s#.*$/, '').trim()), FROZEN_USES);
   R['7 the permissions block equals the base, and it is the ONLY live permissions: line of the file (no job-level one)'] =
@@ -166,7 +188,7 @@ function rows(t) {
   R['11 no curl / wget / npm i / npx / pip / dotnet tool / git clone in a new step; no curl / wget in the file; exactly one live npm line in the file (npm ci)'] =
     newText.length > 0 && !/\b(curl|wget)\b/.test(newText) && !/\bnpm\s+(i|install|ci)\b/.test(newText) && !/\b(npx|pip3?)\b/.test(newText) && !/\bdotnet\s+tool\b/.test(newText) && !/\bgit\s+clone\b/.test(newText) && !/\b(curl|wget)\b/.test(live) &&
     lines(t).filter((l) => /\bnpm\s+(i|install|ci)\b/.test(noComment(l))).length === 1;   // ★ walktools2: the one npm line of the file is `npm ci` now (row 17 holds its exact text)
-  R['12 every env: line of the file equals the frozen list (the base set + the two new O_* names)'] = same(envLines(t), FROZEN_ENV);
+  R['12 every env: line of the file equals the frozen list (the base set + the three new O_* names)'] = same(envLines(t), FROZEN_ENV);
   R['13 the step-level if: lines equal the frozen list (the new steps, the annotation and upload steps)'] = same(lines(t).filter((l) => /^      if: /.test(l)), FROZEN_STEP_IF);
   const dl = lines(t); const dflt = [];
   dl.forEach((l, i) => { if (/^    defaults:\s*$/.test(l)) { dflt.push('defaults:'); for (let j = i + 1; j < dl.length && /^      /.test(dl[j]); j++) dflt.push(dl[j].slice(6)); } });
@@ -196,6 +218,7 @@ export default async function ({ ok, root }) {
       return text.slice(0, a) + text.slice(b, c) + text.slice(a, b) + text.slice(c);
     })()],
     [keys[3], 'no publish line for the harness log', rep('        publish msbuild-harness "$O_MSBUILDH"\n', '')],
+    [keys[3], 'no publish line for the size log', rep('        publish size "$O_SIZE"\n', '')],
     [keys[4], 'the upload list loses xparser.log', rep('          xparser.log\n', '')],
     [keys[5], 'a new uses: in a step', rep('    - name: List the .NET SDKs (CSH uses the newest one)\n', '    - uses: actions/cache@v4\n    - name: List the .NET SDKs (CSH uses the newest one)\n')],
     [keys[6], 'a new permission', rep('permissions:\n  contents: read\n', 'permissions:\n  contents: read\n  pull-requests: write\n')],
@@ -214,6 +237,7 @@ export default async function ({ ok, root }) {
     [keys[11], 'a new env key in the annotation step', rep('        O_CSH: ${{ steps.csh.outcome }}\n', '        O_CSH: ${{ steps.csh.outcome }}\n        EXTRA: x\n')],
     [keys[11], 'the Core pin value changed', rep('IXIAN_CORE_REF: 097341acba', 'IXIAN_CORE_REF: 197341acba')],
     [keys[12], 'the annotation step if: changed', rep('    - name: Publish failure details as annotations\n      if: ${{ failure() || cancelled() }}', '    - name: Publish failure details as annotations\n      if: ${{ always() }}')],
+    [keys[12], 'the size step if: changed to always()', rep('      id: size\n      if: ${{ !cancelled() }}', '      id: size\n      if: ${{ always() }}')],
     [keys[12], 'the upload step if: removed', rep('      if: ${{ failure() || cancelled() }}\n      uses: actions/upload-artifact@v7', '      uses: actions/upload-artifact@v7')],
     [keys[0], 'step (a) loses its timeout', rep('      id: xparser\n      if: ${{ !cancelled() }}\n      timeout-minutes: 10\n', '      id: xparser\n      if: ${{ !cancelled() }}\n')],
     [keys[1], 'step (b) timeout changed to 100', rep('      id: msbuildh\n      if: ${{ !cancelled() }}\n      timeout-minutes: 10\n', '      id: msbuildh\n      if: ${{ !cancelled() }}\n      timeout-minutes: 100\n')],
@@ -244,6 +268,15 @@ export default async function ({ ok, root }) {
     [k17, 'another repository for the Core checkout', rep('        repository: ixian-platform/Ixian-Core\n', '        repository: someone/Ixian-Core\n')],
     // ★ walktools2 re-base (2026-11-23): the npm line is `npm ci` now (was `npm i --no-save <five tools>`); the break keeps its meaning (one more thing on the npm line) with the new anchor
     [k17, 'one more argument on the npm line', rep('      run: npm ci\n', '      run: npm ci left-pad@1.3.0\n')],
+  );
+  // the size step re-base (row 17): breaks of the size step lines and of the size pieces that every other row lets through
+  brk.push(
+    [k17, 'an extra argument on the size run line', rep('--ci --summary "$GITHUB_STEP_SUMMARY" 2>&1', '--ci --summary "$GITHUB_STEP_SUMMARY" --base HEAD 2>&1')],
+    [k17, 'a second run line in the size step', rep('tee ../size.log\n', 'tee ../size.log\n        echo done\n')],
+    [k17, 'the upload list loses size.log', rep('          size.log\n', '')],
+    [k17, 'the fetch depth moved to the Windows checkout', rep('        fetch-depth: 2\n', '').replace('    runs-on: windows-latest\n    timeout-minutes: 45\n    defaults:\n      run:\n        working-directory: Spixi\n    steps:\n    - name: Checkout Spixi\n      uses: actions/checkout@v7\n      with:\n        path: Spixi\n        persist-credentials: false\n', '    runs-on: windows-latest\n    timeout-minutes: 45\n    defaults:\n      run:\n        working-directory: Spixi\n    steps:\n    - name: Checkout Spixi\n      uses: actions/checkout@v7\n      with:\n        path: Spixi\n        persist-credentials: false\n        fetch-depth: 2\n')],
+    [k17, 'a deeper fetch (fetch-depth: 0) on the smoke checkout', rep('        fetch-depth: 2\n', '        fetch-depth: 0\n')],
+    [k17, 'a further step between the size step and the annotation step', rep('    # Only for a step that itself failed', '    - name: Extra\n      run: echo hi\n\n    # Only for a step that itself failed')],
   );
   for (const [key, what, mut] of brk) {
     // row 17 holds the whole file, so every other break turns it red too: it is left out of the "only this row" test of the

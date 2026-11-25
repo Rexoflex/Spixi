@@ -5,10 +5,11 @@ Every agent gets this file plus its own row. An agent that needs a file outside 
 
 ## 1 · Base
 - Tree: `work/<batch>` @ "<commit message>" · baseline: `BASELINE OK <n> / the 2 KNOWN (#136 · B3)` · CSH <n> ·
-  tools: jsdom 29.1.1 · eslint 10.14.0 · globals 17.14.0 · tree-sitter 0.25.1 · tree-sitter-c-sharp 0.23.5 (L160)
+  tools: jsdom 29.1.1 · eslint 10.14.0 · globals 17.14.0 · tree-sitter 0.25.1 · tree-sitter-c-sharp 0.23.5 (L160; they come from `npm ci`, the committed lock)
 - Must hold for everyone: the PARAMOUNT isolation invariant · C# touches no risky parts · the frozen bridge (#1312,
   #1478: own switch, old path = the fallback) · the security handover gate triggers · edit `src/`, never
-  `Spixi/Resources/Raw/html` · no commit, no push, no full smoke, nothing in Ixian-Core
+  `Spixi/Resources/Raw/html` · no commit, no push, no full smoke, nothing in Ixian-Core · a comment says what or
+  why, never history (R2); no probe outside the dev fence (R5); no app C# file past 1,500 lines (R6) (#1963 (8))
 
 ## 2 · Items and ownership (file scopes are disjoint)
 | Item | Agent | Model (effort high) | Owns (files / folders) | Reads only | Owes (pins + one deliberate break each) | Scratch folder |
@@ -41,6 +42,15 @@ A change to this table goes through the lead; both sides get the new text.
    commit, ONE push of `work/<batch>`, read each commit back, the compare link for Damir's pull request (#1546),
    `redesign-ci` is read on that pull request (`docs/orchestration.md` § 4).
 
-## 6 · Escalation log
+## 6 · Stage 2 (R4, #1963 (8))
+The plan says what stage 2 deletes of this batch. List, per switch the batch adds:
+
+| Switch | Old path (file:line ranges) | Plumbing | Pins |
+|---|---|---|---|
+| <name> | | | |
+
+Write "none" when the batch adds no switch.
+
+## 7 · Escalation log
 | Item | Attempt | Model | Result | Next |
 |---|---|---|---|---|

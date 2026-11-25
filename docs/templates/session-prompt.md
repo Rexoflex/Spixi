@@ -43,8 +43,8 @@ If a ★ rule or a ✅ DECISIONS row would have to change: do not change it; wri
   — or this session is exempt: <not exempt (a build session) | exempt by the ★ text: cloud-only research / cloud-only
   tooling | exempt by Damir's word: "<quote, date>" (#1508: a docs batch, a tracker change or a tooling session that
   needs Damir's PC or a device is not exempt by itself — the main chat asks Damir each time)>.
-- Baseline in YOUR environment (cloud twin with ../Ixian-Core @097341a): first the ONE npm line, versions pinned
-  (L160): `npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5`
+- Baseline in YOUR environment (cloud twin with ../Ixian-Core @097341a): first `npm ci` (the lockfile pins every
+  tool, L160, #1831; never `npm audit fix`)
   → the --check gates green → smoke `BASELINE OK <n> / the 2 KNOWN (#136 · B3)` → `CSH pass=<n> fail=0`. A different
   number: check the tool versions, say so, stop (#681). ONE full smoke at a time, nothing that executes beside it
   (L75, L153); start it detached and poll.
@@ -83,6 +83,9 @@ fetch or log line → its section in docs/security-handover-gate.md in this batc
 need → STOP that item, log it in docs/security-review-for-be-engineer.md) · the PARAMOUNT isolation invariant ·
 Ixian-Core is BE-only at the pin.
 Budget: one walk for this batch · <n> CI runs (every push to the open pull request starts one redesign-ci run).
+Size budget (R1, #1963 (8)): <n> app C# code lines for the batch (and <n> in src/ beside it), counted by `node
+scripts/size-count.mjs --base <base> --head HEAD` (the delta of app C# code lines). Going over it needs one line of
+reason in the status doc.
 
 ## Work items
 <numbered items; for each: the finding, the measured mechanism or "measure first", what to build, the pins, the
@@ -105,6 +108,10 @@ version; a gap of the stated class that a reader finds later is a NIT, not a MAJ
 batch claims runs on the tree that the last reader reads: the full smoke and every packaged or built run on the final
 tree BEFORE that reader starts (#1753 (2), session leanfollow). A miss on a timing pin: run the module alone and
 re-run it before anything else (#1827 (4); L153, #1457 ⑥, #1463).
+Size rule (#1963 (8)): R2 (no history in a comment), R5 (no probe outside the dev fence) and R6 (no app C# file past
+1,500 lines) are checked by the size step of redesign-ci (session sizerule) and by hand with `node
+scripts/size-check.mjs --base <base> --head HEAD` before the push (exit 1 = a check fails). R4: the contract names
+what stage 2 deletes of the batch (docs/templates/agent-contract.md, "Stage 2 (R4)").
 Review: write docs/review-brief-<batch>.md; the #46 loop until CLEAN (every reader a fresh read-only instance, #1471:
 Claude Fable 5.2 for the security-only pass and for the file where an error costs most, Claude Opus for every other
 reader, #1606; the builder's context never reviews; no fallback below the named model — stop), BEFORE the batch
@@ -137,7 +144,9 @@ Fallback (only with "fallback allowed: yes", and only when a push fails — #154
 tree, docs/commit-message-<batch>.txt (no attribution lines), the PowerShell lines that make the branch, the commits
 and the pull request.
 Last: the status doc claude/session-<name>-status.md (shape: claude/mission-control-howto.md; with the compare link,
-the title and the description to paste, and the CI result when it is read) ·
+the title and the description to paste, and the CI result when it is read; and the size lines of R3: the size table
+of the final tree and the delta against the base, from `node scripts/size-count.mjs --base <base> --head HEAD` — app
+C# code lines, comment lines, switches, files over 1,500 lines, #1963 (8)) ·
 skill proposals for any procedure repeated. No next prompt, no next session: the main chat does that. You never
 merge a pull request and never walk.
 

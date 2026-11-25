@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* x-parser-crosscheck.mjs — the INDEPENDENT proof of the lean strips (docs/contract-perflean.md
- * § 3.4). NOT in the packaging path: it uses the parsers the pinned test line already installs
+ * § 3.4). NOT in the packaging path: it uses the parsers `npm ci` already installs
  * (`acorn`, a dependency of the pinned eslint, and `jsdom`) — never a new package. Not
  * resolvable = a loud failure, never a skip.
  *
@@ -86,7 +86,7 @@ const { stripCssComments } = await import(new URL('../strip-release.mjs', import
 function need(name) {
   const req = createRequire(join(root, 'package.json'));
   try { return req(name); }
-  catch (e) { throw new Error('x-parser-crosscheck: cannot resolve "' + name + '" from ' + root + '/node_modules — install the pinned test line (CLAUDE.md step 5); this check never skips'); }
+  catch (e) { throw new Error('x-parser-crosscheck: cannot resolve "' + name + '" from ' + root + '/node_modules — run `npm ci` (CLAUDE.md step 5); this check never skips'); }
 }
 
 /* ─────────────── JS: acorn ─────────────── */

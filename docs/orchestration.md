@@ -98,7 +98,7 @@ another run has this batch; for a restart Damir sets it Ready again in the main 
 8. **Commit, push, compare link** (§ 6, #1546): one push of `work/<batch>` carries the batch AND its export docs, so
    that the head CI checks is the head Damir walks; the session reads each commit back and gives Damir the compare
    link; Damir opens the pull request. `redesign-ci` runs on that pull request: `build-shells --check`, `build-locales --check`, the
-   full smoke, CSH, and a Windows compile. The other gates of § G2 run only on the lead's machine. No macOS job:
+   full smoke, CSH, a Windows compile, and the size step (R2 / R5 / R6). The other gates of § G2 run only on the lead's machine. No macOS job:
    iPhone / Mac C# stays "⚠ UNCOMPILED" until Damir builds it (Android too: CI does not compile it).
    CI red → read the failing step and its annotation; a fix is a fix round (fix → full smoke → a fresh #46 reader
    over it → the next push; that fix commit also updates the verdict in the brief, the handoff and the status-log text). The CI result
@@ -253,8 +253,7 @@ one.
 
 - A lead that wrote the contract is biased toward it. That is why reviewers are fresh and read the tree, not the chat.
 - The cloud twin has 2 cores: one full smoke at a time (42–43 minutes on 2026-11-11), nothing that executes beside it
-  (L75, L153). Install the pinned tool line first (L160: `npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0
-  tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5`, ALL in one command).
+  (L75, L153). Install the pinned tools first with `npm ci` (L160, #1831).
 - The cloud cannot compile C#. CI compiles Windows only; iPhone / Mac / Android C# stays "⚠ UNCOMPILED" until Damir's
   build. CI and release builds use the clean Ixian-Core pin; Damir's PC Core has two modified files (handoff HK1 § 3 ④).
 - Fable 5.2 has more safeguards on security topics; a security-only round can be declined → stop condition (#1471).

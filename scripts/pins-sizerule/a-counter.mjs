@@ -167,6 +167,27 @@ export default async function ({ ok, root }) {
   ok(lib.classifyCs('#define SPIXI_DEV\\u005FCOEXIST\n#if SPIXI_DEV_COEXIST\nint x;\n#endif\n').store.every(Boolean) && lib.classifyCs('#if SPIXI_DEV_COEXIST\nint x;\n#endif\n').store[1] === false,
     'SIZERULE-A cs-suspect: a #define with an escaped name makes the store symbols unknown from that line on (store true everywhere); the same #if alone is false');
 
+  /* ---- the later suspect reasons: the list of `line:reason` each text gives ---- */
+  const sr = (tx) => JSON.stringify(lib.classifyCs(tx).suspect.map((s) => s.line + ':' + s.reason));
+  const SUS2 = [
+    ['control-character before #else', wrap('#if DEBUG\nint a;\n\u001a#else\nint b;\n#endif'), '["9:control-character","9:unread-directive"]'],
+    ['control-character inside #else', wrap('#if DEBUG\nint a;\n#else\nint b;\u001a\n#endif'), '["10:control-character"]'],
+    ['control-character before #define', '\u001a#define DEBUG\n' + wrap('int q;'), '["1:control-character","1:unread-directive"]'],
+    ['U+FEFF inside a line', wrap('int q;\nint﻿ r;'), '["8:control-character"]'],
+    ['unread-directive unknown keyword', wrap('#iff DEBUG\nint q;\n#endif'), '["7:unread-directive"]'],
+    ['unread-directive no-break space before #', wrap(' #if DEBUG\nint q;\n#endif'), '["7:unread-directive"]'],
+    ['unread-directive non-ASCII in the text', wrap('#if DEBÜG\nint q;\n#endif'), '["7:unread-directive"]'],
+    ['error-string unclosed raw string', 'class A {\n  string s = """\n  // x\n#if DEBUG\n', '["2:error-string","4:string-over-directive"]'],
+    ['error-string unclosed verbatim string', 'class A {\n  string s = @"abc\n#if DEBUG\n', '["2:error-string"]'],
+    ['string-over-directive $@"', wrap('var s = $@"\n#if DEBUG\n";'), '["8:string-over-directive"]'],
+    ['string-over-directive """', wrap('var s = """\n#if DEBUG\n""";'), '["8:string-over-directive"]'],
+    ['string-over-directive $"""', wrap('var s = $"""\n#if DEBUG\n""";'), '["8:string-over-directive"]'],
+  ];
+  for (const [name, tx, want] of SUS2) ok(sr(tx) === want, 'SIZERULE-A cs-suspect ' + name + ': ' + want + ' (got ' + sr(tx) + ')');
+  ok(lib.classifyCs(wrap('int a;\tint b;\n')).suspect.length === 0 && lib.classifyCs('﻿' + wrap('int a;')).suspect.length === 0, 'SIZERULE-A cs-suspect: a tab and a BOM at the start of the text are not suspects');
+  const cssEsc = lib.classifyWeb(".it\\'s {} /* round 2 #1234 */\n", '.css');
+  ok(cssEsc.kinds.join() === 'code' && cssEsc.comments[0] === '/* round 2 #1234 */', 'SIZERULE-A css: the character after a backslash is skipped, so `\\\'` does not open a string and the block comment after it is read: ' + JSON.stringify(cssEsc.comments));
+
   /* ---- the condition grammar and #define / #undef ---- */
   const cond = lib.classifyCs(COND.map((r) => r[0]).join('\n') + '\n'); const wantCond = COND.map((r) => r[1]);
   ok(cond.store.length === COND.length && cond.store.every((s, i) => s === wantCond[i]), 'SIZERULE-A cs-cond: == != ( ) true false, #elif and #else after a branch that is definitely true, an unreadable condition is unknown and kept ' + diffAt(cond.store, wantCond, COND));

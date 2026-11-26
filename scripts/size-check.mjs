@@ -37,19 +37,23 @@
  *   R5  An added CODE line of app C# whose store flag is true (not compiled out of a store
  *       build: size-lib's #if evaluator, DEBUG / SPIXI_DEV_COEXIST / SPIXI_CSH false) and
  *       whose code part writes a probe:
- *         a tag of PROBE_TAGS or PROBE_TAG_PATTERNS in brackets (also when the line's string
- *         literals joined spell it, "[" + "CDPERF]"), or a PROBE_TAGS name of four or more
+ *         a bracket tag of PROBE_TAGS (also with a suffix: [CDPERF2], [P1b]) or of
+ *         PROBE_TAG_PATTERNS (DIAG, PERF, PROBE or TIMING anywhere in the tag; a letter with a
+ *         number), also when the line's string literals joined spell it ("[" + "CDPERF]"), or
+ *         a PROBE_TAGS name of four or more
  *         characters as a whole word anywhere in the code part ($"[{"CDPERF"}]", nameof);
  *         a probe class of PROBE_CALLS or PROBE_CALL_PATTERNS. The P1Perf calls count although
  *         their bodies are empty in a store build: the inventory names the [P1] calls among
  *         the probe lines that ship (§ 7a step 4, § 6c);
- *         a timing log line: a log call with a stopwatch token, or with a clock read or a
- *         duration and a subtraction, on the same line. An edit of an upstream timing log line
+ *         a timing log line: a log call with a stopwatch token (Stopwatch, ElapsedMilliseconds,
+ *         ElapsedTicks, GetTimestamp, GetElapsedTime, .Elapsed.Total… / .Elapsed.Ticks), or
+ *         with a clock read or a duration and a subtraction, on the same line. An edit of an upstream timing log line
  *         fails too (rare: fence it, or say so in the pull request).
  *       One such line fails. An unchanged probe line that the diff takes out of its fence (an
  *       #if / #endif moved or removed, a #define added) or out of a block comment fails too.
  *       A probe line that the same diff removes outside the fence (any file) and adds again
- *       with the same text is moved, not new.
+ *       with the same text (white space aside: a pure re-indent) is moved, not new; an edit of
+ *       an existing unfenced probe line counts as new, so fence it in the same change.
  *       The probe list was derived from the tree with
  *         git grep -h -o -E '"\[[A-Za-z0-9_\-]{1,30}\]' <rev> -- 'Spixi/*.cs' | sort | uniq -c
  *       and the tags the history added and removed (git log -p over Spixi/*.cs).
@@ -65,7 +69,9 @@
  *   and \x escapes first (`P1Perf` is P1Perf).
  *   Notes, not failures: the report names a diff that changes a .gitattributes file, and one
  *   that changes the checks or their inputs (scripts/size-*.mjs, the size pins, the workflow,
- *   package.json / package-lock.json): those parts need a reading by hand.
+ *   package.json / package-lock.json / .npmrc / node_modules, a .csproj, Directory.Build.props /
+ *   .targets, global.json): those parts need a reading by hand. On a pull request the check runs
+ *   the pull request's own copy of these scripts and of the workflow.
  *
  * ITS LIMITS (source-text checks: each a known edge, not a promise)
  *   - R2 reads words, not meaning: a history sentence without a marker word passes ("as the
@@ -75,7 +81,11 @@
  *   - R2 token credit is diff-wide: a pull request that removes a history comment in one file
  *     may add the same tokens in another.
  *   - R2 batch names come from the base and head trees (scripts/pins-*, docs/handoff-*,
- *     docs/contract-*); a name that is in neither is caught only by the other markers.
+ *     docs/contract-*); a name that is in neither is caught only by the other markers. A batch
+ *     name that is an ordinary word makes every use of that word count unless it is in
+ *     BATCH_NAME_STOPLIST; the first part of a dashed name is a name only when it holds a digit.
+ *   - R2 reads comments: prose that is not a comment inside a section that is never compiled
+ *     (`#if false`) is not read.
  *   - R5 reads one line at a time: a tag or a time value split over several lines, a tag built
  *     in a variable on an earlier line, a short tag (P1, DT) put together from pieces, char
  *     arithmetic, or a log helper with a new name passes. A probe written through a method
@@ -86,6 +96,10 @@
  *     file (DefineConstants), not by the source, is not seen.
  *   - Look-alikes outside the mapped Cyrillic / Greek letters (other scripts, combining marks
  *     that NFKC keeps) are not folded.
+ *   - On a pull request the check runs the pull request's own copy of these scripts and of the
+ *     workflow: a diff that changes them is only as safe as the human reading of that diff (the
+ *     NOTE line says when one does).
+ *   - R5 counts an edited unfenced probe line as new (fence it in the same change).
  *   - Paths outside Spixi/ and src/ are not checked (a .cs file the project pulls in from
  *     another folder by a <Compile Include>, a symlinked folder).
  */
@@ -160,7 +174,7 @@ export const HISTORY_MARKERS = Object.freeze([
 const HISTORY_MARKERS_G = HISTORY_MARKERS.map((m) => ({ id: m.id, re: new RegExp(m.re.source, `${m.re.flags}g`) }));
 
 /* Batch / session names that are ordinary words: never used as markers. */
-export const BATCH_NAME_STOPLIST = Object.freeze(['safety', 'tooling', 'launch', 'office', 'orch']);
+export const BATCH_NAME_STOPLIST = Object.freeze(['safety', 'tooling', 'launch', 'office', 'orch', 'smooth']);
 
 /* The diagnostic, timing and temporary log tags of app C#: the live ones and the retired ones
  * (so that none comes back unfenced). Subsystem tags such as [FLAGS] [CONFIRM] [RESTORE]
@@ -172,11 +186,12 @@ export const PROBE_TAGS = Object.freeze([
   'cam-perm',
 ]);
 
-/* Tags a future probe will most likely carry: …DIAG, …PERF, …PROBE, …TIMING, and a letter with
- * a number ([P0] [P1] [L8] [M5]). */
+/* Tags a future probe will most likely carry: DIAG, PERF, PROBE or TIMING anywhere in the tag
+ * ([NavPerf], [PERF-nav]), and a letter with a number ([P0] [P1] [L8] [M5]) with at most a
+ * lower-case letter or a `-` / `_` part after it ([P1b], [L8-x]). */
 export const PROBE_TAG_PATTERNS = Object.freeze([
-  { id: 'tag-diag-perf', re: /\[[A-Za-z0-9_-]*(?:DIAG|PERF|PROBE|TIMING)\]/i },
-  { id: 'tag-letter-number', re: /\[[A-Z]\d{1,3}\]/ },
+  { id: 'tag-diag-perf', re: /\[[A-Za-z0-9_-]*(?:DIAG|PERF|PROBE|TIMING)[A-Za-z0-9_-]*\]/i },
+  { id: 'tag-letter-number', re: /\[[A-Z]\d{1,3}(?:[a-z]|[-_][A-Za-z0-9]+)?\]/ },
 ]);
 
 /* The whole-file probe classes and the probe classes nested in pages: any use of the name
@@ -197,7 +212,7 @@ export const PROBE_CALL_PATTERNS = Object.freeze([
  * token is enough; a clock read counts only with a subtraction on the line; a duration
  * property only with a subtraction (a Stopwatch on the line is the strong case). */
 const LOG_CALL_RE = /\b(?:Logging\s*\.\s*(?:info|warn|error|verbose|debug|trace|log)|Console\s*\.\s*(?:Write|WriteLine)|Console\s*\.\s*Error\s*\.\s*Write\w*|Trace\s*\.\s*(?:Write|WriteLine|TraceInformation|TraceWarning|TraceError)|Log\s*\.\s*(?:Debug|Info|Warn|Error|Verbose|Wtf|WriteLine)|Debugger\s*\.\s*Log)\s*\(/;
-const TIMING_STRONG_RE = /\b(?:Stopwatch|ElapsedMilliseconds|ElapsedTicks|GetTimestamp|GetElapsedTime)\b/;
+const TIMING_STRONG_RE = /\b(?:Stopwatch|ElapsedMilliseconds|ElapsedTicks|GetTimestamp|GetElapsedTime)\b|\bElapsed\s*\.\s*(?:Total\w+|Ticks)\b/;
 const TIMING_CLOCK_RE = /\b(?:TickCount64|TickCount|getTimestampMillis|[Ee]lapsedRealtime|UtcNow)\b|\bDateTime\s*\.\s*Now\b/;
 const TIMING_WEAK_RE = /\b(?:TotalMilliseconds|Elapsed)\b/;
 
@@ -329,8 +344,13 @@ export function decodeCsEscapes(s) {
     .replace(/\\x([0-9a-fA-F]{1,4})/g, (_m, h) => String.fromCharCode(parseInt(h, 16)));
 }
 
-const PROBE_TAG_EXACT_RE = new RegExp(
-  `\\[(?:${PROBE_TAGS.map((t) => t.replace(/[-]/g, '\\-')).join('|')})\\]`, 'i');
+/* A listed tag, also with a suffix ([CDPERF2], [P1b]). A listed name that ends in a letter (MO,
+ * DT) takes a suffix only after a digit, `-` or `_`, so [MODE] and [DTO] stay ordinary words. */
+const tagAlt = (t) => {
+  const e = t.replace(/[-]/g, '\\-');
+  return /[A-Za-z]$/.test(t) && t.length <= 2 ? `${e}(?:[0-9_-][A-Za-z0-9_-]*)?` : `${e}[A-Za-z0-9_-]*`;
+};
+const PROBE_TAG_EXACT_RE = new RegExp(`\\[(?:${PROBE_TAGS.map(tagAlt).join('|')})\\]`, 'i');
 /* A probe tag name of four or more characters anywhere in the code part, strings and nameof
  * included: catches a tag put together from pieces ($"[{"CDPERF"}]", string.Format). Short
  * names (P1, DT, MO) are ordinary words or indexes and keep the bracket form. */
@@ -384,7 +404,10 @@ export function batchNames(paths) {
     if (!m) m = /^docs\/contract-([a-z0-9][a-z0-9-]*)\.md$/i.exec(p);
     if (!m) continue;
     const name = m[1].toLowerCase();
-    for (const n of [name, name.split('-')[0]]) {
+    const head = name.split('-')[0];
+    // The first part of a dashed name stands alone only when it holds a digit (dt1-p1 → dt1;
+    // mac-fix does not make "mac" a name).
+    for (const n of /\d/.test(head) ? [name, head] : [name]) {
       if (n.length >= 2 && !BATCH_NAME_STOPLIST.includes(n)) names.add(n);
     }
   }
@@ -538,8 +561,8 @@ function gitRenames(repo, base, head) {
 }
 
 /* Files whose change asks for a reading by hand: the checks, their pins, the workflow, the
- * attributes and the installed tools. */
-const WATCHED_RE = /^(?:scripts\/size-[^/]*\.mjs|scripts\/pins-sizerule\/.*|scripts\/pins-leanfollow\/d-ci\.mjs|\.github\/workflows\/.*|(?:.*\/)?\.gitattributes|package\.json|package-lock\.json)$/;
+ * attributes, the installed tools and their sources, and the build settings of the app. */
+const WATCHED_RE = /^(?:scripts\/size-[^/]*\.mjs|scripts\/pins-sizerule\/.*|scripts\/pins-leanfollow\/d-ci\.mjs|\.github\/workflows\/.*|(?:.*\/)?\.gitattributes|package\.json|package-lock\.json|(?:.*\/)?node_modules\/.*|(?:.*\/)?\.npmrc|.*\.csproj|(?:.*\/)?Directory\.Build\.(?:props|targets)|(?:.*\/)?global\.json)$/;
 
 /* Why a file of the diff cannot be classified, or null. size-lib marks NUL and UTF-16 texts;
  * a symlink or a submodule is not a blob gitFiles returns. */
@@ -634,7 +657,7 @@ export function runChecks({ repo = '.', base, head }) {
     count: 0, max: R2_MAX_MARKER_LINES, pass: true, lines: [], app: 0, src: 0,
     credited: 0, singleDecision: 0, unreadable: [], names,
   };
-  const r5 = { pass: true, lines: [], moved: 0 };
+  const r5 = { pass: true, lines: [], moved: 0, probes: 0, unreadable: 0 };
   const r6 = { pass: true, mode: R6_MODE, files: [], limit: R6_LIMIT };
   const notes = {
     gitattributes: changed.filter((p) => /(?:^|\/)\.gitattributes$/.test(p)),
@@ -722,6 +745,8 @@ export function runChecks({ repo = '.', base, head }) {
   r5.lines.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line));
   r2.count = r2.lines.length;
   r2.pass = r2.count <= R2_MAX_MARKER_LINES && r2.unreadable.length === 0;
+  r5.unreadable = r5.lines.filter((l) => l.hits[0] === 'unreadable').length;
+  r5.probes = r5.lines.length - r5.unreadable;
   r5.pass = r5.lines.length === 0;
   r6.pass = R6_MODE === 'report' ? true : r6.files.length === 0;
   return { base: baseId, head: headId, r2, r5, r6, notes, pass: r2.pass && r5.pass && r6.pass };
@@ -767,6 +792,13 @@ function r2Fail(r2) {
   return `FAIL R2 ${why.join('; ')}`;
 }
 
+function r5Fail(r5) {
+  const why = [];
+  if (r5.probes) why.push(`${r5.probes} new probe line(s) outside #if SPIXI_DEV_COEXIST / DEBUG / SPIXI_CSH`);
+  if (r5.unreadable) why.push(`${r5.unreadable} file(s) unreadable or suspect`);
+  return `FAIL R5 ${why.join(' · ')}`;
+}
+
 function textReport(res, sizes, ci) {
   const out = [];
   out.push(`size-check: base ${res.base.slice(0, 12)} head ${res.head.slice(0, 12)}`);
@@ -787,12 +819,12 @@ function textReport(res, sizes, ci) {
   out.push(r2Line(r2));
   for (const u of r2.unreadable) out.push(`${P}${sanitizeLine(`${u.path}: unreadable: ${u.why}`)}`);
   for (const l of r2.lines) out.push(`${P}${sanitizeLine(`${l.path}:${l.line} [${l.hits.join(',')}] ${l.text}`)}`);
-  out.push(`R5 new probe lines outside the dev fence: ${r5.lines.length} (${r5.moved} moved, not counted): ${r5.pass ? 'pass' : 'FAIL'}`);
+  out.push(`R5 new probe lines outside the dev fence: ${r5.probes} (${r5.moved} moved, not counted; ${r5.unreadable} file(s) unreadable or suspect): ${r5.pass ? 'pass' : 'FAIL'}`);
   for (const l of r5.lines) out.push(`${P}${sanitizeLine(`${l.path}:${l.line} [${l.hits.join(',')}] ${l.text}`)}`);
   out.push(`R6 app C# files over ${R6_LIMIT} lines that grew, or new past it: ${r6.files.length} (mode ${r6.mode}): ${r6.files.length === 0 ? 'pass' : r6.mode === 'fail' ? 'FAIL' : 'report only'}`);
   for (const f of r6.files) out.push(`${P}${sanitizeLine(`${f.path}: ${f.base} -> ${f.head} lines${f.renamedFrom ? ` (renamed from ${f.renamedFrom})` : ''}`)}`);
   if (!r2.pass) out.push(r2Fail(r2));
-  if (!r5.pass) out.push(`FAIL R5 ${r5.lines.length} new probe line(s) outside #if SPIXI_DEV_COEXIST / DEBUG / SPIXI_CSH`);
+  if (!r5.pass) out.push(r5Fail(r5));
   if (!r6.pass) out.push(`FAIL R6 ${r6.files.length} app C# file(s) grew while over ${R6_LIMIT} lines or crossed it`);
   out.push(`size-check: ${res.pass ? 'PASS' : 'FAIL'}`);
   return out.join('\n') + '\n';
@@ -819,7 +851,7 @@ function markdownReport(res, sizes, ci) {
   const { r2, r5, r6 } = res;
   out.push('| Check | Result | Count | Detail |', '|---|---|---:|---|');
   out.push(`| R2 history markers in added comments (max ${r2.max}) | ${st(r2.pass)} | ${r2.count} | app C# ${r2.app} · src ${r2.src} · ${r2.credited} credited by removed markers · ${r2.singleDecision} with one decision number only · ${r2.unreadable.length} unreadable |`);
-  out.push(`| R5 new probe lines outside the dev fence | ${st(r5.pass)} | ${r5.lines.length} | ${r5.moved} moved, not counted |`);
+  out.push(`| R5 new probe lines outside the dev fence | ${st(r5.pass)} | ${r5.probes} | ${r5.moved} moved, not counted · ${r5.unreadable} file(s) unreadable or suspect |`);
   out.push(`| R6 files over ${R6_LIMIT} lines (mode ${r6.mode}) | ${r6.files.length === 0 ? 'pass' : r6.mode === 'fail' ? '**FAIL**' : 'report only'} | ${r6.files.length} | |`);
   out.push('');
   const table = (title, head, rows) => {

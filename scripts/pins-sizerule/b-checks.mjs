@@ -18,7 +18,8 @@
  * 17 fail closed · 18 --ci on a merge commit (and the `checked:` line) · 19 workflow-command safety of the printed text · 20 R2 credit for
  * moved lines · 21 history markers · 22 probe detectors · 23 R2 token credit, single decision number, batch names · 24 R5 old probe lines
  * taken out of a fence or a comment · 25 the vendored folder · 26 files that cannot be read · 27 suspect directive lines · 28 generated src
- * files · 29 R6 and git's rename detection · 30 notes, the summary file, a path that is not UTF-8.
+ * files · 29 R6 and git's rename detection · 30 notes, the summary file, a path that is not UTF-8 · 31 the later suspect reasons, directive
+ * free text, letter-case path, new tag and timing patterns, batch names, watched paths, the CSS escape.
  * Self-check: one token of size-check.mjs changed in a copy of the tree (node scripts/run-pins.mjs --root <copy> pins-sizerule/b-checks) turns the row of that code red. */
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync as rd } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -355,5 +356,35 @@ export default async function ({ ok, root }) {
     const fi = spawnSync('git', ['-C', badRepo, 'fast-import', '--quiet'], { input: Buffer.concat([Buffer.from('commit refs/heads/main\ncommitter t <t@example.invalid> 0 +0000\n'), dat(Buffer.from('badpath')), Buffer.from('from ' + badBase + '\nM 100644 inline Spixi/bad'), Buffer.from([0xff]), Buffer.from('.cs\n'), dat(Buffer.from(A('        int q = 1;\n'))), Buffer.from('\n')]) });
     const kBad = fi.status === 0 ? cli(['--repo', badRepo, '--base', badBase, '--head', gitIn(badRepo, 'rev-parse', 'refs/heads/main')]) : { code: -1, err: String(fi.stderr) };
     ok(fi.status === 0 && kBad.code === 2 && /not UTF-8/.test(kBad.err), 'SIZERULE-B case 30 fail closed: a path of the diff that is not UTF-8 gives exit 2 with a clear message (exit ' + kBad.code + ', ' + kBad.err.trim().slice(0, 120) + ')');
+    /* 31 the later suspect reasons, the directive free text, the letter-case path, the new tag and timing patterns, batch names, watched paths, the CSS escape */
+    const SUSP2 = [
+      ['control-character before #else', A('#if DEBUG\n        int a = 1;\n\u001a#else\n        int b = 2;\n#endif\n'), 'control-character'],
+      ['control-character inside #else', A('#if DEBUG\n        int a = 1;\n#else\n        int b = 2;\u001a\n#endif\n'), 'control-character'],
+      ['control-character before #define DEBUG', '\u001a#define DEBUG\n' + A('        int q = 1;\n'), 'control-character'],
+      ['U+FEFF inside a line', A('        int q = 1;\n        int﻿ r = 2;\n'), 'control-character'],
+      ['unread-directive (unknown keyword)', A('#iff DEBUG\n        int q = 1;\n#endif\n'), 'unread-directive'],
+      ['unread-directive (non-ASCII in the directive)', A('#if DEBÜG\n        int q = 1;\n#endif\n'), 'unread-directive'],
+      ['error-string (an unclosed verbatim string)', 'class A {\n  string s = @"abc\n#if DEBUG\n', 'error-string'],
+    ];
+    for (const [name, text, reason] of SUSP2) {
+      want('case 31 suspect ' + name + ': R5 unreadable', mk({ 'Spixi/S.cs': A0 }, { 'Spixi/S.cs': text }), 'R2 pass, R5 fail, R6 pass', (r) => (r.r5.lines.some((l) => l.hits[0] === 'unreadable' && l.hits.includes(reason)) && r.r5.unreadable === 1 && r.r5.probes === 0) || JSON.stringify(r.r5.lines.map((l) => l.hits)));
+    }
+    const k31 = cliCase(mk({ 'Spixi/S.cs': A0 }, { 'Spixi/S.cs': SUSP2[0][1] }));
+    ok(k31.code === 1 && failsAre(k31, ['FAIL R5']) === true && /1 file\(s\) unreadable or suspect/.test(k31.out) && /control-character/.test(k31.out), 'SIZERULE-B case 31 CLI: a control character before #else is exit 1 with exactly FAIL R5, and the R5 line counts the unreadable file (exit ' + k31.code + ')');
+    want('case 31 plain: a tab inside a C# line is not a suspect', mk({ 'Spixi/S.cs': A0 }, { 'Spixi/S.cs': A('        int q\t= 1;\n') }), PASS);
+
+    const free = ['#region ★ fixed in round 2 (#1230)', '#endregion ★ fixed in round 3 (#1231)', '#warning ★ fixed in round 4 (#1232)', '#error ★ fixed in round 5 (#1233)', '#pragma fixed in round 6 (#1234)', '#region ★ fixed in round 7 (#1235)'];
+    want('case 31 R2 directive text: 6 marker lines in #region / #endregion / #warning / #error / #pragma lines fail R2', mk({ 'Spixi/A.cs': A0 }, { 'Spixi/A.cs': A('        int x = 1;\n' + free.join('\n') + '\n') }), 'R2 fail, R5 pass, R6 pass', (r) => r.r2.count === 6 || 'count ' + r.r2.count);
+    want('case 31 path case: SPIXI/X.CS (another letter case) with a probe is app C#', mk({ README: 'x\n' }, { 'SPIXI/X.CS': A(PR) }), 'R2 pass, R5 fail, R6 pass');
+    want('case 31 CSS escape: a rule with \\\' before a history comment, six times, is read as comments', mk({ README: 'x\n' }, { 'src/a.css': Array.from({ length: 6 }, (_, i) => ".it\\'s" + i + ' {} /* round 2 (#123' + i + ') */\n').join('') }), 'R2 fail, R5 pass, R6 pass', (r) => r.r2.count === 6 || 'count ' + r.r2.count);
+
+    const NEWP = [['tag with a suffix (listed name)', 'Logging.info("[CDPERF2] x");'], ['tag with a suffix (CALLSWAP2)', 'Logging.info("[CALLSWAP2] x");'], ['tag P1b', 'Logging.info("[P1b] x");'],
+      ['tag PERF-nav', 'Logging.info("[PERF-nav] x");'], ['Elapsed.TotalMilliseconds', 'Logging.info("t=" + sw.Elapsed.TotalMilliseconds);'], ['Elapsed.Ticks', 'Logging.info(x.Elapsed.Ticks);']];
+    for (const [name, code] of NEWP) ok(sc.probeHits(code).length > 0, 'SIZERULE-B probes new pattern ' + name + ': `' + code + '` is a probe (got ' + JSON.stringify(sc.probeHits(code)) + ')');
+    ok(sc.probeHits('Logging.info("[MODE] x");').length === 0 && sc.probeHits('Logging.info("[DTO] x");').length === 0, 'SIZERULE-B probes: [MODE] and [DTO] are not tags (the listed names DT and MO need an exact bracket form)');
+    const bn = (p) => JSON.stringify(sc.batchNames(p));
+    ok(bn(['scripts/pins-smooth/a.mjs']) === '[]' && bn(['scripts/pins-mac-fix/a.mjs']) === '["mac-fix"]' && bn(['scripts/pins-v1-am/a.mjs']) === '["v1","v1-am"]', 'SIZERULE-B batch names: smooth is stop-listed, mac-fix does not make "mac" a name, v1-am (a digit in the first part) makes v1 a name too (' + bn(['scripts/pins-smooth/a.mjs']) + bn(['scripts/pins-mac-fix/a.mjs']) + bn(['scripts/pins-v1-am/a.mjs']) + ')');
+    const w31 = want('case 31 watched: node_modules, .npmrc, a csproj, Directory.Build.props and global.json are noted', mk({ README: 'x\n' }, { 'node_modules/p/i.js': 'x\n', '.npmrc': 'x\n', 'Spixi/Spixi.csproj': '<x/>\n', 'Directory.Build.props': '<x/>\n', 'global.json': '{}\n' }), PASS);
+    ok(['node_modules/p/i.js', '.npmrc', 'Spixi/Spixi.csproj', 'Directory.Build.props', 'global.json'].every((x) => w31.notes.watched.includes(x)), 'SIZERULE-B case 31 watched: all five paths are in notes.watched (' + JSON.stringify(w31.notes.watched) + ')');
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 }

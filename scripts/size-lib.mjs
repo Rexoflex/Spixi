@@ -48,8 +48,9 @@
  *   - The git functions do not classify a file they cannot read as UTF-8 text (a UTF-16 byte
  *     order mark, a NUL byte, bytes that are not UTF-8, a symlink, a submodule): gitFiles
  *     marks it `unreadable`, and countTree lists it instead of counting it.
- *   - classifyCs lists in `suspect` the shapes where this classifier and the compiler may see the
- *     directives differently (see classifyCs); the store flags of such a file are not a proof.
+ *   - classifyCs lists in `suspect` the shapes where this classifier and the compiler may see
+ *     the directives differently (see classifyCs); the store flags of such a file are not a
+ *     proof. The list is a net of shapes, not a C# lexer: a shape outside it is not caught.
  */
 import { spawnSync } from 'node:child_process';
 import * as acorn from 'acorn';
@@ -106,6 +107,11 @@ function lineSpans(text) {
   return { starts, ends };
 }
 
+/* The one white-space predicate of the classifiers. It holds every character the C# compiler
+ * reads as white space or a line break (space, tab, VT, FF, U+001A, NBSP, U+FEFF, the Zs
+ * spaces, CR, U+0085, U+2028, U+2029) and the other C0 controls, so no directive the compiler
+ * sees can hide behind a character this predicate does not skip; the C# classifier lists
+ * every unusual one of them in `suspect`. */
 function isSpace(c) {
   return c <= 32 || c === 0xa0 || c === 0xfeff || c === 0x1680 || (c >= 0x2000 && c <= 0x200a) ||
     c === 0x2028 || c === 0x2029 || c === 0x202f || c === 0x205f || c === 0x3000 || c === 0x85;
@@ -181,20 +187,58 @@ const and3 = (a, b) => (a === 0 || b === 0 ? 0 : a === 1 && b === 1 ? 1 : null);
 const or3 = (a, b) => (a === 1 || b === 1 ? 1 : a === 0 && b === 0 ? 0 : null);
 const eq3 = (a, b) => (a === null || b === null ? null : a === b ? 1 : 0);
 
+/* Inside a directive only space and tab separate tokens; any other character there is not
+ * read (the directive is listed in `suspect` as 'unread-directive'). */
+function isDirectiveSpace(c) {
+  return c === 0x20 || c === 0x09;
+}
+
+function trimDirectiveSpace(str) {
+  let a = 0;
+  let b = str.length;
+  while (a < b && isDirectiveSpace(str.charCodeAt(a))) a++;
+  while (b > a && isDirectiveSpace(str.charCodeAt(b - 1))) b--;
+  return str.slice(a, b);
+}
+
+/* The directive keywords C# knows. */
+const DIRECTIVE_KEYWORDS = new Set([
+  'if', 'elif', 'else', 'endif', 'define', 'undef', 'line', 'pragma', 'nullable',
+  'region', 'endregion', 'error', 'warning',
+]);
+
+/* Reads a real directive line whose `#` is at `hash`: → { kw, rest } (rest = the text after
+ * the keyword), or null when this classifier cannot read it the way the compiler does: a
+ * prefix character other than space or tab, an unknown keyword, or a character outside
+ * printable ASCII and tab in the keyword or, for the directives that carry a condition, a
+ * symbol or a comment, in the part before the `//` tail. */
+function readDirective(text, start, hash, end) {
+  for (let k = start; k < hash; k++) if (!isDirectiveSpace(text.charCodeAt(k))) return null;
+  const m = /^#[ \t]*([A-Za-z]+)(?![A-Za-z0-9_])/.exec(text.slice(hash, end));
+  if (!m || !DIRECTIVE_KEYWORDS.has(m[1])) return null;
+  const rest = text.slice(hash + m[0].length, end);
+  if (DIRECTIVES_WITH_COMMENT.has(m[1])) {
+    const cut = rest.indexOf('//');
+    const head = cut === -1 ? rest : rest.slice(0, cut);
+    if (!/^[\t\x20-\x7e]*$/.test(head)) return null;
+  }
+  return { kw: m[1], rest };
+}
+
 /** Evaluates a C# preprocessor condition; `symbols` maps a name to 1 / 0 / null. Unknown
  * on a condition it cannot read. Precedence as in C#: ! > == != > && > ||. */
 export function evalCondition(src, symbols) {
   const toks = [];
-  const re = /\s*(\|\||&&|==|!=|!|\(|\)|[A-Za-z_\p{L}][\w\p{L}\p{Mn}\p{Nd}]*)/uy;
+  const re = /[ \t]*(\|\||&&|==|!=|!|\(|\)|[A-Za-z_][A-Za-z0-9_]*)/y;
   let pos = 0;
-  const s = src.replace(/\/\/.*$/, '').trim();
+  const s = trimDirectiveSpace(src.replace(/\/\/.*$/, ''));
   while (pos < s.length) {
     re.lastIndex = pos;
     const m = re.exec(s);
     if (!m) return null;
     toks.push(m[1]);
     pos = re.lastIndex;
-    while (pos < s.length && /\s/.test(s[pos])) pos++;
+    while (pos < s.length && isDirectiveSpace(s.charCodeAt(pos))) pos++;
   }
   if (toks.length === 0) return null;
   let i = 0;
@@ -213,7 +257,7 @@ export function evalCondition(src, symbols) {
       if (toks[i++] !== ')') throw fail;
       return v;
     }
-    if (/^[A-Za-z_\p{L}]/u.test(t)) return value(t);
+    if (/^[A-Za-z_]/.test(t)) return value(t);
     throw fail;
   };
   const unary = () => {
@@ -254,8 +298,10 @@ const PLAIN_SYMBOL = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /* Goes through the real directive lines in order and gives each line its store flag. A
  * #define / #undef whose name is not a plain ASCII identifier may name a store-false symbol
  * in a form this classifier cannot see (an escape, a format character, a look-alike letter), so
- * from that line on the store-false symbols are unknown and the line is listed in `suspect`. */
-function storeFlags(text, spans, directiveIdx, suspect) {
+ * from that line on the store-false symbols are unknown and the line is listed in `suspect`.
+ * A directive that readDirective cannot read may be any directive to the compiler (an #else,
+ * an #endif, a #define), so every line after it is kept (store = true). */
+function storeFlags(text, spans, directiveIdx, directiveInfo, suspect) {
   const n = spans.starts.length;
   const store = new Array(n).fill(true);
   const symbols = {};
@@ -271,12 +317,11 @@ function storeFlags(text, spans, directiveIdx, suspect) {
       if (active === 0) store[i] = false;
       continue;
     }
+    const info = directiveInfo[next];
     next++;
-    const line = text.slice(spans.starts[i], spans.ends[i]);
-    const m = /^\s*#\s*([A-Za-z]+)\b(.*)$/.exec(line);
-    if (!m) continue;
-    const kw = m[1];
-    const rest = m[2];
+    if (!info) break; // every later line keeps its initial store = true
+    const kw = info.kw;
+    const rest = info.rest;
     if (kw === 'if') {
       const c = evalCondition(rest, symbols);
       stack.push({ parent: active, none: not3(c) });
@@ -297,7 +342,7 @@ function storeFlags(text, spans, directiveIdx, suspect) {
       if (!f) continue;
       active = f.parent;
     } else if (kw === 'define' || kw === 'undef') {
-      const name = rest.replace(/\/\/.*$/, '').trim();
+      const name = trimDirectiveSpace(rest.replace(/\/\/.*$/, ''));
       if (!PLAIN_SYMBOL.test(name)) {
         suspect.push({ line: i + 1, reason: 'define-name' });
         for (const sym of STORE_FALSE_SYMBOLS) symbols[sym] = null;
@@ -311,24 +356,59 @@ function storeFlags(text, spans, directiveIdx, suspect) {
   return store;
 }
 
-function countErrors(root) {
-  if (!root.hasError) return 0;
-  let errors = 0;
+/* The string and character-literal pieces tree-sitter may leave loose inside an ERROR node
+ * (an unterminated or broken literal); inside a complete literal they are covered already. */
+const CS_STRING_PART_TYPES = [
+  'string_literal_content', 'string_literal_encoding', 'string_content', 'raw_string_start',
+  'raw_string_content', 'raw_string_end', 'interpolation_start', 'interpolation_quote',
+  'character_literal_content',
+];
+const CS_STRING_PART_SET = new Set(CS_STRING_PART_TYPES);
+
+/* Counts the ERROR and MISSING nodes, and lists (0-based rows) each string piece or unlexed
+ * ERROR chunk that sits directly in an ERROR node and spans a line break or reaches the end
+ * of the file: there this classifier and the compiler may not agree where the literal ends,
+ * so a later `#` line may be read differently. A comment node is not listed: tree-sitter
+ * makes one only from a complete line comment or a block comment with its closing mark (an
+ * unclosed block comment stays loose `/` and `*` tokens, which are code), so a comment inside
+ * an ERROR node still ends where the compiler ends it. */
+function scanErrors(root, text) {
+  const out = { errors: 0, errorStrings: [] };
+  if (!root.hasError) return out;
   const cursor = root.walk();
+  const parents = [];
   let descend = true;
   for (;;) {
     if (descend) {
       const t = cursor.nodeType;
-      if (t === 'ERROR') errors++;
-      else if (cursor.currentNode.isMissing) errors++;
+      const node = cursor.currentNode;
+      if (t === 'ERROR') out.errors++;
+      else if (node.isMissing) out.errors++;
+      if (parents[parents.length - 1] === 'ERROR' &&
+        (CS_STRING_PART_SET.has(t) || (t === 'ERROR' && node.childCount === 0))) {
+        const s = node.startIndex;
+        const e = node.endIndex;
+        if (e >= text.length || text.indexOf('\n', s) !== -1 && text.indexOf('\n', s) < e) {
+          out.errorStrings.push(node.startPosition.row);
+        }
+      }
+      const parentType = t;
+      if (cursor.gotoFirstChild()) { parents.push(parentType); continue; }
     }
-    if (descend && cursor.gotoFirstChild()) continue;
     if (cursor.gotoNextSibling()) { descend = true; continue; }
     if (!cursor.gotoParent()) break;
+    parents.pop();
     descend = false;
   }
-  return errors;
+  return out;
 }
+
+/* Characters that make a line unsafe to read: the C0 controls other than tab, LF and CR,
+ * DEL, and a U+FEFF that is not the file's leading byte order mark (already dropped). The
+ * compiler reads some of them as white space (U+001A, VT, FF) and others as errors; either
+ * way this classifier does not try to follow it. A lone CR is 'line-separator'. */
+const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ufeff]/;
+const SEPARATOR_RE = /[\r\u0085\u2028\u2029]/;
 
 /** The full C# analysis; classifyCs returns it. */
 function analyzeCs(rawText) {
@@ -336,23 +416,34 @@ function analyzeCs(rawText) {
   const spans = lineSpans(text);
   const mask = new Uint8Array(text.length + 1);
   let parseErrors = 0;
+  const suspect = [];
   if (text.length > 0) {
     const tree = getCsParser().parse(text, null, { bufferSize: Math.max(32 * 1024, text.length * 2 + 16) });
     const root = tree.rootNode;
     const strings = root.descendantsOfType(CS_STRING_TYPES);
     markRanges(mask, strings.map((nd) => [nd.startIndex, nd.endIndex]), 2);
+    if (root.hasError) {
+      const parts = root.descendantsOfType(CS_STRING_PART_TYPES);
+      markRanges(mask, parts.map((nd) => [nd.startIndex, nd.endIndex]), 2);
+    }
     const comments = root.descendantsOfType('comment');
     markRanges(mask, comments.map((nd) => [nd.startIndex, nd.endIndex]), 1);
-    parseErrors = countErrors(root);
+    const scan = scanErrors(root, text);
+    parseErrors = scan.errors;
+    for (const row of new Set(scan.errorStrings)) suspect.push({ line: row + 1, reason: 'error-string' });
   }
   const directiveIdx = [];
-  const suspect = [];
-  const hasSeparator = /[\r\u0085\u2028\u2029]/.test(text);
+  const directiveInfo = [];
+  const hasSeparator = SEPARATOR_RE.test(text);
+  const hasControl = CONTROL_RE.test(text);
   for (let i = 0; i < spans.starts.length; i++) {
     const s = spans.starts[i];
     const e = spans.ends[i];
-    if (hasSeparator && /[\r\u0085\u2028\u2029]/.test(text.slice(s, e))) {
+    if (hasSeparator && SEPARATOR_RE.test(text.slice(s, e))) {
       suspect.push({ line: i + 1, reason: 'line-separator' });
+    }
+    if (hasControl && CONTROL_RE.test(text.slice(s, e))) {
+      suspect.push({ line: i + 1, reason: 'control-character' });
     }
     let j = s;
     while (j < e && isSpace(text.charCodeAt(j))) j++;
@@ -360,17 +451,20 @@ function analyzeCs(rawText) {
     if (mask[j] === 1) { suspect.push({ line: i + 1, reason: 'comment-over-directive' }); continue; }
     if (mask[j] === 2) { suspect.push({ line: i + 1, reason: 'string-over-directive' }); continue; }
     directiveIdx.push(i);
+    const info = readDirective(text, s, j, e);
+    directiveInfo.push(info);
+    if (!info) suspect.push({ line: i + 1, reason: 'unread-directive' });
     const line = text.slice(j, e);
     const lineComment = line.indexOf('//');
     const block = line.indexOf('/*');
     if (block !== -1 && (lineComment === -1 || block < lineComment)) {
       suspect.push({ line: i + 1, reason: 'block-comment-on-directive' });
     }
-    if (/\\\s*$/.test(line)) suspect.push({ line: i + 1, reason: 'directive-continuation' });
+    if (/\\[ \t]*$/.test(line)) suspect.push({ line: i + 1, reason: 'directive-continuation' });
     markDirectiveTail(text, mask, j, e);
   }
   const kinds = kindsFromMask(text, mask, spans);
-  const store = storeFlags(text, spans, directiveIdx, suspect);
+  const store = storeFlags(text, spans, directiveIdx, directiveInfo, suspect);
   suspect.sort((a, b) => a.line - b.line || (a.reason < b.reason ? -1 : 1));
   const parts = lineParts(text, mask, spans);
   return {
@@ -391,7 +485,7 @@ function analyzeCs(rawText) {
 const DIRECTIVES_WITH_COMMENT = new Set(['if', 'elif', 'else', 'endif', 'define', 'undef', 'line', 'pragma', 'nullable']);
 
 function markDirectiveTail(text, mask, hash, end) {
-  const m = /^#\s*([A-Za-z]+)/.exec(text.slice(hash, end));
+  const m = /^#[ \t]*([A-Za-z]+)/.exec(text.slice(hash, end));
   if (!m || !DIRECTIVES_WITH_COMMENT.has(m[1])) return;
   for (let k = hash + m[0].length; k + 1 < end; k++) {
     if (mask[k] === 1) return;
@@ -411,7 +505,18 @@ function markDirectiveTail(text, mask, hash, end) {
  * (a /* on a real directive line), 'directive-continuation' (a real directive line ends in
  * a backslash), 'define-name' (a #define / #undef name that is not [A-Za-z_][A-Za-z0-9_]*),
  * 'line-separator' (a lone CR, U+0085, U+2028 or U+2029 on the line: a line break for the
- * compiler, white space here). Empty for a plain file. */
+ * compiler, white space here), 'control-character' (a C0 control other than tab, LF and CR,
+ * DEL, or a U+FEFF that is not the leading byte order mark), 'unread-directive' (a real
+ * directive line that readDirective cannot read: a prefix other than space and tab, an
+ * unknown keyword, or a character outside printable ASCII and tab before the `//` tail of a
+ * directive that carries a condition, a symbol or a comment), 'error-string' (a string piece
+ * or an unlexed chunk directly in an ERROR node that spans a line break or reaches the end
+ * of the file). Empty for a plain file.
+ *
+ * White space: one predicate, isSpace, decides the kinds and where a line's first character
+ * is; it holds every character the compiler reads as white space (and more). Inside a
+ * directive only space and tab are read; any other white space there makes the line
+ * 'unread-directive', and every line after an unread directive keeps store = true. */
 export function classifyCs(text) {
   return analyzeCs(text);
 }
@@ -495,6 +600,8 @@ function cssCommentRanges(text) {
       i++;
       while (i < n && text[i] !== c && text[i] !== '\n') i += text[i] === '\\' ? 2 : 1;
       i++;
+    } else if (c === '\\') {
+      i += 2; // an escape outside a string: the escaped character starts no string or comment
     } else {
       i++;
     }

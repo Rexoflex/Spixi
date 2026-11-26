@@ -847,4 +847,49 @@ namespace SPIXI
             return "[FLAGS] lockb hold=" + (hold ? "1" : "0") + " noalert=" + (noAlert ? "1" : "0") + " clock=" + (clock ? "1" : "0");
         }
     }
+
+    /* Two switches, one per change; OFF = the old path. OpusManagedOnly: the Opus factory makes the managed codec and never
+     * probes for a native library. DeclineClears: the Home decline also runs the Sent sweep and drops the chat's kept media.
+     * Absent = ON; a stored 0 acts only in dev mode (S16PassRules.effectiveFlag); read lazily, once per process; the one
+     * [FLAGS] line holds fixed words and 0|1 only. */
+    public static class SmallFixFlags
+    {
+        public const string OpusManagedOnlyKey = "flagOpusManagedOnly";
+        public const string DeclineClearsKey = "flagDeclineClears";
+        public static bool OpusManagedOnly => (bits() & 1) != 0;
+        public static bool DeclineClears => (bits() & 2) != 0;
+        private static int state = -1;   // -1 = not read yet, else the two switches as bits 1, 2
+
+        private static int bits()
+        {
+            int b = System.Threading.Volatile.Read(ref state);
+            if (b >= 0) return b;
+            b = read();
+            if (System.Threading.Interlocked.CompareExchange(ref state, b, -1) == -1)
+            {
+                try { Logging.info(flagsLine(b)); } catch (Exception) { }
+            }
+            return System.Threading.Volatile.Read(ref state);
+        }
+
+        /** A store that throws keeps both ON. Logs nothing. */
+        internal static int read()
+        {
+            bool dev = false;
+            int o = 1, d = 1;
+            try
+            {
+                dev = Preferences.Default.Get("devMode", false);
+                o = Preferences.Default.Get(OpusManagedOnlyKey, 1);
+                d = Preferences.Default.Get(DeclineClearsKey, 1);
+            }
+            catch (Exception)
+            {
+                dev = false;
+            }
+            return (S16PassRules.effectiveFlag(dev, o) ? 1 : 0) | (S16PassRules.effectiveFlag(dev, d) ? 2 : 0);
+        }
+
+        public static string flagsLine(int b) => "[FLAGS] fixb5 opusmanaged=" + (b & 1) + " declineclears=" + (b >> 1 & 1);
+    }
 }

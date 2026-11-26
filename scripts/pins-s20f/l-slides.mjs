@@ -1,7 +1,7 @@
 /* ==== S20F W-5 (#1425 · #1426) — THE WELCOME SLIDES: the order, "Open source", 7 s autoplay, the claims ====
  * On the BUILT intro.html (jsdom, phone UA):
  *   (1) the order: slide i draws art i and reads title / copy key i — welcome2 slide1Title2 slide1Copy3 · welcome1
- *       slide2Title2 slide2Copy2 · welcome3 slide3Title slide3Copy · welcome4 slide4Title2 slide4Copy2 (the painted text
+ *       slide2Title2 slide2Copy2 · welcome3 slide3Title slide3Copy · welcome4 slide4Title3 slide4Copy3 (the painted text
  *       mapped back to its en-us key); under ?lang=de-de the same slides paint the de-de values of those keys.
  *   (2) "Open source" is the element right after the dots — a plain <p> (no link, no button, no role), the en-us
  *       welcomeOpenSource value; shown at L0 / L1, display none at the L2 tight level (data-compact="2", built CSS).
@@ -63,7 +63,7 @@ export default async function (h) {
       keyOf((sl.querySelector('.c-launch__slide-copy') || {}).textContent).join('/'),
     ]);
     const WANT = [['welcome2', 'slide1Title2', 'slide1Copy3'], ['welcome1', 'slide2Title2', 'slide2Copy2'],
-      ['welcome3', 'slide3Title', 'slide3Copy'], ['welcome4', 'slide4Title2', 'slide4Copy3']];
+      ['welcome3', 'slide3Title', 'slide3Copy'], ['welcome4', 'slide4Title3', 'slide4Copy3']];
     g = await boot({ ua: 'phone', query: 'lang=de-de' });
     const de = JSON.parse(readFileSync(join(root, 'src/strings/de-de.json'), 'utf8'));
     const dePainted = [...g.d.querySelectorAll('.c-launch__slide')].map((sl) => [sl.querySelector('.c-launch__slide-title').textContent, sl.querySelector('.c-launch__slide-copy').textContent]);
@@ -71,7 +71,7 @@ export default async function (h) {
     const deOss = (g.d.querySelector('.c-launch__version') || {}).textContent;   // ★ S20G F-3 re-base: in the version line
     g.close(); g = null;
     ok(JSON.stringify(got) === JSON.stringify(WANT) && JSON.stringify(dePainted) === JSON.stringify(deWant) && deOss === de.welcomeOpenSource,
-      '★ S20F W-5 (#1425): the welcome order — slide 1 the ID-card art + "Private chat. No phone number.", slide 2 the orbit art + the post-quantum line, slide 3 unchanged, slide 4 "Play and plan together."; de-de paints the same keys — ' + JSON.stringify({ got, deOss }));
+      '★ S20F W-5 (#1425): the welcome order — slide 1 the ID-card art + "Private chat. No phone number.", slide 2 the orbit art + the post-quantum line, slide 3 unchanged, slide 4 "Play together." (the key slide4Title3, #1833); de-de paints the same keys — ' + JSON.stringify({ got, deOss }));
 
     /* (2) "Open source" — ★ S20G F-3 re-base: inside the version line (no separate caption under the dots) */
     const wv = d.querySelector('.c-launch__welcome');

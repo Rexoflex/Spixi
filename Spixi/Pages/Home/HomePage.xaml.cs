@@ -7282,6 +7282,8 @@ namespace SPIXI
                             SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
                             SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
                             SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+                            if (SmallFixFlags.DeclineClears) SContacts.scheduleSentSweep();   // my Sent copies this chat named go too, as in SContacts.removeContact
+                            if (SmallFixFlags.DeclineClears) ChatMediaStore.deleteChat(friend.walletAddress);   // the kept thumbnails and peaks of the declined chat go too (never throws)
                             SNotificationPrefs.forgetContact(friend.walletAddress.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
                         }
                     }

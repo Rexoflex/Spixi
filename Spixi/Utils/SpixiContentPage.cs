@@ -7682,7 +7682,7 @@ namespace SPIXI
             }
             catch (Exception ex)
             {
-                Logging.warn("sendContactRequest: invalid address payload: " + ex.Message);
+                Logging.warn("sendContactRequest: invalid address payload: " + ex.GetType().Name);   // the TYPE only: the message carries the address
                 return;
             }
             // #334 loop MINOR-5: self guard (mirror ContactNewPage:174-178).

@@ -3,6 +3,8 @@
 Interim index, until the strip (#933) rewrites DECISIONS by area. The rows stay in `DECISIONS.md`; this file only points at them. State as of row 1100 (2026-10-01, session 0); S9 rows #1243–#1251 added to the live-row cells (2026-10-07). Update a line when a row changes the live rule of its area.
 Read a row: `grep -n '^| #\?NNN ' DECISIONS.md` (ids are written `NNN` or `#NNN`; also `217b`, `#348b`, `B1`–`B3`, `N83`–`N86`, `iOS-63`). #302 is retired. 204, 344, 594 and 595 have no row.
 Notation: `#A→#B` means #A was superseded, amended or reversed by #B, so follow #B. 🟡 means provisional or not yet walked. Newest rule comes first in each cell.
+Doubled numbers (#1839 (1)): #1420–#1423 name two sets of rows, both kept. **ON-1** (2026-10-13 / 14, the launch flow uplift): #1420 opened, #1421 round 2, #1422 picks, #1423 as built; cite "#1420 (ON-1)".
+Doubled numbers (#1839 (1)): **S20G** (2026-10-14 / 15, the Session 20G fix round): #1420 size ceilings, #1421 as built (C#, home, settings), #1422 the #46 loop, #1423 recorded, not fixed; cite "#1420 (S20G)".
 
 | Area | Live rows (newest rule first) | What they decide (≤ 25 words) |
 |---|---|---|
@@ -291,6 +293,23 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1836 | WALK `histcs`: 10 P · 0 F · 2 N/A (W-5 / A-5, the quote jump, not walked: no seed chat holds a reply with a quote). |
 | #1837 | The password step of a new account: with the keyboard open the round picture hides and the title gets small, so both fields and the button show above the keyboard; in the next page batch. |
 | #1838 | Four sessions Ready: `voicefix`, `lockb`, `walktools2`, `docsb2`; the page batch `fixb5` is planned after them. |
+
+### The main chat's rows of 2026-11-23 → 25 (#1839–#1844, #1960–#1964; written word for word by session `fixb5`, #1998)
+These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #NNNN ' DECISIONS.md`).
+
+| Row | Rule |
+|---|---|
+| #1839 | Damir's answers in `docsb2`: keep the doubled #1420–#1423 (the index names both sets); branch protection of #1507 is set; the owed repo work goes to `fixb5`; pull request 25 merged (`23c9c495`). |
+| #1840 | WALK `defaultsb`: 14 P · 0 F · 0 N/A in three sittings (Windows 6 P · Android 8 P); W-3 P on Damir's word; walk debt 0. |
+| #1841 | The size of the app code is a finding: read-only inventory `codeinv` first; the app C# line count is a third number on the board. |
+| #1842 | The size plan: stage 1 clean-up before the handoff with the switches kept for the BE review; stage 2 removes the switches and comments after his verdict; the launch count is X. |
+| #1843 | The BE review budget is six hours at most (two sessions of about three hours); the 23-sitting plan is void; session `sizechk` runs a second check of the inventory. |
+| #1844 | Eight answers: Windows walk rows start with Ctrl+F5; no app change for the Windows end; the Opus native-library line goes into `fixb5`; the Apple clock; the picker return stays on the wall clock; the `lock.html` guard goes into `fixb5`; our dev toggles out of store builds; test helpers stay. |
+| #1960 | WALK `voicefix`: 3 P · 0 F · 0 N/A (Windows only; W-3 not walked); the batch is Done. |
+| #1961 | Fix batch 4 row W-4 again: P (13 P · 0 F); the quote jump of History C#: Android A-5 P, Windows W-5 REPLY C F (A and D P). |
+| #1962 | WALK `lockb`: 12 P · 0 F · 1 N/A (A-6); the lock clock proved in the log (A-5); walk debt 0. |
+| #1963 | The size rulings: stage-1 order of D6 (X about 57,710); our own full-code review is the audit of record; three small fixes into `fixb5`; the batch size rule R1–R6 from `fixb5` on. |
+| #1964 | The page-batch round: the Windows quote box is its own small batch; the password ask after a permission dialog stays; session `sizerule` (CI checks for R2, R5) is Ready. |
 
 ### Session Fix batch 4 (`fixb4`, 2026-11-22 / 23, #1845–#1855, L265–L268, packets P87–P88)
 | Row | Rule |

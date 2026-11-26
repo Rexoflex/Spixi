@@ -83,7 +83,8 @@
  *   - R2 batch names come from the base and head trees (scripts/pins-*, docs/handoff-*,
  *     docs/contract-*); a name that is in neither is caught only by the other markers. A batch
  *     name that is an ordinary word makes every use of that word count unless it is in
- *     BATCH_NAME_STOPLIST; the first part of a dashed name is a name only when it holds a digit.
+ *     BATCH_NAME_STOPLIST (the same for a name that is an identifier of the code: quoteBox); the
+ *     first part of a dashed name is a name only when it holds a digit.
  *   - R2 reads comments: prose that is not a comment inside a section that is never compiled
  *     (`#if false`) is not read.
  *   - R5 reads one line at a time: a tag or a time value split over several lines, a tag built
@@ -105,15 +106,20 @@
  *   - A GUARD AGAINST MISTAKES, NOT AGAINST INTENT: a deliberate hiding of code is caught by the
  *     review of the diff, not by this check. C# is read by tree-sitter, which is not the
  *     compiler; where the two read a line differently, a probe written on purpose can pass R5.
- *     Three such shapes are known and open (the compiler ships each with 0 errors):
+ *     The known set is NOT complete. The three MAJOR shapes of review round 3 are open (the
+ *     compiler ships each with 0 errors):
  *       `#region x // see /*` — tree-sitter ends the region text before the `/*` and reads a
- *         block comment from there, so the code lines after it are comment to R5;
+ *         block comment from there, so the code lines after it, up to the next `*\/`, are
+ *         comment to R5;
  *       `$"{x:/*}"` — a format clause that starts with `/*` in an interpolated string is read as
  *         a comment that runs to the next `*\/`, so the lines in between are comment to R5;
  *       a Unicode format character (U+0600–0605, U+06DD, U+070F, U+0890–0891, U+08E2,
  *         U+FFF9–FFFB) inside `P1Perf` or another probe name — the compiler drops it, the probe
  *         patterns do not match the name.
- *     A check that reads C# as the compiler does (Roslyn) is a later batch.
+ *     More shapes of the first kind are listed in docs/review-brief-sizerule.md § 5 (S3-1):
+ *     `#pragma warning disable 168, @"`, a raw-string opener after U+00A0 / U+3000, and the
+ *     C# 14 `a?.b = "/*";`. A check that reads C# as the compiler does (Roslyn) is a later
+ *     batch.
  */
 import { appendFileSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';

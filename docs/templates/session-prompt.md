@@ -115,10 +115,12 @@ An edited probe line outside the fence counts as new for R5: fence it in the sam
 an ordinary English word or an identifier of the code (its pins folder and handoff name become history markers for
 R2), or the same pull request adds it to `BATCH_NAME_STOPLIST` in `scripts/size-check.mjs`.
 R2 and R5 are a guard against mistakes (#1966 (1)): a deliberate hiding of code is caught by the review of the diff, not
-by this check. Three shapes let a probe written on purpose pass R5 (the limits in the head of `scripts/size-check.mjs`):
-a `#region x // see /*` line makes the code lines after it read as a comment.
+by this check. Known shapes let a probe written on purpose pass R5; the list is not complete (the limits in the head of
+`scripts/size-check.mjs`; more in `docs/review-brief-sizerule.md` § 5). Among them are the three MAJOR shapes of round 3:
+a `#region x // see /*` line makes the code lines after it, up to the next `*/`, read as a comment.
 An interpolated string `$"{x:/*}"` makes the lines up to the next `*/` read as a comment.
-A Unicode format character inside `P1Perf` (or another probe name) hides the name from the probe patterns. R4: the contract names
+A Unicode format character inside `P1Perf` (or another probe name) hides the name from the probe patterns.
+R4: the contract names
 what stage 2 deletes of the batch (docs/templates/agent-contract.md, "Stage 2 (R4)").
 Review: write docs/review-brief-<batch>.md; the #46 loop until CLEAN (every reader a fresh read-only instance, #1471:
 Claude Fable 5.2 for the security-only pass and for the file where an error costs most, Claude Opus for every other

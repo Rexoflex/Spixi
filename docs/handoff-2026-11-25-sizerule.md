@@ -1,4 +1,4 @@
-# Handoff 2026-11-25 sizerule — the code counter and the CI size checks (STOPPED before delivery: #46 NOT CLEAN at r3, question Q-1)
+# Handoff 2026-11-25 sizerule — the code counter and the CI size checks (#46 NOT CLEAN at r3, question Q-1 → pushed as a guard by #1966 (1))
 
 Read this FIRST, then DECISIONS #1980–#1989. Number block of this session: #1980–#1989 (all used) · lessons L299–L302
 (all used) · no packet. Prompt: project doc `claude/session-sizerule-prompt.md` (Ready by ruling #1964 (3)).
@@ -26,7 +26,12 @@ The main chat gives the next block and writes the next prompt.
   · r3 S3 Fable 5.2 + Y Opus.
 - ⚠ C# UNCOMPILED: none (no app file changed).
 - Definition of done: no `docs/release-readiness.md` row changed.
-- Still owed: Damir's answer to Q-1; then the push and the pull request (or the follow-up batch).
+- **Result: pushed as a guard by #1966 (1)** (Damir 2026-11-26, "Ship as a guard"): session `sizerule2` applied the saved
+  patch on `0eda93f5`, wrote the three open r3 shapes into the limits of `scripts/size-check.mjs` and of
+  `docs/templates/session-prompt.md` ("a deliberate hiding of code is caught by the review of the diff, not by this
+  check"), put `quotebox` and `imgurl` into `BATCH_NAME_STOPLIST` (r3 Y-1) and pushed `work/sizerule` (#2020–#2021).
+  A Roslyn-based R2 / R5 is a later batch.
+- Still owed: Damir opens the pull request with the compare link and merges it when `redesign-ci` is green.
 
 ## 1 · What this session did
 | Item | Result | Evidence | MC |

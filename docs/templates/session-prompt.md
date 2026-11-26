@@ -112,8 +112,13 @@ Size rule (#1963 (8)): R2 (no history in a comment), R5 (no probe outside the de
 1,500 lines; a file already over it must not grow) are checked by the size step of redesign-ci (session sizerule) and by hand with `node
 scripts/size-check.mjs --base <base> --head HEAD` before the push (exit 1 = a check fails; exit 2 = a usage, git or classifier error or a diff path that is not UTF-8, never a pass).
 An edited probe line outside the fence counts as new for R5: fence it in the same change. A batch name must not be
-an ordinary English word (its pins folder and handoff name become history markers for R2), or the same pull request
-adds it to `BATCH_NAME_STOPLIST` in `scripts/size-check.mjs`. R4: the contract names
+an ordinary English word or an identifier of the code (its pins folder and handoff name become history markers for
+R2), or the same pull request adds it to `BATCH_NAME_STOPLIST` in `scripts/size-check.mjs`.
+R2 and R5 are a guard against mistakes (#1966 (1)): a deliberate hiding of code is caught by the review of the diff, not
+by this check. Three shapes let a probe written on purpose pass R5 (the limits in the head of `scripts/size-check.mjs`):
+a `#region x // see /*` line makes the code lines after it read as a comment.
+An interpolated string `$"{x:/*}"` makes the lines up to the next `*/` read as a comment.
+A Unicode format character inside `P1Perf` (or another probe name) hides the name from the probe patterns. R4: the contract names
 what stage 2 deletes of the batch (docs/templates/agent-contract.md, "Stage 2 (R4)").
 Review: write docs/review-brief-<batch>.md; the #46 loop until CLEAN (every reader a fresh read-only instance, #1471:
 Claude Fable 5.2 for the security-only pass and for the file where an error costs most, Claude Opus for every other

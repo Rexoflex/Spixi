@@ -102,6 +102,18 @@
  *   - R5 counts an edited unfenced probe line as new (fence it in the same change).
  *   - Paths outside Spixi/ and src/ are not checked (a .cs file the project pulls in from
  *     another folder by a <Compile Include>, a symlinked folder).
+ *   - A GUARD AGAINST MISTAKES, NOT AGAINST INTENT: a deliberate hiding of code is caught by the
+ *     review of the diff, not by this check. C# is read by tree-sitter, which is not the
+ *     compiler; where the two read a line differently, a probe written on purpose can pass R5.
+ *     Three such shapes are known and open (the compiler ships each with 0 errors):
+ *       `#region x // see /*` — tree-sitter ends the region text before the `/*` and reads a
+ *         block comment from there, so the code lines after it are comment to R5;
+ *       `$"{x:/*}"` — a format clause that starts with `/*` in an interpolated string is read as
+ *         a comment that runs to the next `*\/`, so the lines in between are comment to R5;
+ *       a Unicode format character (U+0600–0605, U+06DD, U+070F, U+0890–0891, U+08E2,
+ *         U+FFF9–FFFB) inside `P1Perf` or another probe name — the compiler drops it, the probe
+ *         patterns do not match the name.
+ *     A check that reads C# as the compiler does (Roslyn) is a later batch.
  */
 import { appendFileSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -173,8 +185,9 @@ export const HISTORY_MARKERS = Object.freeze([
 
 const HISTORY_MARKERS_G = HISTORY_MARKERS.map((m) => ({ id: m.id, re: new RegExp(m.re.source, `${m.re.flags}g`) }));
 
-/* Batch / session names that are ordinary words: never used as markers. */
-export const BATCH_NAME_STOPLIST = Object.freeze(['safety', 'tooling', 'launch', 'office', 'orch', 'smooth']);
+/* Batch / session names that are ordinary words, or identifiers of the code (`quoteBox`,
+ * `imgUrl`): never used as markers. */
+export const BATCH_NAME_STOPLIST = Object.freeze(['safety', 'tooling', 'launch', 'office', 'orch', 'smooth', 'quotebox', 'imgurl']);
 
 /* The diagnostic, timing and temporary log tags of app C#: the live ones and the retired ones
  * (so that none comes back unfenced). Subsystem tags such as [FLAGS] [CONFIRM] [RESTORE]

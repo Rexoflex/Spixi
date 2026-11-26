@@ -31,8 +31,8 @@
  *     `dotnet restore` or a repo script that opens a socket is NOT matched (the harness is proven offline by a run with the
  *     network blocked, in the builder's report);
  *   - the annotation and upload rows read the lines of those steps; they cannot know that `publish` really prints.
- *   - the size step is not one of the two new steps of the rows above: row 17 holds its step lines exactly (its comment lines are cut
- *     as comments), and pins-sizerule/c-ci holds its rows one by one.
+ *   - the size step is not one of the two new steps of the rows above: row 17 holds its step lines exactly (the full-line comments above it
+ *     are cut with the region, whatever they say), and pins-sizerule/c-ci holds its rows one by one.
  * Rows (each has its deliberate break below, a mutated text in memory that makes exactly that row fail): see ROWS. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -57,15 +57,16 @@ const BASE_WORKFLOW_SHA256 = '45b8b1fd129e91d6a361fe584030f791ed3a762d8ec602e078
 const CUT_PIECES = ['        O_XPARSER: ${{ steps.xparser.outcome }}\n', '        O_MSBUILDH: ${{ steps.msbuildh.outcome }}\n',
   '        publish xparser "$O_XPARSER"\n', '        publish msbuild-harness "$O_MSBUILDH"\n', '          xparser.log\n', '          msbuild-harness.log\n',
   '        O_SIZE: ${{ steps.size.outcome }}\n', '        publish size "$O_SIZE"\n', '          size.log\n'];   // the size step re-base: the three size lines of the annotation and upload steps, each cut once
-/* the size step re-base: the size step sits inside the cut region of the two steps above, so the region must hold its exact step lines once (the comment lines
- * above it are cut with the region, whatever they say; a comment changes nothing GitHub runs). An extra argument, a second run line or a changed name is red here. */
+/* the size step re-base: the size step sits inside the cut region of the two steps above, so the region must hold its exact step lines once. The full-line comments
+ * at indent 4 above it are cut with the region, whatever they say (they stand outside every run block, so GitHub does not read them); a `#` line inside the step is a
+ * step line and breaks the match. An extra argument, a second run line, a changed name or a changed key is red here. */
 const SIZE_STEP = ['    - name: Size (the counter and the R2 / R5 / R6 checks)', '      id: size', '      if: ${{ !cancelled() }}', '      timeout-minutes: 10', '      run: |',
   '        set -eo pipefail', '        node scripts/size-check.mjs --ci --summary "$GITHUB_STEP_SUMMARY" 2>&1 | tee ../size.log', '', ''].join('\n');
-/* the size step re-base: the two changed npm sentences and the fetch depth go back to the base text (each found once); the fetch-depth line is anchored to the
- * smoke job's checkout, so it cannot sit on the Core or the Windows checkout. */
+/* the size step re-base: the changed npm sentence of the header and the fetch depth go back to the base text (each found once); the fetch-depth line is anchored to the
+ * smoke job's checkout, so it cannot sit on the Core or the Windows checkout. The changed npm sentence of the parser cross-check comment lies inside the cut region and
+ * is not hashed: row 11 keeps every npm command out of that step's text. */
 const SIZE_SWAPS = [
   ['# Mirrors the cloud twin: Ixian-Core as a sibling at the pinned commit, the lockfile install (`npm ci`), smoke + CSH', '# Mirrors the cloud twin: Ixian-Core as a sibling at the pinned commit, the ONE npm line (versions pinned), smoke + CSH'],
-  ['result is compared with the source token by token. Runs repo code only; jsdom comes from the lockfile install above and acorn', 'result is compared with the source token by token. Runs repo code only; jsdom is on the npm line above and acorn'],
   ['        shell: bash\n    steps:\n    - name: Checkout Spixi\n      uses: actions/checkout@v7\n      with:\n        path: Spixi\n        persist-credentials: false\n        fetch-depth: 2\n',
     '        shell: bash\n    steps:\n    - name: Checkout Spixi\n      uses: actions/checkout@v7\n      with:\n        path: Spixi\n        persist-credentials: false\n'],
 ];
@@ -85,7 +86,7 @@ const BASE_INSTALL = ['    # Every version is pinned to what the 2026-11-11 run 
   '      run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5', ''].join('\n');
 function baseShaOk(t) {
   let s = t;
-  for (const [from, to] of SIZE_SWAPS) { if (s.split(from).length !== 2) return false; s = s.replace(from, () => to); }   // the size step re-base: the three swaps, each found once
+  for (const [from, to] of SIZE_SWAPS) { if (s.split(from).length !== 2) return false; s = s.replace(from, () => to); }   // the size step re-base: the two swaps, each found once
   const a = s.indexOf('    # Proves, with two parsers'); const b = s.indexOf('    # Only for a step that itself failed');
   if (a < 0 || b < a || s.indexOf('    # Proves, with two parsers', a + 1) >= 0) return false;
   const region = s.slice(a, b);   // the size step re-base: the size step lines are found once inside the cut region, and its three steps are the only steps in it (the region is then cut as before)

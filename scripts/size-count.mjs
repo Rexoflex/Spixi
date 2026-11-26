@@ -9,12 +9,19 @@
  * RocksDbSharp folder; src = the hand-written .js .mjs .css .html under src/ (the files the
  * tree's .gitattributes marks linguist-generated or linguist-vendored are left out). The line
  * kinds, the store flag and the switch pattern are those of scripts/size-lib.mjs.
+ * The delta compares the two TREES, not a commit range: for the size of what a branch brings,
+ * --base must be the merge base of the branch (in CI the first parent of the merge commit is).
  * The budget number of a pull request is the delta of app C# code lines.
+ * A file the lib cannot read (a UTF-16 byte order mark, a NUL byte, not UTF-8, a symlink, a
+ * submodule) is listed and not counted; a C# file with `suspect` directive shapes is listed.
  * Exit 0; exit 2 on a usage or git error.
  */
 import { countTree, countDelta, GitError, SWITCH_RE } from './size-lib.mjs';
 
-const USAGE = 'usage: node scripts/size-count.mjs [--repo <dir>] [--rev <rev> | --base <rev> --head <rev>] [--json]';
+const USAGE = [
+  'usage: node scripts/size-count.mjs [--repo <dir>] [--rev <rev> | --base <rev> --head <rev>] [--json]',
+  '  --base / --head: the delta of the two trees; give the merge base as --base for what a branch brings',
+].join('\n');
 
 function fail(msg) {
   process.stderr.write(`size-count: ${msg}\n${USAGE}\n`);
@@ -56,8 +63,14 @@ function treeLines(t) {
   out.push(`                    store-compiled code ${fmt(a.store)}   switches ${fmt(a.switches)}   parse errors ${fmt(a.parseErrors)}`);
   out.push(`                    files over 1,500 lines: ${a.over1500.length}`);
   for (const f of a.over1500) out.push(`                      ${pad(fmt(f.lines), 7)}  ${f.path}`);
+  for (const f of a.unreadableFiles) out.push(`                    not counted (unreadable: ${f.why}): ${f.path}`);
+  for (const f of a.suspectFiles) {
+    const where = f.suspect.map((x) => `${x.reason} at line ${x.line}`).join(', ');
+    out.push(`                    suspect directive shapes: ${f.path}: ${where}`);
+  }
   out.push(`  src hand-written  files ${pad(fmt(s.files), 6)}   code ${pad(fmt(s.code), 7)}   comment ${pad(fmt(s.comment), 7)}   blank ${pad(fmt(s.blank), 6)}`);
   if (s.fallbackFiles.length) out.push(`                    read by the fallback scanner: ${s.fallbackFiles.join(', ')}`);
+  for (const f of s.unreadableFiles) out.push(`                    not counted (unreadable: ${f.why}): ${f.path}`);
   return out;
 }
 
@@ -68,7 +81,9 @@ function deltaLines(d) {
   out.push(`delta ${d.rev}`);
   out.push(`  app C#            files ${pad(sgn(a.files), 6)}   code ${pad(sgn(a.code), 7)}   comment ${pad(sgn(a.comment), 7)}   blank ${pad(sgn(a.blank), 6)}`);
   out.push(`                    store-compiled code ${sgn(a.store)}   switches ${sgn(a.switches)}`);
-  out.push(`                    files over 1,500 lines: ${sgn(a.over1500Count)} (the files that changed or crossed the limit)`);
+  out.push(`                    number of files over 1,500 lines: ${sgn(a.over1500Count)}`);
+  const moved = a.over1500.filter((f) => !(f.lines === 0 && f.base > 0 && f.head > 0));
+  if (moved.length) out.push('                    files over 1,500 lines on either side whose length changed (base -> head):');
   for (const f of a.over1500) {
     if (f.lines === 0 && f.base > 0 && f.head > 0) continue;
     out.push(`                      ${pad(sgn(f.lines), 7)}  ${f.path} (${fmt(f.base)} -> ${fmt(f.head)})`);

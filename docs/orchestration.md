@@ -253,7 +253,7 @@ one.
 
 - A lead that wrote the contract is biased toward it. That is why reviewers are fresh and read the tree, not the chat.
 - The cloud twin has 2 cores: one full smoke at a time (42–43 minutes on 2026-11-11), nothing that executes beside it
-  (L75, L153). Install the pinned tools first with `npm ci` (L160, #1831).
+  (L75, L153). Install the pinned tools first with `npm ci` (L160, #1831; never `npm audit fix`).
 - The cloud cannot compile C#. CI compiles Windows only; iPhone / Mac / Android C# stays "⚠ UNCOMPILED" until Damir's
   build. CI and release builds use the clean Ixian-Core pin; Damir's PC Core has two modified files (handoff HK1 § 3 ④).
 - Fable 5.2 has more safeguards on security topics; a security-only round can be declined → stop condition (#1471).

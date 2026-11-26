@@ -5,56 +5,81 @@
  *   node scripts/size-check.mjs [--repo <dir>] --ci [--summary <file>]      base = HEAD^1, head = HEAD
  *
  * Exit 0 = every check passes · 1 = one or more checks fail (one line `FAIL R2` / `FAIL R5` /
- * `FAIL R6` per failing check) · 2 = a usage, git or classifier error (fail closed: nothing that
- * cannot be read is a pass). Reads only git objects (no work-tree file), no network, no
- * environment value; --summary appends the same report as Markdown to the named file.
+ * `FAIL R6` per failing check) · 2 = a usage, git or classifier error, or a path of the diff
+ * that is not UTF-8 (fail closed: nothing that cannot be read is a pass). Reads only git
+ * objects (no work-tree file) and no network; the script itself reads no environment value
+ * (git, which it runs, sees the process environment). --summary appends the same report as
+ * Markdown to the named file. The report says which diff was checked: with --ci on a pull
+ * request it is what the pull request brings, on a push or a manual run the last commit only.
  *
  * WHAT THIS CHECK IS
  *   The diff is `git diff -U0 --no-renames --text --no-ext-diff --no-textconv base head`
  *   (size-lib gitDiffAdded); only the lines the head ADDS count, removed lines never do.
- *   App C# = Spixi/**\/*.cs without the vendored RocksDbSharp folder (the folder and the
- *   extension compared without letter case, so `SPIXI/x.CS` counts too); src = the .js .mjs
- *   .css .html under src/ that are not linguist-generated / -vendored at BOTH base and head
- *   (a pull request that marks a hand-written file generated is still checked in that pull
- *   request).
- *   R2  An added line of app C# or src whose COMMENT part (size-lib's per-line comment text;
- *       a code token never counts) matches one of HISTORY_MARKERS or a batch / session name
- *       of the head tree (batchNames) is one marker line; a line counts once. A marker line
- *       whose comment text is the same as that of a line the same diff removes (in any file
- *       of the diff) is MOVED, not new, and does not count: a file split or a code change
- *       next to an old comment does not score. The free text of a #region / #warning / #error /
- *       #pragma line is read as comment text. Fail when the count is above R2_MAX_MARKER_LINES.
+ *   App C# = Spixi/**\/*.cs (the folder and the extension compared without letter case, so
+ *   `SPIXI/x.CS` counts too); R2 and R5 also read the vendored RocksDbSharp folder (the Mac
+ *   build compiles it), R6 leaves it out. src = the .js .mjs .css .html under src/; a file that
+ *   is linguist-generated / -vendored at BOTH base and head is skipped unless the diff adds it
+ *   (a new file is always read, and a file marked generated in the same diff is read too).
+ *   A file of the diff that cannot be read (NUL bytes, UTF-16, a symlink, a submodule, or a C#
+ *   text whose directive lines the classifier cannot trust: size-lib's `suspect` list) fails:
+ *   R5 for app C#, R2 for src.
+ *   R2  An added line of app C# or src whose COMMENT part (size-lib's per-line comment text, and
+ *       the free text of a #region / #warning / #error / #pragma line; a code token never
+ *       counts) matches HISTORY_MARKERS or a batch / session name of the base or head tree
+ *       (batchNames) holds marker tokens (markerTokens: each regex hit's text). Token credit:
+ *       every removed comment line of the whole diff gives its tokens as credit, and an added
+ *       line counts only when at least one of its tokens is left after the credit is spent; so
+ *       history may move between files or be reworded inside a pull request, and only marker
+ *       tokens the pull request did not remove count (diff-wide on purpose: a file split
+ *       passes). A line whose only marker is one decision number does not count (the rule
+ *       allows one per member; one per line is the approximation). A line counts once. Fail
+ *       when the count is above R2_MAX_MARKER_LINES, or when a src file cannot be read.
  *   R5  An added CODE line of app C# whose store flag is true (not compiled out of a store
  *       build: size-lib's #if evaluator, DEBUG / SPIXI_DEV_COEXIST / SPIXI_CSH false) and
- *       whose code part writes a probe: a tag of PROBE_TAGS or PROBE_TAG_PATTERNS (also when
- *       the line's string literals joined spell it, "[" + "CDPERF]"), a probe class of
- *       PROBE_CALLS or PROBE_CALL_PATTERNS, or a timing log line (a log call with a stopwatch
- *       token on the same line). One such line fails. An unchanged probe line that the diff
- *       takes out of its fence (an #if / #endif moved or removed, a #define added) fails too.
- *       A probe line that the same diff removes outside the fence (any file) and adds again is
- *       moved, not new. An app C# path the head holds as a symlink or submodule, or whose text
- *       holds a NUL (UTF-16 or binary), cannot be read and fails R5.
+ *       whose code part writes a probe:
+ *         a tag of PROBE_TAGS or PROBE_TAG_PATTERNS in brackets (also when the line's string
+ *         literals joined spell it, "[" + "CDPERF]"), or a PROBE_TAGS name of four or more
+ *         characters as a whole word anywhere in the code part ($"[{"CDPERF"}]", nameof);
+ *         a probe class of PROBE_CALLS or PROBE_CALL_PATTERNS. The P1Perf calls count although
+ *         their bodies are empty in a store build: the inventory names the [P1] calls among
+ *         the probe lines that ship (§ 7a step 4, § 6c);
+ *         a timing log line: a log call with a stopwatch token, or with a clock read or a
+ *         duration and a subtraction, on the same line. An edit of an upstream timing log line
+ *         fails too (rare: fence it, or say so in the pull request).
+ *       One such line fails. An unchanged probe line that the diff takes out of its fence (an
+ *       #if / #endif moved or removed, a #define added) or out of a block comment fails too.
+ *       A probe line that the same diff removes outside the fence (any file) and adds again
+ *       with the same text is moved, not new.
+ *       The probe list was derived from the tree with
+ *         git grep -h -o -E '"\[[A-Za-z0-9_\-]{1,30}\]' <rev> -- 'Spixi/*.cs' | sort | uniq -c
+ *       and the tags the history added and removed (git log -p over Spixi/*.cs).
  *   R6  Physical lines (size-lib's count: BOM dropped, CRLF = LF, a last line without "\n"
  *       counts) of every app C# file the diff adds or changes: over R6_LIMIT at the base →
  *       must not grow; at most R6_LIMIT at the base, or new → must not end above it. A new
- *       file whose text equals a file the diff deletes is that file renamed (its base count).
- *       A deleted file never fails.
+ *       file that git's rename detection (`git diff -M`) pairs with a deleted one keeps that
+ *       file's base count, so a moved and edited file is judged as the old one. A deleted
+ *       file never fails.
  *   Text: comments and code are matched after foldText (NFKC, zero-width characters and soft
  *   hyphens removed, Cyrillic / Greek look-alike letters mapped to Latin), so a fullwidth ＃
  *   or ［CDPERF］ or a Cyrillic С in a tag is read as the ASCII one; R5 also reads C#'s \u, \U
- *   and \x escapes first (`P1\u0050erf` is P1Perf).
+ *   and \x escapes first (`P1Perf` is P1Perf).
+ *   Notes, not failures: the report names a diff that changes a .gitattributes file, and one
+ *   that changes the checks or their inputs (scripts/size-*.mjs, the size pins, the workflow,
+ *   package.json / package-lock.json): those parts need a reading by hand.
  *
  * ITS LIMITS (source-text checks: each a known edge, not a promise)
  *   - R2 reads words, not meaning: a history sentence without a marker word passes ("as the
  *     old code did"), and a what / why comment that uses a marker word in its ordinary
  *     sense counts (a payment "review" step, the "walk" of a list: the regexes leave out
- *     the common ones).
- *   - R2 batch names come from the head tree (scripts/pins-*, docs/handoff-*, docs/contract-*);
- *     a name that is not in one of them yet is caught only by the other markers.
- *   - R5 reads one line at a time: a tag or a stopwatch value split over several lines, a tag
- *     built in a variable on an earlier line, char arithmetic, string.Concat / Format pieces
- *     on separate lines, or a log helper with a new name passes. A probe written through a
- *     method that carries [Conditional("DEBUG")] is reported although the compiler drops it.
+ *     the common ones). The one-decision-number allowance is per line, not per member.
+ *   - R2 token credit is diff-wide: a pull request that removes a history comment in one file
+ *     may add the same tokens in another.
+ *   - R2 batch names come from the base and head trees (scripts/pins-*, docs/handoff-*,
+ *     docs/contract-*); a name that is in neither is caught only by the other markers.
+ *   - R5 reads one line at a time: a tag or a time value split over several lines, a tag built
+ *     in a variable on an earlier line, a short tag (P1, DT) put together from pieces, char
+ *     arithmetic, or a log helper with a new name passes. A probe written through a method
+ *     that carries [Conditional("DEBUG")] is reported although the compiler drops it.
  *   - R5's string reader starts fresh on each line: inside a verbatim or raw string that
  *     spans lines it may read string text as code (more hits, never fewer for a tag).
  *   - The fence is the file's own #if text; a symbol defined for a store build by the project
@@ -132,6 +157,8 @@ export const HISTORY_MARKERS = Object.freeze([
   { id: 'person', re: /\bDamir\b/ },
 ]);
 
+const HISTORY_MARKERS_G = HISTORY_MARKERS.map((m) => ({ id: m.id, re: new RegExp(m.re.source, `${m.re.flags}g`) }));
+
 /* Batch / session names that are ordinary words: never used as markers. */
 export const BATCH_NAME_STOPLIST = Object.freeze(['safety', 'tooling', 'launch', 'office', 'orch']);
 
@@ -166,9 +193,13 @@ export const PROBE_CALL_PATTERNS = Object.freeze([
   { id: 'using-diag-probe-perf', re: /\busing\s+(?:static\s+)?(?:\w+\s*=\s*)?[\w.]*(?:Diag|Probe|Perf)\s*;/ },
 ]);
 
-/* A timing line: a log call and a stopwatch token, both in the code outside string literals. */
+/* A timing line: a log call and a time measure in the code outside string literals. A stopwatch
+ * token is enough; a clock read counts only with a subtraction on the line; a duration
+ * property only with a subtraction (a Stopwatch on the line is the strong case). */
 const LOG_CALL_RE = /\b(?:Logging\s*\.\s*(?:info|warn|error|verbose|debug|trace|log)|Console\s*\.\s*(?:Write|WriteLine)|Console\s*\.\s*Error\s*\.\s*Write\w*|Trace\s*\.\s*(?:Write|WriteLine|TraceInformation|TraceWarning|TraceError)|Log\s*\.\s*(?:Debug|Info|Warn|Error|Verbose|Wtf|WriteLine)|Debugger\s*\.\s*Log)\s*\(/;
-const TIMING_TOKEN_RE = /\b(?:ElapsedMilliseconds|ElapsedTicks|Elapsed|Stopwatch|GetTimestamp|GetElapsedTime|TotalMilliseconds)\b/;
+const TIMING_STRONG_RE = /\b(?:Stopwatch|ElapsedMilliseconds|ElapsedTicks|GetTimestamp|GetElapsedTime)\b/;
+const TIMING_CLOCK_RE = /\b(?:TickCount64|TickCount|getTimestampMillis|[Ee]lapsedRealtime|UtcNow)\b|\bDateTime\s*\.\s*Now\b/;
+const TIMING_WEAK_RE = /\b(?:TotalMilliseconds|Elapsed)\b/;
 
 // ─────────────────────────────── text helpers ───────────────────────────────
 
@@ -193,10 +224,12 @@ export function foldText(s) {
 
 const squash = (s) => foldText(s).replace(/\s+/g, ' ').trim();
 
-/** One line of tree text made safe to print: no control character, no "::" and no "##[" (so it
- * cannot become a workflow command), at most 200 characters. The caller adds a fixed prefix. */
+/** One line of tree text made safe to print: no control or bidi character, no "::" and no "##["
+ * (so it cannot become a workflow command), at most 200 characters. The caller adds a fixed
+ * prefix. */
 export function sanitizeLine(s) {
-  let t = String(s).replace(/\t/g, ' ').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, '');
+  let t = String(s).replace(/\t/g, ' ')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\u200e\u200f\u061c]/g, '');
   const cps = [...t];
   if (cps.length > 200) t = cps.slice(0, 200).join('') + '…';
   return t.replace(/:(?=:)/g, ': ').replace(/#(?=#)/g, '# ');
@@ -204,7 +237,7 @@ export function sanitizeLine(s) {
 
 /** sanitizeLine + Markdown escapes for a table cell. */
 export function markdownCell(s) {
-  return sanitizeLine(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return sanitizeLine(s).replace(/\\/g, '\\\\').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\|/g, '\\|').replace(/`/g, '\\`').replace(/\[/g, '\\[').replace(/\]/g, '\\]');
 }
 
@@ -298,6 +331,11 @@ export function decodeCsEscapes(s) {
 
 const PROBE_TAG_EXACT_RE = new RegExp(
   `\\[(?:${PROBE_TAGS.map((t) => t.replace(/[-]/g, '\\-')).join('|')})\\]`, 'i');
+/* A probe tag name of four or more characters anywhere in the code part, strings and nameof
+ * included: catches a tag put together from pieces ($"[{"CDPERF"}]", string.Format). Short
+ * names (P1, DT, MO) are ordinary words or indexes and keep the bracket form. */
+const PROBE_TAG_NAME_RE = new RegExp(
+  `(?<![\\w-])(?:${PROBE_TAGS.filter((t) => t.length >= 4).map((t) => t.replace(/[-]/g, '\\-')).join('|')})(?![\\w-])`);
 const PROBE_CALL_NAME_RE = new RegExp(`\\b(?:${PROBE_CALLS.join('|')})\\b`);
 // A tag in code: not an indexer such as arr[P1] or m[i][DT].
 const NOT_INDEXER = (re) => new RegExp(`(?<![\\w\\])])${re.source}`, re.flags);
@@ -317,7 +355,12 @@ export function probeHits(codeText) {
   if (hits.size === 0) for (const p of TAG_IN_STRINGS) if (p.re.test(joined)) hits.add(`${p.id}-joined`);
   if (PROBE_CALL_NAME_RE.test(code)) hits.add('call');
   for (const p of PROBE_CALL_PATTERNS) if (p.re.test(code)) hits.add(p.id);
-  if (LOG_CALL_RE.test(code) && TIMING_TOKEN_RE.test(code)) hits.add('timing');
+  if (LOG_CALL_RE.test(code)) {
+    const minus = code.includes('-');
+    if (TIMING_STRONG_RE.test(code)) hits.add('timing');
+    else if (minus && (TIMING_CLOCK_RE.test(code) || TIMING_WEAK_RE.test(code))) hits.add('timing');
+  }
+  if (PROBE_TAG_NAME_RE.test(text)) hits.add('tag-name');
   return [...hits];
 }
 
@@ -365,6 +408,12 @@ const SRC_PATHSPECS = ['js', 'mjs', 'css', 'html'].map((x) => `:(glob,icase)src/
 export function isAppCsPath(p) {
   if (lib.isAppCs(p)) return true;
   return /^spixi\//i.test(p) && /\.cs$/i.test(p) && !/^spixi\/platforms\/maccatalyst\/rocksdbsharp\//i.test(p);
+}
+
+/** Any C# file under Spixi/, the vendored RocksDbSharp folder included (the Mac build compiles
+ * it): R2 and R5 read it; R6 and the counter leave it out. */
+export function isAppCsAny(p) {
+  return /^spixi\//i.test(p) && /\.cs$/i.test(p);
 }
 
 function isSrcWebPath(p) {
@@ -437,7 +486,7 @@ function treePaths(repo, rev) {
 }
 
 function analyze(path, text) {
-  return isAppCsPath(path) ? lib.classifyCs(text) : lib.classifyWeb(text, extOf(path));
+  return isAppCsAny(path) ? lib.classifyCs(text) : lib.classifyWeb(text, extOf(path));
 }
 
 /* The free text of a #region / #endregion / #warning / #error / #pragma line: not a comment token,
@@ -458,6 +507,71 @@ function linesOf(text) {
 
 // ─────────────────────────────── the checks ───────────────────────────────
 
+/* The changed paths of the whole diff (names only), for the notes on .gitattributes and on the
+ * files the checks themselves depend on. */
+function gitChangedNames(repo, base, head) {
+  const r = spawnSync('git', ['-C', repo, '-c', 'core.quotePath=false', 'diff', '--name-only', '-z', '--no-renames',
+    '--no-ext-diff', '--end-of-options', base, head], { maxBuffer: 1024 * 1024 * 1024, encoding: 'buffer', env: { ...process.env, LC_ALL: 'C' } });
+  if (r.error || r.status !== 0) {
+    const msg = r.error ? r.error.message : String(r.stderr).trim().split('\n')[0];
+    throw new lib.GitError(`git diff --name-only: ${msg}`);
+  }
+  return r.stdout.toString('utf8').split('\0').filter(Boolean);
+}
+
+/* git's own rename pairs among app C# files → Map<new path, old path>, so that a moved and
+ * edited file keeps its base count for R6. */
+function gitRenames(repo, base, head) {
+  const r = spawnSync('git', ['-C', repo, '-c', 'core.quotePath=false', 'diff', '-M', '--diff-filter=R', '--name-status', '-z',
+    '--no-ext-diff', '--end-of-options', base, head, '--', APP_PATHSPEC], { maxBuffer: 1024 * 1024 * 1024, encoding: 'buffer', env: { ...process.env, LC_ALL: 'C' } });
+  if (r.error || r.status !== 0) {
+    const msg = r.error ? r.error.message : String(r.stderr).trim().split('\n')[0];
+    throw new lib.GitError(`git diff -M: ${msg}`);
+  }
+  const f = r.stdout.toString('utf8').split('\0');
+  const map = new Map();
+  for (let i = 0; i + 2 < f.length; i += 3) {
+    if (!/^R\d*$/.test(f[i])) break;
+    map.set(f[i + 2], f[i + 1]);
+  }
+  return map;
+}
+
+/* Files whose change asks for a reading by hand: the checks, their pins, the workflow, the
+ * attributes and the installed tools. */
+const WATCHED_RE = /^(?:scripts\/size-[^/]*\.mjs|scripts\/pins-sizerule\/.*|scripts\/pins-leanfollow\/d-ci\.mjs|\.github\/workflows\/.*|(?:.*\/)?\.gitattributes|package\.json|package-lock\.json)$/;
+
+/* Why a file of the diff cannot be classified, or null. size-lib marks NUL and UTF-16 texts;
+ * a symlink or a submodule is not a blob gitFiles returns. */
+function unreadableWhy(f) {
+  if (!f) return 'a symlink or a submodule, not a file';
+  if (f.unreadable) return String(f.unreadable);
+  if (f.text.includes('\u0000')) return 'NUL bytes (UTF-16 or binary)';
+  if (f.text.startsWith('\ufffd\ufffd')) return 'a UTF-16 byte order mark';
+  return null;
+}
+
+const tokenKey = (id, s) => `${id}:${squash(s).toLowerCase()}`;
+
+/** The marker tokens of one comment text: one `<id>:<matched text>` per regex hit (lower case,
+ * white space squashed). */
+export function markerTokens(commentText, nameRe) {
+  if (!commentText) return [];
+  const text = foldText(commentText);
+  const out = [];
+  for (const m of HISTORY_MARKERS_G) for (const x of text.matchAll(m.re)) out.push(tokenKey(m.id, x[0]));
+  if (nameRe) {
+    const g = new RegExp(nameRe.source, nameRe.flags.includes('g') ? nameRe.flags : `${nameRe.flags}g`);
+    for (const x of text.matchAll(g)) out.push(tokenKey('batch-name', x[0]));
+  }
+  return out;
+}
+
+/** True when a line's only marker is one decision number (the rule allows one per member). */
+export function isSingleDecisionNumber(tokens) {
+  return tokens.length === 1 && tokens[0].startsWith('decision-number:');
+}
+
 /** Runs R2, R5 and R6 on the diff base..head → the result object (see the module header). */
 export function runChecks({ repo = '.', base, head }) {
   const baseId = lib.gitResolve(repo, base);
@@ -465,78 +579,89 @@ export function runChecks({ repo = '.', base, head }) {
   const pathspecs = [APP_PATHSPEC, ...SRC_PATHSPECS];
   const diff = lib.gitDiffAdded(repo, baseId, headId, pathspecs);
   const removedLines = gitDiffRemoved(repo, baseId, headId, pathspecs);
+  const changed = gitChangedNames(repo, baseId, headId);
+  const renames = gitRenames(repo, baseId, headId);
+  for (const p of [...diff.keys(), ...removedLines.keys(), ...changed, ...renames.keys(), ...renames.values()]) {
+    if (p.includes('\ufffd')) throw new Error(`a path of the diff is not UTF-8 text, so it cannot be checked: ${p}`);
+  }
 
   const touched = [...diff.keys()];
   const srcWeb = touched.filter(isSrcWebPath);
   const genHead = lib.gitGenerated(repo, headId, srcWeb);
   const genBase = lib.gitGenerated(repo, baseId, srcWeb);
-  const inScope = (p) => isAppCsPath(p) || (isSrcWebPath(p) && !(genHead.has(p) && genBase.has(p)));
+  const skippedGenerated = (p) => diff.get(p).status !== 'A' && genHead.has(p) && genBase.has(p);
+  const inScope = (p) => isAppCsAny(p) || (isSrcWebPath(p) && !skippedGenerated(p));
 
   const headPaths = touched.filter((p) => diff.get(p).status !== 'D' && inScope(p));
   const basePaths = touched.filter((p) => diff.get(p).status !== 'A' && inScope(p));
-  const headText = new Map(lib.gitFiles(repo, headId, headPaths).map((f) => [f.path, f.text]));
-  const baseText = new Map(lib.gitFiles(repo, baseId, basePaths).map((f) => [f.path, f.text]));
+  const headFiles = new Map(lib.gitFiles(repo, headId, headPaths).map((f) => [f.path, f]));
+  const baseFiles = new Map(lib.gitFiles(repo, baseId, basePaths).map((f) => [f.path, f]));
 
-  const names = batchNames(treePaths(repo, headId));
+  const names = [...new Set([...batchNames(treePaths(repo, baseId)), ...batchNames(treePaths(repo, headId))])].sort();
   const nameRe = batchNameRe(names);
 
-  // What the diff removes: comment texts with a marker, and probe code lines outside the fence.
-  const removedComments = new Map();
+  // What the diff removes: the marker tokens of every removed comment line (the credit), and
+  // probe code lines outside the fence.
+  const credit = new Map();
   const removedProbes = new Map();
   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
-  const baseAnalysis = new Map();
-  for (const p of basePaths) {
-    const lines = removedLines.get(p);
-    const text = baseText.get(p);
-    if (text === undefined || text.includes('\u0000')) continue;
-    if (!(lines && lines.length) && !isAppCsPath(p)) continue;
-    const r = analyze(p, text);
-    baseAnalysis.set(p, r);
-    if (!lines) continue;
-    for (const ln of lines) {
-      const i = ln - 1;
-      if (i < 0 || i >= r.kinds.length) continue;
-      const c = commentOf(r, ln, isAppCsPath(p)).trim();
-      if (c && historyHits(c, nameRe).length) bump(removedComments, squash(c));
-      if (isAppCsPath(p) && r.kinds[i] === 'code' && r.store[i] && probeHits(r.codeText[i]).length) {
-        bump(removedProbes, squash(r.codeText[i]));
-      }
-    }
-  }
-  const takeMoved = (m, k) => {
+  const take = (m, k) => {
     const n = m.get(k) || 0;
     if (n <= 0) return false;
     m.set(k, n - 1);
     return true;
   };
-
-  const r2 = { count: 0, max: R2_MAX_MARKER_LINES, pass: true, lines: [], moved: 0, app: 0, src: 0, names };
-  const r5 = { pass: true, lines: [], moved: 0 };
-  const r6 = { pass: true, mode: R6_MODE, files: [], limit: R6_LIMIT };
-
-  // Deleted texts, for a rename found by equal content.
-  const deletedByText = new Map();
-  for (const p of touched) {
-    if (diff.get(p).status === 'D' && isAppCsPath(p) && baseText.has(p)) {
-      const t = lib.normalizeText(baseText.get(p));
-      if (!deletedByText.has(t)) deletedByText.set(t, p);
+  const baseAnalysis = new Map();
+  for (const p of basePaths) {
+    const f = baseFiles.get(p);
+    if (unreadableWhy(f)) continue;
+    const lines = removedLines.get(p);
+    if (!(lines && lines.length) && !isAppCsAny(p)) continue;
+    const r = analyze(p, f.text);
+    baseAnalysis.set(p, r);
+    if (!lines) continue;
+    for (const ln of lines) {
+      const i = ln - 1;
+      if (i < 0 || i >= r.kinds.length) continue;
+      for (const t of markerTokens(commentOf(r, ln, isAppCsAny(p)), nameRe)) bump(credit, t);
+      if (isAppCsAny(p) && r.kinds[i] === 'code' && r.store[i] && probeHits(r.codeText[i]).length) {
+        bump(removedProbes, squash(r.codeText[i]));
+      }
     }
   }
 
+  const r2 = {
+    count: 0, max: R2_MAX_MARKER_LINES, pass: true, lines: [], app: 0, src: 0,
+    credited: 0, singleDecision: 0, unreadable: [], names,
+  };
+  const r5 = { pass: true, lines: [], moved: 0 };
+  const r6 = { pass: true, mode: R6_MODE, files: [], limit: R6_LIMIT };
+  const notes = {
+    gitattributes: changed.filter((p) => /(?:^|\/)\.gitattributes$/.test(p)),
+    watched: changed.filter((p) => WATCHED_RE.test(p)),
+  };
+
   for (const p of [...headPaths].sort()) {
     const entry = diff.get(p);
-    const app = isAppCsPath(p);
-    const text = headText.get(p);
-    if (text === undefined || text.includes('\u0000')) {
-      if (app) {
-        r5.lines.push({ path: p, line: 0, text: text === undefined ? '(not a readable file: a symlink or a submodule)' : '(holds NUL bytes: UTF-16 or binary, cannot be read)', hits: ['unreadable'] });
-      }
+    const app = isAppCsAny(p);
+    const f = headFiles.get(p);
+    const why = unreadableWhy(f);
+    if (why) {
+      if (app) r5.lines.push({ path: p, line: 0, text: `unreadable: ${why}`, hits: ['unreadable'] });
+      else r2.unreadable.push({ path: p, why });
       continue;
     }
+    const text = f.text;
     const r = analyze(p, text);
+    const suspect = app ? (r.suspect || []) : [];
+    if (suspect.length) {
+      const s = suspect[0];
+      const more = suspect.length > 1 ? ` (and ${suspect.length - 1} more)` : '';
+      r5.lines.push({ path: p, line: s.line, text: `unreadable: ${s.reason} at line ${s.line}${more}`, hits: ['unreadable', s.reason] });
+    }
     // An unchanged probe line that the diff takes out of its fence (an #if / #endif moved or
-    // removed, a #define added) ships as surely as a new one.
-    const rb = app && entry.status === 'M' ? baseAnalysis.get(p) : null;
+    // removed, a #define added) or out of a block comment ships as surely as a new one.
+    const rb = app && !suspect.length && entry.status === 'M' ? baseAnalysis.get(p) : null;
     if (rb) {
       const addedSet = new Set(entry.added);
       const removedSet = new Set(removedLines.get(p) || []);
@@ -545,9 +670,12 @@ export function runChecks({ repo = '.', base, head }) {
         while (removedSet.has(j)) j++;
         if (addedSet.has(ln)) continue;
         const i = ln - 1;
-        if (r.kinds[i] === 'code' && r.store[i] && j - 1 < rb.store.length && !rb.store[j - 1]) {
-          const hits = probeHits(r.codeText[i]);
-          if (hits.length) r5.lines.push({ path: p, line: ln, text: r.codeText[i].trim(), hits: ['unfenced', ...hits] });
+        if (r.kinds[i] === 'code' && r.store[i] && j - 1 < rb.kinds.length) {
+          const how = rb.kinds[j - 1] !== 'code' ? 'uncommented' : !rb.store[j - 1] ? 'unfenced' : null;
+          if (how) {
+            const hits = probeHits(r.codeText[i]);
+            if (hits.length) r5.lines.push({ path: p, line: ln, text: r.codeText[i].trim(), hits: [how, ...hits] });
+          }
         }
         j++;
       }
@@ -556,32 +684,36 @@ export function runChecks({ repo = '.', base, head }) {
       const i = ln - 1;
       if (i < 0 || i >= r.kinds.length) continue;
       const comment = commentOf(r, ln, app).trim();
-      if (comment) {
-        const hits = historyHits(comment, nameRe);
-        if (hits.length) {
-          if (takeMoved(removedComments, squash(comment))) r2.moved++;
+      const tokens = markerTokens(comment, nameRe);
+      if (tokens.length) {
+        if (isSingleDecisionNumber(tokens)) r2.singleDecision++;
+        else {
+          const fresh = tokens.filter((t) => !take(credit, t));
+          if (fresh.length === 0) r2.credited++;
           else {
-            r2.lines.push({ path: p, line: ln, text: comment.trim(), hits });
+            r2.lines.push({ path: p, line: ln, text: comment, hits: historyHits(comment, nameRe), tokens: fresh });
             if (app) r2.app++; else r2.src++;
           }
         }
       }
-      if (app && r.kinds[i] === 'code' && r.store[i]) {
+      if (app && !suspect.length && r.kinds[i] === 'code' && r.store[i]) {
         const hits = probeHits(r.codeText[i]);
         if (hits.length) {
-          if (takeMoved(removedProbes, squash(r.codeText[i]))) r5.moved++;
+          if (take(removedProbes, squash(r.codeText[i]))) r5.moved++;
           else r5.lines.push({ path: p, line: ln, text: r.codeText[i].trim(), hits });
         }
       }
     }
-    if (app) {
+    if (isAppCsPath(p)) {
       const headLines = linesOf(text);
       let baseLines = 0;
       let renamedFrom = null;
-      if (entry.status === 'M' && baseText.has(p)) baseLines = linesOf(baseText.get(p));
-      else if (entry.status === 'A') {
-        renamedFrom = deletedByText.get(lib.normalizeText(text)) || null;
-        if (renamedFrom) baseLines = linesOf(baseText.get(renamedFrom));
+      const bf = baseFiles.get(p);
+      if (entry.status === 'M' && bf && !unreadableWhy(bf)) baseLines = linesOf(bf.text);
+      else if (entry.status === 'A' && renames.has(p)) {
+        renamedFrom = renames.get(p);
+        const of = baseFiles.get(renamedFrom);
+        if (of && !unreadableWhy(of)) baseLines = linesOf(of.text);
       }
       const breach = baseLines > R6_LIMIT ? headLines > baseLines : headLines > R6_LIMIT;
       if (breach) r6.files.push({ path: p, base: baseLines, head: headLines, status: entry.status, renamedFrom });
@@ -589,10 +721,10 @@ export function runChecks({ repo = '.', base, head }) {
   }
   r5.lines.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line));
   r2.count = r2.lines.length;
-  r2.pass = r2.count <= R2_MAX_MARKER_LINES;
+  r2.pass = r2.count <= R2_MAX_MARKER_LINES && r2.unreadable.length === 0;
   r5.pass = r5.lines.length === 0;
   r6.pass = R6_MODE === 'report' ? true : r6.files.length === 0;
-  return { base: baseId, head: headId, r2, r5, r6, pass: r2.pass && r5.pass && r6.pass };
+  return { base: baseId, head: headId, r2, r5, r6, notes, pass: r2.pass && r5.pass && r6.pass };
 }
 
 // ─────────────────────────────── the report ───────────────────────────────
@@ -616,21 +748,50 @@ function sizeRows(t, d) {
   ];
 }
 
-function textReport(res, sizes) {
+/** The sentence that says which diff was checked. */
+export function scopeLine(res, ci) {
+  const range = `${res.base.slice(0, 12)}..${res.head.slice(0, 12)}`;
+  return ci
+    ? `checked: the diff ${range} = HEAD^1..HEAD (on a pull request: what it brings; on a push or a manual run: the last commit only)`
+    : `checked: the diff ${range} (the --base and --head given)`;
+}
+
+function r2Line(r2) {
+  return `R2 history markers in added comment lines: ${r2.count} (app C# ${r2.app}, src ${r2.src}; ${r2.credited} credited by removed markers, ${r2.singleDecision} with one decision number only; ${r2.unreadable.length} unreadable), max ${r2.max}: ${r2.pass ? 'pass' : 'FAIL'}`;
+}
+
+function r2Fail(r2) {
+  const why = [];
+  if (r2.count > r2.max) why.push(`${r2.count} added comment lines hold a history marker (max ${r2.max}): a comment says what or why, never history`);
+  if (r2.unreadable.length) why.push(`${r2.unreadable.length} src file(s) of the diff cannot be read`);
+  return `FAIL R2 ${why.join('; ')}`;
+}
+
+function textReport(res, sizes, ci) {
   const out = [];
   out.push(`size-check: base ${res.base.slice(0, 12)} head ${res.head.slice(0, 12)}`);
+  out.push(scopeLine(res, ci));
+  if (res.notes.gitattributes.length) {
+    out.push('NOTE the diff changes .gitattributes: the generated / vendored set of src may differ between base and head');
+    for (const p of res.notes.gitattributes) out.push(`${P}${sanitizeLine(p)}`);
+  }
+  if (res.notes.watched.length) {
+    out.push('NOTE the pull request changes the size checks or their inputs: review that part by hand');
+    for (const p of res.notes.watched) out.push(`${P}${sanitizeLine(p)}`);
+  }
   if (sizes) {
     out.push('SIZE (head, delta against the base)');
     for (const [k, v, dv] of sizeRows(sizes.head, sizes.delta)) out.push(`  ${k.padEnd(36)} ${String(v).padStart(8)}  ${dv}`);
   }
   const { r2, r5, r6 } = res;
-  out.push(`R2 history markers in added comment lines: ${r2.count} (app C# ${r2.app}, src ${r2.src}; ${r2.moved} moved, not counted), max ${r2.max}: ${r2.pass ? 'pass' : 'FAIL'}`);
+  out.push(r2Line(r2));
+  for (const u of r2.unreadable) out.push(`${P}${sanitizeLine(`${u.path}: unreadable: ${u.why}`)}`);
   for (const l of r2.lines) out.push(`${P}${sanitizeLine(`${l.path}:${l.line} [${l.hits.join(',')}] ${l.text}`)}`);
   out.push(`R5 new probe lines outside the dev fence: ${r5.lines.length} (${r5.moved} moved, not counted): ${r5.pass ? 'pass' : 'FAIL'}`);
   for (const l of r5.lines) out.push(`${P}${sanitizeLine(`${l.path}:${l.line} [${l.hits.join(',')}] ${l.text}`)}`);
   out.push(`R6 app C# files over ${R6_LIMIT} lines that grew, or new past it: ${r6.files.length} (mode ${r6.mode}): ${r6.files.length === 0 ? 'pass' : r6.mode === 'fail' ? 'FAIL' : 'report only'}`);
   for (const f of r6.files) out.push(`${P}${sanitizeLine(`${f.path}: ${f.base} -> ${f.head} lines${f.renamedFrom ? ` (renamed from ${f.renamedFrom})` : ''}`)}`);
-  if (!r2.pass) out.push(`FAIL R2 ${r2.count} added comment lines hold a history marker (max ${r2.max}): a comment says what or why, never history`);
+  if (!r2.pass) out.push(r2Fail(r2));
   if (!r5.pass) out.push(`FAIL R5 ${r5.lines.length} new probe line(s) outside #if SPIXI_DEV_COEXIST / DEBUG / SPIXI_CSH`);
   if (!r6.pass) out.push(`FAIL R6 ${r6.files.length} app C# file(s) grew while over ${R6_LIMIT} lines or crossed it`);
   out.push(`size-check: ${res.pass ? 'PASS' : 'FAIL'}`);
@@ -639,21 +800,27 @@ function textReport(res, sizes) {
 
 const SUMMARY_ROWS = 200;
 
-function markdownReport(res, sizes) {
+function markdownReport(res, sizes, ci) {
   const out = [];
   const st = (ok) => (ok ? 'pass' : '**FAIL**');
   out.push(`## Size (R2 · R5 · R6) — ${res.pass ? 'pass' : '**FAIL**'}`, '');
-  out.push(`Base \`${res.base.slice(0, 12)}\` · head \`${res.head.slice(0, 12)}\``, '');
+  out.push(markdownCell(scopeLine(res, ci)), '');
+  if (res.notes.gitattributes.length) {
+    out.push(`**Note:** the diff changes .gitattributes (${res.notes.gitattributes.map(markdownCell).join(', ')}): the generated / vendored set of src may differ between base and head.`, '');
+  }
+  if (res.notes.watched.length) {
+    out.push(`**Note:** the pull request changes the size checks or their inputs (${res.notes.watched.map(markdownCell).join(', ')}): review that part by hand.`, '');
+  }
   if (sizes) {
     out.push('| Size of the head | Lines | Delta |', '|---|---:|---:|');
     for (const [k, v, dv] of sizeRows(sizes.head, sizes.delta)) out.push(`| ${k} | ${v} | ${dv} |`);
     out.push('');
   }
   const { r2, r5, r6 } = res;
-  out.push('| Check | Result | Count |', '|---|---|---:|');
-  out.push(`| R2 history markers in added comments (max ${r2.max}) | ${st(r2.pass)} | ${r2.count} |`);
-  out.push(`| R5 new probe lines outside the dev fence | ${st(r5.pass)} | ${r5.lines.length} |`);
-  out.push(`| R6 files over ${R6_LIMIT} lines (mode ${r6.mode}) | ${r6.files.length === 0 ? 'pass' : r6.mode === 'fail' ? '**FAIL**' : 'report only'} | ${r6.files.length} |`);
+  out.push('| Check | Result | Count | Detail |', '|---|---|---:|---|');
+  out.push(`| R2 history markers in added comments (max ${r2.max}) | ${st(r2.pass)} | ${r2.count} | app C# ${r2.app} · src ${r2.src} · ${r2.credited} credited by removed markers · ${r2.singleDecision} with one decision number only · ${r2.unreadable.length} unreadable |`);
+  out.push(`| R5 new probe lines outside the dev fence | ${st(r5.pass)} | ${r5.lines.length} | ${r5.moved} moved, not counted |`);
+  out.push(`| R6 files over ${R6_LIMIT} lines (mode ${r6.mode}) | ${r6.files.length === 0 ? 'pass' : r6.mode === 'fail' ? '**FAIL**' : 'report only'} | ${r6.files.length} | |`);
   out.push('');
   const table = (title, head, rows) => {
     if (!rows.length) return;
@@ -662,12 +829,14 @@ function markdownReport(res, sizes) {
     if (rows.length > SUMMARY_ROWS) out.push(`| … ${rows.length - SUMMARY_ROWS} more in the job log | | |`);
     out.push('');
   };
+  table('R2 unreadable src files', '| File | Why |',
+    r2.unreadable.map((u) => `| ${markdownCell(u.path)} | ${markdownCell(u.why)} |`));
   table('R2 marker lines', '| Line | Markers | Comment |',
     r2.lines.map((l) => `| ${markdownCell(`${l.path}:${l.line}`)} | ${markdownCell(l.hits.join(', '))} | ${markdownCell(l.text)} |`));
   table('R5 probe lines', '| Line | Kind | Code |',
     r5.lines.map((l) => `| ${markdownCell(`${l.path}:${l.line}`)} | ${markdownCell(l.hits.join(', '))} | ${markdownCell(l.text)} |`));
-  table('R6 files', '| File | Base | Head |',
-    r6.files.map((f) => `| ${markdownCell(f.path)} | ${f.base} | ${f.head} |`));
+  table('R6 files', '| File | Base | Head | Renamed from |',
+    r6.files.map((f) => `| ${markdownCell(f.path)} | ${f.base} | ${f.head} | ${f.renamedFrom ? markdownCell(f.renamedFrom) : ''} |`));
   return out.join('\n') + '\n';
 }
 
@@ -722,8 +891,8 @@ export function main(argv) {
     const baseSize = lib.countTree(o.repo, res.base);
     const headSize = lib.countTree(o.repo, res.head);
     const sizes = { head: headSize, delta: lib.countDelta(baseSize, headSize) };
-    process.stdout.write(textReport(res, sizes));
-    if (o.summary) appendFileSync(o.summary, markdownReport(res, sizes));
+    process.stdout.write(textReport(res, sizes, o.ci));
+    if (o.summary) appendFileSync(o.summary, markdownReport(res, sizes, o.ci));
     return res.pass ? 0 : 1;
   } catch (e) {
     process.stderr.write(`size-check: ERROR ${sanitizeLine(e && e.message ? e.message : String(e))}\n`);
@@ -733,7 +902,7 @@ export function main(argv) {
 
 function invokedDirectly() {
   try {
-    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+    return Boolean(process.argv[1]) && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
   } catch {
     return false;
   }

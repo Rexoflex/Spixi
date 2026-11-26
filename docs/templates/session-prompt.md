@@ -108,9 +108,9 @@ version; a gap of the stated class that a reader finds later is a NIT, not a MAJ
 batch claims runs on the tree that the last reader reads: the full smoke and every packaged or built run on the final
 tree BEFORE that reader starts (#1753 (2), session leanfollow). A miss on a timing pin: run the module alone and
 re-run it before anything else (#1827 (4); L153, #1457 ⑥, #1463).
-Size rule (#1963 (8)): R2 (no history in a comment), R5 (no probe outside the dev fence) and R6 (no app C# file past
-1,500 lines) are checked by the size step of redesign-ci (session sizerule) and by hand with `node
-scripts/size-check.mjs --base <base> --head HEAD` before the push (exit 1 = a check fails). R4: the contract names
+Size rule (#1963 (8)): R2 (no history in a comment), R5 (no probe outside the dev fence) and R6 (no app C# file grows past
+1,500 lines; a file already over it must not grow) are checked by the size step of redesign-ci (session sizerule) and by hand with `node
+scripts/size-check.mjs --base <base> --head HEAD` before the push (exit 1 = a check fails; exit 2 = a usage or git error, never a pass). R4: the contract names
 what stage 2 deletes of the batch (docs/templates/agent-contract.md, "Stage 2 (R4)").
 Review: write docs/review-brief-<batch>.md; the #46 loop until CLEAN (every reader a fresh read-only instance, #1471:
 Claude Fable 5.2 for the security-only pass and for the file where an error costs most, Claude Opus for every other

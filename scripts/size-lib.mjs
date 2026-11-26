@@ -28,7 +28,9 @@
  *   definitely false in a store build: DEBUG, SPIXI_DEV_COEXIST and SPIXI_CSH are false,
  *   every other symbol is unknown, and the logic is three-valued (an unknown branch is
  *   kept). A #define / #undef in the file sets its symbol from that line on, as the
- *   compiler does. Directive lines themselves are store = true. Only real directives
+ *   compiler does; one whose name is not a plain ASCII identifier makes the store-false
+ *   symbols unknown from that line on (fail closed). Directive lines themselves are
+ *   store = true. Only real directives
  *   count: a line that starts with `#` inside a string or a block comment is not one; the
  *   parse decides.
  *
@@ -43,6 +45,11 @@
  *     and also the repository's own info/attributes (the global and system files are
  *     switched off). Without --source (git older than 2.40) the lib reads the tree's
  *     .gitattributes files itself with a matcher of the common gitignore-style patterns.
+ *   - The git functions do not classify a file they cannot read as UTF-8 text (a UTF-16 byte
+ *     order mark, a NUL byte, bytes that are not UTF-8, a symlink, a submodule): gitFiles
+ *     marks it `unreadable`, and countTree lists it instead of counting it.
+ *   - classifyCs lists in `suspect` the shapes where this classifier and the compiler may see the
+ *     directives differently (see classifyCs); the store flags of such a file are not a proof.
  */
 import { spawnSync } from 'node:child_process';
 import * as acorn from 'acorn';
@@ -242,8 +249,13 @@ export function evalCondition(src, symbols) {
   }
 }
 
-/* Goes through the real directive lines in order and gives each line its store flag. */
-function storeFlags(text, spans, directiveIdx) {
+const PLAIN_SYMBOL = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/* Goes through the real directive lines in order and gives each line its store flag. A
+ * #define / #undef whose name is not a plain ASCII identifier may name a store-false symbol
+ * in a form this classifier cannot see (an escape, a format character, a look-alike letter), so
+ * from that line on the store-false symbols are unknown and the line is listed in `suspect`. */
+function storeFlags(text, spans, directiveIdx, suspect) {
   const n = spans.starts.length;
   const store = new Array(n).fill(true);
   const symbols = {};
@@ -286,7 +298,12 @@ function storeFlags(text, spans, directiveIdx) {
       active = f.parent;
     } else if (kw === 'define' || kw === 'undef') {
       const name = rest.replace(/\/\/.*$/, '').trim();
-      if (!name || active === 0) continue;
+      if (!PLAIN_SYMBOL.test(name)) {
+        suspect.push({ line: i + 1, reason: 'define-name' });
+        for (const sym of STORE_FALSE_SYMBOLS) symbols[sym] = null;
+        continue;
+      }
+      if (active === 0) continue;
       const v = kw === 'define' ? 1 : 0;
       symbols[name] = active === 1 ? v : symbols[name] === v ? v : null;
     }
@@ -328,16 +345,33 @@ function analyzeCs(rawText) {
     markRanges(mask, comments.map((nd) => [nd.startIndex, nd.endIndex]), 1);
     parseErrors = countErrors(root);
   }
-  const kinds = kindsFromMask(text, mask, spans);
   const directiveIdx = [];
+  const suspect = [];
+  const hasSeparator = /[\r\u0085\u2028\u2029]/.test(text);
   for (let i = 0; i < spans.starts.length; i++) {
     const s = spans.starts[i];
     const e = spans.ends[i];
+    if (hasSeparator && /[\r\u0085\u2028\u2029]/.test(text.slice(s, e))) {
+      suspect.push({ line: i + 1, reason: 'line-separator' });
+    }
     let j = s;
     while (j < e && isSpace(text.charCodeAt(j))) j++;
-    if (j < e && text[j] === '#' && mask[j] === 0) directiveIdx.push(i);
+    if (j >= e || text[j] !== '#') continue;
+    if (mask[j] === 1) { suspect.push({ line: i + 1, reason: 'comment-over-directive' }); continue; }
+    if (mask[j] === 2) { suspect.push({ line: i + 1, reason: 'string-over-directive' }); continue; }
+    directiveIdx.push(i);
+    const line = text.slice(j, e);
+    const lineComment = line.indexOf('//');
+    const block = line.indexOf('/*');
+    if (block !== -1 && (lineComment === -1 || block < lineComment)) {
+      suspect.push({ line: i + 1, reason: 'block-comment-on-directive' });
+    }
+    if (/\\\s*$/.test(line)) suspect.push({ line: i + 1, reason: 'directive-continuation' });
+    markDirectiveTail(text, mask, j, e);
   }
-  const store = storeFlags(text, spans, directiveIdx);
+  const kinds = kindsFromMask(text, mask, spans);
+  const store = storeFlags(text, spans, directiveIdx, suspect);
+  suspect.sort((a, b) => a.line - b.line || (a.reason < b.reason ? -1 : 1));
   const parts = lineParts(text, mask, spans);
   return {
     kinds,
@@ -346,12 +380,38 @@ function analyzeCs(rawText) {
     parseErrors,
     codeText: parts.code,
     comments: parts.comments,
+    suspect,
   };
 }
 
-/** C# file text → { kinds, store, directives, parseErrors, codeText, comments }.
+/* The directives after which C# reads a `//` tail as a comment. tree-sitter folds the tail
+ * of some of them (#define, #undef) into the directive's argument; it is marked as comment
+ * here so that its text reaches `comments`. #region, #endregion, #error and #warning carry a
+ * message, not a comment, and stay as they are. The line stays code either way. */
+const DIRECTIVES_WITH_COMMENT = new Set(['if', 'elif', 'else', 'endif', 'define', 'undef', 'line', 'pragma', 'nullable']);
+
+function markDirectiveTail(text, mask, hash, end) {
+  const m = /^#\s*([A-Za-z]+)/.exec(text.slice(hash, end));
+  if (!m || !DIRECTIVES_WITH_COMMENT.has(m[1])) return;
+  for (let k = hash + m[0].length; k + 1 < end; k++) {
+    if (mask[k] === 1) return;
+    if (mask[k] === 0 && text[k] === '/' && text[k + 1] === '/') {
+      mask.fill(1, k, end);
+      return;
+    }
+  }
+}
+
+/** C# file text → { kinds, store, directives, parseErrors, codeText, comments, suspect }.
  * codeText[i] is line i + 1 with each comment character turned into a space; comments[i] is
- * the comment characters of that line joined ('' when none). */
+ * the comment characters of that line joined ('' when none). suspect lists the shapes where
+ * this classifier and the compiler may see the directives differently: [{ line (1-based),
+ * reason }] with reason one of 'comment-over-directive' (a comment covers a line that starts
+ * with #), 'string-over-directive' (a string covers such a line), 'block-comment-on-directive'
+ * (a /* on a real directive line), 'directive-continuation' (a real directive line ends in
+ * a backslash), 'define-name' (a #define / #undef name that is not [A-Za-z_][A-Za-z0-9_]*),
+ * 'line-separator' (a lone CR, U+0085, U+2028 or U+2029 on the line: a line break for the
+ * compiler, white space here). Empty for a plain file. */
 export function classifyCs(text) {
   return analyzeCs(text);
 }
@@ -442,10 +502,22 @@ function cssCommentRanges(text) {
   return ranges;
 }
 
-const JS_SCRIPT_TYPES = new Set([
-  '', 'module', 'text/javascript', 'application/javascript', 'text/ecmascript',
-  'application/ecmascript', 'text/jsx', 'text/babel',
+/* A <script> is JS when its type is absent, empty, `module`, or a JavaScript MIME type of
+ * the HTML standard (compared by its essence: the part before `;`, trimmed, lower case). */
+const JS_MIME_ESSENCES = new Set([
+  'application/ecmascript', 'application/javascript', 'application/x-ecmascript',
+  'application/x-javascript', 'text/ecmascript', 'text/javascript', 'text/javascript1.0',
+  'text/javascript1.1', 'text/javascript1.2', 'text/javascript1.3', 'text/javascript1.4',
+  'text/javascript1.5', 'text/jscript', 'text/livescript', 'text/x-ecmascript',
+  'text/x-javascript',
 ]);
+
+function isJsScriptType(typeAttr) {
+  if (typeAttr === undefined) return true;
+  const raw = typeAttr.trim().toLowerCase();
+  if (raw === '' || raw === 'module') return true;
+  return JS_MIME_ESSENCES.has(raw.split(';')[0].trim());
+}
 
 function htmlCommentRanges(text) {
   const ranges = [];
@@ -467,8 +539,7 @@ function htmlCommentRanges(text) {
           inner = cssCommentRanges(body);
         } else {
           const typeAttr = (node.attrs || []).find((a) => a.name === 'type');
-          const type = typeAttr ? typeAttr.value.trim().toLowerCase() : '';
-          if (!JS_SCRIPT_TYPES.has(type)) continue;
+          if (!isJsScriptType(typeAttr ? typeAttr.value : undefined)) continue;
           const r = jsCommentRanges(body);
           if (r.fallback) fallback = true;
           inner = r.ranges;
@@ -579,6 +650,7 @@ function catBlobs(repo, shas) {
   const r = git(repo, ['cat-file', '--batch'], { input: shas.join('\n') + '\n', encoding: 'buffer' });
   const buf = r.stdout;
   const dec = new TextDecoder('utf-8');
+  const strict = new TextDecoder('utf-8', { fatal: true });
   const out = [];
   let pos = 0;
   for (let k = 0; k < shas.length; k++) {
@@ -588,15 +660,33 @@ function catBlobs(repo, shas) {
     if (header[1] === 'missing') throw new GitError(`git cat-file: missing object ${header[0]}`);
     const size = Number(header[2]);
     const start = nl + 1;
-    out.push(dec.decode(buf.subarray(start, start + size)));
+    const bytes = buf.subarray(start, start + size);
+    out.push({ text: dec.decode(bytes), unreadable: unreadableWhy(bytes, strict) });
     pos = start + size + 1;
   }
   return out;
 }
 
-/** Every blob of the tree of `rev` → [{ path, text }]; no work-tree read. `filter` (optional:
- * a function of the path, or an array / Set of paths) limits which blobs are read — a tree
- * holds binaries too, so pass one. Symlinks and submodules are not blobs here. */
+/* Why a blob cannot be read as a UTF-8 text file, or undefined when it can. A UTF-16 file
+ * or a file with a NUL byte would otherwise be classified as UTF-8 noise. */
+function unreadableWhy(bytes, strict) {
+  if (bytes.length >= 2 && ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff))) {
+    return 'UTF-16 byte order mark';
+  }
+  if (bytes.indexOf(0) !== -1) return 'NUL byte';
+  try {
+    strict.decode(bytes);
+  } catch {
+    return 'not valid UTF-8';
+  }
+  return undefined;
+}
+
+/** Every file of the tree of `rev` → [{ path, text, unreadable? }]; no work-tree read.
+ * `filter` (optional: a function of the path, or an array / Set of paths) limits which
+ * entries are read — a tree holds binaries too, so pass one. `unreadable` is set (and the
+ * entry must not be classified) for a blob with a UTF-16 byte order mark, a NUL byte or
+ * bytes that are not UTF-8, and for a symlink or a submodule (text ''). */
 export function gitFiles(repo, rev, filter) {
   let keep = () => true;
   if (typeof filter === 'function') keep = filter;
@@ -604,9 +694,15 @@ export function gitFiles(repo, rev, filter) {
     const set = filter instanceof Set ? filter : new Set(filter);
     keep = (p) => set.has(p);
   }
-  const entries = lsTree(repo, rev).filter((e) => e.type === 'blob' && e.mode !== '120000' && keep(e.path));
-  const texts = catBlobs(repo, entries.map((e) => e.sha));
-  return entries.map((e, i) => ({ path: e.path, text: texts[i] }));
+  const entries = lsTree(repo, rev).filter((e) => keep(e.path));
+  const blobs = entries.filter((e) => e.type === 'blob' && e.mode !== '120000');
+  const read = catBlobs(repo, blobs.map((e) => e.sha));
+  const byEntry = new Map(blobs.map((e, i) => [e, read[i]]));
+  return entries.map((e) => {
+    const r = byEntry.get(e);
+    if (r) return r.unreadable ? { path: e.path, text: r.text, unreadable: r.unreadable } : { path: e.path, text: r.text };
+    return { path: e.path, text: '', unreadable: e.mode === '120000' ? 'symlink' : e.type === 'commit' ? 'submodule' : e.type };
+  });
 }
 
 function attrIsSet(info) {
@@ -666,7 +762,8 @@ function attrPatternRe(pat) {
 }
 
 function attrsByOwnReader(repo, rev, list) {
-  const files = gitFiles(repo, rev, (p) => p === '.gitattributes' || p.endsWith('/.gitattributes'));
+  const files = gitFiles(repo, rev, (p) => p === '.gitattributes' || p.endsWith('/.gitattributes'))
+    .filter((f) => !f.unreadable);
   const rules = [];
   files.sort((a, b) => a.path.split('/').length - b.path.split('/').length);
   for (const f of files) {
@@ -724,7 +821,8 @@ function diffSidePath(rest, prefix) {
 
 /** The lines `head` adds against `base` → Map<path, { status: 'A'|'M'|'D', added: number[]
  * (1-based head lines), removed: number }>. `paths` (optional) are pathspecs. A deleted file
- * is keyed by its base path. A file whose only change is its mode is not listed. */
+ * is keyed by its base path. A change with no hunk is not listed: a file whose only change
+ * is its mode, a new empty file, a deleted empty file. */
 export function gitDiffAdded(repo, base, head, paths) {
   const args = ['-c', 'core.quotePath=false', 'diff', '-U0', '--no-renames', '--text', '--no-ext-diff',
     '--no-textconv', '--no-color', '--src-prefix=a/', '--dst-prefix=b/', '--end-of-options', base, head];
@@ -783,9 +881,17 @@ export function countTree(repo, rev) {
   const files = gitFiles(repo, commit, (p) => isAppCs(p) || isSrcWeb(p));
   const srcPaths = files.filter((f) => isSrcWeb(f.path)).map((f) => f.path);
   const generated = gitGenerated(repo, commit, srcPaths);
-  const app = { files: 0, code: 0, comment: 0, blank: 0, store: 0, switches: 0, over1500: [], parseErrors: 0, parseErrorFiles: [] };
-  const src = { files: 0, code: 0, comment: 0, blank: 0, fallbackFiles: [] };
+  const app = {
+    files: 0, code: 0, comment: 0, blank: 0, store: 0, switches: 0, over1500: [], lines: {},
+    parseErrors: 0, parseErrorFiles: [], suspectFiles: [], unreadableFiles: [],
+  };
+  const src = { files: 0, code: 0, comment: 0, blank: 0, fallbackFiles: [], unreadableFiles: [] };
   for (const f of files) {
+    if (f.unreadable) {
+      if (isAppCs(f.path)) app.unreadableFiles.push({ path: f.path, why: f.unreadable });
+      else if (isSrcHandWritten(f.path, generated)) src.unreadableFiles.push({ path: f.path, why: f.unreadable });
+      continue;
+    }
     if (isAppCs(f.path)) {
       const r = analyzeCs(f.text);
       app.files++;
@@ -797,7 +903,9 @@ export function countTree(repo, rev) {
           if (SWITCH_RE.test(r.codeText[i])) app.switches++;
         }
       }
+      app.lines[f.path] = r.kinds.length;
       if (r.kinds.length > 1500) app.over1500.push({ path: f.path, lines: r.kinds.length });
+      if (r.suspect.length) app.suspectFiles.push({ path: f.path, suspect: r.suspect });
       if (r.parseErrors) {
         app.parseErrors += r.parseErrors;
         app.parseErrorFiles.push({ path: f.path, errors: r.parseErrors });
@@ -815,18 +923,15 @@ export function countTree(repo, rev) {
 }
 
 /** Two countTree results → the same shape with b − a for the numbers. over1500 lists every
- * file over the limit in a or b with lines = b − a and its base / head line counts. */
+ * file over the limit in a or b with lines = b − a and its real base / head line counts
+ * (0 only when the file is absent on that side, or empty). */
 export function countDelta(a, b) {
   const nums = (x, y, keys) => Object.fromEntries(keys.map((k) => [k, (y[k] || 0) - (x[k] || 0)]));
   const app = nums(a.app, b.app, ['files', 'code', 'comment', 'blank', 'store', 'switches', 'parseErrors']);
-  const byPath = new Map();
-  for (const f of a.app.over1500) byPath.set(f.path, { path: f.path, base: f.lines, head: 0 });
-  for (const f of b.app.over1500) {
-    const e = byPath.get(f.path) || { path: f.path, base: 0, head: 0 };
-    e.head = f.lines;
-    byPath.set(f.path, e);
-  }
-  app.over1500 = [...byPath.values()]
+  const paths = new Set([...a.app.over1500, ...b.app.over1500].map((f) => f.path));
+  const count = (t, p) => (Object.prototype.hasOwnProperty.call(t.app.lines, p) ? t.app.lines[p] : 0);
+  app.over1500 = [...paths]
+    .map((p) => ({ path: p, base: count(a, p), head: count(b, p) }))
     .map((e) => ({ path: e.path, lines: e.head - e.base, base: e.base, head: e.head }))
     .sort((x, y) => (x.path < y.path ? -1 : 1));
   app.over1500Count = b.app.over1500.length - a.app.over1500.length;

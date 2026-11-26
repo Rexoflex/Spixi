@@ -65,23 +65,20 @@ jobs:
         path: Ixian-Core
         persist-credentials: false
 
+    # The toolchain of Damir's Mac (docs/ios-push-findings-2026-08-24-office.md:211): .NET SDK 10.0.302 with the maui
+    # workload set 10.0.303.1. Not "the newest": the image also carries SDK 11.0.100 (dotnet takes the newest SDK; its
+    # workload brings the net10 GA packs 26.0) and SDK 10.0.404, whose newest workload brings net10 packs 27.2 that need
+    # an Xcode 27.2 the image does not have (runs 1 and 2 of this workflow, 2026-11-27). The SDK is pinned by a
+    # global.json in the workspace folder ABOVE the checkout (the repository has no global.json; nothing in it changes).
     - name: Setup .NET
-      id: dotnet
       uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73   # v6.1.0
       with:
-        dotnet-version: '10.0.x'
+        dotnet-version: '10.0.302'
 
-    # The image also carries a newer major SDK (11.0.100 on macos-26 2026-11-17), and dotnet takes the newest one; its
-    # workload brings the OLD net10 Apple packs (26.0, the .NET 10 GA packs). The project targets net10.0, so this job
-    # pins the .NET 10 SDK that setup-dotnet installed, with a global.json in the workspace folder ABOVE the checkout
-    # (the repository has no global.json; nothing in the repository changes).
-    - name: Pin the .NET 10 SDK (global.json outside the repository)
+    - name: Pin the .NET SDK (global.json outside the repository)
       working-directory: .
-      env:
-        SDK_VERSION: ${{ steps.dotnet.outputs.dotnet-version }}
       run: |
-        case "$SDK_VERSION" in 10.0.*) ;; *) echo "::error title=SDK::setup-dotnet gave '$SDK_VERSION', not a 10.0 SDK"; exit 1 ;; esac
-        printf '{ "sdk": { "version": "%s", "rollForward": "disable" } }\n' "$SDK_VERSION" > "$GITHUB_WORKSPACE/global.json"
+        printf '{ "sdk": { "version": "10.0.302", "rollForward": "disable" } }\n' > "$GITHUB_WORKSPACE/global.json"
         cat "$GITHUB_WORKSPACE/global.json"
 
     - name: List the .NET SDKs (the pinned one is used)
@@ -89,8 +86,8 @@ jobs:
         dotnet --list-sdks
         dotnet --version
 
-    - name: Install MAUI workload
-      run: dotnet workload install maui
+    - name: Install MAUI workload (the workload set of Damir's Mac)
+      run: dotnet workload install maui --version 10.0.303.1
 
     - name: Show the workload and the Apple SDK packs
       run: |
@@ -103,12 +100,15 @@ jobs:
         true
 
     # The net10 Apple pack is named for the Xcode it needs (Microsoft.iOS.Sdk.net10.0_<X.Y> needs Xcode X.Y, with
-    # any patch level): this step selects that Xcode by its path and fails when the image has none.
+    # any patch level): this step selects that Xcode by its path and fails when the image has none. The image may
+    # carry an older net10 pack as well: the newest folder (the one the workload step installed) counts.
     - name: Select Xcode (the one the net10 Apple pack needs)
       run: |
         root="$(dirname "$(command -v dotnet)")"
         ls -d /Applications/Xcode*.app
-        want="$(ls -d "$root"/packs/Microsoft.iOS.Sdk.net10.0_* | sed -E 's/.*_([0-9]+\.[0-9]+)$/\1/' | sort -V | tail -n 1)"
+        ls -ldt "$root"/packs/Microsoft.iOS.Sdk.net10.0_*/*
+        cat "$root"/sdk-manifests/*/workloadsets/*/*.json 2>/dev/null || true
+        want="$(ls -dt "$root"/packs/Microsoft.iOS.Sdk.net10.0_* | head -n 1 | sed -E 's/.*_([0-9]+\.[0-9]+)$/\1/')"   # the pack the workload step just installed
         echo "the net10 iOS pack needs Xcode $want"
         app="$(ls -d /Applications/Xcode_"$want".app /Applications/Xcode_"$want".[0-9]*.app 2>/dev/null | sort -V | tail -n 1)"
         [ -n "$app" ] || { echo "::error title=Xcode::the image has no Xcode $want for the net10 Apple pack"; exit 1; }

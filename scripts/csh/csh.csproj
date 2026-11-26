@@ -108,6 +108,8 @@
     <Compile Include="../../Spixi/Utils/PageDefaultsRules.cs" />   <!-- ★ fixb4 (ruling 1750): the new-account page defaults (P1 Off, A9 Compact on the desktop) — the push arguments, the [DEFAULTS] page line, the [FLAGS] fixb4 line (tests: PageDefaultsTests.cs; SpixiFlags.readFixb4 and LaunchPage call it) -->
     <Compile Include="../../Spixi/Utils/LockShellRules.cs" />   <!-- ★ lockb (#1825 (1)/(2)): the hold push values, the pop, the no-credential alert rule (tests: LockShellTests.cs; LockPage calls it) -->
     <Compile Include="../../Spixi/Utils/LockClockRules.cs" />   <!-- ★ lockb (#1825 (3)): the second clock of the lock delay (tests: LockClockTests.cs; App.OnResume calls it) -->
+    <!-- The two REAL Opus wrappers and their interfaces over the Concentus model of StubsOpus.cs (tests: OpusManagedTests.cs) -->
+    <Compile Include="../../Spixi/VoIP/OpusDecoder.cs" /><Compile Include="../../Spixi/VoIP/OpusEncoder.cs" /><Compile Include="../../Spixi/VoIP/IAudioDecoder.cs" /><Compile Include="../../Spixi/VoIP/IAudioEncoder.cs" /><Compile Include="../../Spixi/VoIP/CodecTools.cs" />
     <Compile Include="../../Spixi-UnitTests/PresenceDisplayTests.cs" />
     <Compile Include="../../Spixi-UnitTests/SightingStoreTests.cs" />
     <Compile Include="../../Spixi-UnitTests/ImageSniffTests.cs" />

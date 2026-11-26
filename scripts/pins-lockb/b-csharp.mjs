@@ -506,7 +506,13 @@ export default async function (h) {
   const hasBom = (f) => exact(f).subarray(0, 3).equals(BOM);   // App.xaml.cs and LockPage.xaml.cs carry a BOM (the hash is over the exact bytes)
   const bytesOf = (f, t) => Buffer.concat([hasBom(f) ? BOM : Buffer.alloc(0), Buffer.from(t, 'utf8')]);
   const appBack = restore(app.raw, APP_HUNKS), lockBack = restore(lock.raw, LOCK_HUNKS);
-  const flagsRaw = text(FLAGS_F), flagsCode = mask(flagsRaw), flagsBare = mask(flagsRaw, true);
+  /* ★ fixb5 re-base (2026-11-25): a later batch's block (SmallFixFlags) may follow this one as the next and last type; b7 holds the
+     file WITHOUT it (it ends `    }\n}\n` like the base), so the lockb remainder and "the lockb block is last" are read as before.
+     pins-fixb1/g-sparekeep FLAGSFILE holds the whole file; pins-fixb5/f-opus-managed and the csh OpusManagedTests hold the new block. */
+  const FX_OPEN = '\n\n    /* Two switches, one per change; OFF = the old path.';
+  const flagsFull = text(FLAGS_F), fxAt = flagsFull.indexOf(FX_OPEN);
+  const flagsRaw = fxAt >= 0 && /public static class SmallFixFlags/.test(flagsFull.slice(fxAt)) && flagsFull.endsWith('    }\n}\n') ? flagsFull.slice(0, fxAt + 1) + '}\n' : flagsFull;
+  const flagsCode = mask(flagsRaw), flagsBare = mask(flagsRaw, true);
   const lf = flagsRaw.split('\n');
   const startLine = lf.map((l, i) => [l, i]).filter(([l]) => l.trim().startsWith('/* ★ lockb (Lock batch')).map(([, i]) => i);
   const lb = span(flagsCode, flagsBare, 'public static class LockbFlags');

@@ -396,3 +396,10 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1954 🟡 | The doubled numbers #1420–#1423 are two sets (ON-1 and S20G), not a copy; Q-1: keep both and cite with the session (recommended) / renumber / mark. |
 | #1955 | The #46 verdict of the batch (readers: Opus only): CLEAN at r4; the compare script's relaxed cell check stays a stated limit (rule 9). |
 | #1956 | Session "Docs batch 2" — the record. |
+
+### Session Quote box (`quotebox`, 2026-11-25, #2010–#2012, L309, no packet)
+| Row | Rule |
+|---|---|
+| #2010 | The Windows quote box of REPLY C (Seed 57): not reproduced off the device; in Chromium the four replies jump with the mouse; three inputs give "no reaction, no toast" (C#'s fallback box · an unanswered jump whose toast a landing older page cancels · a full repaint of the log inside the mouse press); four likely causes (the open's deeper read short · the jump dropped · the click lost on Windows · the repaint race). |
+| #2011 🟡 | No fix built (no proven cause); the walk rows of `docs/walk-quotebox.md` tell the four causes apart; the fix batch follows the walk (the open's deeper read · `onQuoteJump` and the toast wait · the native layer · the full repaint under a pressed mouse). |
+| #2012 | Session "Quote box" — the record. |

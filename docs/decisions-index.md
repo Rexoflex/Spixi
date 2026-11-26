@@ -397,7 +397,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1955 | The #46 verdict of the batch (readers: Opus only): CLEAN at r4; the compare script's relaxed cell check stays a stated limit (rule 9). |
 | #1956 | Session "Docs batch 2" — the record. |
 
-### Session Size rule (`sizerule`, 2026-11-25 / 26, #1980–#1989, L299–L302, no packet) — STOPPED before delivery (Q-1)
+### Session Size rule (`sizerule`, 2026-11-25 / 26, #1980–#1989, L299–L302, no packet) — STOPPED before delivery (Q-1); shipped as a guard by #1966 (1) (`sizerule2`)
 | Row | Rule |
 |---|---|
 | #1980 | The code counter `scripts/size-count.mjs` (R1, R3): reproduces 63,925 / 20,155 exactly; the delta `--base --head`. |
@@ -408,7 +408,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1985 🟡 | The self-tests `pins-sizerule/<a-counter\|b-checks\|c-ci>` (+278 rows). |
 | #1986 🟡 | The size rule in the templates and the gate lists; the npm ci sentences. |
 | #1987 🟡 | Fail closed where tree-sitter and the compiler can disagree (suspect shapes → R5 red); the class stays open. |
-| #1988 🟡 | The #46 verdict: NOT CLEAN at r3 (MAJOR 7 → 1 → 3); rule 9: no third fix round; Q-1 for Damir (ship as a guard / Roslyn design / park R2 R5 / stop). |
+| #1988 🟡 | The #46 verdict: NOT CLEAN at r3 (MAJOR 7 → 1 → 3); rule 9: no third fix round; Q-1 for Damir (ship as a guard / Roslyn design / park R2 R5 / stop) → answered by #1966 (1): ship as a guard. |
 | #1989 🟡 | Session "Size rule" — the record (not pushed; the patches on Damir's PC). |
 ### Session Quote box (`quotebox`, 2026-11-25, #2010–#2012, L309, no packet)
 | Row | Rule |
@@ -416,3 +416,10 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2010 | The Windows quote box of REPLY C (Seed 57): not reproduced off the device; in Chromium the four replies jump with the mouse; three inputs give "no reaction, no toast" (C#'s fallback box · an unanswered jump whose toast a landing older page cancels · a full repaint of the log inside the mouse press); four likely causes (the open's deeper read short · the jump dropped · the click lost on Windows · the repaint race). |
 | #2011 🟡 | No fix built (no proven cause); the walk rows of `docs/walk-quotebox.md` tell the four causes apart; the fix batch follows the walk (the open's deeper read · `onQuoteJump` and the toast wait · the native layer · the full repaint under a pressed mouse). |
 | #2012 | Session "Quote box" — the record. |
+
+### Session Size rule, part 2 (`sizerule2`, 2026-11-26, #2020–#2022, L313, no packet) — R2 / R5 shipped as a guard
+| Row | Rule |
+|---|---|
+| #2020 | R2 / R5 are a guard against mistakes: a deliberate hiding of code is caught by the review of the diff; the open shapes in the limits; `quotebox`, `imgurl` stop-listed. |
+| #2021 | The #46 verdict of the guard commits: CLEAN at s2-r2 (MAJOR 1 → 0); a second reader on the fix (deviation from "ONE reader"). |
+| #2022 | Session "Size rule, part 2" — the record (the patch applied, merged with `c211d7de`, pushed). |

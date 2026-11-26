@@ -120,3 +120,32 @@ No third fix round was started. The choice goes to Damir (question Q-1 in the st
 4. **Stop the batch.**
 The tree (the four code commits + the export commit) is saved as patches with SHA-256 in `Claude outputs\_transfer\`
 on Damir's PC (the status doc names the files).
+
+### Session `sizerule2` (2026-11-26) — the guard commits, by ruling #1966 (1)
+Scope: ONLY the commits of `sizerule2` (`825d89f9` the limits text and the two stop-list words; `014ccacb` the fixes of
+its r1), not the patch (the patch had its three rounds above). Prompt `claude/session-sizerule2-prompt.md`: one fresh
+read-only Claude Opus reader. Round 1 found a MAJOR, so its fix got a fresh break-my-verdict Claude Opus reader (the loop
+rule of `CLAUDE.md` step 6 and #46: a fresh reader attacks each fix); recorded as a deviation from the prompt's "ONE reader".
+
+| Round | Readers (fresh, read-only) | MAJOR | MINOR | NIT | Fixed in |
+|---|---|---:|---:|---:|---|
+| s2-r1 | Claude Opus | 1 | 1 | 6 | `014ccacb` (text only) |
+| s2-r2 | Claude Opus (break-my-verdict) | 0 | 1 | 3 | the record commit (docs only) |
+
+**s2-r1 MAJOR:** the limits said the known set is exactly three shapes; § 5 S3-1 lists more of the first kind (the
+reader showed that the C# 14 `a?.b = "/*";` passes R5) → the limits, the template and row #2020 say the set is not
+complete, name the three MAJOR shapes and point to S3-1. **MINOR:** the handoff named a row that did not exist yet →
+rows #2021–#2022 come in the record commit. **NITs fixed:** the handoff read-first line, the extent of the region shape
+("up to the next `*/`"), "an identifier of the code" in the R2 batch-name limit, R4 on its own line, the row list in
+#2020. **NIT recorded, not changed:** the stop-list row shares the label "case 31" with the watched-path rows (cosmetic).
+**s2-r2:** every s2-r1 fix checked against the brief and the code (the region extent tested with `classifyCs`: comment
+up to the line with the next `*/`; a directive line inside that range makes the file a suspect); no code line changed
+(`git diff 825d89f9 014ccacb -- scripts/size-check.mjs` = comment lines only); `size-check` on `b22fa955..014ccacb`
+exit 0; `pins-sizerule/b-checks` 179 / 0; each break of the new row (either word or both out of the stop-list) turns
+exactly that row red. **MINOR** (rows #2021–#2022 must exist in the pushed tree): done in the record commit. **NITs:**
+R4 split over two raw lines (fixed in the record commit, a doc correction) · row #1987 says "three more shapes" (kept:
+#2020 holds the full statement) · "the MAJOR shape" against one MAJOR S3-1 (kept: the "(S3-1)" tag ties them).
+**Verdict: CLEAN at s2-r2** (0 MAJOR). The code files are as the s2-r2 reader read them (SHA-256 at `014ccacb` and in
+the pushed tree): `scripts/size-check.mjs` `286452f0bcfea9bb40b012409257d08e90587497d0fc2069458c858294372288` · `scripts/pins-sizerule/b-checks.mjs`
+`e7f6efc1cd71ff37334a58845aa5306994f3f67b3795fe4c721d81ff58429872`. The checks R2 / R5 remain a guard against mistakes (#1966 (1)); the open class of r3 stays open
+until a Roslyn-based check (a later batch).

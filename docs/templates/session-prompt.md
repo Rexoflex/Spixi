@@ -120,8 +120,7 @@ by this check. Known shapes let a probe written on purpose pass R5; the list is 
 a `#region x // see /*` line makes the code lines after it, up to the next `*/`, read as a comment.
 An interpolated string `$"{x:/*}"` makes the lines up to the next `*/` read as a comment.
 A Unicode format character inside `P1Perf` (or another probe name) hides the name from the probe patterns.
-R4: the contract names
-what stage 2 deletes of the batch (docs/templates/agent-contract.md, "Stage 2 (R4)").
+R4: the contract names what stage 2 deletes of the batch (docs/templates/agent-contract.md, "Stage 2 (R4)").
 Review: write docs/review-brief-<batch>.md; the #46 loop until CLEAN (every reader a fresh read-only instance, #1471:
 Claude Fable 5.2 for the security-only pass and for the file where an error costs most, Claude Opus for every other
 reader, #1606; the builder's context never reviews; no fallback below the named model — stop), BEFORE the batch

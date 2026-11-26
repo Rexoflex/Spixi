@@ -1,0 +1,202 @@
+# Apple compile check (the fork only): compiles the iOS target (for the simulator) and the Mac Catalyst target on a
+# GitHub-hosted macOS runner. COMPILE ONLY: no signing (EnableCodeSigning=false), no package (no .ipa, no .pkg), no
+# test, no app start. The walk on a device stays the proof of behaviour.
+# Same Ixian-Core pin and the same checkout layout as the Windows job of redesign-ci.yml (Spixi/ and Ixian-Core/ as
+# siblings). Each compile error becomes one ::error annotation (one per unique file:line:code; at most 10 per step,
+# the GitHub limit); the FULL list always goes to the job summary and to the step log, and the logs are uploaded.
+# Security: read-only token, no secret, every action pinned by its full commit SHA, no pull_request_target, no
+# expression from the event inside a run: script. A pull request runs its own copy of this file with that token only.
+# This job is NOT a required check (the branch rule is Damir's; DECISIONS 2100-2109, docs/apple-compile-baseline.md).
+name: apple-compile
+
+on:
+  pull_request:
+    branches: [ 'redesign/frontend' ]
+  workflow_dispatch:
+  push:
+    branches: [ 'work/applecc' ]   # the session's own iterations only; removed in the session's last commit
+
+concurrency:
+  group: apple-compile-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IXIAN_CORE_REF: 097341acba9be1855383acf8215d779ca96efa02   # the same pin as redesign-ci.yml (xcore-0.9.8k); move both together
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  compile:
+    name: ${{ matrix.name }} (compile only)
+    if: github.repository == 'Rexoflex/Spixi'   # the fork only: a copy of this file in another repository does nothing
+    runs-on: macos-26   # Apple Silicon (arm64) image; Xcode is selected by path in the step below
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iOS simulator
+            key: ios
+            tfm: net10.0-ios
+            rid: iossimulator-arm64
+          - name: Mac Catalyst
+            key: maccatalyst
+            tfm: net10.0-maccatalyst
+            rid: maccatalyst-arm64
+    defaults:
+      run:
+        working-directory: Spixi
+        shell: bash
+    steps:
+    - name: Checkout Spixi
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        path: Spixi
+        persist-credentials: false
+
+    - name: Checkout Ixian-Core (pinned)
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        repository: ixian-platform/Ixian-Core
+        ref: ${{ env.IXIAN_CORE_REF }}
+        path: Ixian-Core
+        persist-credentials: false
+
+    - name: Select Xcode
+      run: |
+        ls -d /Applications/Xcode*.app || true
+        sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)"
+        xcode-select -p
+        xcodebuild -version
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73   # v6.1.0
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: List the .NET SDKs
+      run: dotnet --list-sdks
+
+    - name: Install MAUI workload
+      run: dotnet workload install maui
+
+    - name: Show the workload and the Apple SDK packs
+      run: |
+        dotnet workload list
+        root="$(dirname "$(command -v dotnet)")"
+        ls -d "$root"/packs/Microsoft.iOS.Sdk* "$root"/packs/Microsoft.MacCatalyst.Sdk* 2>/dev/null || true
+        for f in "$root"/packs/Microsoft.iOS.Sdk*/*/tools/buildinfo "$root"/packs/Microsoft.MacCatalyst.Sdk*/*/tools/buildinfo; do
+          [ -f "$f" ] && { echo "== $f"; cat "$f"; }
+        done
+        true
+
+    - name: Restore
+      run: dotnet restore Spixi/Spixi.csproj
+
+    - name: Build (compile only, no signing)
+      id: build
+      env:
+        TFM: ${{ matrix.tfm }}
+        RID: ${{ matrix.rid }}
+        TARGET_KEY: ${{ matrix.key }}
+      run: |
+        set -o pipefail
+        dotnet build Spixi/Spixi.csproj --no-restore -c Debug -f "$TFM" -p:RuntimeIdentifier="$RID" \
+          -p:EnableCodeSigning=false -p:BuildIpa=false -p:CreatePackage=false -v:m \
+          "-flp1:errorsonly;logfile=$GITHUB_WORKSPACE/errors-$TARGET_KEY.log" \
+          "-flp2:warningsonly;logfile=$GITHUB_WORKSPACE/warnings-$TARGET_KEY.log" \
+          2>&1 | tee "$GITHUB_WORKSPACE/build-$TARGET_KEY.log"
+
+    # One ::error per unique file:line:code (at most 10: the GitHub limit per step; when there are more, the 10th says
+    # how many more). The full list ALWAYS goes to the step log and to the job summary. Paths are made relative to the
+    # Spixi repository root, so the annotation points at the file in the pull request.
+    - name: Publish the compile errors
+      if: ${{ !cancelled() }}
+      working-directory: .
+      env:
+        TARGET_NAME: ${{ matrix.name }}
+        TARGET_KEY: ${{ matrix.key }}
+        BUILD_OUTCOME: ${{ steps.build.outcome }}
+      run: |
+        python3 - <<'PY'
+        import os, re
+        ws = os.environ["GITHUB_WORKSPACE"].rstrip("/")
+        key, name, outcome = os.environ["TARGET_KEY"], os.environ["TARGET_NAME"], os.environ["BUILD_OUTCOME"]
+        def read(p):
+            try:
+                with open(p, encoding="utf-8", errors="replace") as f:
+                    return f.read().splitlines()
+            except FileNotFoundError:
+                return []
+        lines = read(f"{ws}/errors-{key}.log")
+        rx = re.compile(r"^\s*(?P<file>.+?)\((?P<line>\d+)(?:,(?P<col>\d+))?(?:,\d+,\d+)?\)\s*:\s*error\s+(?P<code>[A-Za-z]+[0-9]+)?\s*:\s*(?P<msg>.*?)(?:\s+\[[^\]]*\])?\s*$")
+        rx_nofile = re.compile(r"^\s*(?:(?P<file>.+?)\s*:\s*)?error\s+(?P<code>[A-Za-z]+[0-9]+)?\s*:\s*(?P<msg>.*?)(?:\s+\[[^\]]*\])?\s*$")
+        def rel(p):
+            p = p.strip().replace("\\", "/")
+            for pre in (ws + "/Spixi/", ws + "/"):
+                if p.startswith(pre):
+                    return p[len(pre):]
+            return p
+        seen, errs = set(), []
+        for l in lines:
+            m = rx.match(l)
+            if m:
+                e = (rel(m["file"]), int(m["line"]), int(m["col"] or 0), m["code"] or "error", m["msg"])
+            else:
+                m = rx_nofile.match(l)
+                if not m:
+                    continue
+                f0 = (m["file"] or "").strip()
+                msg0 = m["msg"] if "/" in f0 else (f0 + ": " + m["msg"] if f0 else m["msg"])
+                e = (rel(f0) if "/" in f0 else "", 0, 0, m["code"] or "error", msg0)
+            k = (e[0], e[1], e[3]) if e[0] else ("", 0, e[3], e[4])   # an error with no file: its message is part of the key
+            if k in seen:
+                continue
+            seen.add(k)
+            errs.append(e)
+        errs.sort(key=lambda e: (e[0], e[1], e[3]))
+        def esc_data(s):
+            return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        def esc_prop(s):
+            return esc_data(s).replace(":", "%3A").replace(",", "%2C")
+        LIMIT = 10
+        shown = errs if len(errs) <= LIMIT else errs[:LIMIT - 1]
+        for f, ln, col, code, msg in shown:
+            props = [f"file={esc_prop(f)}"] if f else []
+            if ln:
+                props.append(f"line={ln}")
+            if col:
+                props.append(f"col={col}")
+            props.append(f"title={esc_prop(code)}")
+            print(f"::error {','.join(props)}::{esc_data(msg[:900])}")
+        if len(errs) > LIMIT:
+            print(f"::error title={esc_prop(name + ': more errors')}::{len(errs) - len(shown)} more unique errors: the full list is in the job summary and in this step's log")
+        if outcome == "failure" and not errs:
+            print(f"::error title={esc_prop(name + ': build failed')}::the build failed with no parsed compile error; read build-{key}.log (artifact)")
+        verdict = "compiles (0 errors)" if outcome == "success" and not errs else f"does NOT compile: {len(errs)} unique errors (build step: {outcome})"
+        out = [f"## {name}: {verdict}", ""]
+        if errs:
+            out += ["| # | file:line | code | message |", "|---|---|---|---|"]
+            for i, (f, ln, col, code, msg) in enumerate(errs, 1):
+                cell = msg.replace("|", "\\|")
+                where = f"`{f}:{ln}`" if f else "(no file)"
+                out.append(f"| {i} | {where} | {code} | {cell} |")
+        print("\n".join(["FULL ERROR LIST (" + name + "):"] + [f"{f}:{ln}:{col} {code} {msg}" for f, ln, col, code, msg in errs]))
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as s:
+            s.write("\n".join(out) + "\n")
+        PY
+
+    - name: Upload the logs
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+      with:
+        name: apple-compile-logs-${{ matrix.key }}
+        path: |
+          build-${{ matrix.key }}.log
+          errors-${{ matrix.key }}.log
+          warnings-${{ matrix.key }}.log
+        if-no-files-found: ignore
+        retention-days: 14

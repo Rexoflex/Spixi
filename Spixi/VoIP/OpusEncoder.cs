@@ -89,7 +89,8 @@ namespace SPIXI.VoIP
 
             inputBuffer = new short[frameSize * 500];
             inputBufferPos = 0;
-            
+
+            OpusDecoder.useManagedOnly();
             encoder = OpusCodecFactory.CreateEncoder(samples, channels, opusApplication);
             encoder.Bitrate = bitRate;
 

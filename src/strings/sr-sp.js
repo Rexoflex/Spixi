@@ -970,7 +970,7 @@ export const srsp = {
   slide3Copy: "Privatni IXI novčanik živi u svakom razgovoru. Šaljite i tražite IXI jednim dodirom.",
   slide3Title: "Šaljite IXI kao poruku.",
   slide4Copy3: "Mini aplikacije kao što je Blitz Chess otvaraju se pravo u vašim razgovorima.",
-  slide4Title2: "Igrajte i planirajte zajedno.",
+  slide4Title3: "Igrajte zajedno.",
   source: "Izvor",
   splitPasteAction: "Pošalji kao {n} zasebnih poruka",
   splitPasteLabel: "Nalepljeno {n} kopiranih poruka",

@@ -97,7 +97,15 @@ namespace SPIXI.VoIP
                 return;
             }
             running = true;
+            useManagedOnly();
             decoder = OpusCodecFactory.CreateDecoder(samples, channels);
+        }
+
+        /** Runs before each factory call (decoder and encoder, every platform): with the switch on, the factory skips its
+         *  native opus probe and makes the managed codec, so no peer packet reaches a native library. */
+        internal static void useManagedOnly()
+        {
+            if (SmallFixFlags.OpusManagedOnly) OpusCodecFactory.AttemptToUseNativeLibrary = false;
         }
 
         public void stop()

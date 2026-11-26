@@ -666,7 +666,7 @@ function buildWelcome(st) {
     },
     {
       art: illoWelcome4,
-      title: strings.slide4Title2 || 'Play and plan together.',
+      title: strings.slide4Title3 || 'Play together.',
       copy: strings.slide4Copy3 || 'Mini apps like Blitz Chess open right in your chats.',
     },
   ];

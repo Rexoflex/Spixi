@@ -547,15 +547,48 @@
        below runs for them and no listener is added. */
     const resizeModel = /Android/i.test(navigator.userAgent || '');
     const RING = 4;   // the focus ring is `0 0 0 4px` outside the field box (launch-form.css `.c-launch__field[data-focus]`): it counts as part of the box
+    const isTextField = (a) => !!a && typeof a.matches === 'function' && a.matches('.c-launch input:not([type=checkbox]):not([type=radio]), .c-launch textarea');
+    /* THE KEYBOARD STATE (#1837): on the resize model a focused launch field plus a viewport at least KB_MIN px shorter than
+       the tallest one seen at this width means the keyboard is up. The shell root then carries data-kb: launch-form.css
+       compacts the header and the gaps of the password step (no photo, a small title), and the reveal below brings BOTH
+       password fields into the body, so the two fields and the button show above the keyboard. */
+    const KB_MIN = 120;   // the smallest keyboard is far taller; a bar or chrome change is far shorter
+    const ARM_MS = 1500;  // the keyboard opens within this time of a tap on a field or a focus of one
+    const tallest = new Map();   // per width, so a rotation back finds its own orientation's height
+    let lastW = window.innerWidth, lastH = window.innerHeight, armed = 0;
+    function kbState() {
+      const w = window.innerWidth;
+      const h = vv ? Math.min(window.innerHeight, vv.height) : window.innerHeight;
+      const was = el.hasAttribute('data-kb');
+      const t = tallest.get(w);
+      /* a shorter viewport at the same width with the state off and no field tapped or focused just before is a window
+         change (split screen, a freeform window), not the keyboard: it becomes the tallest height of this width. With the
+         state on a later shrink (an emoji panel, an autofill strip) keeps it. Known limits: a split screen entered with the
+         state on keeps the compact header until the window grows; a first landscape seen with the keyboard already up and
+         a keyboard slower than ARM_MS stay off (the base layout) until the keyboard closes once. */
+      if (t === undefined || h > t || (w === lastW && h < lastH && !was && Date.now() - armed > ARM_MS)) tallest.set(w, h);
+      lastW = w; lastH = h;
+      const a = document.activeElement;
+      /* a tap on the button or an eye moves the focus to it (through body) while the keyboard is still up: the state holds
+         until the viewport grows, so nothing moves under the finger before the click lands */
+      const hold = was && !!a && (a === document.body || el.contains(a));
+      const on = resizeModel && tallest.get(w) - h >= KB_MIN && (isTextField(a) || hold);
+      if (was !== on) el.toggleAttribute('data-kb', on);
+    }
     function revealResized() {
       if (!resizeModel) return;
+      kbState();   // first: the reveal measures the layout of the state it sets
       const a = document.activeElement;
       /* text-like fields only (a checkbox / radio inside .c-launch is not a field to reveal) */
-      if (!a || typeof a.matches !== 'function' || !a.matches('.c-launch input:not([type=checkbox]):not([type=radio]), .c-launch textarea')) return;
+      if (!isTextField(a)) return;
       const sc = a.closest('.c-launch__body');
       if (!sc) return;
-      const r = (a.closest('.c-launch__field') || a).getBoundingClientRect();
+      const pair = el.hasAttribute('data-kb') && a.closest('.c-launch__step[data-step="2"]')
+        ? [...sc.querySelectorAll('.c-launch__field')].slice(0, 2) : [];
       const lo = sc.getBoundingClientRect();
+      const pr = pair.length === 2 ? { top: pair[0].getBoundingClientRect().top, bottom: pair[1].getBoundingClientRect().bottom } : null;
+      /* the pair only when it fits (a taller keyboard): else the focused field alone, so it is never the one hidden */
+      const r = pr && pr.bottom - pr.top + 2 * RING <= lo.bottom - lo.top ? pr : (a.closest('.c-launch__field') || a).getBoundingClientRect();
       const top = r.top - RING, bottom = r.bottom + RING;
       if (top >= lo.top && bottom <= lo.bottom) return;
       /* below the body: up by the overshoot, but never past the box's own top (a box taller than the body shows its top);
@@ -584,6 +617,28 @@
       if (t && typeof t.matches === 'function' && t.matches('input, textarea')) kick();
     });
     document.addEventListener('focusout', () => { if (!nativeKb) kick(); });
+    /* THE NEXT KEY of the password step: the first password says "next". On Android the IME's Next is Chromium's own focus
+       advance (no keydown); a hardware or iOS keyboard sends Enter, which the listener below turns into the same move.
+       Delegated, so a rebuilt create view needs no new wiring. */
+    function nextField(a) {
+      const step = a && typeof a.closest === 'function' ? a.closest('.c-launch__step[data-step="2"]') : null;
+      const ins = step ? step.querySelectorAll('.c-lock__input') : [];
+      return ins.length > 1 && ins[0] === a ? ins[1] : null;
+    }
+    document.addEventListener('focusin', (e) => {
+      if (isTextField(e.target)) armed = Date.now();
+      if (nextField(e.target)) e.target.setAttribute('enterkeyhint', 'next');
+    }, true);
+    document.addEventListener('pointerdown', (e) => {
+      if (e.target && typeof e.target.closest === 'function' && e.target.closest('.c-launch__field')) armed = Date.now();
+    }, true);
+    document.addEventListener('keydown', (e) => {
+      const n = e.key === 'Enter' && !e.isComposing && e.keyCode !== 229 ? nextField(e.target) : null;
+      if (!n) return;
+      e.preventDefault();
+      try { n.focus({ preventScroll: true }); } catch (err) { /* focus is a courtesy */ }
+      if (!resizeModel) revealFocused();   // iOS: the inset reveal runs only on an inset change, so bring the field in here
+    });
     window.__setKbInset = function (h) {
       if (document.documentElement.hasAttribute('data-desktop')) return;
       const px = Math.max(0, Math.round(Number(h) || 0));

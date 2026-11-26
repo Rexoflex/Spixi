@@ -974,7 +974,7 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
    * theme-name carriers do — not a push, which arrives a navigation round-trip late.
    *
    * ⚠ N83 (found in Damir's 2026-08-22 device log): those two are NAMED here rather than
-   * written as live `*SL{…}` tokens on purpose. generatePage's substitution is text-based
+   * written as live localization tokens on purpose. generatePage's substitution is text-based
    * and does not skip comments, so a carrier spelled out in this prose is really resolved
    * on the LOCK page — which registers LockAuthPending and SpixiThemeName but never
    * LaunchBootView (LaunchPage.xaml.cs:104 does, and the lock is not the launch page).
@@ -1006,15 +1006,15 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
   function revealLock() {
     if (lockRevealed) return;
     const lockHost = document.getElementById('lock-root');
-    // ★ AUDIT NIT-1: the flag is set only once there is something to reveal. Setting it
-    // first meant a push that somehow arrived before window load latched "revealed" over
-    // an empty host — and boot() would then hide the form with every later reveal, and
-    // the 3 s belt, already returning early. On a page whose back button is swallowed.
-    if (!lockHost) return;
+    const screen = lockHost && lockHost.querySelector('.c-lock');
+    // The flag is set only once the FORM exists. #lock-root is static markup, so a push before
+    // boot() would latch "revealed" over the spinner; boot() would then hide the form while every
+    // later reveal and the 3 s belt returned early. An early reveal latches nothing: boot()
+    // holds, and the belt or a later push reveals.
+    if (!screen) return;
     lockRevealed = true;
     lockHost.querySelector('.boot')?.remove();   // mountLockPage appends — drop the boot spinner
-    const screen = lockHost.querySelector('.c-lock');
-    if (screen) screen.hidden = false;
+    screen.hidden = false;
   }
   // The push is a bare global (#258): DEFINE it whatever the carrier says, or an exe
   // that sends it into a shell built before this change throws before the dispatcher
@@ -1041,7 +1041,6 @@ html:root .c-modal:not([data-open]) * {   /* ★ Batch A loop r1 (A-1): a CLOSIN
       if (screen) screen.hidden = true;         // hold behind the spinner
       beltTimer = setTimeout(revealLock, 3000); // belt — never strand the user
       holdUp = !!screen;
-      if (!screen) revealLock();                // nothing to hold: fail open
     } else {
       revealLock();
     }

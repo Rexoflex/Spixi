@@ -46,7 +46,8 @@
  *   b12 (review r2 X2 NIT-2) `beltTimer = pending === '1' ? setTimeout(revealLock, 3000) : 0;` → `... : setTimeout(revealLock, 7200000);`
  *       (a 'True' keeps a 2 h belt: the 1 h check stays green)                                                  → a1 red, a7 red (timers one fewer)
  *   b11 (review r1 P-m1) `if (holdUp && !lockRevealed) {` → `if (!lockRevealed) {` (a pre-boot '1' arms the belt, which fires
- *       before boot and latches "revealed")                                                                   → a8 red (also b6's row)
+ *       before boot and latches "revealed")  [fixb5: `revealLock` latches only once `.c-lock` exists, so the early belt reveals nothing and
+ *       a8 stays GREEN under this mutation; the half `holdUp &&` is pinned by pins-fixb5/b-lock b5 (red)]       → b5 red (a8: b6's row only)
  */
 import { fileURLToPath, pathToFileURL } from 'node:url';
 

@@ -8,9 +8,12 @@
  *        the confirm field: the same, then the focus moves to it.
  *   S2 = the field is focused at full height, THEN the viewport shrinks (the keyboard opens on the tap).
  * Sizes 412 × 915 (the Galaxy A52s), 412 × 774 (the device-measured innerHeight of docs/android-findings.md:41, keyboard = 451) and 360 × 640. Pass (NEW, Android UA): the focused field's box (.c-launch__field) is inside the body's rect and above the
- * keyboard top (= the new innerHeight), and the step-2 button is fully above the keyboard top. Nothing else moves: the rects of topbar, progress, footer, button
- * and the document scroll equal BASE within 0.5 px (only .c-launch__body.scrollTop may differ); at full height all equal; an iPhone-UA run equals BASE; and
- * BASE must FAIL S1 at 360 × 640 (the walk's bug reproduced, #294).
+ * keyboard top (= the new innerHeight − the 48 px bottom inset, the nav-bar strip behind the keyboard), and the step-2 button is fully above the keyboard top.
+ * Nothing else moves: the rects of topbar, progress, footer, button and the document scroll equal BASE within 0.5 px (only .c-launch__body.scrollTop may
+ * differ) — EXCEPT while the password step is in its keyboard state (#1837, data-kb: the header and the gaps compact on purpose; its geometry is proven by
+ * scripts/pins-fixb5/d-protect-keyboard-render.mjs), where only the topbar and the document scroll must equal BASE; at full height all equal; an iPhone-UA
+ * run equals BASE; and BASE must FAIL S1 at 360 × 640 (the walk's bug reproduced, #294) when BASE is a tree from before the reveal — a BASE that already
+ * holds revealResized prints its result as an info row.
  * USAGE: PLAYWRIGHT_MODULE=/opt/npm-tools/node_modules/playwright/index.mjs node scripts/pins-fixb4/c-keyboard-render.mjs [--base <html dir>] [--new <html dir>] [--out <dir>] [--break-reveal | --break-ring] [--quick]
  *   --base default /home/claude/scratch/layout-base/html (a copy of Spixi/Resources/Raw/html made BEFORE the change) · --new default this tree's Spixi/Resources/Raw/html
  *   · --out default /home/claude/scratch/renders (PNGs `c-keyboard-<base|new>-<WxH>-<light|dark>-<S1|S2>-<password|confirm>.png`)
@@ -55,6 +58,9 @@ const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleW
 /* 412 × 774 = the device-measured case: docs/android-findings.md:41 (Damir's Samsung, 2026-08-12, kb-probe on the chat shell, portrait): innerHeight 774 → 451 with
    the keyboard (delta 323, visualViewport 1 : 1). 412 × 915 = the full-height model of the A52s; 360 × 640 = the small phone. */
 const SIZES = [[412, 915], [412, 774], [360, 640]];
+/* the keyboard top = innerHeight − the bottom inset: under AND-45 (MainActivity.cs) the root view pads only ime − navBar,
+   so the WebView's bottom nav-bar strip (--android-inset-bottom, set to 48 below) lies behind the keyboard */
+const INSET_B = 48;
 const RING = 4;   // the focus ring `0 0 0 4px` is part of the field box for the 'inside the body' test
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await pw.chromium.launch();
@@ -77,6 +83,7 @@ const MEASURE = () => {
     field: R(box),
     bodyScrollTop: body.scrollTop, bodyScrollMax: body.scrollHeight - body.clientHeight,
     docScroll: (document.scrollingElement || document.documentElement).scrollTop, winY: window.scrollY,
+    kbState: !!document.querySelector('.c-launch[data-kb]'),
   };
 };
 
@@ -133,7 +140,7 @@ let red = 0;
 const row = (ok, text) => { rows.push((ok ? 'ok   ' : 'RED  ') + text); if (!ok) red++; };
 const within = (a, b) => (a == null && b == null) || (a && b && ['t', 'b', 'l', 'r'].every((k) => Math.abs(a[k] - b[k]) <= 0.5));
 const num = (x) => (x == null ? 'n/a' : Math.round(x * 10) / 10);
-const fmt = (m) => 'field ' + (m.field ? num(m.field.t) + '–' + num(m.field.b) : 'n/a') + ' body ' + num(m.body.t) + '–' + num(m.body.b) + ' scrollTop ' + num(m.bodyScrollTop) + '/' + num(m.bodyScrollMax) + ' btn ' + num(m.button.t) + '–' + num(m.button.b) + ' kbTop ' + m.ih;
+const fmt = (m) => 'field ' + (m.field ? num(m.field.t) + '–' + num(m.field.b) : 'n/a') + ' body ' + num(m.body.t) + '–' + num(m.body.b) + ' scrollTop ' + num(m.bodyScrollTop) + '/' + num(m.bodyScrollMax) + ' btn ' + num(m.button.t) + '–' + num(m.button.b) + ' kbTop ' + (m.ih - INSET_B);
 const STILL = ['topbar', 'progress', 'footer', 'button'];
 
 const base = {}, neu = {};
@@ -156,11 +163,15 @@ const insideRing = (f, b) => f && f.t - RING >= b.t - 0.5 && f.b + RING <= b.b +
 for (const tag of Object.keys(neu)) {
   const n = neu[tag].kb, b = base[tag].kb;
   const fieldIdx = tag.endsWith('confirm') ? 1 : 0;
-  row(n.activeIdx === fieldIdx && insideRing(n.field, n.body) && n.field.b + RING <= n.ih + 0.5 && n.button.b <= n.ih + 0.5 && n.button.t >= 0,
+  row(n.activeIdx === fieldIdx && insideRing(n.field, n.body) && n.field.b + RING <= n.ih - INSET_B + 0.5 && n.button.b <= n.ih - INSET_B + 0.5 && n.button.t >= 0,
     'NEW  ' + tag + ': the focused field (with its 4 px ring) is inside the body and above the keyboard, the button is above it — ' + fmt(n));
   console.log('base ' + tag + ': ' + fmt(b) + ' (field inside body: ' + !!inside(b.field, b.body) + ')');
-  row(STILL.every((k) => within(n[k], b[k])) && within(n.body, b.body) && n.docScroll === b.docScroll && n.winY === b.winY,
-    'NEW  ' + tag + ': topbar, progress, body rect, footer, button and the document scroll equal BASE within 0.5 px (only body.scrollTop differs: ' + num(b.bodyScrollTop) + ' → ' + num(n.bodyScrollTop) + ')');
+  /* With the keyboard up the password step enters its keyboard state (#1837: data-kb, no photo, no progress bar, a small title, tighter
+     fields and footer), so body, footer and button move ON PURPOSE; only the topbar and the document
+     scroll must still equal BASE there. The geometry of that state is proven by scripts/pins-fixb5/d-protect-keyboard-render.mjs. */
+  const still = n.kbState ? ['topbar'] : STILL;
+  row(still.every((k) => within(n[k], b[k])) && (n.kbState || within(n.body, b.body)) && n.docScroll === b.docScroll && n.winY === b.winY,
+    'NEW  ' + tag + ': ' + (n.kbState ? 'the keyboard state — topbar' : 'topbar, progress, body rect, footer, button') + ' and the document scroll equal BASE within 0.5 px (body.scrollTop: ' + num(b.bodyScrollTop) + ' → ' + num(n.bodyScrollTop) + ')');
   if (neu[tag].full) {
     const nf = neu[tag].full, bf = base[tag].full;
     row(STILL.concat(['body', 'field']).every((k) => within(nf[k], bf[k])) && nf.bodyScrollTop === bf.bodyScrollTop && nf.docScroll === bf.docScroll,
@@ -176,13 +187,17 @@ for (const tag of Object.keys(ipN)) {
 /* the reproduction (#294): BASE must fail S1 and S2 for the PASSWORD at 360 × 640 — the walk's bug (the password field is 334–392 while the body ends at 177). At the
    other sizes the BASE result is PRINTED, not demanded (a plain row: 'BASE fails' or 'BASE holds'): at 412 × 915 only the confirm field is hidden on BASE, and Chromium's own
    focus() scroll brings a field in by itself in some S1 cases, as a real tap does. */
+/* The reproduction needs a BASE from before the reveal; a base that already carries revealResized (the default
+   layout-base of a later batch) prints the BASE result instead of demanding the failure */
+const baseHasFix = readFileSync(join(baseDir, 'intro.html'), 'utf8').includes('function revealResized');
 for (const scen of ['S1', 'S2']) {
   const b = base['360x640-dark-' + scen + '-password'].kb;
-  row(!(inside(b.field, b.body) && b.field.b <= b.ih + 0.5), 'BASE 360x640 ' + scen + ' password FAILS as the walk saw it (the field is not inside the body above the keyboard) — ' + fmt(b));
+  if (baseHasFix) { rows.push('info BASE 360x640 ' + scen + ' password: this BASE already has the reveal (not the walk\'s tree) — ' + fmt(b)); continue; }
+  row(!(inside(b.field, b.body) && b.field.b <= b.ih - INSET_B + 0.5), 'BASE 360x640 ' + scen + ' password FAILS as the walk saw it (the field is not inside the body above the keyboard) — ' + fmt(b));
 }
 for (const [W, H] of [[412, 915], [412, 774]]) for (const scen of ['S1', 'S2']) for (const field of ['password', 'confirm']) {
   const b = base[W + 'x' + H + '-dark-' + scen + '-' + field].kb;
-  const fails = !(inside(b.field, b.body) && b.field.b <= b.ih + 0.5);
+  const fails = !(inside(b.field, b.body) && b.field.b <= b.ih - INSET_B + 0.5);
   rows.push('info ' + 'BASE ' + W + 'x' + H + ' ' + scen + ' ' + field + (fails ? ' FAILS' : ' holds') + ' — ' + fmt(b));
 }
 console.log('\n' + rows.join('\n'));

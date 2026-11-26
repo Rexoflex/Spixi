@@ -970,7 +970,7 @@ export const ltlt = {
   slide3Copy: "Kiekviename pokalbyje yra privati IXI piniginė. Siųskite ir prašykite IXI vienu palietimu.",
   slide3Title: "Siųskite IXI kaip žinutę.",
   slide4Copy3: "Mini programėlės, tokios kaip Blitz Chess, atsidaro tiesiog jūsų pokalbiuose.",
-  slide4Title2: "Žaiskite ir planuokite kartu.",
+  slide4Title3: "Žaiskite kartu.",
   source: "Šaltinis",
   splitPasteAction: "Siųsti kaip atskiras žinutes ({n})",
   splitPasteLabel: "Įklijuotos nukopijuotos žinutės ({n})",

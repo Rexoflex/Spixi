@@ -28470,7 +28470,7 @@ function mountContacts({
        after the exit transition, so a handle-only guard would make Add contact dead for
        the 200–400 ms a dismissed sheet is still sliding out (harness (e) caught it) */
     if (addSheet && isOverlayOpen(addSheet)) return;
-    addSheet = createAddContactSheet({
+    const sheet = createAddContactSheet({
       strings, host,
       onScan: () => { closeAddSheet(); mountAddContact(); bridge.send('ixian:contactscan'); },
       onEnter: () => {
@@ -28482,9 +28482,10 @@ function mountContacts({
         const input = panel.querySelector('.c-contacts-add__input');
         if (input) { try { input.focus({ preventScroll: true }); } catch (e) {} }
       },
-      onDismiss: () => { addSheet = null; },
+      onDismiss: () => { if (addSheet === sheet) addSheet = null; },   // an older chooser's removal must not clear the newer handle
     });
-    openSheet(addSheet);
+    addSheet = sheet;
+    openSheet(sheet);
   };
 
   const picker = createContactsPicker({
@@ -34636,7 +34637,7 @@ function buildWelcome(st) {
     },
     {
       art: illoWelcome4,
-      title: strings.slide4Title2 || 'Play and plan together.',
+      title: strings.slide4Title3 || 'Play together.',
       copy: strings.slide4Copy3 || 'Mini apps like Blitz Chess open right in your chats.',
     },
   ];

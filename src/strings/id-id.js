@@ -970,7 +970,7 @@ export const idid = {
   slide3Copy: "Dompet IXI pribadi ada di setiap obrolan. Kirim dan minta IXI dengan satu ketukan.",
   slide3Title: "Kirim IXI seperti pesan.",
   slide4Copy3: "Mini app seperti Blitz Chess terbuka langsung di obrolan Anda.",
-  slide4Title2: "Bermain dan berencana bersama.",
+  slide4Title3: "Bermain bersama.",
   source: "Sumber",
   splitPasteAction: "Kirim sebagai {n} pesan terpisah",
   splitPasteLabel: "Menempelkan {n} pesan yang disalin",

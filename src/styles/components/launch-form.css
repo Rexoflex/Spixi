@@ -202,6 +202,23 @@ html[dir="rtl"] .c-launch__meter i::after { transform-origin: right; }
 .c-launch__photo[data-size="sm"] { width: 104px; height: 104px; cursor: default; }
 .c-launch__photo[data-size="sm"] .c-launch__photo-ring { border: 0; padding: 0; }
 .c-launch__photo[data-size="sm"] .c-launch__badge { right: -6px; bottom: -2px; background: var(--launch-warn); }
+/* the password step while the keyboard is up (data-kb, launch.html): no photo and no progress bar (the topbar still says
+   "2 of 2"), a small title, tighter fields and footer, so both password fields and the button fit above the keyboard
+   (360 x 640 with a 48 px nav bar: body 121 px for the two 52 px fields, their 8 px gap and the 4 px rings). The footer
+   keeps --safe-bottom: under adjustResize the nav-bar strip of the WebView lies behind the keyboard. */
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__photo,
+.c-launch[data-kb] [data-create-step="2"] > .c-launch__progress { display: none; }
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__body { padding-top: var(--spacing-12); }
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__hero-title { margin-top: 0; font-size: 20px; }
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__fields { gap: var(--spacing-8); }
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__field { min-height: 52px; }
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__field[data-focus] .c-launch__field-label,
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__field:not([data-empty]) .c-launch__field-label { top: 6px; }
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__field .c-launch__field-input { bottom: 6px; }
+.c-launch[data-kb] .c-launch__step[data-step="2"] .c-launch__footer {
+  padding-top: var(--spacing-4);
+  padding-bottom: calc(var(--spacing-8) + var(--safe-bottom, 0px));
+}
 
 /* tags (no outline) */
 .c-launch__tags { align-self: stretch; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: var(--spacing-8); }

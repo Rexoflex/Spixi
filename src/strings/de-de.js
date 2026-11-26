@@ -970,7 +970,7 @@ export const dede = {
   slide3Copy: "In jedem Chat steckt eine private IXI-Wallet. Sende und fordere IXI mit einem Tipp an.",
   slide3Title: "Sende IXI wie eine Nachricht.",
   slide4Copy3: "Mini-Apps wie Blitz Chess öffnen sich direkt in deinen Chats.",
-  slide4Title2: "Gemeinsam spielen und planen.",
+  slide4Title3: "Gemeinsam spielen.",
   source: "Quelle",
   splitPasteAction: "Als {n} separate Nachrichten senden",
   splitPasteLabel: "{n} kopierte Nachrichten eingefügt",

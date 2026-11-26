@@ -973,7 +973,7 @@ export const enUS = {
   slide3Copy: "A private IXI wallet lives inside every chat. Send and request IXI in a tap.",
   slide3Title: "Send IXI like a message.",
   slide4Copy3: "Mini apps like Blitz Chess open right in your chats.",
-  slide4Title2: "Play and plan together.",
+  slide4Title3: "Play together.",
   source: "Source: ",
   splitPasteAction: "Send as {n} separate messages",
   splitPasteLabel: "Pasted {n} copied messages",

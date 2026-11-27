@@ -40,12 +40,12 @@ Not built, and why: #16 fuzzing of C# parsers ("after freeze") · #20 reviewer c
 - Accepted (do not re-open): #1970 (no walk), the timing of `docs/quality-plan.md` (fuzzing and calibration planned only).
 
 ## 5 · Verdict
-**CLEAN NOT CLAIMED at round 5 (the last permitted round) — the batch is NOT delivered (#2078).** MAJOR per round: r1 10 · r2 5 · r3 2 ·
-r4 3 · r5 1 (the security reader S: 2 · 0 · 0 · 1 · 0). The r5 MAJOR (F): row r10 of `pins-qtools/f-runner` goes red when another
-process makes a `qtools-gatediff-*` folder in the shared temp folder during it (two parallel runs: red 2 / 2; the CI smoke runs alone);
-direction: a private `TMPDIR` per case. Recorded from r5, not fixed (no reader would read a fix): F m1 (r7 holds only the isolation
-OK line); the NITs of S and F (#2078). The final smoke after r5 found three more rows of other batches (GATE 44 (b), `d-lockfile`
-k1 / k9), owed with them. The code files are as round 5 read them (`1ce20cb7`); only Damir permits a round 6.
+**CLEAN at round 6** (permitted by Damir's ruling #1972; round 5 had not been CLEAN). MAJOR per round: r1 10 · r2 5 · r3 2 · r4 3 ·
+r5 1 · r6 **0** (the security reader S: 2 · 0 · 0 · 1 · 0 · 0). Round 6 read the fixes `f6aa7be5..2757e54a` (r10 with a private
+`TMPDIR` per case, r7 for all three OK lines, the main-module guards in GATE 44's spelling, `pins-walktools2/d-lockfile` re-based)
+and, for security, the whole batch. Its MINORs and NITs are recorded below with their direction; no code changed after round 6 —
+the code files are committed exactly as the round-6 readers read them (`2757e54a`). The three scanners stay REPORTS (#2077, ruling
+#1972 Q-2 (a)).
 
 ### Round 1 (readers S Fable 5.2 · A, B, C Opus; tree `8ac57424`) — MAJOR 10 (S 2 · A 6 · B 1 = S-1 · C 2) → fixed in `b3c9d7e2`
 - S-1 = B-M1 the gate diff dropped files git prints as binary (`.gitattributes`, a NUL byte; 15 `src` files are `-diff` today) → `--text`, attributes off, `.gitattributes` a check path, binary = exit 2.
@@ -72,3 +72,7 @@ k1 / k9), owed with them. The code files are as round 5 read them (`1ce20cb7`); 
 
 ### Round 5 (readers S Fable 5.2 · F Opus; delta `f452f198..1ce20cb7`) — MAJOR 1 (S 0 · F 1) → NOT fixed (the last round)
 - F MAJOR-1 r10 flaky with a shared temp folder (above). F m1 (r7 only for isolation). NITs: the top-level belt does not see a `GIT_DIR`-only leak; the runner under test reads the caller's global config; "but `GIT_EXEC_PATH`" is loose for `d-gatediff`; `GIT_TERMINAL_PROMPT=0`; `/^GIT_/i`; no row for the runner's `GIT_ENV` filter or the non-array check.
+
+### Round 6 (readers S Fable 5.2 · G Opus; delta `f6aa7be5..2757e54a`, S over the whole batch) — MAJOR 0 → CLEAN
+- Closed: r5 F MAJOR-1 (r10: 6 / 6 parallel pairs green, under load green; the no-op cleanup turns r10 red), F m1 (r7 red for each of the three OK lines), GATE 44 (b) (the predicate over all 411 scripts: `bad: []`), `d-lockfile` k1 / k9 (re-derived: 122 → 125 rows, exactly three entries added).
+- Recorded, not fixed (the last round; direction in brackets): S6-m1 a root `npm-shrinkwrap.json` or a tracked `node_modules` folder under `scripts/` changes what `npm ci` installs or what the tree checks load, with no `check-changed` item (contract § 8; add both with `.npmrc` to the check paths when the gate-diff code next opens, or a runner refusal) · S6-m2 a pull request's file name holding `##[stop-commands]` can stop the runner's annotations after it (the log and the exit code stay; wrap the forwarded child output in `::stop-commands::<token>`) · G m1 the `d-lockfile` head and the k5 label still say "five" / "the other four" / "122 rows" (the keys hold seven; build the label from `NAMES`) · NITs: r10 does not prove the base copy ran from the case `TMPDIR` (print `argv[1]`); `gate-diff.mjs` guard has no `resolve()` fallback (the runner's OK-line rule catches a silent exit); the `redesign-ci.yml` comment "the five tools"; a manual `workflow_dispatch` runs the branch's own runner with the gate diff NOT RUN; CodeQL build mode none still fetches NuGet packages; the three packages are days old (provenance, no install hook).

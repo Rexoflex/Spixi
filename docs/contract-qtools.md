@@ -95,6 +95,8 @@ Also recorded in round 4 (the runner and the step; no fix, or a fix that waits f
 |---|---|---|
 | the step / the runner | `pull_request.base.sha` may stay at the value of the day the pull request opened (community reports; not checked on the fork): a pull request opened before `ENFORCED` is filled may keep the base copy with the older list, and its gate-diff range then also holds other merged changes | before the ruling that fills `ENFORCED`: test it on the fork, or take the base of a pull request run as the first parent of the merge commit (`GITHUB_SHA^1`) |
 | the step | `npm ci` also runs the root `package.json` lifecycle scripts of the tree under test (none today) and reads a project `.npmrc` (its `script-shell` can start a tree file); `.npmrc` is not a check path | add `.npmrc` to the check paths when the gate-diff code is next opened |
+| the step (round 6, S6-m1) | a root `npm-shrinkwrap.json` (preferred by `npm ci` over the lock; `d-lockfile` hashes only the lock) or a tracked `node_modules` folder under `scripts/` (Node resolves it before the root one) changes what is installed or loaded, with no `check-changed` item | add both, with `.npmrc`, to the check paths when the gate-diff code next opens, or let the runner refuse those path shapes; a `d-lockfile` key "no npm-shrinkwrap.json" |
+| the runner (round 6, S6-m2) | a scanned file named with `##[stop-commands]` (or a newline + `::stop-commands::`) printed by the gate diff can stop the runner's own `::warning` / `::error` annotations after it; the exit code and the log stay | wrap the forwarded child output in `::stop-commands::<random token>` … `::<token>::`, or neutralise `##[` and a leading `::` |
 
 ## 9 · Escalation log
 | Item | Attempt | Model | Result | Next |

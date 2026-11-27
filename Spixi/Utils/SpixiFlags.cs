@@ -892,4 +892,49 @@ namespace SPIXI
 
         public static string flagsLine(int b) => "[FLAGS] fixb5 opusmanaged=" + (b & 1) + " declineclears=" + (b >> 1 & 1);
     }
+    /* Three switches, one per change; OFF = the old path. MacSaveToFolder: on the Mac, Save / Back up offer a save
+     * window and Add to Photos beside the old share menu. AppIconReencode: the home screen gets a small PNG copy of each
+     * mini-app icon that C# made once, never the package's own bytes. SwipeTouchLock: the cap `swipeTouchLock` on home (a
+     * chat-row swipe that is locked sideways also stops the touch scroll). Absent = ON; a stored 0 acts only in dev mode
+     * (S16PassRules.effectiveFlag); read lazily, once per process; the one [FLAGS] line holds fixed words and 0|1 only. */
+    public static class MacfixaFlags
+    {
+        public const string MacSaveToFolderKey = "flagMacSaveToFolder";
+        public const string AppIconReencodeKey = "flagAppIconReencode";
+        public const string SwipeTouchLockKey = "flagSwipeTouchLock";
+        public static bool MacSaveToFolder => (bits() & 1) != 0;
+        public static bool AppIconReencode => (bits() & 2) != 0;
+        public static bool SwipeTouchLock => (bits() & 4) != 0;
+        private static int state = -1;   // -1 = not read yet, else the three switches as bits 1, 2, 4
+
+        private static int bits()
+        {
+            int b = System.Threading.Volatile.Read(ref state);
+            if (b >= 0) return b;
+            b = read();
+            if (System.Threading.Interlocked.CompareExchange(ref state, b, -1) == -1)
+            {
+                try { Logging.info(flagsLine(b)); } catch (Exception) { }
+            }
+            return System.Threading.Volatile.Read(ref state);
+        }
+
+        /** A store that throws keeps all three ON (a stored 0 acts only in dev mode, so a partial read is all ON too). Logs nothing. */
+        internal static int read()
+        {
+            try
+            {
+                bool dev = Preferences.Default.Get("devMode", false);
+                return on(dev, MacSaveToFolderKey, 1) | on(dev, AppIconReencodeKey, 2) | on(dev, SwipeTouchLockKey, 4);
+            }
+            catch (Exception)
+            {
+                return 7;
+            }
+        }
+
+        private static int on(bool dev, string key, int bit) => S16PassRules.effectiveFlag(dev, Preferences.Default.Get(key, 1)) ? bit : 0;
+
+        public static string flagsLine(int b) => "[FLAGS] macfixa macsave=" + (b & 1) + " iconreencode=" + (b >> 1 & 1) + " swipelock=" + (b >> 2 & 1);
+    }
 }

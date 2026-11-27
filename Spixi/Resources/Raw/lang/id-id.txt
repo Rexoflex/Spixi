@@ -704,6 +704,8 @@ global-time-minutesago = beberapa menit yang lalu
 global-share-choose = Pilih tindakan
 global-share-savefile = Simpan File
 global-share-sharefile = Bagikan File
+global-share-addphotos = Tambahkan ke Foto
+global-share-addphotos-failed = Spixi tidak dapat menambahkan foto ke Foto. Periksa akses Foto untuk Spixi di Pengaturan Sistem > Privasi & Keamanan.
 ; N4 (#379) — 18 ids the redesign added to en + the 7 translated sets; drafted when the FE dictionary shipped (native review pending)
 contact-self-title = Itu alamat Anda sendiri
 contact-exists-title = Sudah ada di kontak Anda

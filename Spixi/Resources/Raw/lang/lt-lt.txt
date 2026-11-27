@@ -704,6 +704,8 @@ global-time-minutesago = min.
 global-share-choose = Pasirinkite veiksmą
 global-share-savefile = Išsaugoti failą
 global-share-sharefile = Dalintis failu
+global-share-addphotos = Pridėti į „Photos“
+global-share-addphotos-failed = Spixi nepavyko pridėti nuotraukos į „Photos“. Patikrinkite Spixi prieigą prie „Photos“ skiltyje System Settings > Privacy & Security.
 ; N4 (#379) — 18 ids the redesign added to en + the 7 translated sets; drafted when the FE dictionary shipped (native review pending)
 contact-self-title = Tai jūsų adresas
 contact-exists-title = Jau yra jūsų kontaktuose

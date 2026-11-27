@@ -71,6 +71,42 @@ function queueReveal(el, run) {
   });
 }
 
+/* The media-origin URL: C#'s own picture handler (Android / Windows https, iOS / Mac spixi-media:) + a 128-bit token C#
+   granted to this document; nothing else. Admitted only under the `mediaOrigin` cap (chat.html mediaUrlOk). */
+export const MEDIA_URL_RE = /^(?:https:\/\/spixi-media\.invalid\/m\/|spixi-media:\/\/m\/)[0-9a-f]{32}$/;
+export function isMediaUrl(v) { return typeof v === 'string' && MEDIA_URL_RE.test(v); }   // anchored: at most 62 chars
+
+/* The keeper (cap `mediaKeep`): C# serves the URL `no-store`, so a re-render's new <img> would ask the handler again and
+   show an empty tile until it answers. A re-built tile ADOPTS the decoded <img> of its URL instead (moved, bitmap and
+   all): no request, no blank frame. Bounded, oldest out. One URL names one message, so one element has one tile; its
+   listeners answer the tile that holds it now (imgOwner). */
+const mediaKeepers = new Map();   // URL → its decoded <img>
+export const MEDIA_KEEP_MAX = 64;
+let mediaKeepOn = false;
+/** on → keep; every call drops what was kept. */
+export function setMediaKeep(on) { mediaKeepOn = !!on; mediaKeepers.clear(); }
+export function mediaKeepSize() { return mediaKeepers.size; }
+function keepMediaImg(src, im) {
+  if (!mediaKeepOn || !isMediaUrl(src)) return;
+  mediaKeepers.delete(src);
+  mediaKeepers.set(src, im);
+  while (mediaKeepers.size > MEDIA_KEEP_MAX) mediaKeepers.delete(mediaKeepers.keys().next().value);
+}
+function takeKeptImg(src) {
+  if (!mediaKeepOn || !isMediaUrl(src)) return null;
+  const im = mediaKeepers.get(src);
+  /* shown (its first fade ended): a picture not yet on screen fades in on its new tile */
+  return im && im.complete && im.naturalWidth > 0 && im.getAttribute('src') === src && shownSrcs.has(shownKey(src)) ? im : null;
+}
+const imgOwner = new WeakMap();   // <img> → { load, error } of the tile that holds it now
+function bindTileImg(im, load, error) {
+  const bound = imgOwner.has(im);
+  imgOwner.set(im, { load, error });
+  if (bound) return;
+  im.addEventListener('load', (e) => imgOwner.get(im).load(e));
+  im.addEventListener('error', (e) => imgOwner.get(im).error(e));
+}
+
 function mediaAria(state, kind, alt, strings) {
   const what = alt || (kind === 'gif' ? 'GIF' : (strings.image || 'Image'));
   if (state === 'idle') return (strings.tapToLoad || 'Tap to load') + ', ' + what;
@@ -159,7 +195,8 @@ export function createMediaBubble({
   // img lives in the DOM from creation (hidden until data-state=loaded) so its
   // load/error listeners are ALWAYS the ones in play — audit r3: setMediaSrc
   // used to fabricate a listener-less img → permanently dead tile
-  const img = document.createElement('img');
+  const adopted = instantIfShown && autoload ? takeKeptImg(src) : null;   // the keeper: this picture, decoded already
+  const img = adopted || document.createElement('img');
   img.className = 'c-mbubble__img';
   img.alt = ''; // the button carries the accessible name
   el.append(img);
@@ -200,9 +237,12 @@ export function createMediaBubble({
   const load = () => {
     if (!currentSrc) return;
     setState('loading');
+    /* a URL is fetched near the viewport only, decoded off the main thread */
+    if (isMediaUrl(currentSrc)) { img.setAttribute('loading', 'lazy'); img.setAttribute('decoding', 'async'); }
+    else if (img.hasAttribute('loading')) { img.removeAttribute('loading'); img.removeAttribute('decoding'); }
     img.src = currentSrc;
   };
-  img.addEventListener('load', () => {
+  const onImgLoad = () => {
     // No sender dimensions (remote GIF/image URL) → the tile starts at the CSS
     // default aspect (bubble-sized box). Once the real image loads, re-size the
     // tile to its NATURAL aspect so the whole frame shows uncropped (object-fit:
@@ -214,6 +254,7 @@ export function createMediaBubble({
     if (!(width > 0 && height > 0)) {
       fitTile(img.naturalWidth, img.naturalHeight);   // iOS-17 (#283): natural aspect + width cap in one place
     }
+    keepMediaImg(currentSrc, img);
     // the tile just grew to full size — let the shell pull the log to the latest
     // so the whole GIF comes into view (only if it was already near the bottom).
     const landed = () => { if (onLoad) { try { onLoad(); } catch (_) {} } };
@@ -262,15 +303,16 @@ export function createMediaBubble({
         });
       }
     }));
-  });
-  img.addEventListener('error', () => {
+  };
+  const onImgError = () => {
     revealGen++;                     // ★ #1151: no pending reveal survives an error
     if (typeof onSrcError !== 'function') { setState('failed'); return; }
     currentSrc = '';                 // #46 r1 B-1: drop it — idle with no src, so a tap is the owner's (load() is a no-op)
     img.removeAttribute('src');
     setState('idle');
     try { onSrcError(); } catch (_) {}
-  });
+  };
+  bindTileImg(img, onImgLoad, onImgError);
   mediaCtl.set(el, { setSrc: (s, hint) => {
     if (!(width > 0 && height > 0) && hint) fitTile(hint.w, hint.h);   // #46 r1 B-6
     if (!shownSrcs.has(shownKey(s))) delete el.dataset.seen;            // #46 r3 R3-m1: a NEW picture keeps its first-show fade
@@ -295,7 +337,11 @@ export function createMediaBubble({
   }
 
   setState('idle');
-  if (autoload && src) {
+  if (adopted) {   // decoded: loaded now, no request, no fade
+    el.dataset.seen = '';
+    setState('loaded');
+    keepMediaImg(src, img);
+  } else if (autoload && src) {
     load();
     /* #46 r3 R3-m1: already shown here → decoded in this document's memory: loaded NOW, no fade (data-seen drops the
        transition). The img's own load event still lands (onLoad, sizing); a decode error still drops it (B-1). */

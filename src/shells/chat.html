@@ -723,6 +723,7 @@
     setComposerMedia,               // ★ S10 P1: the composer's strip state — Send with photos, the caption cap (composer.js)
     createPhotoGridBubble, addPhotoGridCell,   // ★ S9 (#1244 G = A): the photo group bubble (media-bubble.js)
     MOSAIC_MAX, setTilePreview,     // ★ S11 G (#1263 a / c): the mosaic's cap · the blurred preview in an offer (media-bubble.js)
+    isMediaUrl, setMediaKeep,       // the media-origin URL grammar · the keeper (media-bubble.js)
     formatFileSizeOf,               // ★ S20 E (#1402): the paused tile's "1.1 / 2.4 MB"
     formatFileSize,                 // ★ S11 G (#1263 a): "Download all (n) · size" (timestamp.js since #46 r3 F4 — one size format app-wide)
     timeOpts, docLocale,            // ★ S9 a11y (#1206): the row's accessible name says its time like the bubble does (timestamp.js)
@@ -1677,6 +1678,14 @@
     fileThumbChars -= old.length;
   }
   const FILE_THUMB_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
+  /* A preview is a data: JPEG or, under the `mediaOrigin` cap, a media-origin URL (isMediaUrl). Every place that makes a
+     preview an <img> src asks fileThumbOk; the URL is only ever an <img> src property. Offers and the strip stay data:. */
+  function mediaUrlOk(v) { return bridge.cap('mediaOrigin') && isMediaUrl(v); }
+  function fileThumbOk(v) { return typeof v === 'string' && ((v.length <= FILE_THUMB_MAX && FILE_THUMB_RE.test(v)) || mediaUrlOk(v)); }
+  /* at render: a data: entry passed fileThumbOk on its way in (storeFileThumb's only callers); a URL is asked again */
+  function fileThumbOf(id) { const t = fileThumbs.get(String(id)); return t === undefined || !isMediaUrl(t) || mediaUrlOk(t) ? t : undefined; }
+  /* the keeper (media-bubble.js): both caps; every call drops what it kept */
+  const syncMediaKeep = () => setMediaKeep(bridge.cap('mediaOrigin') && bridge.cap('mediaKeep'));
   /* ★★ S11 G (#1258 + #1263 c = A) — THE PREVIEW IN AN OFFER. `offerPreviews` = message id → the small preview C# pushed with
    * setOfferPreview (the sender's ≤ 8 KB JPEG, RE-ENCODED by C# through its bounded decoder). Shown blurred on a RECEIVED
    * photo tile not on this device yet, only while previews are on AND "Load pictures and GIFs" is on (mediaAutoloadOn —
@@ -1821,7 +1830,7 @@
     const u = heldThumbs.get(key);
     if (u === undefined) return;
     heldThumbs.delete(key);
-    if (photoPreviews && rec.kind === 'file' && isPhotoFileName(rec.name)) storeFileThumb(key, u);
+    if (photoPreviews && rec.kind === 'file' && isPhotoFileName(rec.name) && fileThumbOk(u)) storeFileThumb(key, u);
   }
   /* ★ #1166 R3-N3 (#46 r3, inherited): a re-flush rebuilt a file row from C#'s addFile, which knows only "0" or "100" —
    * a transfer in flight fell back to 0 %, a received one to "Tap to download", and my own re-showed Cancel. The live
@@ -2378,7 +2387,7 @@
   const QUOTE_THUMB_RE = /^data:image\/(?:jpeg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
   function quoteThumbOf(rec) {
     const id = String(rec.id);
-    const t = fileThumbs.get(id);
+    const t = fileThumbOf(id);
     if (t) return t;
     const row = liveRowOf(id);   // ★ S9: a grouped photo → its own cell (the first img of the group is another photo)
     const img = row && row.querySelector('.c-mbubble__img');
@@ -3161,7 +3170,7 @@
     if (!g) return null;
     const items = [];
     for (const m of g.members) {
-      const t = m.fstate === 'complete' && !m.localGone ? fileThumbs.get(String(m.id)) : undefined;
+      const t = m.fstate === 'complete' && !m.localGone ? fileThumbOf(m.id) : undefined;
       if (t) items.push({ src: t, token: String(m.id), alt: m.name || '' });
     }
     return items.length > 1 ? items : null;
@@ -3187,7 +3196,7 @@
        on every load while the log was near the bottom). The cap is read here, at the moment the row is built. */
     const photoTile = photoPreviews && isPhotoFileName(rec.name);
     const fileRow = (photoTile ? createImageFileBubble : createFileBubble)({
-      thumb: photoTile ? (fileThumbs.get(String(rec.id)) || null) : null,
+      thumb: photoTile ? (fileThumbOf(rec.id) || null) : null,
       lite: !!photoTile && !!bridge.cap('photoTileLite'),
       onLoad: photoTile && !bridge.cap('photoTileLite') ? () => { if (nearBottom()) pinLogEnd(); } : undefined,   // the tile grew to the picture (the old path only)
       onThumbError: photoTile ? () => dropFileThumb(String(rec.id)) : undefined,   // #46 r1 B-1: a picture that will not decode is forgotten
@@ -3238,6 +3247,10 @@
    * textContent only. */
   const VIEWER_URI_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
   const VIEWER_URI_MAX = 1700000;   // ≥ the base64 of C#'s ViewerImage.MaxJpegBytes (1 200 000 → 1 600 000) + the prefix
+  function viewerFailedToast() {
+    const sl = window.SL || {};
+    try { showToast({ text: sl.viewerFailed || 'This image could not be opened.', host: overlayHost, strings: sl }); } catch (e) {}
+  }
   /* ★ S9 (#1244) the paged group viewer · ★ S10 F2 (#1254): + Reply — to the photo ON SCREEN (startReply of that member)
      ★ S11 G (#1263 a): the viewer's toolbar = Reply (leading) · the name · Save (trailing) on EVERY viewer — a lone photo
      too (S10 gave Reply to a paged viewer only, walk #1260: "opening the viewer there is no reply"). Save = 🟡
@@ -3249,6 +3262,7 @@
       canReplyItem: (i, it) => !!viewerReplyTo(it),   // ★ S10 #46 n-3: Reply only on a photo canReplyRec allows
       onReply: bridge.cap('reply') ? (i, it) => { const m = viewerReplyTo(it); if (m) startReply(m, { single: true }); } : null,   // n-5: THAT photo
       onSave: bridge.cap('savePhoto') ? (i, it) => { if (it && QUOTE_ID_RE.test(String(it.token))) bridge.send('ixian:savePhoto:' + it.token); } : undefined,
+      onUrlFailed: viewerFailedToast,   // a URL C# did not serve
     };
   }
   function openGroupViewer(items, at) {
@@ -3261,7 +3275,7 @@
     if (rec.localGone && rec.fstate === 'complete') return;   // ★ #1190: not on this device (belt: no tap there)
     const id = String(rec.id);
     const thumb = photoPreviews && rec.kind === 'file' && rec.fstate === 'complete' && isPhotoFileName(rec.name)
-      ? fileThumbs.get(id) : undefined;
+      ? fileThumbOf(id) : undefined;
     if (!thumb) { bridge.send('ixian:openfile:' + rec.fileid); return; }
     const items = groupViewerItems(rec);   // ★ S9 (#1244): a photo of a group → the viewer pages through the group
     if (items) {
@@ -6184,7 +6198,7 @@
       if (!(orderAt.get(tid) < orderAt.get(oid))) return false;                      // a target later in the log: the full render builds it after
       const t = model.get(tid);
       const tk = replyKindOf(t);
-      if (!newIdSet.has(tid) && (tk === 'file' || tk === 'image' || tk === 'gif') && quoteThumbOf(t) !== (fileThumbs.get(tid) || '')) return false;
+      if (!newIdSet.has(tid) && (tk === 'file' || tk === 'image' || tk === 'gif') && quoteThumbOf(t) !== (fileThumbOf(tid) || '')) return false;
       requote.push(oid);
     }
     /* positions: only the seam row may change */
@@ -7580,6 +7594,7 @@
       loadLikes();                         // address known → restore my own-reaction state (per-peer)
       resetLoadedMedia();                  // per-peer reset, and drop any set an older build persisted
       fileThumbs.clear(); fileThumbChars = 0;   // ★ A5 #1124: per-peer reset (C# starts its once-per-document set again at this push)
+      syncMediaKeep();                          // per-peer reset
       offerPreviews.clear();                    // ★ S11 G (#1258): the same per-peer reset for the offer previews
       avatarByAddr.clear();                // ★ #1166 P-04: per-peer reset (C# starts its once-per-document avatar set again at this push)
       heldThumbs.clear(); thumbHoldUntil = 0; liveTransfers.clear();   // ★ #1166 R3-N2 / R3-N3: per-peer reset
@@ -7788,6 +7803,7 @@
       /* ★ #1198: the menu reads reply / edit at OPEN time (menuOptsFor getters), but the desktop hover button is BUILT
          per row — a `reply` that lands after the first paint re-renders once so the rows gain it */
       if (!replyBefore && bridge.cap('reply') && firstRenderDone) renderLog();
+      syncMediaKeep();
       // The `media` capability is one of the attach gates. The ⊕ re-derives by itself:
       // every handler in this object is wrapped at bridge.exposeAll (X8).
     },
@@ -8182,7 +8198,7 @@
       else if (row && prev === 'progress') {
         setFileProgress(row, rec.progress, { state: rec.fstate });
         // ★ A5 #1124: a tile that just completed takes a preview C# already sent (the usual order is the reverse)
-        if (rec.fstate === 'complete' && fileThumbs.has(id)) setImageFileThumb(row, fileThumbs.get(id));
+        if (rec.fstate === 'complete' && fileThumbOf(id)) setImageFileThumb(row, fileThumbOf(id));
       }
       else renderLog();
       // slick completion cue for OUTGOING transfers (Damir F5): a one-shot success
@@ -8223,28 +8239,27 @@
 
     /* ★★ #1166 V-3 (🟡 NEW push, BE ask): viewerImage(<token>, <data uri | "">) — C#'s answer to ixian:viewImage. Applied
      * only to a viewer opened for THAT token that is still open (findOpenViewer); the value must be a base64 JPEG data:
-     * URI ≤ VIEWER_URI_MAX — it only ever becomes the viewer's <img src>. "" (or anything else) → the viewer keeps the
-     * preview it shows and a short toast says the picture could not be opened. */
+     * URI ≤ VIEWER_URI_MAX, or a media-origin URL under the cap (mediaUrlOk) — it only ever becomes the viewer's <img src>.
+     * "" (or anything else) → the viewer keeps the preview it shows and a short toast says the picture could not be opened. */
     viewerImage(token, uri) {
       const t = String(token == null ? '' : token);
       const v = t ? findOpenViewer(t) : null;
       if (!v) return;
       const u = typeof uri === 'string' ? uri : '';
-      if (u && u.length <= VIEWER_URI_MAX && VIEWER_URI_RE.test(u)) { v.setSrc(u); return; }
+      if (u && ((u.length <= VIEWER_URI_MAX && VIEWER_URI_RE.test(u)) || mediaUrlOk(u))) { v.setSrc(u); return; }
       v.setFailed();
-      const sl = window.SL || {};
-      try { showToast({ text: sl.viewerFailed || 'This image could not be opened.', host: overlayHost, strings: sl }); } catch (e) {}
+      viewerFailedToast();
     },
 
     /* ★★ A5 #1124 (#1133, 🟡 NEW push, BE ask): setFileThumb(<message id hex>, <data uri>) — the preview of a LOCAL
      * image file (sent, or downloaded by the user's tap), made by C# (SThumbnail, ≤ 64 KB JPEG). Accepted ONLY when
-     * previews are on, the value is a base64 JPEG data: URI (FILE_THUMB_RE) of at most FILE_THUMB_MAX characters,
-     * and the id is a file row of this conversation that renders as an image tile; anything else is ignored
-     * silently. The value only ever becomes an <img src> on that tile (no other sink). */
+     * previews are on, the value is a base64 JPEG data: URI (FILE_THUMB_RE) of at most FILE_THUMB_MAX characters or a
+     * media-origin URL under the cap (fileThumbOk), and the id is a file row of this conversation that renders as an
+     * image tile; anything else is ignored silently. The value only ever becomes an <img src> on that tile (no other sink). */
     setFileThumb(id, uri) {
       const key = String(id == null ? '' : id);
       const u = typeof uri === 'string' ? uri : '';
-      if (!photoPreviews || !u || u.length > FILE_THUMB_MAX || !FILE_THUMB_RE.test(u)) return;
+      if (!photoPreviews || !u || !fileThumbOk(u)) return;
       const rec = model.get(key);
       if (!rec && key && Date.now() < thumbHoldUntil) {      // ★ #1166 R3-N2: the re-flush gap — hold it for the row (claimHeldThumb)
         heldThumbs.delete(key);

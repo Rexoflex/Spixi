@@ -785,7 +785,7 @@ Summary: **1121** keys · **158** map to a legacy id · **963** new · legacy di
 
 | Key | English | Kind | Len | {…} | Legacy id |
 |---|---|---|---|---|---|
-| `image` | Image | text/aria/label | short |  | — |
+| `image` | Image | error/aria/text/label | short |  | — |
 | `loading` | Loading | text/aria/label | short |  | — |
 | `open` | Open | error/text | short |  | — |
 | `photoCountMany` | {n} photos | aria | short | {n} | `index-excerpt-photos` |

@@ -63,6 +63,7 @@ import { copyText } from './clipboard.js';   // ★ #993: the shared copy with t
 import { fileNameAria, createFileTile } from './typed-bubbles.js';   // ★ #1166 r5 NIT-1: the ONE file-name rule (build + live)
 import { renderFormat } from './msg-format.js';   // ★ S20 F (#1378): *bold* _italic_ ~strike~ `code` ``` blocks
 import { LINKIFY_MAX, urlSpans } from './link-rule.js';   // ★ S20 F (#46 r1): the one link rule (linkify + the format pass)
+import { isMediaUrl } from './media-bubble.js';   // the media-origin URL the shell admitted under its cap
 
 function bubbleTime(d) {
   return d.toLocaleTimeString(docLocale(), timeOpts());   // ★ Session I: follows the device's 12/24-hour setting
@@ -130,18 +131,24 @@ function REPLY_KIND_LABELS(kind, strings = getStrings()) {
   }[kind] || '';
 }
 
-/* ★ 7b (#1215): the quote's right-hand tile. An image takes a data: URI ONLY (a src set as a property — never a remote
-   fetch, never markup); a file shows its extension on the file card's family tile (createFileTile); voice = the mic. */
+/* ★ 7b (#1215): the quote's right-hand tile. An image takes a data: URI or a media-origin URL ONLY (a src set as a
+   property — never a remote fetch, never markup); a file shows its extension on the file card's family tile
+   (createFileTile); voice = the mic. */
 const QUOTE_TILE_SRC_RE = /^data:image\/(?:jpeg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
 function replyTileEl(tile) {
   if (!tile || typeof tile !== 'object') return null;
   if (tile.type === 'image') {
+    const originSrc = isMediaUrl(tile.src) ? tile.src : '';   // C#'s own handler (the shell checked the cap): only this src property
     const tileSrc = safeImageSrc(String(tile.src || ''));   // ★ O-13 gate: local only (no allowRemote) — then the raster test
-    if (!tileSrc || !QUOTE_TILE_SRC_RE.test(tileSrc)) return null;
+    if (!originSrc && (!tileSrc || !QUOTE_TILE_SRC_RE.test(tileSrc))) return null;
     const th = document.createElement('img');
     th.className = 'c-bubble__reply-thumb';
     th.alt = '';
-    th.src = tileSrc;
+    if (originSrc) {   // a URL that does not load → the picture glyph, never a broken picture
+      th.decoding = 'async';
+      th.addEventListener('error', () => { const g = replyGlyphEl('image'); if (g && th.parentNode) th.replaceWith(g); else th.remove(); }, { once: true });
+      th.src = originSrc;
+    } else th.src = tileSrc;
     return th;
   }
   if (tile.type === 'file') {

@@ -33,6 +33,7 @@ import { createAvatar, safeImageSrc } from './avatar.js';
 import { formatVoiceClock, fillVoiceSlots } from './message-bubble.js';   // ★ #1208: the one m:ss clock (the bubble and the bar agree)
 import { fileKind } from './typed-bubbles.js';   // ★ 7b (#1214): the strip's file tile wears the file card's family colours
 import { mountFormatBar } from './format-bar.js';   // S20 F hook (#1378): the Aa format bar
+import { isMediaUrl } from './media-bubble.js';   // the media-origin URL the shell admitted under its cap
 
 /* ★ #1065 r2 (break-my-verdict MINOR-3): the message menu can now be open WHILE the composer keeps
    focus (overlay.js keepEditableFocus stamps data-keep-editable on its root, removed synchronously at
@@ -450,20 +451,25 @@ export function cancelComposerContext(el, { refocus = true } = {}) {
   return true;
 }
 
-/* ★ 7b (#1214 / the S1⇄S2 contract): the tile at the strip's end — a photo / GIF preview (a data: image URI ONLY,
-   set as a property; anything else = no tile), a file's extension tile (the file card's family colours), a mic for
-   a voice row. null / unknown = none. Decorative: the excerpt names the message. */
+/* ★ 7b (#1214 / the S1⇄S2 contract): the tile at the strip's end — a photo / GIF preview (a data: image URI or a
+   media-origin URL ONLY, set as a property; anything else = no tile), a file's extension tile (the file card's family
+   colours), a mic for a voice row. null / unknown = none. Decorative: the excerpt names the message. */
 const CTX_TILE_SRC_RE = /^data:image\/(?:jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
 function ctxTile(tile) {
   if (!tile || typeof tile !== 'object') return null;
   let t = null;
   if (tile.type === 'image') {
+    const originSrc = isMediaUrl(tile.src) ? tile.src : '';   // C#'s own handler (the shell checked the cap): only this src property
     const src = safeImageSrc(String(tile.src || ''));   // ★ O-13: local only (no allowRemote), then the raster test
-    if (!src || !CTX_TILE_SRC_RE.test(src)) return null;
+    if (!originSrc && (!src || !CTX_TILE_SRC_RE.test(src))) return null;
     t = document.createElement('img');
     t.alt = '';
     t.decoding = 'async';
-    t.src = src;
+    if (originSrc) {   // a URL that does not load → no tile, as a photo with no preview
+      const im = t;
+      im.addEventListener('error', () => im.remove(), { once: true });
+      t.src = originSrc;
+    } else t.src = src;
   } else if (tile.type === 'file') {
     const ext = String(tile.ext || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
     t = document.createElement('span');

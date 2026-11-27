@@ -12,7 +12,8 @@
  *   ★ #1166 V-3 (#1144 / #1145 (1)) token — a string naming the picture C# is making (the chat: the message id hex;
  *   chat info: "<id hex>:<n>"). With a token the viewer opens in a LOADING state: it shows `src` (the tile's thumbnail,
  *   may be '') under a subtle spinner, aria-busy="true", until the shell calls
- *     el.setSrc(uri)  — the viewer-size picture arrived: only a `data:image/jpeg;base64,…` URI is taken (anything else
+ *     el.setSrc(uri)  — the viewer-size picture arrived: only a `data:image/jpeg;base64,…` URI or a media-origin URL
+ *                       (isMediaUrl, media-bubble.js) is taken (anything else
  *                       = setFailed); the busy state ends;
  *     el.setFailed()  — the picture could not be made: the busy state ends, the thumbnail stays. The SHELL shows the
  *                       `viewerFailed` toast (one place per shell — this component never toasts).
@@ -64,6 +65,7 @@
 import { getStrings } from './strings-runtime.js';
 import { icon } from './icons.js';
 import { openOverlay, dismissOverlay, setOverlayOpts, isOverlayOpen } from './overlay.js';
+import { isMediaUrl } from './media-bubble.js';
 
 /** ★ #1166 V-3: the one data URI shape the viewer takes from C# (the contract regex). */
 export const VIEWER_URI_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+=*$/;
@@ -94,6 +96,7 @@ export function openMediaViewer({
   onPage = null,
   onReply = null,
   canReplyItem = null,   // ★ S10 #46 n-3: (i, item) → false hides Reply on that page
+  onUrlFailed = null,    // a media-origin picture did not load (the shell toasts)
   strings = getStrings(),
 } = {}) {
   const pages = Array.isArray(items) ? items.filter((it) => it && it.token) : [];
@@ -223,9 +226,11 @@ export function openMediaViewer({
   img.addEventListener('error', () => {
     if (!fullSrc || img.getAttribute('src') !== fullSrc) return;
     if (fullOf.get(at) === fullSrc) fullOf.delete(at);   // ★ S11 E: never offered to a neighbour slide again
+    const wasUrl = isMediaUrl(fullSrc);
     fullSrc = '';
     if (thumbSrc) img.src = thumbSrc; else img.removeAttribute('src');
     el.setFailed();
+    if (wasUrl && typeof onUrlFailed === 'function') { try { onUrlFailed(); } catch (_) {} }
   });
   img.addEventListener('load', () => {
     if (!fullSrc || img.getAttribute('src') !== fullSrc) return;   // the thumbnail's own load never reveals it
@@ -241,9 +246,11 @@ export function openMediaViewer({
   };
   el.setSrc = (uri) => {
     const u = String(uri == null ? '' : uri);
-    if (!VIEWER_URI_RE.test(u)) { el.setFailed(); return false; }
+    if (!VIEWER_URI_RE.test(u) && !isMediaUrl(u)) { el.setFailed(); return false; }   // the shell checked the cap
     fullSrc = u;   // ★ #1180: revealed at its load (+ decode), never before
-    if (track) { fullOf.set(at, u); keepNear(); }   // ★ S11 E: a neighbour slide may show it later
+    /* ★ S11 E: a neighbour slide may show it later — a data: picture only: C# keeps ONE viewer URL per WebView, so the
+       next page's answer revokes this one (a page back asks C# again) */
+    if (track && !isMediaUrl(u)) { fullOf.set(at, u); keepNear(); }
     img.src = u;
     delete el.dataset.failed;
     endBusy();

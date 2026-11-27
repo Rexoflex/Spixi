@@ -23,15 +23,16 @@
  *   k8 installed  — node_modules/<name>/package.json of the five reads the same version as the lock entry (absent node_modules = FAIL)
  *   k9 tree       — SHA-256 of the sorted list `path@version@integrity` of every lock package entry (122 rows) = WANT_TREE_SHA256: the transitive tree is held (ruling #1831)
  * Deliberate breaks (#802): the builder's report, one one-token mutation per key in a full copy of the tree (node scripts/run-pins.mjs --root <copy>). */
-const WANT = { eslint: '10.14.0', globals: '17.14.0', jsdom: '29.1.1', 'tree-sitter': '0.25.1', 'tree-sitter-c-sharp': '0.23.5' };
+const WANT = { eslint: '10.14.0', globals: '17.14.0', jsdom: '29.1.1', 'tree-sitter': '0.25.1', 'tree-sitter-c-sharp': '0.23.5', 'axe-core': '4.14.1', 'fast-check': '4.11.0' };   // + the two test tools of qtools (#2070)
 const NAMES = Object.keys(WANT);
 const EXACT = /^\d+\.\d+\.\d+$/;
 const INSTALL_HOOKS = ['preinstall', 'install', 'postinstall', 'prepublish', 'preprepare', 'prepare', 'postprepare', 'prepack', 'postpack'];
 const REGISTRY = 'https://registry.npmjs.org/';
 /* k9: SHA-256 of the sorted `path@version@integrity` rows (one per lock entry except the root, joined by "\n"). Base 2026-11-23, 122 rows, npm 10.9.9.
- * A change of the tree re-bases this constant AFTER a look at the diff of package-lock.json and a full smoke (#1634); do not run `npm audit fix` to move it. */
-const WANT_TREE_SHA256 = '390165c10fe01b45650d62a8605281fc53a397a89716bc21d85813b385fcfc81';
-const WANT_TREE_ROWS = 122;
+ * A change of the tree re-bases this constant AFTER a look at the diff of package-lock.json and a full smoke (#1634); do not run `npm audit fix` to move it.
+ * Re-based by qtools (#2070): the lock diff adds exactly three entries (axe-core 4.14.1, fast-check 4.11.0, pure-rand 8.4.2) and removes none → 125 rows. */
+const WANT_TREE_SHA256 = '4541eb78befcfefe2babad4632a4657048de38f3ad27c0cee33096c163e508f0';
+const WANT_TREE_ROWS = 125;
 const PKG_KEYS = ['name', 'private', 'description', 'devDependencies'];
 
 import { createHash } from 'node:crypto';
@@ -53,7 +54,7 @@ export default async function ({ ok, root, readFileSync, existsSync, join }) {
     for (const n of NAMES) { if (!(n in dd)) g.push(n + ' missing'); else if (!EXACT.test(String(dd[n]))) g.push(n + ' is "' + dd[n] + '" (not an exact version)'); else if (dd[n] !== WANT[n]) g.push(n + ' is ' + dd[n] + ', want ' + WANT[n]); }
     for (const n of Object.keys(dd)) if (!NAMES.includes(n)) g.push('extra devDependency ' + n);
     if (pkg.dependencies && Object.keys(pkg.dependencies).length) g.push('dependencies is not empty');
-    key('k1 devDeps', 'package.json devDependencies = the five tools (eslint, globals, jsdom, tree-sitter, tree-sitter-c-sharp) at exact versions, nothing in dependencies', g); }
+    key('k1 devDeps', 'package.json devDependencies = the seven tools (' + NAMES.join(', ') + ') at exact versions, nothing in dependencies', g); }
 
   /* k2 */
   { const g = []; if (P.err) g.push(P.err);
@@ -128,7 +129,7 @@ export default async function ({ ok, root, readFileSync, existsSync, join }) {
       if (!e) g.push(n + ' not in the lock');
       else if (I.v.version !== e.version) g.push(n + ' installed ' + I.v.version + ' ≠ lock ' + e.version);
     }
-    key('k8 installed', 'node_modules/<name>/package.json of the five tools reads the version of the lock entry (' + NAMES.map((n) => n + ' ' + WANT[n]).join(', ') + ')', g); }
+    key('k8 installed', 'node_modules/<name>/package.json of the seven tools reads the version of the lock entry (' + NAMES.map((n) => n + ' ' + WANT[n]).join(', ') + ')', g); }
 
   /* k9 */
   { const g = []; if (L.err) g.push(L.err);

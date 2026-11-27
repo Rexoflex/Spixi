@@ -14,15 +14,17 @@
  *   r4  'isolation' enforced without 'gate-diff' → exit 2 before any check runs
  *   r5  the gate diff runs before the two checks of the tree under test
  *   r6  all enforced, all green → exit 0
- *   r7  an enforced check that exits 0 with no OK line → exit 1
+ *   r7  an enforced check that exits 0 with no OK line → exit 1 (each of the three: isolation, bridge-contract, gate-diff)
  *   r8  a BASE_SHA that git can resolve but that is not 40 hex (12 hex) → exit 2 with "not 40 hex"
  *   r9  ENFORCED ['gate-diff'] and a red gate diff → exit 1, "FAILED — gate-diff"
- *   r10 the BASE commit's copy of gate-diff.mjs runs (tag `base`, never `head`), and its temp folder is removed
+ *   r10 the BASE commit's copy of gate-diff.mjs runs (tag `base`, never `head`), and its temp folder is removed (each case runs
+ *       with its OWN TMPDIR inside the fixture, so another process's temp folders cannot touch the row)
  *   r11 an enforced check that prints its OK line but exits 1 → exit 1
  *   r12 ENFORCED ['gate-diff'] with a red isolation check and a green gate diff → exit 0, a ::warning, no ::error
  * DELIBERATE BREAKS (#802), each a one-place change of the runner's text in the copy: the KNOWN test removed → r3; the
  * gate-diff-subset test removed → r4; the pass rule reduced to the exit code → r7; ENFORCED ignored in the exit → r2; the gate
- * diff moved after the isolation check → r5; the 40-hex test removed → r8; the gate diff's fail entry removed → r9; the base
+ * diff moved after the isolation check → r5; the 40-hex test removed → r8; the OK line of gate-diff or of bridge-contract
+ * loosened to the check's name → r7; the gate diff's fail entry removed → r9; the base
  * copy skipped → r10; the exit code read as 0 → r11; every red check counted as enforced → r12. By hand (it is the pin's own
  * code, not the runner's): the GIT_* filter of gitEnv removed in a copy of this file → r0 red (run on 2026-11-27).
  * LIMITS: it does not run in GitHub Actions (the event branch, the workflow step's base copy of the runner and the fetch are
@@ -99,14 +101,17 @@ export default async function ({ ok, root }) {
 
     const fx = buildFixture(runnerText, process.env, dirs);
     const { dir, env, base, head } = fx;
-    const gdTemps = () => new Set(readdirSync(realpathSync(tmpdir())).filter((n) => n.startsWith('qtools-gatediff-')));
+    let caseNo = 0;
     const runCase = ({ enforced = [], state = {}, text = runnerText, baseSha = base }) => {
       const t = text.replace(ENF_RE, 'const ENFORCED = ' + JSON.stringify(enforced) + ';');
       writeFileSync(join(dir, 'case-runner.mjs'), t);
       writeFileSync(join(dir, 'stub-state.json'), JSON.stringify(state));
+      const tmp = join(dir, '.tmp-case-' + (++caseNo));   /* this case's own TMPDIR: no other process writes here */
+      mkdirSync(tmp);
       const r = spawnSync(process.execPath, [join(dir, 'case-runner.mjs'), '--root', dir, '--no-a11y'],
-        { encoding: 'utf8', env: { ...env, BASE_SHA: baseSha, HEAD_SHA: head }, timeout: 60000 });
-      return { code: r.status, out: (r.stdout || '') + (r.stderr || '') };
+        { encoding: 'utf8', env: { ...env, BASE_SHA: baseSha, HEAD_SHA: head, TMPDIR: tmp, TMP: tmp, TEMP: tmp }, timeout: 60000 });
+      const left = readdirSync(tmp).filter((n) => n.startsWith('qtools-gatediff-'));
+      return { code: r.status, out: (r.stdout || '') + (r.stderr || ''), left };
     };
     const ALL = ['gate-diff', 'isolation', 'bridge-contract'];
     const rows = (text) => {
@@ -119,16 +124,16 @@ export default async function ({ ok, root }) {
       R.r3 = r.code === 2 && !/stub /.test(r.out);
       r = runCase({ text, enforced: ['isolation'] });
       R.r4 = r.code === 2 && !/stub /.test(r.out);
-      const pre = gdTemps();
       r = runCase({ text });
       const gi = r.out.indexOf('== gate diff'), ii = r.out.indexOf('== isolation check');
       R.r5 = r.code === 0 && gi >= 0 && ii > gi;
-      const post = gdTemps();
-      R.r10 = /stub gate-diff base ok/.test(r.out) && !/stub gate-diff head/.test(r.out) && [...post].every((n) => pre.has(n));
+      R.r10 = /stub gate-diff base ok/.test(r.out) && !/stub gate-diff head/.test(r.out) && r.left.length === 0;
       r = runCase({ text, enforced: ALL });
       R.r6 = r.code === 0;
-      r = runCase({ text, enforced: ALL, state: { isolation: 'silent' } });
-      R.r7 = r.code === 1 && /FAILED — isolation/.test(r.out);
+      R.r7 = [['isolation', 'isolation'], ['bridge-contract', 'bridge-contract'], ['gate-diff', 'gate-diff']].every(([check, name]) => {
+        const q = runCase({ text, enforced: ALL, state: { [check]: 'silent' } });
+        return q.code === 1 && new RegExp('FAILED — ' + name).test(q.out);
+      });
       r = runCase({ text, baseSha: base.slice(0, 12) });
       R.r8 = r.code === 2 && /not 40 hex/.test(r.out);
       r = runCase({ text, enforced: ['gate-diff'], state: { 'gate-diff': 'red' } });
@@ -146,7 +151,7 @@ export default async function ({ ok, root }) {
       r4: 'isolation enforced without gate-diff → exit 2 before any check runs',
       r5: 'the gate diff runs before the checks of the tree under test',
       r6: 'all three enforced and green → exit 0',
-      r7: 'an enforced check that exits 0 with no OK line fails the step',
+      r7: 'an enforced check that exits 0 with no OK line fails the step (isolation, bridge-contract and gate-diff each)',
       r8: 'a resolvable BASE_SHA that is not 40 hex → exit 2 "not 40 hex"',
       r9: 'an enforced red gate diff fails the step',
       r10: 'the BASE commit\'s copy of the gate diff runs, and its temp folder is removed',
@@ -166,6 +171,8 @@ export default async function ({ ok, root }) {
         const a = runnerText.indexOf('/* 1 · gate diff */'), b = runnerText.indexOf('/* 2 · isolation */'), c = runnerText.indexOf('/* 3 · bridge contract */');
         return a >= 0 && b > a && c > b ? runnerText.slice(0, a) + runnerText.slice(b, c) + runnerText.slice(a, b) + runnerText.slice(c) : null;
       })()],
+      ['r7', 'the gate diff\'s OK line loosened to its name', mut('passed(gd, /^GATE-DIFF OK\\b/m)', 'passed(gd, /gate-diff/)')],
+      ['r7', 'the contract\'s OK line loosened to its name', mut('passed(bc, /^bridge-contract: OK\\b/m)', 'passed(bc, /bridge-contract/)')],
       ['r8', 'the 40-hex test removed', mut('if (base && !HEX40.test(base))', 'if (false)')],
       ['r9', 'the gate diff\'s fail entry removed', mut("fail.push('gate-diff');", '')],
       ['r10', 'the base copy skipped', mut('  if (baseHas) {', '  if (false) {')],

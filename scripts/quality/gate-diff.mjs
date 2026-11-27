@@ -852,5 +852,5 @@ function main(argv) {
 function usage(msg) { console.error('gate-diff: ' + msg + '\nusage: node scripts/quality/gate-diff.mjs --base <sha> --head <sha> [--root <dir>] [--json]'); return 2; }
 
 /** run as a program: compare REAL paths (a symlinked TMPDIR or checkout must not turn the CLI into a silent exit 0) */
-const real = (p) => { try { return realpathSync(p); } catch { return resolve(p); } };
-if (process.argv[1] && real(process.argv[1]) === real(fileURLToPath(import.meta.url))) process.exitCode = main(process.argv.slice(2));
+const isMain = () => { try { return !!process.argv[1] && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]); } catch { return false; } };
+if (isMain()) process.exitCode = main(process.argv.slice(2));

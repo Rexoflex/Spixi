@@ -508,5 +508,5 @@ async function main(argv) {
   return 0;
 }
 
-const isMain = () => { try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+const isMain = () => { try { return !!process.argv[1] && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]); } catch { return false; } };
 if (isMain()) process.exitCode = await main(process.argv.slice(2));

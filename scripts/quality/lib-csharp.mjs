@@ -15,7 +15,8 @@
  *   · The taint walk follows locals, `out` arguments and parameters. A value parked in a field, a property, a collection
  *     or a closure that runs later is not followed.
  *   · A file the parser cannot read cleanly (an ERROR or MISSING node) is refused — ReadError, exit 2 — when its text names
- *     a token the checks read (`ixian:`, `WebView`, a setting name passed in by the caller); any other such file is skipped.
+ *     a token the checks read (`ixian:`, `WebView`, every mark-list name and every name the caller passes, as a whole word);
+ *     a listed parse exception (file + the exact names it holds + a reason) is skipped, and what it holds is not seen.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -224,11 +225,21 @@ export function params(m) {
 }
 
 /**
- * The C# model of the tree. `guardTokens`: a file with a parse error whose text names one of these is refused (ReadError).
+ * The C# model of the tree. `guardTokens`: a file with a parse error whose text names one of these is refused (ReadError),
+ * unless `parseExceptions` lists that file with every token it names ({ file, names, reason }): a listed file is skipped,
+ * so what it holds is not seen — the list says which names that hides.
  * → { files: [{ rel, src, tree }], classes: Map name → [{ rel, node, bases: [names] }], methods: [...], byName, byClass,
  *     isA(cls, base), classesOf(rel) }
  */
-export function buildModel(root, guardTokens = []) {
+/** a base-list entry → { name: its last identifier, full: the dotted type name } (generic and constructor arguments cut) */
+export function baseName(text) {
+  let t = String(text), d = 0, out = '';
+  for (const ch of t) { if (ch === '<' || ch === '(') d++; else if (ch === '>' || ch === ')') d--; else if (d === 0) out += ch; }
+  const full = out.replace(/\s+/g, '').replace(/^global::/, '');
+  return { name: full.split('.').pop(), full };
+}
+
+export function buildModel(root, guardTokens = [], parseExceptions = []) {
   const rels = listFiles(root, 'Spixi', (n) => n.endsWith('.cs'));
   if (!rels.length) throw new ReadError('no C# file under Spixi/');
   const files = [];
@@ -240,8 +251,10 @@ export function buildModel(root, guardTokens = []) {
     const src = read(root, rel);
     const tree = parseCs(src);
     if (tree.rootNode.hasError) {
-      const hit = ['ixian:', 'WebView'].find((t) => src.includes(t)) || guardTokens.find((t) => new RegExp('\\b' + t + '\\b').test(src));
-      if (hit) throw new ReadError(rel + ': the C# parser reports an ERROR or MISSING node, and the file names "' + hit + '" — cannot read it with certainty');
+      const hits = [...new Set([...['ixian:', 'WebView'].filter((t) => src.includes(t)), ...guardTokens.filter((t) => new RegExp('\\b' + t + '\\b').test(src))])].sort();
+      const ex = parseExceptions.find((e) => e.file === rel);
+      const unlisted = hits.filter((h) => !(ex && ex.names.includes(h)));
+      if (unlisted.length) throw new ReadError(rel + ': the C# parser reports an ERROR or MISSING node, and the file names "' + unlisted.join('", "') + '" — cannot read it with certainty' + (ex ? ' (its listed exception names only ' + ex.names.join(', ') + ')' : ''));
       continue;
     }
     const f = { rel, src, tree };
@@ -249,9 +262,10 @@ export function buildModel(root, guardTokens = []) {
     for (const t of desc(tree.rootNode, TYPE_DECLS)) {
       const name = typeName(t);
       const bl = t.namedChildren.find((c) => c.type === 'base_list');
-      const bases = bl ? bl.namedChildren.map((c) => idents(c.text).pop()).filter(Boolean) : [];
+      const bases = bl ? bl.namedChildren.map((c) => baseName(c.text).name).filter(Boolean) : [];
+      const baseFull = bl ? bl.namedChildren.map((c) => baseName(c.text).full).filter(Boolean) : [];
       if (!classes.has(name)) classes.set(name, []);
-      classes.get(name).push({ rel, node: t, bases });
+      classes.get(name).push({ rel, node: t, bases, baseFull });
     }
     for (const m of desc(tree.rootNode, ['method_declaration', 'constructor_declaration', 'local_function_statement'])) {
       const n = m.childForFieldName('name');
@@ -311,7 +325,7 @@ export function resolve(model, fromCls, inv) {
 }
 
 /* ═══ reach: what a block of code reaches ═══════════════════════════════════════════════════════════════════════════
- * marks: 'money' — an invocation named in rules.money; 'keys' — an invocation named in rules.keys, a receiver named in
+ * marks: 'money' — an invocation named in rules.money or matching rules.moneyRe, or `new` of a type in rules.moneyNew; 'keys' — an invocation named in rules.keys, a receiver named in
  * rules.keysRecv, a member access named in rules.keysMembers or a string literal in rules.keysStrings; 'path' — a call
  * on a receiver in rules.pathRecv, or `new` of a type in rules.pathNew, with an argument that names a TAINTED value.
  * Taint starts at the names passed in and moves through `var x = <tainted>`, `x = <tainted>`, an `out` argument of a call
@@ -370,7 +384,7 @@ export function reach(model, rules, start, { rel, cls, tainted }, depth = 0, mem
   const { calls, news, members, strings } = facts(start);
   for (const c of calls) {
     const recvLast = idents(c.recv).pop() || '';
-    if (rules.money.has(c.name)) mark('money', c.name + '()');
+    if (rules.money.has(c.name) || (rules.moneyRe && rules.moneyRe.test(c.name))) mark('money', c.name + '()');
     if (rules.keys.has(c.name) || rules.keysRecv.has(recvLast)) mark('keys', (c.recv ? recvLast + '.' : '') + c.name + '()');
     if (rules.pathRecv.has(recvLast) && c.args.some((a) => mentions(a, t))) mark('path', recvLast + '.' + c.name + '(<url value>)');
     for (const m of resolve(model, cls, c.inv)) {
@@ -390,6 +404,7 @@ export function reach(model, rules, start, { rel, cls, tainted }, depth = 0, mem
       for (const x of sub.via) out.via.add(x);
     }
   }
+  for (const n of news) if (rules.moneyNew && rules.moneyNew.has(n.type)) mark('money', 'new ' + n.type + '(…)');
   for (const n of news) if (rules.pathNew.has(n.type) && mentions(n.args.replace(/^new\s+[A-Za-z_.<>]+/, ''), t)) mark('path', 'new ' + n.type + '(<url value>)');
   for (const m of rules.keysMembers) if (members.has(m)) mark('keys', '.' + m);
   for (const s of rules.keysStrings) if (strings.has(s)) mark('keys', '"' + s + '"');

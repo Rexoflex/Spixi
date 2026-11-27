@@ -20,14 +20,32 @@
  *   k11 row rule   — the token outside a code span, or only in docs/be-review-pack/: still MISSING (exit 1).
  *   k12 not new    — a moved existing verb, a comment-only `File.Delete(`, a changed built Raw/html file, an `<a href>` to a
  *                    remote page (a tap, not a fetch): exit 0, 0 items.
- *   k13 read error — an unknown 40-hex sha, an option-shaped revision, a missing --head: exit 2.
- * DELIBERATE BREAKS (#802; each must fail for exactly its reason): every BREAK commit of k1…k11 is one; and on a scratch copy
- * of the script (`node scripts/run-pins.mjs --root <copy> pins-qtools/d-gatediff`): delete the `.Settings\.([A-Z]\w*)\s*=`
- * pattern → k1 (the break lists nothing; k10, k11 and the I4 row reuse that change and go red with it); make `names()` ignore
- * code spans → k11 (plain) only; make the CLI return 0 on a read error → k13 (four rows); return no items when the head's
- * message says "gate skip" → k10 only; drop the merge-base filter of verbs → k12 only (`ixian:back` listed). */
+ *   k13 read error — an unknown 40-hex sha, an option-shaped revision, a missing --head, a root that is no repository: exit 2.
+ *   k14 attributes — the base holds `src/components/icons.js -diff` (as the tree does today); a second base adds `*.cs -diff`
+ *                    and `src/vendor/** binary`: a setting in a .cs, a sink in the `binary` file, a fetch beside a NUL byte,
+ *                    a sink in icons.js are each listed; a `.gitattributes` change (also `src/.gitattributes`) is check-changed.
+ *   k15 row rule 2 — an EDIT of an old row and a row added to an OLD section name nothing; the API tokens `innerHTML`,
+ *                    `fetch`, `File.WriteAllText` alone name nothing.
+ *   k16 types      — a new partial file of an old class is not named by the class; a NEW class in a table row names its writes.
+ *   k17 shapes     — `new System.IO.FileStream(…, FileMode.Create)`, `new global::System.Net.Http.HttpClient()`,
+ *                    `new FileInfo(p).CreateText()`.
+ *   k18 scope      — `Spixi/Utils/SpeedTest.cs` is scanned; a remote CSS `@import` (a commented one is not);
+ *                    `ImageSource.FromUri(new Uri("https://…"))`; JS `setAttribute('src', 'https://…')`.
+ *   k19 check paths — `package.json`, `scripts/lib/**`, `scripts/pins-qtools/**` are check-changed; `scripts/smoke-test.mjs` is not.
+ *   k20 main guard — the CLI copied into a folder reached through a symlink still runs and ends in `GATE-DIFF OK`.
+ *   Every BREAK / FIX row also requires the exact last line `GATE-DIFF FAIL` / `GATE-DIFF OK`.
+ * DELIBERATE BREAKS (#802; each must fail for exactly its reason): every BREAK commit of the cases is one; and on a scratch
+ * copy of the script (`node scripts/run-pins.mjs --root <copy> pins-qtools/d-gatediff`, the copy holding scripts/lib,
+ * smoke-test.mjs, strip-release.mjs and a node_modules link): delete the `.Settings\.([A-Z]\w*)\s*=` pattern → k1 and k14a
+ * (k10, k11 and the I4 row reuse that change); `names()` ignores code spans → k11 (plain); the CLI returns 0 on a read error →
+ * k13; a "gate skip" message turns the check off → k10; no merge-base filter of verbs → k12; no `<a href>` exclusion → k12;
+ * no `--text` → k14 (exit 2: the fail-closed belt), no `--text` and no belt → k14a–d (exit 0, 0 items); `.gitattributes` not a
+ * check path → k14, k14e; every added gate line a row → k15a, k15b; API tokens name → k15c; old types name → k16a; no
+ * namespace prefix → k17a, k17b; isTest inside `Spixi/` → k18a; CSS not scanned → k18b; no `new Uri(` literal → k18c; the
+ * check paths back to quality / .github / the contract → k19; the main guard on `resolve()` → k20. The belt "a scanned file
+ * that reads as binary → exit 2" is reached only with `--text` removed: `--text` leaves git no binary section to print. */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync as rf } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync as rf, copyFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pj, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -41,7 +59,9 @@ const ENV = {
 const GATE = 'docs/security-handover-gate.md';
 
 const BASE_FILES = {
-  [GATE]: '# gate\n\n## Session base\n\n| item | verb / key / sink / fetch / log? | verdict |\n|---|---|---|\n| base | none | ours, safe |\n',
+  [GATE]: '# gate\n\n## Session base\n\n| item | verb / key / sink / fetch / log? | verdict |\n|---|---|---|\n| base | none | ours, safe |\n| old | No `innerHTML` in this page | ours, safe |\n',
+  '.gitattributes': '* text=auto eol=lf\nsrc/components/icons.js -diff\n',
+  'src/components/icons.js': "export function icon(el, svg) {\n  el.textContent = svg;\n}\n",
   'Spixi/Platforms/Android/WebViewRenderer.cs': 'namespace Fx\n{\n    public class Renderer\n    {\n        void setup(Android.Webkit.WebView webView)\n        {\n            webView.Settings.JavaScriptEnabled = true;\n        }\n    }\n}\n',
   'Spixi/Utils/Store.cs': 'using System.IO;\nnamespace Fx\n{\n    public static class Store\n    {\n        public static string root(string dir)\n        {\n            return Path.Combine(dir, "Sent");\n        }\n\n        public static void saveIt(string p)\n        {\n            System.Console.WriteLine(p);\n        }\n    }\n}\n',
   'src/bridge/native.js': "export function send(v) { window.location.href = v; }\nexport function back() { send('ixian:back'); }\nexport function renderMsg(el, msg) {\n  el.textContent = msg;\n}\n",
@@ -101,7 +121,7 @@ export default async function (h) {
         row: '| `Store.saveIt` writes one file of C#\'s own name | a file write | ours |' },
       { id: 'k7 network-call (fetch)', kind: 'network-call', token: 'fetch',
         edit: () => put({ 'src/bridge/native.js': read('src/bridge/native.js') + "export function ping() { return fetch('https://example.invalid/x'); }\n" }),
-        row: '| `fetch` of the ping | a network call | ours |' },
+        row: '| `ping` fetches one URL | a network call | ours |' },
       { id: 'k8 network-call (remote img)', kind: 'network-call', token: 'tracker.example',
         edit: () => put({ 'src/shells/chat.html': read('src/shells/chat.html').replace('<div id="log"></div>', '<div id="log"></div>\n<img src="https://tracker.example/p.gif" alt="">') }),
         row: '| the image from `tracker.example` | a remote fetch at load | ours |' },
@@ -118,21 +138,106 @@ export default async function (h) {
         edit: () => put({ '.github/workflows/ci.yml': read('.github/workflows/ci.yml') + '      - run: echo two\n' }),
         row: '| the `fixture-ci` step two | CI only | ours |' },
     ];
-    const addRow = (row) => put({ [GATE]: read(GATE) + row + '\n' });
-    for (const c of cases) {
-      git('checkout', '-q', '-B', 'case', base);
+    /* a FIX row goes into a section the same commit adds (the batch's own heading) */
+    const addRow = (row, heading = '## Session fix') => put({ [GATE]: read(GATE) + '\n' + heading + '\n\n| item | verb / key / sink / fetch / log? | verdict |\n|---|---|---|\n' + row + '\n' });
+    const breakFix = (c, from = base) => {
+      git('checkout', '-q', '-B', 'case', from);
       c.edit();
       const brk = commit('break: ' + c.id);
-      const rb = run(base, brk);
+      const rb = run(from, brk);
       const want = [[c.kind, c.token], ...(c.also || [])].map(([k, t]) => k + ' ' + t).sort();
       const got = rb.items.map((i) => i.kind + ' ' + i.token).sort();
-      ok(rb.code === 1 && JSON.stringify(got) === JSON.stringify(want) && rb.items.every((i) => i.row === 'MISSING'),
-        c.id + ' BREAK (no row): exit 1 and exactly ' + JSON.stringify(want) + ' MISSING — ' + show(rb));
+      ok(rb.code === 1 && JSON.stringify(got) === JSON.stringify(want) && rb.items.every((i) => i.row === 'MISSING') && rb.out.trimEnd().endsWith('\nGATE-DIFF FAIL'),
+        c.id + ' BREAK (no row): exit 1, exactly ' + JSON.stringify(want) + ' MISSING, last line GATE-DIFF FAIL — ' + show(rb));
+      if (!c.row) return brk;
       addRow(c.row);
       const fix = commit('fix: ' + c.id);
-      const rf2 = run(base, fix);
-      ok(rf2.code === 0 && rf2.items.length === want.length && rf2.items.every((i) => i.row === 'found'), c.id + ' FIX (a row names it): exit 0, every item found — ' + show(rf2));
-    }
+      const rf2 = run(from, fix);
+      ok(rf2.code === 0 && rf2.items.length === want.length && rf2.items.every((i) => i.row === 'found') && rf2.out.trimEnd().endsWith('\nGATE-DIFF OK'),
+        c.id + ' FIX (a row names it): exit 0, every item found, last line GATE-DIFF OK — ' + show(rf2));
+      return fix;
+    };
+    for (const c of cases) breakFix(c);
+
+    /* ── k14 · attributes cannot hide a file (`*.cs -diff`, `binary`, a NUL byte, the -diff icons.js of the base) ── */
+    git('checkout', '-q', '-B', 'attr', base);
+    put({ '.gitattributes': read('.gitattributes') + '*.cs -diff\nsrc/vendor/** binary\n', 'src/vendor/lib.js': 'export const v = 1;\n' });
+    const base2 = commit('attributes');
+    const r14 = run(base, base2);
+    ok(r14.code === 1 && r14.items.length === 1 && r14.items[0].kind === 'check-changed' && r14.items[0].token === '.gitattributes',
+      'k14 a .gitattributes change is check-changed — ' + show(r14));
+    breakFix({ id: 'k14a webview-setting in a `*.cs -diff` file', kind: 'webview-setting', token: 'AllowUniversalAccessFromFileURLs', edit: cases[0].edit,
+      row: cases[0].row }, base2);
+    breakFix({ id: 'k14b html-sink in a `binary` file', kind: 'html-sink', token: 'innerHTML',
+      edit: () => put({ 'src/vendor/lib.js': read('src/vendor/lib.js') + 'export function paint(el, t) { el.innerHTML = t; }\n' }),
+      row: '| `paint` of `src/vendor/lib.js` parses HTML | a sink | ours |' }, base2);
+    breakFix({ id: 'k14c fetch next to a NUL byte in a comment', kind: 'network-call', token: 'fetch',
+      edit: () => put({ 'src/bridge/native.js': read('src/bridge/native.js') + '/* a NUL \u0000 here */\nexport function nulPing() { return fetch("https://x.invalid"); }\n' }),
+      row: '| `nulPing` fetches one URL | a network call | ours |' }, base2);
+    breakFix({ id: 'k14d html-sink in the -diff icons.js', kind: 'html-sink', token: 'innerHTML',
+      edit: () => put({ 'src/components/icons.js': read('src/components/icons.js').replace('el.textContent = svg;', 'el.innerHTML = svg;') }),
+      row: '| `icon` parses the SVG text as HTML | a sink | ours |' }, base2);
+    breakFix({ id: 'k14e a nested .gitattributes', kind: 'check-changed', token: 'src/.gitattributes',
+      edit: () => put({ 'src/.gitattributes': '*.js binary\n' }), row: '| `src/.gitattributes` | attributes | ours |' });
+
+    /* ── k15 · only rows under a heading the same diff adds; API tokens name no site ── */
+    breakFix({ id: 'k15a an EDIT of an old row', kind: 'html-sink', token: 'innerHTML',
+      edit: () => put({ 'src/bridge/native.js': read('src/bridge/native.js').replace('el.textContent = msg;', 'el.innerHTML = msg;'),
+        [GATE]: read(GATE).replace('| old | No `innerHTML` in this page |', '| old | No `innerHTML` in this page but `renderMsg` |') }) });
+    breakFix({ id: 'k15b a row added to an OLD section', kind: 'html-sink', token: 'innerHTML',
+      edit: () => put({ 'src/bridge/native.js': read('src/bridge/native.js').replace('el.textContent = msg;', 'el.innerHTML = msg;'),
+        [GATE]: read(GATE) + '| `renderMsg` parses HTML | a sink | ours |\n' }) });
+    breakFix({ id: 'k15c the API token alone (`innerHTML`, `fetch`, `File.WriteAllText`)', kind: 'html-sink', token: 'innerHTML',
+      also: [['network-call', 'fetch'], ['file-write', 'File.WriteAllText']],
+      edit: () => { cases[5].edit(); cases[6].edit(); put({ 'src/bridge/native.js': read('src/bridge/native.js').replace('el.textContent = msg;', 'el.innerHTML = msg;') }); addRow('| it never uses `innerHTML` · one `fetch` · one `File.WriteAllText` | none | ours |'); } });
+
+    /* ── k16 · a type names a site only when the type is new at the merge base ── */
+    breakFix({ id: 'k16a a new partial file of an OLD type', kind: 'file-write', token: 'File.Delete',
+      edit: () => { put({ 'Spixi/Utils/StorePart.cs': 'using System.IO;\nnamespace Fx\n{\n    public static partial class Store\n    {\n        public static void dropIt(string p)\n        {\n            File.Delete(p);\n        }\n    }\n}\n' }); addRow('| the menu label of `Store` | text | ours |'); } });
+    breakFix({ id: 'k16b a NEW type named in a table row', kind: 'file-write', token: 'File.Delete',
+      edit: () => put({ 'Spixi/Utils/KeptStore.cs': 'using System.IO;\nnamespace Fx\n{\n    public static class KeptStore\n    {\n        public static void dropIt(string p)\n        {\n            File.Delete(p);\n        }\n    }\n}\n' }),
+      row: '| the store `KeptStore` deletes its own files | file deletes | ours |' });
+
+    /* ── k17 · qualified type names, FileInfo writes ── */
+    breakFix({ id: 'k17a `new System.IO.FileStream(…, FileMode.Create)`', kind: 'file-write', token: 'FileStream',
+      edit: () => put({ 'Spixi/Utils/Store.cs': read('Spixi/Utils/Store.cs').replace('System.Console.WriteLine(p);', 'using (var fs = new System.IO.FileStream(p, System.IO.FileMode.Create)) { }') }),
+      row: '| `saveIt` creates one file | a file write | ours |' });
+    breakFix({ id: 'k17b `new global::System.Net.Http.HttpClient()`', kind: 'network-call', token: 'HttpClient',
+      edit: () => put({ 'Spixi/Utils/Store.cs': read('Spixi/Utils/Store.cs').replace('System.Console.WriteLine(p);', 'var c = new global::System.Net.Http.HttpClient();') }),
+      row: '| `Store.cs:13` builds a client | a network client | ours |' });
+    breakFix({ id: 'k17c FileInfo `.CreateText()`', kind: 'file-write', token: 'FileSystemInfo.CreateText',
+      edit: () => put({ 'Spixi/Utils/Store.cs': read('Spixi/Utils/Store.cs').replace('System.Console.WriteLine(p);', 'new FileInfo(p).CreateText().Dispose();') }),
+      row: '| `saveIt` creates one text file | a file write | ours |' });
+
+    /* ── k18 · scope: an app file named like a test, a CSS import, the NIT shapes ── */
+    breakFix({ id: 'k18a Spixi/Utils/SpeedTest.cs ships', kind: 'file-write', token: 'File.Delete',
+      edit: () => put({ 'Spixi/Utils/SpeedTest.cs': 'using System.IO;\nnamespace Fx\n{\n    public static class SpeedTest\n    {\n        public static void clean(string p)\n        {\n            File.Delete(p);\n        }\n    }\n}\n' }),
+      row: '| `SpeedTest.clean` deletes its own file | a file delete | ours |' });
+    breakFix({ id: 'k18b a remote CSS @import', kind: 'network-call', token: 'fonts.example',
+      edit: () => put({ 'src/styles/extra.css': '/* @import url("https://commented.example/x.css"); */\n@import url("https://fonts.example/x.css");\n' }),
+      row: '| the stylesheet from `fonts.example` | a remote fetch | ours |' });
+    breakFix({ id: 'k18c `ImageSource.FromUri(new Uri("https://…"))`', kind: 'network-call', token: 'img.example', also: [['network-call', 'ImageSource.FromUri']],
+      edit: () => put({ 'Spixi/Utils/Store.cs': read('Spixi/Utils/Store.cs').replace('System.Console.WriteLine(p);', 'var s = ImageSource.FromUri(new Uri("https://img.example/a.png"));') }),
+      row: '| `saveIt` loads an image from `img.example` | a remote fetch | ours |' });
+    breakFix({ id: 'k18d JS `setAttribute("src", "https://…")`', kind: 'network-call', token: 'px.example',
+      edit: () => put({ 'src/bridge/native.js': read('src/bridge/native.js') + "export function pix(img) { img.setAttribute('src', 'https://px.example/a.gif'); }\n" }),
+      row: '| the pixel from `px.example` | a remote fetch | ours |' });
+
+    /* ── k19 · the paths the checks depend on; the smoke file is not one ── */
+    breakFix({ id: 'k19 package.json, scripts/lib, scripts/pins-qtools', kind: 'check-changed', token: 'package.json',
+      also: [['check-changed', 'scripts/lib/x.mjs'], ['check-changed', 'scripts/pins-qtools/x.mjs']],
+      edit: () => put({ 'package.json': '{"name":"fx"}\n', 'scripts/lib/x.mjs': 'export const x = 1;\n', 'scripts/pins-qtools/x.mjs': 'export default async function () {}\n', 'scripts/smoke-test.mjs': '// smoke\n' }),
+      row: '| `package.json`, `scripts/lib/x.mjs`, `scripts/pins-qtools/x.mjs` | tooling | ours |' });
+
+    /* ── k20 · run through a symlinked folder (a symlinked TMPDIR): the CLI still runs and ends in its verdict line ── */
+    const realDir = mkdtempSync(pj(tmpdir(), 'gatediff-real-'));
+    const linkDir = realDir + '-link';
+    try {
+      copyFileSync(script, pj(realDir, 'gate-diff.mjs'));
+      symlinkSync(realDir, linkDir, 'dir');
+      const r20 = spawnSync(process.execPath, [pj(linkDir, 'gate-diff.mjs'), '--root', fx, '--base', base, '--head', base], { encoding: 'utf8', env: ENV });
+      ok(r20.status === 0 && (r20.stdout || '').trimEnd().endsWith('GATE-DIFF OK'), 'k20 main guard: through a symlinked folder the CLI runs (exit 0, last line GATE-DIFF OK) — exit ' + r20.status + ' out ' + JSON.stringify((r20.stdout || '').slice(-40)));
+    } finally { rmSync(linkDir, { force: true }); rmSync(realDir, { recursive: true, force: true }); }
 
     /* ── k10 · no skip token ── */
     git('checkout', '-q', '-B', 'skip', base);

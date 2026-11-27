@@ -830,7 +830,9 @@
         }
       ],
       "payload": "ixian:chat | ixian:chat:*",
-      "marks": []
+      "marks": [
+        "money"
+      ]
     },
     "chatedit": {
       "senders": [
@@ -894,7 +896,9 @@
         }
       ],
       "payload": "ixian:chatreply:*:*",
-      "marks": []
+      "marks": [
+        "money"
+      ]
     },
     "checkAddress": {
       "senders": [

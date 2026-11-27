@@ -10,7 +10,7 @@ sits in the inline script of `src/shells/chat.html` / in `contacts-shell.js`, so
 it with `new Function` (a moved anchor turns a `QTOOLS extract` row red) · **via bubble**: the private function is reached through
 the exported `createMessageBubble`.
 
-Property ids: F format · L link rule · B bubble · R reply quote · A address / avatar · M money · P payment card · N file name · S shared /
+Property ids: G media gate · J jpeg · F format · L link rule · B bubble · R reply quote · A address / avatar · M money · P payment card · N file name · S shared /
 chat args · B64 bridge decode · H highlight. A held row (`QTOOLS-KNOWN`, contract I5) is listed under "Held" at the end.
 
 ## Tested
@@ -40,6 +40,9 @@ chat args · B64 bridge decode · H highlight. A held row (`QTOOLS-KNOWN`, contr
 | `parseSharedItems`, `sharedLinkHost` | `src/components/shared-items.js:81`, `:102` | C# wire rows carrying peer file names and links | rows keep a hex id, a known kind, a data-URI-only thumb, finite numbers; a host holds no `@ / \ ? #` or space (S1) | import |
 | `parseGroupArg`, `parseTransferArg` | `src/shells/chat.html:3022`, `:3289` | C# wire args (peer file group / transfer state) | equal a split-based oracle: ranges (index < count ≤ 10, pct ≤ 99), hex only, anything else `null` (S1) | extract |
 | `b64ToUtf8` | `src/bridge/native.js:45` | every bridge argument (peer text rides in it) | base64 of any UTF-8 text decodes to the text (a leading U+FEFF aside); any bytes give a well-formed string (B64) | import |
+| media gate `mediaUrlOf` → `normalizeMediaUrl`, `isAllowedMediaUrl`, `giphyDirectFromShare` (the media-autoload / IP-leak gate) | `src/shells/chat.html:2876-2965` (`mediaUrlOf :2933`) | peer (a message that is a lone URL) | a non-null result is https, no userinfo, no port, a single-label `*.tenor.com` / `*.giphy.com` host or `apps.spixi.io`, equal to its normalised form, and the host the text names is the host fetched (Giphy share → `i.giphy.com` only); a text with a space inside never matches (G1) | extract |
+| app-invite icon gate (`rawIcon` → `iconUrl`) | `src/shells/chat.html:3441-3450` | peer (invite icon URL) | `null`, a `data:image/` URI, or an http(s) URL only while media autoload is on (G1) | extract (the inline block, wrapped) |
+| `jpegSize` / `jpegSizeOf` | `src/components/typed-bubbles.js:1011`, `:1030` | peer (the photo preview a peer's file carries) | never throws; a JPEG built with APPn segments and any SOFn gives its exact width and height; anything else is `null` or positive integers ≤ 65535 (J1) | import |
 | search highlight `setHighlights`, `clearHighlights` | `src/components/highlight.js:17`, `:10` | peer text (DOM) + local query | the text of the root never changes; a highlight holds the query; clear leaves none (H1, on texts whose lower case keeps the length) | import |
 
 ## Listed, not tested
@@ -67,9 +70,10 @@ chat args · B64 bridge decode · H highlight. A held row (`QTOOLS-KNOWN`, contr
 | Id | Defect | Stored input | Where |
 |---|---|---|---|
 | L1-parse | the link rule links text that is not a URL; the button opens a target that does not parse | `http://a:b` (also `https://a.com:99999`, `http://%`) | `link-rule.js:33` (no `new URL` test before `out.push`) |
-| B2-64 | a link with a 64-char host and a path loses the last char of the host in its label (`….co…`) | `https://` + `a`×60 + `.com/x` | `message-bubble.js:112` (`label.slice(0, MAX - 1)` cuts into the host when `host.length === MAX`) |
+| B2-64 | a link with a 64-char host and a path hides the end of the host in its label (`….co…`; held check: the label must show the end of the host, so any fix turns it red) | `https://` + `a`×60 + `.com/x` | `message-bubble.js:112` (`label.slice(0, MAX - 1)` cuts into the host when `host.length === MAX`) |
 | H1-case-fold | the highlight marks the wrong characters where lower-casing changes the length | text `İb b`, query `b` → spans `" "` and `""` | `highlight.js:30-39` (indexes of the lower-cased copy are used on the original) |
 | S1-inf | `parseSharedItems` lets `Infinity` through as a size | `[["a1",1,"media","","1e999",1700000000,0,null,0]]` | `shared-items.js:91` (`Number(size) \|\| 0`) |
+| N1-upper | `fileKind` labels by the upper-cased extension: `ß` becomes `SS`, so the label passes 4 chars (cosmetic) | `x.comß` → `COMSS` | `typed-bubbles.js:698` (`ext.toUpperCase()`; the 3-char branch the same) |
 | M1-mangle | `sanitizeAmount` keeps the digits of any text (`1e5` → 15, `-5` → 5, `5 IXI` → 5); right for a keystroke filter, wrong for the QR seed | `1e5`, `-5`, `5 IXI` | `money.js:32-40` |
 
 Not held (no reachable peer path): `createMessageBubble` with a quote `kind` that is an Object prototype key (`constructor`, `__proto__`) writes

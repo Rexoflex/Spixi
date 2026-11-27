@@ -17,8 +17,15 @@
  *   typing + typingIndicators CHANGED (marks)                ← SingleChatPage's typing branch calls IxianHandler.addTransaction
  *                                                              (its test is the PREFIX `ixian:typing`, so both verbs pass it)
  *   an unlisted DYNAMIC emit                                 ← contact_details.html composes 'ixian:' + action + '::'
- *   a read error (exit 2 path)                               ← scripts/build-shells.mjs loses its SHELLS entries */
-import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+ *   a read error (exit 2 path)                               ← scripts/build-shells.mjs loses its SHELLS entries
+ *   NO difference (the test is still seen)                   ← WalletSentPage writes its viewexplorer test as a literal
+ *                                                              receiver, string.Compare == 0, Regex.IsMatch "^…$", or an
+ *                                                              instance helper `new ZzVerbs().isViewExplorer(url)`
+ *   zzhref / zzclick ADDED                                   ← wallet_sent.html gets `<a href="ixian:zzhref">` /
+ *                                                              `onclick="location.href='ixian:zzclick'"`
+ * Plus: the CLI run through a symlinked path still prints "bridge-contract: OK" (the main-module guard compares real paths). */
+import { readFileSync, writeFileSync, rmSync, mkdtempSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +44,15 @@ export const BREAKS = [
     want: ['viewexplorer2:added', 'viewexplorer:moved:handler file'] },
   { name: 'handler moved', file: CNEW, from: 'current_url.StartsWith("ixian:viewcontact:"', to: 'current_url.StartsWith("ixian:viewexplorer:"',
     want: ['viewcontact:moved:handler file', 'viewexplorer:moved:handler file'] },
+  /* the same test written another way: the contract must NOT change (the handler is still seen) */
+  { name: 'literal receiver', file: SENT, from: 'current_url.Equals("ixian:viewexplorer", StringComparison.Ordinal)', to: '"ixian:viewexplorer".Equals(current_url)', want: [] },
+  { name: 'string.Compare', file: SENT, from: 'current_url.Equals("ixian:viewexplorer", StringComparison.Ordinal)', to: 'string.Compare(current_url, "ixian:viewexplorer", StringComparison.Ordinal) == 0', want: [] },
+  { name: 'Regex.IsMatch', file: SENT, from: 'current_url.Equals("ixian:viewexplorer", StringComparison.Ordinal)', to: 'System.Text.RegularExpressions.Regex.IsMatch(current_url, "^ixian:viewexplorer$")', want: [] },
+  { name: 'instance helper', file: SENT, from: 'current_url.Equals("ixian:viewexplorer", StringComparison.Ordinal)', to: 'new ZzVerbs().isViewExplorer(current_url)',
+    also: { file: SENT, append: '\nnamespace SPIXI { class ZzVerbs { public bool isViewExplorer(string u) => u == "ixian:viewexplorer"; } }\n' }, want: [] },
+  /* verbs in markup */
+  { name: 'markup href', file: SENT_SRC, from: '</body>', to: '<a href="ixian:zzhref">x</a></body>', want: ['zzhref:added'] },
+  { name: 'markup onclick', file: SENT_SRC, from: '</body>', to: '<button onclick="location.href=\'ixian:zzclick\'">x</button></body>', want: ['zzclick:added'] },
   { name: 'marks', file: CHAT, from: 'else if (current_url.StartsWith("ixian:typing"))\n            {', to: 'else if (current_url.StartsWith("ixian:typing"))\n            {\n                IxianHandler.addTransaction(null, true);',
     want: ['typing:changed:marks', 'typingIndicators:changed:marks'] },
 ];
@@ -74,12 +90,13 @@ export default async function (h) {
     for (const b of BREAKS) {
       const p = join(dir, b.file);
       const orig = readFileSync(p, 'utf8');
-      const next = edit(orig, b.from, b.to);
+      let next = edit(orig, b.from, b.to);
+      if (next !== null && b.also) next += b.also.append;
       if (next === null) { ok(false, 'QTOOLS c-contract: break "' + b.name + '" — the anchor is not where the pin expects it in ' + b.file); continue; }
       writeFileSync(p, next);
       try {
         const got = shape(diff(committed, await generate(dir)));
-        ok(got.join(' ') === [...b.want].sort().join(' '), 'QTOOLS c-contract: break "' + b.name + '" is named exactly — want [' + [...b.want].sort().join(' ') + '] got [' + got.join(' ') + ']');
+        ok(got.join(' ') === [...b.want].sort().join(' '), 'QTOOLS c-contract: break "' + b.name + '" ' + (b.want.length ? 'is named exactly' : 'is still read as the same handler (no difference)') + ' — want [' + [...b.want].sort().join(' ') + '] got [' + got.join(' ') + ']');
         if (b.name === 'shell rename') {
           const run = spawnSync(process.execPath, [CLI, '--root', dir, '--check'], { encoding: 'utf8' });
           ok(run.status === 1 && /ADDED viewexplorer2\b/.test(run.stdout) && /MOVED viewexplorer \(senders/.test(run.stdout),
@@ -114,6 +131,13 @@ export default async function (h) {
   } finally {
     if (dir) rmSync(dir, { recursive: true, force: true });
   }
+  /* the CLI through a symlinked path still runs main (the guard compares real paths) */
+  const linkDir = mkdtempSync(join(tmpdir(), 'qtools-link-'));
+  try {
+    symlinkSync(CLI, join(linkDir, 'bc.mjs'));
+    const viaLink = spawnSync(process.execPath, [join(linkDir, 'bc.mjs'), '--root', root, '--check'], { encoding: 'utf8' });
+    ok(viaLink.status === 0 && /^bridge-contract: OK\b/m.test(viaLink.stdout), 'QTOOLS c-contract: run through a symlink, the CLI still checks and prints "bridge-contract: OK" — status ' + viaLink.status + ' ' + viaLink.stdout.trim().split('\n').pop());
+  } finally { rmSync(linkDir, { recursive: true, force: true }); }
   const cleanRun = await cleanRunP;
   ok(cleanRun.status === 0 && /OK/.test(cleanRun.out), 'QTOOLS c-contract: `bridge-contract.mjs --check` exits 0 on the tree — status ' + cleanRun.status + ' ' + cleanRun.out.trim().split('\n').pop());
   ok(Date.now() - t0 < 60000, 'QTOOLS c-contract: the module ran in ' + (Date.now() - t0) + ' ms');

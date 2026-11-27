@@ -100,6 +100,6 @@ None. 0 real, 0 needs BE.
 - CI scans the tree of the pushed commit, with the files this session adds (`scripts/quality/**`, the pins of
   `qtools`); this run scanned `ae7b8303` without them.
 - The weekly `schedule:` does not run yet: GitHub runs it only from the workflow copy on the DEFAULT branch, and the
-  default branch of Rexoflex/Spixi is `master`. Push / pull request to `redesign/frontend` and `workflow_dispatch` run.
+  default branch of Rexoflex/Spixi is `master`. Push / pull request to `redesign/frontend` run; a manual `workflow_dispatch` run also needs the file on `master` (GitHub's rule).
 - `actions: read` is not granted (public repository; the codeql-action README asks only `security-events: write`, plus
   `contents: read` for a private one). If the first upload fails reading the workflow run, that permission is the fix.

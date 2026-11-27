@@ -16,15 +16,20 @@
  * No dependency beyond axe-core: Chrome is driven over the DevTools protocol on Node's global WebSocket (Node >= 22.4).
  * Chrome: $CHROME_BIN, else google-chrome / google-chrome-stable / chromium / chromium-browser on PATH. It opens only
  * our own built files, so --no-sandbox is used (GitHub's ubuntu-24.04 runners block the user-namespace sandbox).
+ * NETWORK: Chrome is cut off from the network (a dead proxy 127.0.0.1:9 for every URL incl. loopback, every host name
+ * unresolvable, no component update, sync, pings or domain reliability); file:// pages need none. The DevTools port
+ * is the one thing that listens: Chrome binds it to 127.0.0.1 only. If Chrome dies after launch the scan stops at once:
+ * exit 2 when no page was scanned, else the partial report is written and marked INCOMPLETE.
  *
  * USAGE: node scripts/quality/a11y-scan.mjs [--out <report.json>] [--html-dir <dir>] [--only a.html,b.html]
  *          [--shots <dir>] [--page-timeout <s>] [--total-timeout <s>]
- *   --out            default /home/claude/scratch/f/a11y-report.json (the folder is created)
+ *   --out            default <os.tmpdir()>/a11y-report.json (the folder is created)
  *   --html-dir       default <repo>/Spixi/Resources/Raw/html (every *.html in it is scanned)
  *   --only           scan only these file names (a test of the scan itself)
  *   --shots          also write one PNG per page run to this folder
- *   --page-timeout   seconds per page run (load + feed + axe), default 30
- *   --total-timeout  seconds for the whole scan, default 1500
+ *   --page-timeout   seconds per page run (load + feed + axe, every DevTools call inside it included), default 30
+ *   --total-timeout  seconds for the whole scan, default 480: the limit is checked before each page run, so the scan
+ *                    ends within 480 + --page-timeout s, below the 600 s the CI runner gives a child step
  * Markdown summary on stdout; appended to $GITHUB_STEP_SUMMARY when that is set.
  * Exit 0 = the scan ran (violations or not), 2 = it could not run (no Chrome, no axe-core, no WebSocket, no shell,
  * Chrome did not start, or no page could be scanned). */
@@ -36,12 +41,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
-const outPath = resolve(arg('--out', '/home/claude/scratch/f/a11y-report.json'));
+const outPath = resolve(arg('--out', join(tmpdir(), 'a11y-report.json')));
 const htmlDir = resolve(arg('--html-dir', join(repo, 'Spixi/Resources/Raw/html')));
 const only = arg('--only', '') ? arg('--only', '').split(',').map((s) => s.trim()).filter(Boolean) : null;
 const shotsDir = arg('--shots', '') ? resolve(arg('--shots', '')) : null;
 const PAGE_MS = Math.max(5, Number(arg('--page-timeout', '30'))) * 1000;
-const TOTAL_MS = Math.max(30, Number(arg('--total-timeout', '1500'))) * 1000;
+const TOTAL_MS = Math.max(30, Number(arg('--total-timeout', '480'))) * 1000;
 
 const bail = (msg) => { console.error('a11y-scan: ' + msg); process.exit(2); };
 
@@ -148,8 +153,11 @@ process.on('exit', cleanup);
 for (const s of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(s, () => { cleanup(); process.exit(2); });
 
 async function launch() {
-  chrome = spawn(chromeBin, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile, '--no-sandbox', '--disable-gpu',
-    '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-background-networking',
+  chrome = spawn(chromeBin, ['--headless=new', '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1', '--user-data-dir=' + profile,
+    '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
+    '--proxy-server=127.0.0.1:9', '--proxy-bypass-list=<-loopback>', '--host-resolver-rules=MAP * ~NOTFOUND',
+    '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-pings', '--disable-domain-reliability',
+    '--disable-client-side-phishing-detection', '--disable-default-apps', '--metrics-recording-only',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', 'about:blank'],
   { stdio: ['ignore', 'ignore', 'pipe'] });
   const url = await withTimeout(new Promise((res, rej) => {
@@ -158,6 +166,7 @@ async function launch() {
     chrome.on('exit', (c) => rej(new Error('Chrome exited early (' + c + '): ' + buf.slice(-300))));
     chrome.on('error', rej);
   }), 30000, 'Chrome did not print its DevTools address');
+  chrome.on('exit', (c) => markDead('Chrome exited (' + c + ')'));
   ws = new WebSocket(url);
   await withTimeout(new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('DevTools WebSocket failed')); }), 15000, 'DevTools WebSocket open');
 }
@@ -173,18 +182,36 @@ function wire() {
       if (m.error) rej(new Error(m.error.message + ' (' + m.error.code + ')')); else res(m.result || {});
     } else if (m.method) for (const l of listeners.slice()) l(m);
   };
-  ws.onclose = () => { for (const { rej } of pending.values()) rej(new Error('DevTools connection closed')); pending.clear(); };
+  ws.onclose = () => markDead('the DevTools connection closed');
 }
+/* Chrome gone (its process exited or the socket closed): every waiting call fails at once and no later call is sent */
+let dead = '';
+const abortWaits = new Set();
+function markDead(why) {
+  if (dead) return;
+  dead = why;
+  for (const { rej } of pending.values()) rej(new Error(why));
+  pending.clear();
+  for (const a of [...abortWaits]) a(new Error(why));
+}
+/* every DevTools call and wait is bounded by the end of the page run it belongs to (pageEnd), not by a fresh limit */
+let pageEnd = 0;
+const budget = (ms) => (pageEnd ? Math.max(1, Math.min(ms, pageEnd - Date.now())) : ms);
 const send = (method, params = {}, sessionId, ms = PAGE_MS) => {
+  if (dead) return Promise.reject(new Error(dead));
   const id = nextId++;
   const p = new Promise((res, rej) => { pending.set(id, { res, rej }); ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })); });
-  return withTimeout(p, ms, method).finally(() => pending.delete(id));
+  return withTimeout(p, budget(ms), method).finally(() => pending.delete(id));
 };
 const waitEvent = (pred, ms, what) => new Promise((res, rej) => {
-  const t = setTimeout(() => { off(); rej(new Error('timeout after ' + ms + ' ms: ' + what)); }, ms);
+  const limit = budget(ms);
+  const t = setTimeout(() => { off(); rej(new Error('timeout after ' + limit + ' ms: ' + what)); }, limit);
+  const abort = (e) => { off(); clearTimeout(t); rej(e); };
   const l = (m) => { if (pred(m)) { off(); clearTimeout(t); res(m); } };
-  const off = () => { const i = listeners.indexOf(l); if (i > -1) listeners.splice(i, 1); };
+  const off = () => { const i = listeners.indexOf(l); if (i > -1) listeners.splice(i, 1); abortWaits.delete(abort); };
   listeners.push(l);
+  abortWaits.add(abort);
+  if (dead) abort(new Error(dead));
 });
 
 /* run inside the page: the feed, the theme check, then axe; every value comes back as a JSON string */
@@ -225,6 +252,7 @@ async function scanOne(file, theme, view) {
   const rec = { shell: file, state: stateOf(file), theme, view: view.name, width: view.width, height: view.height };
   const errors = [];
   let targetId = null, onEv = null;
+  pageEnd = Date.now() + PAGE_MS;
   try {
     targetId = (await send('Target.createTarget', { url: 'about:blank' })).targetId;
     const sid = (await send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
@@ -263,7 +291,8 @@ async function scanOne(file, theme, view) {
   } catch (e) { rec.error = String(e.message || e).slice(0, 300); }
   if (onEv) { const i = listeners.indexOf(onEv); if (i > -1) listeners.splice(i, 1); }
   rec.pageErrors = errors.slice(0, 5);
-  if (targetId) { try { await send('Target.closeTarget', { targetId }, undefined, 5000); } catch { /* the browser is killed at the end */ } }
+  pageEnd = 0;
+  if (targetId && !dead) { try { await send('Target.closeTarget', { targetId }, undefined, 5000); } catch { /* the browser is killed at the end */ } }
   return rec;
 }
 
@@ -293,7 +322,7 @@ function markdown(meta, runs, rules) {
   L.push('');
   L.push(meta.complete
     ? 'Scanned ' + meta.pagesOk + ' page runs (' + meta.shells + ' shells x light/dark x 390 x 844 phone and 1280 x 800 desktop) in ' + meta.seconds + ' s.'
-    : '**INCOMPLETE:** scanned ' + meta.pagesOk + ' of ' + meta.pagesPlanned + ' page runs; the rest failed or were not reached (see the ERROR cells and the notes).');
+    : '**INCOMPLETE:** scanned ' + meta.pagesOk + ' of ' + meta.pagesPlanned + ' page runs; the rest failed or were not reached' + (meta.stopped ? ' (stopped: ' + meta.stopped + ')' : '') + ' (see the ERROR cells and the notes).');
   L.push('');
   L.push('Cells are violating nodes by impact: critical/serious/moderate/minor. "inc" = nodes axe could not decide (not in the counts).');
   L.push('');
@@ -325,7 +354,7 @@ function markdown(meta, runs, rules) {
 /* ---- main ---- */
 const started = Date.now();
 const runs = [];
-let chromeVersion = '';
+let chromeVersion = '', stopped = '';
 try {
   await launch();
   wire();
@@ -333,9 +362,10 @@ try {
   mkdirSync(dirname(outPath), { recursive: true });
   if (shotsDir) mkdirSync(shotsDir, { recursive: true });
   outer: for (const f of shells) for (const view of VIEWS) for (const theme of THEMES) {
-    if (Date.now() - started > TOTAL_MS) { console.error('a11y-scan: the total limit of ' + TOTAL_MS / 1000 + ' s is reached; the rest is not scanned'); break outer; }
+    if (Date.now() - started > TOTAL_MS) { stopped = 'the total limit of ' + TOTAL_MS / 1000 + ' s was reached'; console.error('a11y-scan: ' + stopped + '; the rest is not scanned'); break outer; }
     const rec = await scanOne(f, theme, view);
     runs.push(rec);
+    if (dead) { stopped = dead; console.error('a11y-scan: ' + dead + '; the rest is not scanned'); break outer; }
     console.error('a11y-scan: ' + f + ' ' + theme + ' ' + view.name + ' ' + (rec.error ? 'ERROR ' + rec.error : cell(rec)));
   }
 } catch (e) {
@@ -350,7 +380,7 @@ const planned = shells.length * VIEWS.length * THEMES.length;
 const meta = {
   date: new Date().toISOString().slice(0, 10), axeVersion: (ok[0] && ok[0].axeVersion) || axePkg, chrome: chromeVersion, node: process.version,
   shells: shells.length, shellList: shells, themes: THEMES, views: VIEWS.map((v) => ({ name: v.name, width: v.width, height: v.height, mobile: v.mobile, ua: v.ua })),
-  pagesPlanned: planned, pagesOk: ok.length, complete: ok.length === planned, seconds: Math.round((Date.now() - started) / 1000), htmlDir,
+  pagesPlanned: planned, stopped, pagesOk: ok.length, complete: ok.length === planned, seconds: Math.round((Date.now() - started) / 1000), htmlDir,
 };
 const rules = byRule(ok);
 const report = { schema: 1, meta, states: Object.fromEntries(shells.map((f) => [f, stateOf(f)])),

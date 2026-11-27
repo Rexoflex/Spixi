@@ -22,46 +22,63 @@
  * with its reason, after a read against SECURITY.md § 1 — never by loosening a rule):
  *   ISO-1   the chat page (SingleChatPage) loads a document other than chat.html (a loadPage argument, literal or not)
  *   ISO-2   chat.html is loaded by a class other than the chat page
- *   ISO-3   the shell ↔ page map is not one to one outside chat: a loadPage argument that is not a literal, a shell file that
- *           is not built, a page that loads two shells, a shell that two pages load (that page's handler would answer verbs
- *           from a document written for another)
- *   ISO-4   a WebView content source outside its listed homes (SOURCES): untrusted content given to a trusted page, a trusted
- *           page given a source that is not its shell, or the mini-app page given a trusted shell (loadPage)
- *   ISO-5   the WebView markers moved: a XAML <WebView ClassId> that differs from MARKERS (the mini-app page loses
+ *   ISO-3   the shell ↔ page map is not one to one outside chat: a computed loadPage argument, a loaded file that is not an
+ *           output of the SHELLS table of scripts/build-shells.mjs (or is not built), a page that loads two shells, a shell
+ *           that two pages load, or the shared base loading a literal shell itself. A WRAPPER — a method whose parameter
+ *           goes straight into loadPage (`loadShell(w, f) { loadPage(w, f); }`) — is resolved one level: each call of it
+ *           with a literal is a load of the CALLER's page (so ISO-1 / ISO-2 see it); a wrapper called with a computed value,
+ *           or a wrapper of a wrapper, is a computed load (fails closed as ISO-3)
+ *   ISO-4   a web view document set outside its listed homes (SOURCES): `new Url/HtmlWebViewSource`, a `Source` /
+ *           `DefaultFile` / `HybridRoot` assignment on a web view (a receiver that is a XAML web view x:Name, a variable
+ *           declared with a web view type, or named webView / wv), `SetValue(…SourceProperty, …)`, a load call
+ *           (LOAD_CALLS: LoadDataWithBaseURL, LoadRequest, NavigateToString …), generatePage; any XAML `Source=` /
+ *           `<WebView.Source>` / Style Setter of those; or the mini-app page given a trusted shell (loadPage)
+ *   ISO-5   the WebView markers moved: a XAML web view whose ClassId differs from MARKERS (the mini-app page loses
  *           "miniapp", another page gains "miniapp" or the camera marker "scan"), or C# writes ClassId
- *   ISO-6   a WebView that is not one page's own: a page XAML with more than one <WebView>, a <WebView> in a XAML whose class
- *           is not a page, `new WebView(…)` in C#, or a platform web view built outside PLATFORM_VIEWS
+ *   ISO-6   a web view that is not one page's own MAUI WebView: a page XAML with more than one web view element, one in a
+ *           XAML whose class is not a page, a HybridWebView or a WebView subclass in XAML, or a web view built in C# (`new`
+ *           of WebView, HybridWebView, a class of the tree that derives from one, or a platform view) outside PLATFORM_VIEWS
  *   ISO-7   a chat-only verb (its only sender is chat.html, by the bridge contract) is tested by a page other than the chat
  *           page and the shared base (outside CHAT_ONLY_ELSEWHERE)
- *   ISO-8   a money or keys verb (the contract's marks of THAT handler branch) is answered in the shared base class or in the
- *           chat page, outside RISKY_IN_CHAT_OR_BASE — both are reachable from the chat WebView
- *   ISO-9   the mini-app page answers a verb, or a verb reaches a mark, outside MINIAPP_VERBS (SECURITY.md § 4 rule 4: the
- *           SpixiAppSdk surface only)
- *   ISO-10  a WebView setting in C# or XAML (SETTING_PROPS / SETTING_CALLS) whose (setting, file, value) is not a row of the
- *           census table in docs/security-handover-gate.md (the heading names CENSUS_HEADING)
+ *   ISO-8   a money or keys verb answered in the chat page, or a money, keys or PATH verb answered in the shared base (the
+ *           contract's marks of THAT handler branch), outside RISKY_IN_CHAT_OR_BASE — the base answers every WebView, the
+ *           chat one and the mini-app one too
+ *   ISO-9   the verb surface of untrusted content widened: the mini-app page answers a verb, or one of its verbs reaches a
+ *           mark, outside MINIAPP_VERBS (SECURITY.md § 4 rule 4: the SpixiAppSdk surface only); or the shared base answers a
+ *           verb outside BASE_VERBS (MiniAppPage.handleBridgeUrl calls onNavigatingGlobal first)
+ *   ISO-10  a WebView setting in C# or XAML (SETTING_PROPS / SETTING_CALLS; in XAML an attribute, a property element or a
+ *           Style Setter of a web view type) whose (setting, file, value) is not a row of the census table in
+ *           docs/security-handover-gate.md (the heading names CENSUS_HEADING)
  *   ISO-11  a census row whose site is gone (the gate doc tells the BE engineer about a setting the code no longer has)
- *   ISO-12  script run inside a WebView (EvaluateJavaScript*, ExecuteScript*, Eval, LoadUrl, PostWebMessage*) outside
- *           SCRIPT_HOMES — a new path that runs script in a WebView is how a JS bridge between panes would be built
+ *   ISO-12  script run inside a WebView (SCRIPT_CALLS: EvaluateJavaScript*, ExecuteScript*, Eval, LoadUrl, PostWebMessage*,
+ *           CallDevToolsProtocolMethodAsync, CallAsyncJavaScript, AddDocumentStartJavaScript, InvokeJavaScriptAsync …)
+ *           outside SCRIPT_HOMES — a new path that runs script in a WebView is how a JS bridge between panes would be built
  *   ISO-13  a name of the REJECTED hosted-pane design (`executeUiCommandInPane`, `ixian:pane:`) in C#, JS or a shell
  *   ISO-14  a shell composes another document into its own (iframe / frame / object / embed / portal / webview / srcdoc),
- *           in markup or in a JS string, over src/shells, the built shells, the bundle sources and the built bundle. A
- *           shell that the HTML walker refuses for such an element is ISO-14 at once, and the other rules do not run
- *   ISO-15  a built shell (Spixi/Resources/Raw/html) or the built bundle emits a verb set that differs from its source — the
- *           contract is made from src, so what ships must be what was read
+ *           in markup or in a JS string (a tag, or the argument of createElement), over src/shells, the built shells, the
+ *           bundle sources and the built bundle. A shell that the HTML walker refuses for such an element is ISO-14 at
+ *           once, and the other rules do not run
+ *   ISO-15  a built shell (Spixi/Resources/Raw/html) or the built bundle emits a verb its source does not, or the other way
+ *           round — the contract is made from src, so what ships must be what was read
  *
  * WHAT IT CANNOT SEE. Everything lib-csharp.mjs and bridge-contract.mjs list (no binding: calls by name; no field taint; a
- * verb composed at run time; Ixian-Core bodies). Runtime navigation the C# builds from data (a WebView pointed at a URL
- * made at run time inside a listed home). A setting set through a helper this list does not name, through reflection, or
- * through a key-value string (`SetValueForKey` IS named; a plain `SetValue` is not). Script injected by a platform default
- * the code does not call. Two WebViews in one OS window that share a process or a storage partition (that is platform
- * behaviour: rows F-23 / O-03 of the gate doc). Whether the JS of one pane can reach another at run time. The settings
- * census matches setting + file + value, so a second identical site in the same file is covered by the same row. It guards
- * against mistakes, not against an author who hides code.
+ * verb composed at run time; a verb test through a dictionary key; Ixian-Core bodies; the listed unparsable files).
+ * Runtime navigation the C# builds from data (a WebView pointed at a URL made at run time inside a listed home). A wrapper
+ * of loadPage more than one level deep is not resolved (it is reported as computed, so it fails closed). A Source set on a
+ * receiver whose web view type the file does not declare (a field of another class, a cast, a property chain) and whose
+ * name is not a XAML x:Name or webView / wv. A web view type written only as `Android.Webkit.WebView` in a base list, or
+ * through a `using` alias. A setting set through a helper this list does not name, through reflection, or through a
+ * key-value string (`SetValueForKey` IS named; a plain `SetValue` is not, except for a SourceProperty / ClassIdProperty).
+ * XAML set from a ResourceDictionary in another file than the Style's (the Setter is read where it is written). Script
+ * injected by a platform default the code does not call. Two WebViews in one OS window that share a process or a storage
+ * partition (platform behaviour: rows F-23 / O-03 of the gate doc). Whether the JS of one pane can reach another at run
+ * time. The settings census matches setting + file + value, so a second identical site in the same file is covered by the
+ * same row. It guards against MISTAKES, not against an author who hides code.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL, fileURLToPath } from 'node:url';
-import { ReadError, read, listFiles, STRING_TYPES, strValue, memberOf, memberName, typeName, callee, argNodes, norm, desc, perTree } from './lib-csharp.mjs';
+import { fileURLToPath } from 'node:url';
+import { ReadError, read, listFiles, STRING_TYPES, strValue, memberOf, memberName, typeName, callee, argNodes, norm, desc, perTree, params, idents } from './lib-csharp.mjs';
 import { analyze, inlineFacts, lexJs, jsFacts, shellMap, BASE_PAGE, bundleFiles, CONTRACT_FILE } from './bridge-contract.mjs';
 import { walkHtml } from '../lib/lean-strip.mjs';
 import { createHash } from 'node:crypto';
@@ -91,7 +108,13 @@ export const SOURCES = [
   { file: 'Spixi/Platforms/Android/WebViewRenderer.cs', at: 'SpixiWebViewClient.OnPageFinished', what: 'new UrlWebViewSource', n: 1, reason: 'event arguments for MAUI Navigated, not a load' },
   { file: 'Spixi/Platforms/Android/WebViewRenderer.cs', at: 'SpixiWebViewClient.ShouldOverrideUrlLoading', what: 'new UrlWebViewSource', n: 1, reason: 'event arguments for MAUI Navigating, not a load' },
   { file: 'Spixi/Platforms/Android/WebViewRenderer.cs', at: 'SpixiWebviewRenderer2.SendNavigatingCanceled', what: 'new UrlWebViewSource', n: 1, reason: 'event arguments for MAUI Navigating, not a load' },
+  { file: 'Spixi/Platforms/Android/WebViewRenderer.cs', at: 'SpixiWebviewRenderer2.LoadHtml', what: 'LoadDataWithBaseURL|Control', n: 1, reason: 'the Android half of an HtmlWebViewSource (generatePage / generateFallbackPage) on the renderer\'s own control' },
 ];
+/** a call that puts a document into a web view (ISO-4 counts it as a source) */
+const LOAD_CALLS = new Set(['LoadDataWithBaseURL', 'LoadData', 'NavigateToString', 'Navigate', 'LoadHtmlString', 'LoadRequest', 'LoadFileUrl',
+  'LoadSimulatedRequest', 'NavigateWithWebResourceRequest']);
+/** a XAML attribute / property element / Setter that sets a web view's document (ISO-4: none is listed) */
+const XAML_SOURCE_PROPS = new Set(['Source', 'DefaultFile', 'HybridRoot']);
 
 /** ISO-5: the XAML WebView markers (file → ClassId); every other <WebView> carries none */
 export const MARKERS = {
@@ -105,6 +128,8 @@ export const PLATFORM_VIEWS = [
   { file: 'Spixi/Platforms/iOS/iOSWebViewHandler.cs', at: 'iOSWebViewHandler.createIsolatedMiniAppView', what: 'MauiWKWebView', n: 1, reason: 'the mini-app WebView with its own non-persistent data store (row F-23)' },
 ];
 const PLATFORM_VIEW_RE = /(^|\.)(WebView|WKWebView|MauiWKWebView|SpixiWebview|WebView2|MauiWebView|CoreWebView2)$/;
+/** the MAUI web view types; a class of the tree whose base is one of them (by its written name) is one too */
+const MAUI_WEBVIEW_BASES = new Set(['WebView', 'Microsoft.Maui.Controls.WebView', 'HybridWebView', 'Microsoft.Maui.Controls.HybridWebView']);
 
 /** ISO-7: a chat-only verb that another page tests, and why that is not a route from chat into that page */
 export const CHAT_ONLY_ELSEWHERE = [
@@ -112,8 +137,10 @@ export const CHAT_ONLY_ELSEWHERE = [
   { verb: 'callback', cls: 'CallPage', reason: 'CallPage tests the PREFIX `ixian:call` and hands the URL to onCallControl, which acts only on its own call* verbs; call.html never sends `callback`, and the chat WebView cannot reach CallPage\'s handler' },
 ];
 
-/** ISO-8: a money / keys verb answered in the chat page or the shared base, with its reason */
+/** ISO-8: a money / keys verb answered in the chat page, or a money / keys / path verb answered in the shared base, with its reason */
 export const RISKY_IN_CHAT_OR_BASE = [
+  { verb: 'chat', cls: 'SingleChatPage', mark: 'money', reason: 'SingleChatPage.onSend, bot rooms with a price: `new Transaction(…)` (Ixian-Core signs in the constructor) ONLY to read amount + fee against the balance; the transaction is never added, sent or kept (legacy: the same block at 0e85a4b8)' },
+  { verb: 'chatreply', cls: 'SingleChatPage', mark: 'money', reason: 'the same onSend path (a reply is a chat message): the bot-room price check builds a Transaction that is never sent' },
   { verb: 'contextAction', cls: 'SingleChatPage', mark: 'money', reason: 'the chat tip (`contextAction:tip:`): legacy, SECURITY.md § 3 row "Chat tip" and gap 5.1; reaches prepareTransactionFrom / addTransaction' },
   { verb: 'feeQuery', cls: 'SingleChatPage', mark: 'money', reason: 'SPayments.handleFeeQuery: a fee estimate builds a transaction it never signs or sends (Node.calculateTransactionFee → prepareTransactionFrom)' },
   { verb: 'payRequest', cls: 'SingleChatPage', mark: 'money', reason: 'SPayments.handlePayRequest: a PROPOSAL — C# re-validates and shows the NATIVE confirm before signing (gate doc batch #522–#529)' },
@@ -131,6 +158,20 @@ export const MINIAPP_VERBS = [
   { verb: 'setStorageData', marks: [], reason: 'the app\'s own storage table (write)' },
 ];
 
+/** ISO-9: the verbs the SHARED BASE answers — SpixiContentPage.onNavigatingGlobal / webViewNavigating run for every page, and
+ *  MiniAppPage.handleBridgeUrl calls onNavigatingGlobal first, so each of these is reachable from the mini-app WebView too */
+export const BASE_VERBS = [
+  { verb: 'appAccept', reason: 'accept an incoming mini-app session invite; onAppAccept refuses a surface that receives no call / app state' },
+  { verb: 'appReject', reason: 'reject that invite (the same refusal)' },
+  { verb: 'cdping', reason: 'gated on hasGeneratedContent (false for the mini-app WebView): a digit token is echoed as cdpong' },
+  { verb: 'copytext', reason: 'gated on hasGeneratedContent: the native clipboard write of the shells (#1037)' },
+  { verb: 'hangUp', reason: 'gated on acceptsCallPushes: a surface that receives no call state cannot end a call' },
+  { verb: 'haptic', reason: 'gated on hasGeneratedContent and the foreground: a fixed haptic kind' },
+  { verb: 'moment', reason: 'gated on hasGeneratedContent and five page types (SMoments.handleVerb)' },
+  { verb: 'onload', reason: 'webViewNavigating: the document-ready signal of every page' },
+  { verb: 'painted', reason: 'gated on hasGeneratedContent: the present-on-paint latch (gate doc Session O)' },
+];
+
 /** ISO-12: where script may run inside a WebView. what = method | receiver */
 export const SCRIPT_HOMES = [
   { file: 'Spixi/Utils/SpixiContentPage.cs', at: 'SpixiContentPage.evaluateJavascript', what: 'EvaluateJavaScriptAsync|_webView', n: 1, reason: 'the push transport (Utils.sendUiCommand) into THIS page\'s own WebView' },
@@ -142,9 +183,12 @@ export const SCRIPT_HOMES = [
   { file: 'Spixi/Platforms/Android/WebViewRenderer.cs', at: 'SpixiWebviewRenderer2.LoadUrl', what: 'LoadUrl|Control', n: 1, reason: 'the same, on the native control' },
   { file: 'Spixi/Platforms/iOS/iOSWebViewHandler.cs', at: 'SecureNavigationDelegate.forwardToConsole', what: 'EvaluateJavaScript|webView', n: 1, reason: 'one fixed-format console.error line into the same WebView' },
   { file: 'Spixi/Platforms/iOS/iOSWebViewHandler.cs', at: 'MediaCaptureUIDelegate.forward', what: 'EvaluateJavaScript|webView', n: 1, reason: 'one fixed-format console.error line into the same WebView' },
+  { file: 'Spixi/Utils/SpixiContentPage.cs', at: 'SpixiContentPage.p1HookConsole', what: 'CallDevToolsProtocolMethodAsync|core', n: 2, reason: '`#if SPIXI_DEV_COEXIST`, Windows, not the mini app: Runtime.enable + a call-stack size for the [P1] console mirror (TEMPORARY, retired with the [P1] set)' },
 ];
 const SCRIPT_CALLS = new Set(['EvaluateJavaScriptAsync', 'EvaluateJavascript', 'EvaluateJavaScript', 'ExecuteScriptAsync', 'ExecuteScript',
-  'Eval', 'LoadUrl', 'PostWebMessageAsString', 'PostWebMessageAsJson', 'InjectJavaScript', 'EvaluateJavaScriptAsyncInFrame']);
+  'Eval', 'LoadUrl', 'PostWebMessageAsString', 'PostWebMessageAsJson', 'InjectJavaScript', 'EvaluateJavaScriptAsyncInFrame',
+  'CallDevToolsProtocolMethodAsync', 'CallDevToolsProtocolMethodForSessionAsync', 'CallAsyncJavaScript', 'CallAsyncJavaScriptAsync',
+  'ExecuteScriptWithResultAsync', 'AddDocumentStartJavaScript', 'AddDocumentStartJavaScriptAsync', 'InvokeJavaScriptAsync']);
 
 /* ISO-10: the WebView setting names (Android WebSettings / CookieManager, WKWebViewConfiguration / WKPreferences /
  * WKWebpagePreferences / WKWebView, CoreWebView2Settings / CoreWebView2, MAUI WebView and its platform-specifics) */
@@ -170,7 +214,9 @@ export const SETTING_CALLS = new Set(('SetSupportMultipleWindows SetSupportZoom 
   'SetEnableZoomControls SetDisplayZoomControls SetIsJavaScriptAlertEnabled SetExecutionMode SetJavaScriptEnabled ' +
   'SetAllowFileAccess SetAllowFileAccessFromFileURLs SetAllowUniversalAccessFromFileURLs SetAllowContentAccess ' +
   'SetDomStorageEnabled SetDatabaseEnabled SetMediaPlaybackRequiresUserGesture SetJavaScriptCanOpenWindowsAutomatically ' +
-  'SetSafeBrowsingEnabled SetBlockNetworkLoads SetBlockNetworkImage SetAllowUniversalAccessFromFileUrls SetAllowFileAccessFromFileUrls').split(' '));
+  'SetSafeBrowsingEnabled SetBlockNetworkLoads SetBlockNetworkImage SetAllowUniversalAccessFromFileUrls SetAllowFileAccessFromFileUrls ' +
+  'EnableZoomControls DisplayZoomControls SetAlgorithmicDarkeningAllowed SetForceDark SetForceDarkStrategy AddContentRuleList ' +
+  'RemoveContentRuleList RemoveAllContentRuleLists SetDownloadListener').split(' '));
 
 export const REJECTED_NAMES = ['executeUiCommandInPane'];
 export const REJECTED_PREFIX = 'ixian:pane:';
@@ -226,27 +272,45 @@ export function readCensus(root) {
   return rows;
 }
 
-/** XAML: the <WebView> elements of every .xaml (comments removed), with their attributes and the file's x:Class */
-function readXaml(root) {
+/** XAML (comments removed): the web view elements (any of `types`, with or without a namespace prefix; `<X.Prop>` is a
+ *  property element, not a web view), their attributes, the x:Class, the settings and the document sources written as an
+ *  attribute, a property element or a Style Setter */
+function readXaml(root, types) {
   const out = [];
+  const T = [...types].map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const elRe = new RegExp('<(?:\\w+:)?(' + T + ')\\b(?![.\\w])((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>', 'g');
+  const propRe = new RegExp('<(?:\\w+:)?(?:' + T + ')\\.(\\w+)\\b[^>]*>([\\s\\S]*?)</(?:\\w+:)?(?:' + T + ')\\.\\1\\s*>', 'g');
+  const isType = (q) => types.has(String(q).split(/[.:]/).pop());
   for (const rel of listFiles(root, 'Spixi', (n) => n.endsWith('.xaml'))) {
     const raw = read(root, rel);
     const text = raw.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
     const cls = (/\bx:Class\s*=\s*"([^"]+)"/.exec(text) || [])[1] || '';
-    const views = [];
-    for (const m of text.matchAll(/<(?:\w+:)?WebView\b([^>]*)>/g)) {
+    const views = [], settings = [], sources = [];
+    const take = (prop, value, line, how) => {
+      const local = prop.split(/[.:]/).pop();
+      if (SETTING_PROPS.has(local) || SETTING_CALLS.has(local)) settings.push({ setting: local, file: rel, value: norm(value), line });
+      if (XAML_SOURCE_PROPS.has(local)) sources.push({ file: rel, line, text: how + ' ' + local + '="' + norm(value).slice(0, 80) + '"' });
+    };
+    for (const m of text.matchAll(elRe)) {
       const attrs = {};
-      for (const a of m[1].matchAll(/([\w:.]+)\s*=\s*"([^"]*)"/g)) attrs[a[1]] = a[2];
-      views.push({ attrs, line: lineAt(text, m.index) });
+      const line = lineAt(text, m.index);
+      for (const a of m[2].matchAll(/([\w:.]+)\s*=\s*"([^"]*)"/g)) { attrs[a[1]] = a[2]; take(a[1], a[2], line, 'the attribute'); }
+      views.push({ type: m[1], attrs, line });
     }
-    const settings = [];
-    for (const m of text.matchAll(/<(?:\w+:)?WebView\b([^>]*)>/g)) {
-      for (const a of m[1].matchAll(/([\w:.]+)\s*=\s*"([^"]*)"/g)) {
-        const local = a[1].split(/[.:]/).pop();
-        if (SETTING_PROPS.has(local) || SETTING_CALLS.has(local)) settings.push({ setting: local, file: rel, value: norm(a[2]), line: lineAt(text, m.index) });
+    for (const m of text.matchAll(propRe)) take(m[1], m[2].replace(/<[^>]*>/g, ' '), lineAt(text, m.index), 'the property element');
+    for (const m of text.matchAll(/<(?:\w+:)?Setter\b([^>]*)>/g)) {
+      const prop = (/\bProperty\s*=\s*"([^"]*)"/.exec(m[1]) || [])[1];
+      if (!prop) continue;
+      const value = (/\bValue\s*=\s*"([^"]*)"/.exec(m[1]) || [])[1] || '';
+      let target = prop.includes('.') ? prop.slice(0, prop.lastIndexOf('.')) : '';
+      if (!target) {
+        const before = text.slice(0, m.index);
+        const st = before.lastIndexOf('<Style');
+        if (st >= 0 && before.indexOf('</Style>', st) < 0) target = (/\bTargetType\s*=\s*"([^"]*)"/.exec(text.slice(st, text.indexOf('>', st))) || [])[1] || '';
       }
+      if (target && isType(target)) take(prop, value, lineAt(text, m.index), 'the Style Setter');
     }
-    out.push({ rel, cls: cls.split('.').pop(), views, settings });
+    out.push({ rel, cls: cls.split('.').pop(), views, settings, sources });
   }
   return out;
 }
@@ -254,23 +318,30 @@ function readXaml(root) {
 /** what one C# file holds for the rules (depends on that file's content only, so it is cached per parsed tree) */
 function fileFacts(f) {
   const r = f.tree.rootNode;
-  const o = { loads: [], sources: [], scripts: [], settings: [], markerWrites: [], rejected: [], platformViews: [], newWebViews: [] };
+  const o = { loads: [], sources: [], scripts: [], settings: [], markerWrites: [], rejected: [], news: [], sourceSets: [], typed: [] };
   for (const inv of desc(r, 'invocation_expression')) {
     const c = callee(inv);
-    const watched = c.name === 'loadPage' || c.name === 'generatePage' || SCRIPT_CALLS.has(c.name) || SETTING_CALLS.has(c.name) || c.name === 'SetValue' || c.name === 'SetBinding';
+    const watched = c.name === 'loadPage' || c.name === 'generatePage' || SCRIPT_CALLS.has(c.name) || SETTING_CALLS.has(c.name) || LOAD_CALLS.has(c.name) || c.name === 'SetValue' || c.name === 'SetBinding';
     if (!watched) continue;
     const args = argNodes(inv);
-    if (c.name === 'loadPage') o.loads.push({ line: ln(inv), cls: typeName(memberOf(inv).type), at: where(inv), arg: args[1] ? firstLit(args[1]) : null, argText: args[1] ? norm(args[1].text) : '' });
+    if (c.name === 'loadPage') {
+      const { member } = memberOf(inv);
+      const arg = args[1] ? firstLit(args[1]) : null;
+      let param = -1;
+      if (arg === null && args[1] && member && /^[A-Za-z_]\w*$/.test(args[1].text.trim()) && (member.type === 'method_declaration' || member.type === 'constructor_declaration')) param = params(member).names.indexOf(args[1].text.trim());
+      o.loads.push({ line: ln(inv), cls: typeName(memberOf(inv).type), at: where(inv), member: member ? memberName(member) : '', arg, argText: args[1] ? norm(args[1].text) : '', param });
+    }
     if (c.name === 'generatePage') o.sources.push({ line: ln(inv), at: where(inv), what: 'generatePage(' + norm(args.map((a) => a.text).join(', ')) + ')' });
+    if (LOAD_CALLS.has(c.name)) o.sources.push({ line: ln(inv), at: where(inv), what: c.name + '|' + norm(c.recv) });
     if (SCRIPT_CALLS.has(c.name)) o.scripts.push({ line: ln(inv), at: where(inv), what: c.name + '|' + norm(c.recv) });
     if (SETTING_CALLS.has(c.name)) o.settings.push({ setting: c.name, value: norm(args.map((a) => a.text).join(', ')), line: ln(inv) });
     if ((c.name === 'SetValue' || c.name === 'SetBinding') && /ClassIdProperty/.test(inv.text)) o.markerWrites.push({ line: ln(inv), text: norm(inv.text) });
+    if ((c.name === 'SetValue' || c.name === 'SetBinding') && /\b(Source|DefaultFile|HybridRoot)Property\b/.test(args[0] ? args[0].text : '')) o.sources.push({ line: ln(inv), at: where(inv), what: c.name + '(' + norm(args[0].text) + ')' });
   }
   for (const n of desc(r, 'object_creation_expression')) {
     const t = norm((n.childForFieldName('type') || n).text);
     if (/(^|\.)(Url|Html)WebViewSource$/.test(t)) o.sources.push({ line: ln(n), at: where(n), what: 'new ' + t.split('.').pop() });
-    if (/^(global::)?(Microsoft\.Maui\.Controls\.)?WebView$/.test(t)) o.newWebViews.push({ line: ln(n), at: where(n), type: t });
-    else if (PLATFORM_VIEW_RE.test(t)) o.platformViews.push({ line: ln(n), at: where(n), what: t.split('.').pop() });
+    o.news.push({ line: ln(n), at: where(n), full: t.replace(/<.*$/, '').replace(/^global::/, ''), type: (t.replace(/<.*$/, '').split('.').pop() || '') });
   }
   for (const a of desc(r, 'assignment_expression')) {
     const l = a.childForFieldName('left');
@@ -278,12 +349,20 @@ function fileFacts(f) {
     let name = '', recv = '';
     if (l.type === 'member_access_expression') { name = (l.childForFieldName('name') || l).text; recv = (l.childForFieldName('expression') || {}).text || ''; }
     else if (a.parent && a.parent.type === 'initializer_expression') name = l.text;
-    if (name !== 'Source' && name !== 'ClassId' && !SETTING_PROPS.has(name)) continue;
+    if (!XAML_SOURCE_PROPS.has(name) && name !== 'ClassId' && !SETTING_PROPS.has(name)) continue;
     const rt = a.childForFieldName('right');
     if (!rt) continue;
-    if (name === 'Source' && /web_?view|^wv$/i.test(recv.split('.').pop() || '')) o.sources.push({ line: ln(a), at: where(a), what: 'Source = ' + norm(rt.text) });
+    if (XAML_SOURCE_PROPS.has(name)) o.sourceSets.push({ line: ln(a), at: where(a), recv: idents(recv).pop() || '', what: name + ' = ' + norm(rt.text), init: l.type === 'identifier' });
     if (name === 'ClassId') o.markerWrites.push({ line: ln(a), text: norm(a.text) });
     if (SETTING_PROPS.has(name)) o.settings.push({ setting: name, value: norm(rt.text), line: ln(a) });
+  }
+  for (const d of desc(r, ['variable_declaration', 'parameter', 'property_declaration'])) {
+    const ty = d.childForFieldName('type');
+    if (!ty) continue;
+    const tn = (norm(ty.text).replace(/<.*$/, '').replace(/\?$/, '').split('.').pop()) || '';
+    if (!/^[A-Z]/.test(tn)) continue;
+    if (d.type === 'variable_declaration') { for (const v of d.namedChildren.filter((c) => c.type === 'variable_declarator')) { const id = v.namedChildren.find((c) => c.type === 'identifier'); if (id) o.typed.push({ type: tn, name: id.text }); } }
+    else { const id = d.childForFieldName('name'); if (id) o.typed.push({ type: tn, name: id.text }); }
   }
   if (REJECTED_NAMES.some((w) => f.src.includes(w)) || f.src.includes(REJECTED_PREFIX)) {
     for (const n of r.descendantsOfType(['identifier', ...STRING_TYPES])) {
@@ -387,7 +466,7 @@ export async function check(root) {
      * below reads the shells through it — so such a shell is reported as ISO-14 here and the rest does not run */
     const refused = embedRefusals(root);
     if (refused.length) { for (const r of refused) F('ISO-14', r.file, r.line, r.text); return { ok: false, findings, seen: { refusedShells: refused.length } }; }
-    const an = await analyze(root, { guardTokens: [...SETTING_PROPS, ...SETTING_CALLS, ...SCRIPT_CALLS, ...REJECTED_NAMES, 'loadPage', 'generatePage', 'WebViewSource', 'ClassId'] });
+    const an = await analyze(root, { guardTokens: [...SETTING_PROPS, ...SETTING_CALLS, ...SCRIPT_CALLS, ...LOAD_CALLS, ...REJECTED_NAMES, 'loadPage', 'generatePage', 'WebViewSource', 'HybridWebView', 'ClassId'] });
     const { model, verbs, js } = an;
     for (const c of [BASE_PAGE, CHAT_PAGE, MINIAPP_PAGE]) if (!model.classes.has(c)) throw new ReadError('class ' + c + ' not found in Spixi/**.cs');
     const isPage = (c) => c !== BASE_PAGE && model.isA(c, BASE_PAGE);
@@ -395,26 +474,67 @@ export async function check(root) {
     seen.csFiles = model.files.length;
     seen.pages = pages.length;
 
+    /* the web view types: MAUI's two, and every class of the tree whose base is one of them (by its written name) */
+    const webTypes = new Set(['WebView', 'HybridWebView']);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const [name, decls] of model.classes) {
+        if (webTypes.has(name)) continue;
+        if (decls.some((d) => d.baseFull.some((b) => MAUI_WEBVIEW_BASES.has(b) || webTypes.has(b)))) { webTypes.add(name); grew = true; }
+      }
+    }
+    const xaml = readXaml(root, webTypes);
+    const xamlViewNames = new Set();
+    for (const x of xaml) for (const v of x.views) if (v.attrs['x:Name']) xamlViewNames.add(v.attrs['x:Name']);
+
     /* ── ISO-1 … ISO-4: loads and sources ── */
-    const loads = [], sources = [], platformViews = [], scripts = [], settings = [], markerWrites = [], rejected = [];
+    const loads = [], sources = [], platformViews = [], scripts = [], settings = [], markerWrites = [], rejected = [], wrappers = [];
+    const facts = [];
     for (const f of model.files) {
       const x = perTree(f.tree, 'isolation-facts', () => fileFacts(f));
+      facts.push({ f, x });
       const add = (list, items) => { for (const it of items) list.push({ file: f.rel, ...it }); };
-      add(loads, x.loads); add(sources, x.sources); add(scripts, x.scripts); add(settings, x.settings);
-      add(markerWrites, x.markerWrites); add(rejected, x.rejected); add(platformViews, x.platformViews);
-      for (const n of x.newWebViews) F('ISO-6', f.rel, n.line, '`new ' + n.type + '(…)` in ' + n.at + ' — a WebView built in code is not one page XAML\'s own');
+      add(sources, x.sources); add(scripts, x.scripts); add(settings, x.settings); add(markerWrites, x.markerWrites); add(rejected, x.rejected);
+      for (const l of x.loads) (l.arg === null && l.param >= 0 ? wrappers : loads).push({ file: f.rel, ...l });
+      const webNames = new Set([...xamlViewNames, ...x.typed.filter((t) => webTypes.has(t.type)).map((t) => t.name)]);
+      for (const ss of x.sourceSets) {
+        if (ss.init || webNames.has(ss.recv) || /web_?view|^wv$/i.test(ss.recv)) sources.push({ file: f.rel, line: ss.line, at: ss.at, what: ss.what });
+      }
+      for (const n of x.news) {
+        if (webTypes.has(n.type) && !/^Android\.Webkit\./.test(n.full)) platformViews.push({ file: f.rel, line: n.line, at: n.at, what: n.type });
+        else if (PLATFORM_VIEW_RE.test(n.full)) platformViews.push({ file: f.rel, line: n.line, at: n.at, what: n.type });
+      }
+    }
+    /* a wrapper: a method whose parameter flows into loadPage — each call of it with a literal at that position is a load
+     * of the CALLER's page (one level; a wrapper called with a computed value is a computed load, ISO-3) */
+    for (const w of wrappers) {
+      for (const { f } of facts) {
+        if (!f.src.includes(w.member)) continue;
+        for (const inv of desc(f.tree.rootNode, 'invocation_expression')) {
+          const c = callee(inv);
+          if (c.name !== w.member) continue;
+          const callerCls = typeName(memberOf(inv).type);
+          const recvLast = idents(c.recv).pop() || '';
+          const reaches = (!c.recv || c.recv === 'this' || c.recv === 'base') ? model.lineage(callerCls).includes(w.cls) : recvLast === w.cls;
+          if (!reaches) continue;
+          const arg = argNodes(inv)[w.param];
+          const lit = arg ? firstLit(arg) : null;
+          loads.push({ file: f.rel, line: ln(inv), cls: callerCls, at: where(inv) + ' via ' + w.cls + '.' + w.member, arg: lit, argText: arg ? norm(arg.text) : '' });
+        }
+      }
     }
     seen.loads = loads.length;
     const builtShells = new Set(listFiles(root, BUILT_DIR, (n) => n.endsWith('.html')).map((r) => r.slice(BUILT_DIR.length + 1)));
+    const shellOutputs = new Set(shellMap(root).map.values());
     const shellsOf = new Map(), pagesOf = new Map();
     for (const l of loads) {
       const shown = l.arg === null ? '<' + l.argText + '>' : l.arg;
-      if (l.cls === CHAT_PAGE) { if (l.arg !== CHAT_SHELL) F('ISO-1', l.file, l.line, 'the chat page loads ' + shown + ' into its WebView (only ' + CHAT_SHELL + ' may live there)'); continue; }
-      if (l.arg === CHAT_SHELL) { F('ISO-2', l.file, l.line, l.cls + ' loads ' + CHAT_SHELL + ' (only ' + CHAT_PAGE + ' may host the chat document)'); continue; }
+      if (l.cls === CHAT_PAGE) { if (l.arg !== CHAT_SHELL) F('ISO-1', l.file, l.line, 'the chat page loads ' + shown + ' into its WebView (only ' + CHAT_SHELL + ' may live there; ' + l.at + ')'); continue; }
+      if (l.arg === CHAT_SHELL) { F('ISO-2', l.file, l.line, l.cls + ' loads ' + CHAT_SHELL + ' (only ' + CHAT_PAGE + ' may host the chat document; ' + l.at + ')'); continue; }
       if (l.cls === MINIAPP_PAGE) { F('ISO-4', l.file, l.line, 'the mini-app page loads the trusted shell ' + shown + ' (its WebView holds untrusted content only)'); continue; }
-      if (l.cls === BASE_PAGE) continue;
+      if (l.cls === BASE_PAGE) { F('ISO-3', l.file, l.line, 'the shared base loads ' + shown + ' itself (' + l.at + ') — every page would show it'); continue; }
       if (l.arg === null) { F('ISO-3', l.file, l.line, l.at + ' loads a computed document ' + shown + ' — a page loads one literal shell'); continue; }
-      if (!builtShells.has(l.arg)) { F('ISO-3', l.file, l.line, l.at + ' loads ' + l.arg + ', which is not a built shell in ' + BUILT_DIR); continue; }
+      if (!shellOutputs.has(l.arg) || !builtShells.has(l.arg)) { F('ISO-3', l.file, l.line, l.at + ' loads ' + l.arg + ', which is not a built shell of the SHELLS table (scripts/build-shells.mjs)'); continue; }
       if (!shellsOf.has(l.cls)) shellsOf.set(l.cls, new Map());
       if (!shellsOf.get(l.cls).has(l.arg)) shellsOf.get(l.cls).set(l.arg, l);
       if (!pagesOf.has(l.arg)) pagesOf.set(l.arg, new Map());
@@ -424,27 +544,28 @@ export async function check(root) {
     for (const [shell, m] of pagesOf) if (m.size > 1) { const l = [...m.values()][1]; F('ISO-3', l.file, l.line, shell + ' is loaded by ' + m.size + ' pages (' + [...m.keys()].sort().join(', ') + ') — one shell, one page handler'); }
     seen.shellPages = pagesOf.size;
     againstList(sources, SOURCES, 'ISO-4', 'a WebView content source', findings);
+    for (const x of xaml) for (const src of x.sources) F('ISO-4', src.file, src.line, 'XAML sets a web view document: ' + src.text + ' — a page loads its shell through loadPage');
 
     /* ── ISO-5 / ISO-6: the XAML WebViews ── */
-    const xaml = readXaml(root);
     seen.xamlWebViews = 0;
     const markerSeen = new Set();
     for (const x of xaml) {
       seen.xamlWebViews += x.views.length;
       settings.push(...x.settings);
       if (!x.views.length) continue;
-      if (!x.cls || !model.classes.has(x.cls) || !isPage(x.cls)) F('ISO-6', x.rel, x.views[0].line, 'a <WebView> in a XAML whose class (' + (x.cls || 'none') + ') is not a page — a pane must be a page with its own WebView');
-      if (x.views.length > 1) F('ISO-6', x.rel, x.views[1].line, x.views.length + ' <WebView> elements in one page — one page, one WebView');
+      if (!x.cls || !model.classes.has(x.cls) || !isPage(x.cls)) F('ISO-6', x.rel, x.views[0].line, 'a <' + x.views[0].type + '> in a XAML whose class (' + (x.cls || 'none') + ') is not a page — a pane must be a page with its own WebView');
+      if (x.views.length > 1) F('ISO-6', x.rel, x.views[1].line, x.views.length + ' web view elements in one page (' + x.views.map((v) => v.type).join(', ') + ') — one page, one WebView');
+      if (x.views.some((v) => v.type !== 'WebView')) { const v = x.views.find((y) => y.type !== 'WebView'); F('ISO-6', x.rel, v.line, 'a <' + v.type + '> — the platform handlers, the markers and the bridge know the MAUI WebView only'); }
       for (const v of x.views) {
         const want = MARKERS[x.rel] ? MARKERS[x.rel].value : undefined;
         const got = v.attrs.ClassId;
-        if (got !== want) F('ISO-5', x.rel, v.line, '<WebView ClassId="' + (got === undefined ? '' : got) + '"> — the listed marker is ' + (want === undefined ? 'none' : '"' + want + '"'));
+        if (got !== want) F('ISO-5', x.rel, v.line, '<' + v.type + ' ClassId="' + (got === undefined ? '' : got) + '"> — the listed marker is ' + (want === undefined ? 'none' : '"' + want + '"'));
         if (want !== undefined) markerSeen.add(x.rel);
       }
     }
-    for (const rel of Object.keys(MARKERS)) if (!markerSeen.has(rel)) F('ISO-5', rel, 0, 'the listed marker "' + MARKERS[rel].value + '" is on no <WebView> of ' + rel);
+    for (const rel of Object.keys(MARKERS)) if (!markerSeen.has(rel)) F('ISO-5', rel, 1, 'the listed marker "' + MARKERS[rel].value + '" is on no web view element of ' + rel);
     for (const w of markerWrites) F('ISO-5', w.file, w.line, 'C# writes the WebView marker: `' + w.text.slice(0, 120) + '` (the marker is set once, in XAML)');
-    againstList(platformViews, PLATFORM_VIEWS, 'ISO-6', 'a platform web view built', findings);
+    againstList(platformViews, PLATFORM_VIEWS, 'ISO-6', 'a web view built in code', findings);
 
     /* ── ISO-7 / ISO-8 / ISO-9: verbs, by the bridge contract ── */
     seen.verbs = verbs.size;
@@ -455,21 +576,22 @@ export async function check(root) {
         for (const h of hs) {
           if (h.cls === CHAT_PAGE || h.cls === BASE_PAGE) continue;
           if (CHAT_ONLY_ELSEWHERE.some((e) => e.verb === v && e.cls === h.cls)) continue;
-          F('ISO-7', h.file, 0, 'the chat-only verb `ixian:' + v + '` is tested in ' + h.cls + '.' + h.member + ' — a verb only the chat document sends belongs to the chat page');
+          F('ISO-7', h.file, h.line, 'the chat-only verb `ixian:' + v + '` is tested in ' + h.cls + '.' + h.member + ' — a verb only the chat document sends belongs to the chat page');
         }
       }
       for (const h of hs) {
         if (h.cls === CHAT_PAGE || h.cls === BASE_PAGE) {
-          for (const m of ['money', 'keys']) {
+          for (const m of h.cls === BASE_PAGE ? ['money', 'keys', 'path'] : ['money', 'keys']) {
             if (!h.marks.has(m)) continue;
             if (RISKY_IN_CHAT_OR_BASE.some((e) => e.verb === v && e.cls === h.cls && e.mark === m)) continue;
-            F('ISO-8', h.file, 0, 'the ' + m + ' verb `ixian:' + v + '` is answered in ' + h.cls + '.' + h.member + ' (' + h.why.get(m) + ') — reachable from the chat WebView, and not listed');
+            F('ISO-8', h.file, h.line, 'the ' + m + ' verb `ixian:' + v + '` is answered in ' + h.cls + '.' + h.member + ' (' + h.why.get(m) + ') — reachable from the chat WebView' + (h.cls === BASE_PAGE ? ' and the mini-app WebView' : '') + ', and not listed');
           }
         }
+        if (h.cls === BASE_PAGE && !BASE_VERBS.some((e) => e.verb === v)) F('ISO-9', h.file, h.line, 'the shared base answers `ixian:' + v + '` (' + h.member + ') — every WebView reaches it, the mini-app one too; not in BASE_VERBS');
         if (h.cls === MINIAPP_PAGE) {
           const e = MINIAPP_VERBS.find((x) => x.verb === v);
-          if (!e) { F('ISO-9', h.file, 0, 'the mini-app page answers `ixian:' + v + '` (' + h.member + ') — not in the SpixiAppSdk list'); continue; }
-          for (const m of h.marks) if (!e.marks.includes(m)) F('ISO-9', h.file, 0, 'the mini-app verb `ixian:' + v + '` now reaches ' + m + ' (' + h.why.get(m) + ')');
+          if (!e) { F('ISO-9', h.file, h.line, 'the mini-app page answers `ixian:' + v + '` (' + h.member + ') — not in the SpixiAppSdk list'); continue; }
+          for (const m of h.marks) if (!e.marks.includes(m)) F('ISO-9', h.file, h.line, 'the mini-app verb `ixian:' + v + '` now reaches ' + m + ' (' + h.why.get(m) + ')');
         }
       }
     }
@@ -502,17 +624,20 @@ export async function check(root) {
     for (const u of jsUnits) {
       for (const hit of jsHits(u.code, u.file)) F(hit.rule, u.file, u.offset() + lineAt(u.code, hit.at), hit.text);
     }
-    const vset = (emits) => new Set(emits.map((e) => (e.verb ? e.verb : e.shape)));
-    const differ = (a, b) => [...a].filter((x) => !b.has(x)).map((x) => '+' + x).concat([...b].filter((x) => !a.has(x)).map((x) => '-' + x));
-    for (const [, s] of js.shells) {
-      const built = inlineFacts(read(root, BUILT_DIR + '/' + s.out), BUILT_DIR + '/' + s.out);
-      const d = differ(vset(built.emits), vset(s.emits)).sort();
-      if (d.length) F('ISO-15', BUILT_DIR + '/' + s.out, 0, 'the built shell and ' + s.rel + ' emit different verbs: ' + d.join(' ') + ' (rebuild: build-shells)');
+    const key = (e) => (e.verb ? e.verb : e.shape);
+    const firstOf = (emits, k) => emits.find((e) => key(e) === k);
+    const drift = (builtFile, builtText, builtEmits, srcs) => {
+      const bk = new Set(builtEmits.map(key)), sk = new Map();
+      for (const s0 of srcs) for (const e of s0.emits) if (!sk.has(key(e))) sk.set(key(e), { ...s0, e });
+      for (const k of [...bk].filter((x) => !sk.has(x)).sort()) F('ISO-15', builtFile, lineAt(builtText, firstOf(builtEmits, k).at), 'the built file emits `' + k + '`, which its source does not (rebuild)');
+      for (const k of [...sk.keys()].filter((x) => !bk.has(x)).sort()) { const s0 = sk.get(k); F('ISO-15', s0.file, lineAt(s0.text, s0.e.at), 'the source emits `' + k + '`, which the built ' + builtFile + ' does not (rebuild)'); }
+    };
+    for (const [, s0] of js.shells) {
+      const bf = BUILT_DIR + '/' + s0.out, bt = read(root, bf);
+      drift(bf, bt, inlineFacts(bt, bf).emits, [{ file: s0.rel, text: read(root, s0.rel), emits: s0.emits }]);
     }
-    const srcBundle = new Set();
-    for (const [, c] of js.comp) for (const x of vset(c.emits)) srcBundle.add(x);
-    const db = differ(vset(jsFacts(read(root, BUILT_BUNDLE), BUILT_BUNDLE).emits), srcBundle).sort();
-    if (db.length) F('ISO-15', BUILT_BUNDLE, 0, 'the built bundle and its sources emit different verbs: ' + db.join(' ') + ' (rebuild: build-demo-bundle)');
+    const bundleText = read(root, BUILT_BUNDLE);
+    drift(BUILT_BUNDLE, bundleText, jsFacts(bundleText, BUILT_BUNDLE).emits, [...js.comp].map(([f, c]) => ({ file: f, text: read(root, f), emits: c.emits })));
     seen.shells = js.shells.size;
   } catch (e) {
     if (e instanceof ReadError) return { ok: false, findings, seen, error: e.message };
@@ -539,4 +664,5 @@ async function main(argv) {
   return res.error ? 2 : res.ok ? 0 : 1;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main(process.argv.slice(2));
+const isMain = () => { try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (isMain()) process.exitCode = await main(process.argv.slice(2));

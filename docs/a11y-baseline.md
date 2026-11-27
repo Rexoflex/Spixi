@@ -9,7 +9,7 @@ First run of `scripts/quality/a11y-scan.mjs` (quality item 7, session `qtools`).
 | Chrome | Chrome for Testing 153.0.8010.12 (`/usr/bin/google-chrome`, headless, DevTools protocol, no Playwright) |
 | Node | 22.23.5 (global `WebSocket`) |
 | Tree | `work/qtools` built shells, `Spixi/Resources/Raw/html/*.html` (18 files, none skipped) |
-| Run | `node scripts/quality/a11y-scan.mjs --out <report.json>` · 72 page runs · 184 s on 2 cores (cloud twin) |
+| Run | `node scripts/quality/a11y-scan.mjs --out <report.json>` · 72 page runs · 182 s on 2 cores (cloud twin) · default total limit 480 s (below the 600 s the CI runner gives a child), 30 s per page run |
 | Rules | axe default set (WCAG 2.0/2.1 A and AA + best-practice), `resultTypes: violations, incomplete` |
 
 ## What is scanned
@@ -38,6 +38,8 @@ State scanned per shell (the main screen; pushes go through the page's own `exec
 | lock.html · scan.html · settings_backup.html · settings_encryption.html · contributors.html · empty_detail.html | as loaded (these shells draw their main screen on their own) |
 | contact_new.html · app_new.html | the empty form |
 | downloads.html · dev.html | the empty state ("Files you receive in chats appear here", "Waiting for the log...") |
+
+Network: Chrome is cut off. Every URL, loopback included, goes to a dead proxy (`--proxy-server=127.0.0.1:9`, `--proxy-bypass-list=<-loopback>`), every host name is unresolvable (`--host-resolver-rules="MAP * ~NOTFOUND"`), and component update, sync, pings, domain reliability and background networking are off. `file://` pages need none, so they load as before. Proof: with `HTTPS_PROXY`, `HTTP_PROXY` and `ALL_PROXY` pointed at a logging proxy, the old flag set (`--disable-background-networking` only) made 7 CONNECTs in 25 s (`redirector.gvt1.com`, `accounts.google.com`, `android.clients.google.com`); the scan made 0. The DevTools port is the only listener Chrome opens, bound to `127.0.0.1` (`--remote-debugging-address=127.0.0.1`; the listening sockets read from `/proc/net/tcp` were loopback only). If Chrome dies mid-scan the scan stops at once: exit 2 when no page was scanned, else a partial report marked INCOMPLETE.
 
 Each page run: load, wait 1.2 s, push the feed, wait 1.2 s, check the theme, inject `axe.min.js`, `axe.run(document)`.
 The renders were read by eye (a PNG per run via `--shots`) for the shells with a feed; each shows the named state.

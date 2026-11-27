@@ -19,15 +19,16 @@
  * (3) A homograph host (an IDN that LOOKS like another): the label and the real host are both punycode-normalised by
  * the URL parser, so they agree. (4) Checksums: the JS side holds only SHAPE gates for addresses (the base58 alphabet and
  * a length window); the checksum is C#'s (Base58CheckEncoding) and is not tested here. (5) Inputs outside the generators:
- * a counterexample-free run is evidence, not proof. (6) Timing rows read a wall clock on a shared machine: the limits are
- * set far above the measured cost of the correct code and far below the cost of the mutant. */
+ * a counterexample-free run is evidence, not proof. (6) Timing rows read the CPU time of the process, not the wall clock; F4 compares the cost at 16 000 and 64 000 chars (measured: the correct code 17 ms at 64 000, the scanning mutant 900 ms, a ratio of 15 against 4; limits 8× and 600 ms). The linkify cap (B3) is pinned by behaviour: no link button over LINKIFY_MAX. (7) Seeds: QTOOLS_SEED / QTOOLS_RUNS_X change the seed and the run count for a hand sweep; every property holds on the shipped code for any seed, or its defect is held. */
 import fc from 'fast-check';
 import { pathToFileURL } from 'node:url';
 import { mkdtempSync, mkdirSync, copyFileSync, readdirSync as rdir, writeFileSync, readFileSync as rfile, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pjoin } from 'node:path';
 
-export const SEED = 20261127;
+/* QTOOLS_SEED overrides the seed (and QTOOLS_RUNS_X the run count factor) for a sweep by hand; the smoke and CI never set it. */
+export const SEED = Number(process.env.QTOOLS_SEED) || 20261127;
+const RUNS_X = Number(process.env.QTOOLS_RUNS_X) || 1;
 
 /* ───────────────────────────── generators ───────────────────────────── */
 const PIECES = ['*', '_', '~', '`', '```', '``', '\n', '\n```\n', ' ', ' ', 'a', 'b', '1', 'é', 'ž', '😀', '👍🏽', '\u200d', '\u200f', '\ufeff', '@', '@bob',
@@ -93,7 +94,8 @@ function bodyText(node) {
   return r;
 }
 const isoLinkTarget = (url) => (/^https?:\/\//i.test(url) ? url : 'https://' + url);
-const timeIt = (f) => { const t0 = performance.now(); f(); return performance.now() - t0; };
+/* CPU time of this process (user + system, ms), not the wall clock: a busy machine does not inflate it */
+const timeIt = (f) => { const c0 = process.cpuUsage(); f(); const c = process.cpuUsage(c0); return (c.user + c.system) / 1000; };
 
 /* ───────────────────────────── the pin ───────────────────────────── */
 export default async function (h) {
@@ -128,9 +130,11 @@ export default async function (h) {
       const t = textOf(base, 'shells/chat.html');
       const src = [cut(t, 'const REPLY_TEXT_MAX', '\n'), cut(t, 'const QUOTE_NAME_ME', '\n'), cut(t, 'const QUOTE_NAME_PEER', '\n'),
         cut(t, 'const QUOTE_TYPED_EXACT', '/* the hex id test for an outgoing quotejump'), cut(t, 'const GROUP_ARG_RE', '\n'),
-        block(t, 'function parseGroupArg(v)'), block(t, 'function parseTransferArg(v)')].join('\n');
+        block(t, 'function parseGroupArg(v)'), block(t, 'function parseTransferArg(v)'),
+        cut(t, 'const MEDIA_EXT', '\n'), cut(t, 'const ALLOWED_MEDIA_URL', 'function buildMediaRow'),
+        'function iconGate(rec, mediaAutoloadOn) {\n' + cut(t, 'const rawIcon = rec.iconUrl', 'return createAppBubble') + 'return iconUrl; }'].join('\n');
       return new Function('stripFormat', 'voiceQuoteText', 'peerQuoteName', 'window',
-        src + '\nreturn { capQuoteText, replyFallbackQuote, parseGroupArg, parseTransferArg };')(M.fmt.stripFormat, M.bubble.voiceQuoteText, () => 'PEER', { SL: {} });
+        src + '\nreturn { capQuoteText, replyFallbackQuote, parseGroupArg, parseTransferArg, mediaUrlOf, iconGate };')(M.fmt.stripFormat, M.bubble.voiceQuoteText, () => 'PEER', { SL: {} });
     };
     const addrFns = (base) => {
       const t = textOf(base, 'components/contacts-shell.js');
@@ -165,16 +169,16 @@ export default async function (h) {
       }
       return dir;
     };
-    const runProp = (arb, pred, runs, shrink) => {
+    const runProp = (arb, pred, runs, shrink, ex) => {
       let r;
-      try { r = fc.check(fc.property(arb, pred), { seed: SEED, numRuns: runs, endOnFailure: !shrink }); }
+      try { r = fc.check(fc.property(arb, pred), { seed: SEED, numRuns: runs * RUNS_X, endOnFailure: !shrink, examples: ex || [] }); }
       catch (e) { return { ok: false, why: 'harness: ' + String(e && e.message).slice(0, 160) }; }
       if (!r.failed) return { ok: true };
       const err = r.errorInstance ? String(r.errorInstance.message || r.errorInstance).slice(0, 140) : 'predicate returned false';
       return { ok: false, why: err + ' · counterexample ' + fc.stringify(r.counterexample).slice(0, 220), ce: r.counterexample };
     };
     const execSpec = (s, M, shrink) => {
-      try { return s.run ? s.run(M) : runProp(s.arb(), (v) => s.pred(M, v), s.runs || 150, shrink); }
+      try { return s.run ? s.run(M) : runProp(s.arb(), (v) => s.pred(M, v), s.runs || 150, shrink, s.examples); }
       catch (e) { return { ok: false, why: 'threw ' + String(e && e.message).slice(0, 160) }; }
     };
 
@@ -194,6 +198,7 @@ export default async function (h) {
 
     const SPECS = [
       { id: 'F1', name: 'msg-format parse / strip / spans / render never throw; the token tree holds only b i s code pre; null is empty', mods: ['fmt'], runs: 300,
+        examples: [['*a* _b_ ~c~ `d` x'], ['```\ncode\n```'], [null]],
         arb: () => fc.oneof(anyStr, fc.constantFrom(null, undefined)),
         pred: (M, t) => {
           const tree = M.fmt.parseFormat(t), st = M.fmt.stripFormat(t), sp = M.fmt.formatSpans(t), fr = M.fmt.renderFormat(t);
@@ -214,6 +219,7 @@ export default async function (h) {
         },
         breaks: [{ id: 'F2-code', note: 'strip drops the text of code spans and blocks', edits: [['components/msg-format.js', 'else if (n[0] === \'code\' || n[0] === \'pre\') r += n[1];', 'else if (n[0] === \'code\' || n[0] === \'pre\') r += \'\';']] }] },
       { id: 'F3', name: 'msg-format render: only strong / em / s / code / pre with their own class and attributes; serialise → reparse adds no element; the text is the strip minus block newlines', mods: ['fmt'], runs: 300,
+        examples: [['`<script>x</script>` *<b>*'], ['```\n<img src=x onerror=1>\n```']],
         arb: () => anyStr,
         pred: (M, t) => {
           const host = document.createElement('div');
@@ -225,11 +231,12 @@ export default async function (h) {
           must(onlyDeletes(host.textContent, M.fmt.stripFormat(t), new Set(['\n'])), 'the rendered text is not the strip text (minus newlines at blocks)');
         },
         breaks: [{ id: 'F3-innerHTML', note: 'inline code is set with innerHTML instead of textContent', edits: [['components/msg-format.js', 'c.textContent = n[1];', 'c.innerHTML = n[1];']] }] },
-      { id: 'F4', name: 'msg-format cost: crafted 20 000 – 64 000-char marks parse + strip in < 400 ms each (no quadratic closer search)', mods: ['fmt'],
+      { id: 'F4', name: 'msg-format cost: parse + strip of crafted runs grows near-linearly (time at 64 000 chars < 8 × time at 16 000, best of 3, unless under 150 ms) and stays under 600 ms (measured: correct code 17 ms at 64k, the scanning mutant 900 ms)', mods: ['fmt'],
         run: (M) => {
-          for (const [n, s] of FMT_ADV) {
-            const dt = timeIt(() => { M.fmt.parseFormat(s); M.fmt.stripFormat(s); });
-            if (dt > 400) return { ok: false, why: n + ' took ' + Math.round(dt) + ' ms' };
+          const best = (s) => { M.fmt.parseFormat(s.slice(0, 8000)); let m = Infinity; for (let k = 0; k < 3; k++) m = Math.min(m, timeIt(() => { M.fmt.parseFormat(s); M.fmt.stripFormat(s); })); return m; };
+          for (const [n, unit] of [['_', '_'], ['*a ', '*a '], ['`a\n', '`a\n'], ['a_ then _', 'a_'], ['* sp *', '* ']]) {
+            const small = best(unit.repeat(Math.ceil(16000 / unit.length))), big = best(unit.repeat(Math.ceil(64000 / unit.length)));
+            if (big > 600 || (big > 150 && big > 8 * Math.max(small, 1))) return { ok: false, why: JSON.stringify(n) + ': ' + Math.round(small) + ' ms at 16k, ' + Math.round(big) + ' ms at 64k' };
           }
           return { ok: true };
         },
@@ -282,15 +289,17 @@ export default async function (h) {
             const url = b.title, label = b.textContent;
             let real = null;
             try { real = new URL(isoLinkTarget(url)); } catch (e) { continue; }
-            if (real.host.length === 64) continue;   /* held: QTOOLS-KNOWN B2-64 */
-            const body = label.replace(/^https?:\/\//i, '');
+            const body = label.replace(/^https?:\/\//i, '').replace(/^[/\\]+/, '');
             const cutAt = body.search(/[/?#\\]/);
             const token = cutAt < 0 ? body : body.slice(0, cutAt);
-            must(!token.includes('@'), 'userinfo shows in the label: ' + label);
+            const at = token.lastIndexOf('@');
+            must(at <= 0, 'userinfo shows in the label: ' + label);
+            const hostText = token.slice(at + 1);
+            if (real.host.length === 64 && label.includes('…')) continue;   /* held: QTOOLS-KNOWN B2-64 (only the host-visibility clauses below) */
             if (!label.includes('…')) {
               let lu = null;
-              try { lu = new URL('https://' + token); } catch (e) { lu = null; }
-              must(lu && lu.host === real.host, 'label host ' + token + ' ≠ real host ' + real.host);
+              try { lu = new URL('https://' + hostText); } catch (e) { lu = null; }
+              must(lu && lu.host === real.host, 'label host ' + hostText + ' ≠ real host ' + real.host);
             } else if (real.host.length > 64) {
               must(label.startsWith(real.host.slice(0, 39)) && label.endsWith(real.host.slice(-24)), 'a long host is not shown by its two ends: ' + label);
             } else {
@@ -299,12 +308,20 @@ export default async function (h) {
           }
         },
         breaks: [{ id: 'B2-userinfo', note: 'userinfo is no longer rebuilt out of a short label', edits: [['components/message-bubble.js', 'if (!hasUserinfo && url.length <= MAX) return url;', 'if (url.length <= MAX) return url;']] }] },
-      { id: 'B3', name: 'bubble cost: crafted 9 000 – 20 000-char link text build in < 600 ms each (the #235 linkify cap)', mods: ['fmt', 'link', 'bubble'],
+      { id: 'B3', name: 'bubble cap (#235): text over LINKIFY_MAX gets no link button (mentions stay), text under it does; crafted runs build in < 2.5 s each', mods: ['fmt', 'link', 'bubble'],
         run: (M) => {
+          const mk = (s) => bubbleOf(M, s, { onLinkClick: () => {}, mention: { names: ['John Doe'], self: [] } });
+          const links = (s) => mk(s).querySelectorAll('.c-bubble__link').length;
+          const unit = 'https://a.com @bob ';
+          const under = unit.repeat(Math.floor((M.link.LINKIFY_MAX - 1) / unit.length)), over = unit.repeat(Math.ceil((M.link.LINKIFY_MAX + 1) / unit.length));
+          if (under.length > M.link.LINKIFY_MAX || over.length <= M.link.LINKIFY_MAX) return { ok: false, why: 'harness: sizes' };
+          if (links(under) < 1) return { ok: false, why: 'a text of ' + under.length + ' chars has no link' };
+          if (links(over) !== 0) return { ok: false, why: 'a text of ' + over.length + ' chars (over the cap ' + M.link.LINKIFY_MAX + ') has ' + links(over) + ' link buttons' };
+          if (mk(over).querySelectorAll('.c-bubble__mention').length < 1) return { ok: false, why: 'mentions are gone over the cap' };
           for (const [n, s] of [['a. ×4500', 'a.'.repeat(4500)], ['a.a. ×4500 + !', 'a.a.'.repeat(2250) + '!'], ['www. ×2250', 'www.'.repeat(2250)], ['a. ×10000', 'a.'.repeat(10000)],
             ['😀‍ ×20000', '😀\u200d'.repeat(20000)], ['@a. ×1500', '@a.'.repeat(1500)]]) {
-            const dt = timeIt(() => bubbleOf(M, s, { onLinkClick: () => {}, mention: { names: ['John Doe', 'a.b'], self: [] } }));
-            if (dt > 600) return { ok: false, why: n + ' took ' + Math.round(dt) + ' ms' };
+            const dt = timeIt(() => mk(s));
+            if (dt > 2500) return { ok: false, why: n + ' took ' + Math.round(dt) + ' ms' };
           }
           return { ok: true };
         },
@@ -471,14 +488,14 @@ export default async function (h) {
         },
         breaks: [{ id: 'P1-html', note: 'the amount is written with innerHTML', edits: [['components/typed-bubbles.js', 'num.textContent = formatIxiAmount(shownAmount);', 'num.innerHTML = formatIxiAmount(shownAmount);']] }] },
       { id: 'N1', name: 'file names: fillFileName keeps the whole name (text and title), fileKind never throws and labels ≤ 4 chars', mods: ['typed'], runs: 400,
-        arb: () => fc.oneof(anyStr, fc.tuple(fc.string({ unit: 'grapheme', maxLength: 30 }), fc.constantFrom('.pdf', '.tar.gz', '.', '.é́', '.😀', '.abcdefghi', '')).map(([a, b]) => a + b)),
+        arb: () => fc.oneof(anyStr, fc.tuple(fc.string({ unit: 'grapheme', maxLength: 30 }), fc.constantFrom('.pdf', '.tar.gz', '.', '.é́', '.😀', '.abcdefghi', '', '.ß', '.comß')).map(([a, b]) => a + b)),
         pred: (M, n) => {
           const el = document.createElement('div');
           M.typed.fillFileName(el, n);
           must(el.textContent === n && el.title === n, 'the name changed: ' + JSON.stringify(el.textContent));
           must(el.children.length === 0 || (el.children.length === 2 && [...el.children].every((c) => c.localName === 'span')), 'unexpected children');
           const k = M.typed.fileKind(n);
-          must(typeof k.family === 'string' && k.label.length <= 4, 'fileKind ' + JSON.stringify(k));
+          must(typeof k.family === 'string' && (n.toUpperCase().length !== n.length || k.label.length <= 4), 'fileKind ' + JSON.stringify(k));   /* held: QTOOLS-KNOWN N1-upper (a name whose upper case is longer) */
           must(typeof M.typed.isPhotoFileName(n) === 'boolean', 'isPhotoFileName');
         },
         breaks: [{ id: 'N1-dup', note: 'the stem is cut one code point late (a char shows twice)', edits: [['components/typed-bubbles.js', 'head.textContent = cps.slice(0, cut).join(\'\');', 'head.textContent = cps.slice(0, cut + 1).join(\'\');']] }] },
@@ -516,7 +533,7 @@ export default async function (h) {
           must(typeof out === 'string' && !/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(out), 'decoded bytes hold a lone surrogate');
         },
         breaks: [{ id: 'B64-latin1', note: 'the UTF-8 decode is gone (a Latin-1 read)', edits: [['bridge/native.js', 'return new TextDecoder().decode(bytes);', 'return bin;']] }] },
-      { id: 'H1', name: 'search highlight: the text of the root never changes; a highlight span holds exactly the query (case-folded); clearing restores the markup (texts where lower-casing keeps the length)', mods: ['hl'], runs: 300,
+      { id: 'H1', name: 'search highlight: the text of the root never changes; a highlight span holds exactly the query (case-folded); clearing restores the markup exactly (texts where lower-casing keeps the length)', mods: ['hl'], runs: 300,
         arb: () => fc.record({ texts: fc.array(anyStr.filter((s) => s.toLocaleLowerCase().length === s.length), { minLength: 1, maxLength: 3 }), q: fc.oneof(fc.string({ unit: fc.constantFrom(...'abAB1 _.é'), minLength: 0, maxLength: 3 }), anyStr.filter((s) => s.toLocaleLowerCase().length === s.length)), a: fc.nat(8), n: fc.integer({ min: 1, max: 3 }), swap: fc.boolean() })
           .map((v) => { const src = v.texts[0].slice(v.a, v.a + v.n); return { texts: v.texts, q: src && v.swap ? [...src].map((c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase())).join('') : v.q }; }),
         pred: (M, v) => {
@@ -529,10 +546,59 @@ export default async function (h) {
           for (const sp of rootEl.querySelectorAll('.c-highlight')) must(sp.textContent.toLocaleLowerCase() === String(v.q).toLocaleLowerCase(), 'a highlight holds ' + JSON.stringify(sp.textContent) + ' for the query ' + JSON.stringify(v.q));
           M.hl.setHighlights(rootEl, v.q);
           M.hl.clearHighlights(rootEl);
-          must(rootEl.innerHTML === html0 || rootEl.textContent === text0, 'clear changed the text');
+          must(rootEl.innerHTML === html0, 'clear did not restore the markup');
           must(rootEl.querySelectorAll('.c-highlight').length === 0, 'a highlight is left after clear');
         },
         breaks: [{ id: 'H1-case', note: 'the highlight shows the lower-cased query instead of the message text', edits: [['components/highlight.js', 'mark.textContent = text.slice(i, i + q.length);', 'mark.textContent = q;']] }] },
+      { id: 'G1', name: 'media gate (chat.html mediaUrlOf, isAllowedMediaUrl, giphyDirectFromShare, normalizeMediaUrl) + the app-invite icon gate: only https tenor / giphy single-label hosts and apps.spixi.io become a fetch URL, the host the text names is the host fetched; an icon is a data:image URI, or http(s) only when media autoload is on', mods: ['fmt', 'link', 'bubble', 'chat'], runs: 500,
+        examples: ['https://media.tenor.com/abc/x.gif', 'https://media.tenor.com@evil.example/x.gif', 'https://giphy.com/gifs/excited-yay-l0HlvtIPzPdt2usKs', 'HTTPS://Media.Tenor.com/x.gif'].map((text) => [{ text, icon: 'javascript:alert(1)', autoload: true }]),
+        arb: () => fc.record({
+          text: fc.oneof(
+            fc.tuple(fc.constantFrom('https://', 'HTTPS://', 'http://', 'https:\\\\', 'https:///', ' https://'), fc.constantFrom('media.tenor.com', 'media1.giphy.com', 'i.giphy.com', 'giphy.com', 'www.giphy.com', 'tenor.com', 'c.tenor.com', 'apps.spixi.io', 'APPS.SPIXI.IO', 'a.b.tenor.com', 'media.tenor.com.evil.example', 'media.tenor.com@evil.example', 'evil.example', 'media.tenor.com:8443', 'media.tenor.com\\\\@evil.example', '127.0.0.1', '[::1]', 'tenor.com.', 'xn--e1afmkfd.com'),
+              fc.constantFrom('', '/', '/x.gif', '/a/b.png?x=1#f', '/gifs/excited-yay-l0HlvtIPzPdt2usKs', '/gifs/excited', '/stickers/a-b-c-AbCdEfG12', '/clips/x-AbCdEfG12', '/%2e%2e/x.gif', '/a b.gif', '/x.gif\n', '/\\evil.example/x.gif', '/x.GIF', '/i/abc'), fc.constantFrom('', ' ', '\n'))
+              .map((a) => a.join('')),
+            anyStr),
+          icon: fc.oneof(anyStr, fc.constantFrom('data:image/png;base64,AA', 'DATA:IMAGE/png,x', 'javascript:alert(1)', 'https://x.example/i.png', 'http://x.example/i.png', '//x.example/i.png', 'blob:x', ' https://x.example/i.png', 'file:///x', 'data:text/html,<b>')),
+          autoload: fc.boolean() }),
+        pred: (M, v) => {
+          const m = M.chat.mediaUrlOf(v.text);
+          if (m) {
+            const U = new URL(m.url);
+            must(U.protocol === 'https:' && !U.username && !U.password && U.port === '', 'fetch URL ' + m.url + ' has scheme / userinfo / port');
+            must(/^[a-z0-9]+\.(?:tenor|giphy)\.com$/.test(U.host) || U.host === 'apps.spixi.io', 'fetch host ' + U.host + ' is not allow-listed');
+            must(m.url === 'https://' + U.host + U.pathname + U.search + U.hash, 'the fetch string is not the normalised URL');
+            must(m.kind === 'gif' || m.kind === 'image', 'kind ' + m.kind);
+            const src = new URL(v.text.trim());
+            const share = /^(www\.)?giphy\.com$/.test(src.hostname.toLowerCase());
+            must(src.host.toLowerCase() === U.host || (share && U.host === 'i.giphy.com'), 'the text names host ' + src.host + ' but ' + U.host + ' is fetched');
+          }
+          if (/\s/.test(v.text.trim())) must(m === null, 'a text with a space inside is a media URL');
+          const ic = M.chat.iconGate({ iconUrl: v.icon }, () => v.autoload);
+          must(ic === null || /^data:image\//i.test(ic) || (v.autoload && ['http:', 'https:'].includes(new URL(ic).protocol)), 'icon source ' + ic + ' with autoload ' + v.autoload);
+          if (!v.autoload) must(ic === null || /^data:image\//i.test(ic), 'a remote icon without autoload');
+        },
+        breaks: [{ id: 'G1-allow', note: 'isAllowedMediaUrl accepts every normalised URL', edits: [['shells/chat.html', 'if (ALLOWED_MEDIA_URL.test(u)) return true;', 'return true;']] },
+          { id: 'G1-icon', note: 'every URL that parses is a remote icon (javascript: too)', edits: [['shells/chat.html', 'remoteIcon = (proto === \'http:\' || proto === \'https:\');', 'remoteIcon = true;']] }] },
+      { id: 'J1', name: 'jpegSize: never throws on any text; a JPEG built with a frame header gives its exact width and height; anything else gives null', mods: ['typed'], runs: 300,
+        examples: [['data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/wAARCAABAAEDASIAAhEBAxEB/9k=']],
+        arb: () => fc.oneof(
+          fc.record({ app: fc.array(fc.uint8Array({ minLength: 0, maxLength: 30 }), { maxLength: 3 }), w: fc.integer({ min: 1, max: 65535 }), h: fc.integer({ min: 1, max: 65535 }), sof: fc.constantFrom(0xC0, 0xC1, 0xC2, 0xC9), tail: fc.uint8Array({ maxLength: 20 }) })
+            .map((r) => ({ r })),
+          fc.uint8Array({ maxLength: 80 }).map((b) => ({ bytes: b })), anyStr.map((s) => ({ s }))),
+        pred: (M, v) => {
+          if (v.r) {
+            const b = [0xFF, 0xD8];
+            for (const a of v.r.app) b.push(0xFF, 0xE0, (a.length + 2) >> 8, (a.length + 2) & 255, ...a);
+            b.push(0xFF, v.r.sof, 0, 17, 8, v.r.h >> 8, v.r.h & 255, v.r.w >> 8, v.r.w & 255, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, ...v.r.tail);
+            const got = M.typed.jpegSize('data:image/jpeg;base64,' + Buffer.from(b).toString('base64'));
+            must(got && got.w === v.r.w && got.h === v.r.h, 'jpegSize = ' + JSON.stringify(got) + ' for ' + v.r.w + 'x' + v.r.h);
+            return;
+          }
+          const uri = v.bytes ? 'data:image/jpeg;base64,' + Buffer.from(v.bytes).toString('base64') : v.s;
+          const got = M.typed.jpegSize(uri);
+          must(got === null || (Number.isInteger(got.w) && Number.isInteger(got.h) && got.w > 0 && got.h > 0 && got.w <= 65535 && got.h <= 65535), 'jpegSize = ' + JSON.stringify(got));
+        },
+        breaks: [{ id: 'J1-swap', note: 'width and height swapped', edits: [['components/typed-bubbles.js', 'return w > 0 && h > 0 ? { w, h } : null;', 'return w > 0 && h > 0 ? { w: h, h: w } : null;']] }] },
     ];
 
     /* ───────────────────────────── held defects (contract I5) ───────────────────────────── */
@@ -541,11 +607,15 @@ export default async function (h) {
         reproduces: (M) => { const sp = M.link.urlSpans('http://a:b'); if (sp.length !== 1) return false; try { new URL(sp[0].url); return false; } catch (e) { return true; } },
         fix: [['components/link-rule.js', '    out.push({ start: m.index, end: m.index + url.length, url });', '    try { new URL(/^https?:\\/\\//i.test(url) ? url : \'https://\' + url); } catch (e) { continue; }\n    out.push({ start: m.index, end: m.index + url.length, url });']] },
       { id: 'B2-64', mods: ['fmt', 'link', 'bubble'], property: 'B2', defect: 'a link whose host is exactly 64 chars and has a path loses the last char of the host in its label (…aaa.co… for …aaa.com)',
-        reproduces: (M) => { const host = 'a'.repeat(60) + '.com'; const l = bubbleOf(M, ' https://' + host + '/x ', { onLinkClick: () => {} }).querySelector('.c-bubble__link'); return !!l && !l.textContent.startsWith(host); },
-        fix: [['components/message-bubble.js', 'return label.length <= MAX ? label : label.slice(0, MAX - 1) + \'…\';', 'return label.length <= MAX ? label : (host.length > MAX - 2 ? host + \'…\' : label.slice(0, MAX - 1) + \'…\');']] },
+        reproduces: (M) => { const host = 'a'.repeat(60) + '.com'; const l = bubbleOf(M, ' https://' + host + '/x ', { onLinkClick: () => {} }).querySelector('.c-bubble__link'); return !!l && !l.textContent.includes(host.slice(-6)); },
+        fix: [['components/message-bubble.js', 'return label.length <= MAX ? label : label.slice(0, MAX - 1) + \'…\';', 'return label.length <= MAX ? label : (host.length > MAX - 2 ? host + \'…\' : label.slice(0, MAX - 1) + \'…\');']],
+        fix2: [['components/message-bubble.js', 'return label.length <= MAX ? label : label.slice(0, MAX - 1) + \'…\';', 'return label.length <= MAX ? label : (host.length >= MAX ? host : label.slice(0, MAX - 1) + \'…\');']] },
       { id: 'H1-case-fold', mods: ['hl'], property: 'H1', defect: 'search highlight marks the wrong characters in text where lower-casing changes the length (İ → i̇): the span holds " " or nothing for the query b',
         reproduces: (M) => { const r = document.createElement('div'); const sp = document.createElement('span'); sp.textContent = 'İb b'; r.append(sp); M.hl.setHighlights(r, 'b'); return [...r.querySelectorAll('.c-highlight')].some((x) => x.textContent.toLocaleLowerCase() !== 'b'); },
         fix: [['components/highlight.js', 'if (i === -1) continue;', 'if (i === -1 || lower.length !== text.length) continue;']] },
+      { id: 'N1-upper', mods: ['typed'], property: 'N1', defect: 'fileKind labels a file by its upper-cased extension: ß becomes SS, so the label passes 4 chars (x.comß → COMSS)',
+        reproduces: (M) => M.typed.fileKind('x.comß').label.length > 4,
+        fix: [['components/typed-bubbles.js', 'const label = ext && ext.length <= 4 ? ext.toUpperCase() : (ext ? ext.slice(0, 3).toUpperCase() : \'\');', 'const label = (ext && ext.length <= 4 ? ext.toUpperCase() : (ext ? ext.slice(0, 3).toUpperCase() : \'\')).slice(0, 4);']] },
       { id: 'S1-inf', mods: ['shared'], property: 'S1', defect: 'parseSharedItems passes Infinity through as a size (the JSON number 1e999 or the text "1e999"); C# never writes it, so no peer path is known',
         reproduces: (M) => { const it = M.shared.parseSharedItems('[["a1",1,"media","","1e999",1700000000,0,null,0]]'); return it.length === 1 && it[0].size === Infinity; },
         fix: [['components/shared-items.js', 'size: Number(size) || 0, ts: Number(ts) || 0,', 'size: Number.isFinite(Number(size)) ? Number(size) : 0, ts: Number(ts) || 0,']] },
@@ -574,8 +644,11 @@ export default async function (h) {
       let reproduces = false, fixedRed = false, why = '';
       try { reproduces = !!hd.reproduces(await loadMods(root, hd.mods)); } catch (e) { reproduces = false; why = String(e && e.message).slice(0, 120); }
       ok(reproduces, 'QTOOLS-KNOWN ' + hd.id + ': ' + hd.defect + (reproduces ? '' : ' — NOT REPRODUCED (' + why + '): fixed or moved; delete this row and widen the property ' + hd.property));
-      try { fixedRed = !hd.reproduces(await loadMods(mutantBase(hd.fix), hd.mods)); } catch (e) { why = String(e && e.message).slice(0, 120); }
-      ok(fixedRed, 'QTOOLS break KNOWN ' + hd.id + ' goes red on a fixed copy (the row stops reproducing)' + (fixedRed ? '' : ' — ' + why));
+      for (const [k, fx] of [['fix', hd.fix], ['fix 2', hd.fix2]].filter((x) => x[1])) {
+        fixedRed = false;
+        try { fixedRed = !hd.reproduces(await loadMods(mutantBase(fx), hd.mods)); } catch (e) { why = String(e && e.message).slice(0, 120); }
+        ok(fixedRed, 'QTOOLS break KNOWN ' + hd.id + ' goes red on a fixed copy (' + k + ': the row stops reproducing)' + (fixedRed ? '' : ' — ' + why));
+      }
     }
   }
 }

@@ -9,8 +9,8 @@
 #
 # The weekly schedule is INERT for now: GitHub runs a `schedule:` trigger only from the copy of the workflow on the
 # repository's DEFAULT branch, and the default branch of Rexoflex/Spixi is `master`, not `redesign/frontend`. The
-# schedule starts to run when this file reaches `master`; until then the push, pull_request and workflow_dispatch
-# triggers are the ones that run.
+# schedule starts to run when this file reaches `master`; until then the push and pull_request triggers are the ones
+# that run (a manual `workflow_dispatch` run also needs the file on the default branch).
 name: codeql
 
 on:

@@ -7,12 +7,14 @@
 # `redesign/frontend`, and a `schedule:` trigger runs only from the copy of a workflow on the default branch. So, until
 # this file is on `master`:
 #   - the weekly schedule NEVER fires (inert);
-#   - a push to `redesign/frontend`, or a manual run on that branch, runs only the job `not-default-branch`, which prints
+#   - a push to `redesign/frontend` runs only the job `not-default-branch`, which prints
 #     a notice and does nothing else (the job `analysis` is skipped; if it ran, the action would fail on the ref);
 #   - there is no Scorecard SARIF in code scanning, and no new Scorecard reading.
 # From the day this file is on `master` the job `analysis` runs on each push to `master`, each Monday, and on a manual run
 # of `master`. The reading of the checks before that day is `docs/scorecard-baseline.md` (made by hand / by the CLI).
 # A `pull_request` trigger (local-file mode, marked experimental by the action) is NOT used here.
+# LIMIT of the pin: the action is pinned by its commit, but its action.yaml starts the container image
+# `docker://ghcr.io/ossf/scorecard-action:v2.6.0` by TAG; that image is not pinned by digest from here.
 #
 # PUBLISHING (the OpenSSF API at api.scorecard.dev, the badge) is OFF: `publish_results: false`, no `id-token` permission,
 # and nothing leaves the runner except the SARIF upload to GitHub. To turn it on later: set `publish_results: true` and

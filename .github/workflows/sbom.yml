@@ -20,7 +20,9 @@ name: sbom
 on:
   push:
     branches: [ 'redesign/frontend' ]
-  workflow_dispatch:
+  pull_request:   # so that a pull request proves both jobs before the merge (the token stays read-only; nothing is published)
+    branches: [ 'redesign/frontend' ]
+  workflow_dispatch:   # a manual run needs this file on the default branch `master` (GitHub's rule)
 
 concurrency:
   group: sbom-${{ github.ref }}

@@ -23,35 +23,46 @@
  *   senders    the BUILT shell names (what C# loads) that can send it. All shells load ONE bundle, so a component does not
  *              belong to a shell by file. The rule: a shell sends a verb when its own inline script emits it, or when its
  *              inline script names an export of a bundle file that emits it — directly, or through a chain of bundle files
- *              each naming an export of the next. LIMIT: naming is not calling (an over-approximation, safe for the chat-only
- *              rule of the isolation check, which needs "only chat.html"); a component reached through a computed property
- *              (`window[name]`) or a string is not seen (an under-approximation).
+ *              each naming an export of the next. LIMIT: naming is not calling — an OVER-approximation, and for the
+ *              chat-only rule of the isolation check (ISO-7: "only chat.html sends it") that is the UNSAFE direction: a
+ *              second shell that merely names a component makes a chat verb look shared, and ISO-7 then skips it. A
+ *              component reached through a computed property (`window[name]`) or a string is not seen (an under-
+ *              approximation). Verbs in markup are read too: an `href="ixian:…"` and the JS of an `on…=` attribute.
  *   emitFiles  the src files with an emit site.
  *   handlers   {file, member} of each C# page member (a class that is SpixiContentPage or derives from it) that TESTS the
- *              verb: the literal (or a const that holds it) sits in the condition of an `if`, a `case` label or the condition
- *              of `?:`. A test inside a helper of a non-page class (S17Rules.isDoneVerb, SMoments.handleVerb …) is lifted to
- *              the page members that call that helper, by name. A literal inside a log call is a message, not a test. A
+ *              verb: the literal (or a const that holds it) is an argument or the receiver of StartsWith / Equals / Contains
+ *              / EndsWith / IndexOf / string.Compare / Regex.IsMatch / Regex.Match (a `^ixian:` pattern), an operand of == /
+ *              !=, a `case` label or a returned value; the branch it guards (an `if` or `?:` whose condition holds it) is
+ *              what the marks read, else the whole member. A test inside a helper of a non-page class (S17Rules.isDoneVerb, SMoments.handleVerb …) is lifted to
+ *              the page members that call that helper, by name (`Type.m(…)`, a bare call in the class, or `obj.m(…)` when
+ *              the tree declares at most AMBIGUOUS_MAX methods named m). A literal inside a log call is a message, not a test. A
  *              literal used only to cut the payload (Substring, Split, .Length, runFencedVerb) is not a test. A PREFIX test
  *              (StartsWith / Contains / IndexOf with `ixian:<name>` and no ':' after it) answers every verb whose name
  *              starts with <name> (CallPage's `ixian:call` answers callMute, callback …): that is what the C# accepts.
  *   payload    the emit shapes, `*` for each computed part (`ixian:sendrequest:*:*`); with no shell emitter, the C# test
  *              literals (`*` after a StartsWith prefix). Several shapes are joined with " | ".
  *   marks      what the handler branches REACH (lib-csharp reach: a call graph by name, depth ≤ RULES.maxDepth):
- *              money — a call named in RULES.money; keys — RULES.keys / keysRecv / keysMembers / keysStrings; path — a call
+ *              money — a call named in RULES.money or matching RULES.moneyRe, or `new` of RULES.moneyNew (Ixian-Core's
+ *              Transaction constructor signs); keys — RULES.keys / keysRecv / keysMembers / keysStrings; path — a call
  *              on RULES.pathRecv, or `new` of RULES.pathNew, with an argument that carries a value from the URL (taint).
  *
- * WHAT IT CANNOT SEE: a verb composed at run time (`'ixian:' + x`, `'ixian:open' + x`: a computed part right after the name)
+ * A C# file the parser cannot read that names a mark-list name (RULE_TOKENS) is a read error, exit 2, unless
+ * PARSE_EXCEPTIONS lists it with every such name; a listed file is not in the call graph.
+ *
+ * WHAT IT CANNOT SEE: a verb test through a dictionary key or a table of literals (`{ "ixian:x", handler }`), through a
+ * variable prefix only, or in a helper the lift does not resolve by name; a call through a listed unparsable file; a verb
+ * composed at run time (`'ixian:' + x`, `'ixian:open' + x`: a computed part right after the name)
  * — every such site must be listed in DYNAMIC_EMITS with the
  * verbs it can form, else --check and --write fail; a C# test through a variable prefix only; everything lib-csharp's head
  * lists (no binding, no field taint, no Ixian-Core bodies). It guards against mistakes, not against an author who hides code.
  */
-import { writeFileSync, existsSync } from 'node:fs';
+import { writeFileSync, existsSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { scanJs, walkHtml } from '../lib/lean-strip.mjs';
 import { ReadError, read, listFiles, buildModel, STRING_TYPES, strValue, memberOf, memberName, typeName, callee, ancestor,
-  branchOf, inLogCall, reach, taintIn, params, loadParser, desc, perTree } from './lib-csharp.mjs';
+  branchOf, inLogCall, reach, taintIn, params, loadParser, desc, perTree, AMBIGUOUS_MAX } from './lib-csharp.mjs';
 
 export const CONTRACT_FILE = 'docs/bridge-contract.json';
 export const GENERATOR = 'scripts/quality/bridge-contract.mjs';
@@ -63,7 +74,12 @@ export const LOG_RECV = new Set(['Logging', 'Console', 'Debug', 'Trace', 'P1Perf
 export const RULES = {
   maxDepth: 10,
   /* build, sign or broadcast a transaction */
-  money: new Set(['addTransaction', 'sendTransactionFrom', 'prepareTransactionFrom', 'sendTransaction', 'broadcastTransaction', 'signTransaction']),
+  money: new Set(['addTransaction', 'sendTransactionFrom', 'prepareTransactionFrom', 'sendTransaction', 'broadcastTransaction', 'signTransaction',
+    'addOutgoingTransaction', 'transactionSend', 'getSignature']),
+  /* a name of this shape is money too (Ixian-Core's multisig family) */
+  moneyRe: /^multisig\w*Transaction$/i,
+  /* `new` of these types is money: Ixian-Core's Transaction constructor signs with the wallet key */
+  moneyNew: new Set(['Transaction']),
   /* the wallet password, the private key, the seed, the wallet file */
   keys: new Set(['isValidPassword', 'getPrimaryPrivateKey', 'writeWallet', 'readWallet', 'loadWallet', 'generateWallet',
     'addWallet', 'encryptWithPassword', 'decryptWithPassword', 'authWithPassword', 'changePassword']),
@@ -77,6 +93,18 @@ export const RULES = {
 
 /* Every emit that composes the verb at run time, with the verbs it can form. A NEW one fails --check / --write: it must be
  * read and listed here (the verbs it can form become senders of its shell). */
+/* Every name the mark lists match: a C# file the parser cannot read that names one of them is a read error (exit 2), so
+ * an unreadable file never hides a mark — unless PARSE_EXCEPTIONS lists that file with every such name it holds. */
+export const RULE_TOKENS = [...RULES.money, ...RULES.keys, ...RULES.keysRecv, ...RULES.keysMembers, ...RULES.pathRecv, ...RULES.pathNew, ...RULES.moneyNew];
+/* The C# files tree-sitter-c-sharp 0.23.5 cannot parse today, with what their text names. A listed file is SKIPPED: its
+ * calls are not in the call graph, so a verb that reaches money only through it would show no mark (a stated limit). A
+ * new name in a listed file, or a new unparsable file, fails closed. */
+export const PARSE_EXCEPTIONS = [
+  { file: 'Spixi/Meta/SpixiTransactionInclusionCallbacks.cs', names: ['Transaction', 'addOutgoingTransaction'], reason: 'C# 14 null-conditional assignment (`balances.TryGet(...)?.lastUpdate = 0`, scripts/cs-syntax-check.mjs GRAMMAR_GAPS); the transaction-inclusion callbacks of Ixian-Core — no page and no verb calls into it (blockReorg re-adds the pending outgoing transactions; it is called by the Ixian-Core TransactionInclusion, never from a WebView verb)' },
+  { file: 'Spixi/Platforms/MacCatalyst/RocksDbSharp/BinaryComparer.cs', names: [], reason: 'vendored RocksDbSharp (the Mac storage binding); no verb reaches it' },
+  { file: 'Spixi/Platforms/MacCatalyst/RocksDbSharp/Options/ColumnFamilyOptions.cs', names: [], reason: 'vendored RocksDbSharp (the Mac storage binding); no verb reaches it' },
+];
+
 export const DYNAMIC_EMITS = [
   { file: 'src/bridge/native.js', shape: 'ixian:', verbs: [],
     reason: 'the transport prefix guard `command.startsWith(\'ixian:\')` — a test, not an emit' },
@@ -173,9 +201,25 @@ function jsFactsRaw(code, file) {
     if (!/^['"`]ixian:/.test(raw)) continue;
     const shape = (t.type === 'template' ? tplShape(raw) : stringShape(code, tokens, i)).replace(/\*+/g, '*');
     const m = /^ixian:([A-Za-z0-9_]*)/.exec(shape);
-    emits.push({ verb: m[1], shape });
+    emits.push({ verb: m[1], shape, at: t.start });
   }
   return { emits, names };
+}
+
+/** the `ixian:` verbs of one markup piece: `href="ixian:…"` and the JS of every `on…=` attribute (entities &quot; &#39;
+ *  &amp; decoded; other entities are not) */
+function markupEmits(text, file) {
+  const out = [];
+  for (const m of text.matchAll(/\s(href|on[a-z]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)) {
+    const v = (m[2] !== undefined ? m[2] : m[3]).replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, '&');
+    if (m[1].toLowerCase() === 'href') {
+      const h = /^\s*ixian:([A-Za-z0-9_]*)/.exec(v);
+      if (h) out.push({ verb: h[1], shape: v.trim(), at: m.index });
+    } else if (v.includes('ixian:')) {
+      for (const e of jsFacts(v, file).emits) out.push({ ...e, at: m.index });
+    }
+  }
+  return out;
 }
 
 export function readJs(root) {
@@ -218,21 +262,27 @@ function inlineFactsRaw(html, file) {
   try { parts = walkHtml(html, { file }).parts; } catch (e) { throw new ReadError(file + ': the HTML walker refused: ' + String(e.message || e).split('\n')[0]); }
   const emits = [], names = new Set();
   const markup = [];
+  let at = 0;
   for (const p of parts) {
     if (p.kind === 'script') {
-      if (!p.text.trim()) continue;
-      if (!p.classicJs) throw new ReadError(file + ': an inline <script> that is not a classic script (line ' + p.line + ') — the lexer reads classic scripts only');
-      const f = jsFacts(p.text, file);
-      emits.push(...f.emits);
-      for (const n of f.names) names.add(n);
-    } else if (p.kind !== 'style') markup.push(p.text);
+      if (p.text.trim()) {
+        if (!p.classicJs) throw new ReadError(file + ': an inline <script> that is not a classic script (line ' + p.line + ') — the lexer reads classic scripts only');
+        const f = jsFacts(p.text, file);
+        for (const e of f.emits) emits.push({ ...e, at: at + e.at });
+        for (const n of f.names) names.add(n);
+      }
+    } else if (p.kind !== 'style') {
+      markup.push(p.text);
+      for (const e of markupEmits(p.text, file)) emits.push({ ...e, at: at + e.at });
+    }
+    at += p.text.length;
   }
   return { emits, names, markup: markup.join('') };
 }
 
 /* ─── C# ─── */
-const TEST_FNS = new Set(['StartsWith', 'Equals', 'Contains', 'EndsWith', 'IndexOf']);
-const PREFIX_FNS = new Set(['StartsWith', 'Contains', 'IndexOf']);
+const TEST_FNS = new Set(['StartsWith', 'Equals', 'Contains', 'EndsWith', 'IndexOf', 'Compare', 'CompareOrdinal', 'IsMatch', 'Match']);
+const PREFIX_FNS = new Set(['StartsWith', 'Contains', 'IndexOf', 'IsMatch', 'Match']);
 /** how a literal (or a const reference) is used: 'test' (a dispatch test), 'prefix' (a test that a longer verb also
  *  passes: StartsWith / Contains / IndexOf with `ixian:<name>` and no ':' after it) or '' (a payload cut, a label …) */
 function useOf(node, value) {
@@ -240,6 +290,13 @@ function useOf(node, value) {
   while (n.parent && n.parent.type === 'parenthesized_expression') n = n.parent;
   const p = n.parent;
   if (!p) return '';
+  /* the literal as the receiver: "ixian:x".Equals(url) */
+  if (p.type === 'member_access_expression' && p.childForFieldName('expression') && p.childForFieldName('expression').startIndex === n.startIndex
+    && p.parent && p.parent.type === 'invocation_expression') {
+    const c = callee(p.parent);
+    if (TEST_FNS.has(c.name)) return PREFIX_FNS.has(c.name) && /^ixian:[A-Za-z0-9_]+$/.test(value) ? 'prefix' : 'test';
+    return '';
+  }
   if (p.type === 'argument') {
     const inv = ancestor(p, ['invocation_expression']);
     const c = inv ? callee(inv) : { name: '' };
@@ -261,8 +318,9 @@ function csSites(model) {
       const out = [];
       for (const s of desc(f.tree.rootNode, STRING_TYPES)) {
         const v = strValue(s);
-        const m = /^ixian:([A-Za-z0-9_]+)/.exec(v);
+        const m = /^\^?ixian:([A-Za-z0-9_]+)/.exec(v);
         if (!m || inLogCall(s, LOG_RECV)) continue;
+        if (v.startsWith('^')) { const tail = v.slice(1); out.push({ node: s, verb: m[1], value: tail, use: useOf(s, tail) }); continue; }
         const decl = ancestor(s, ['variable_declarator']);
         const fd = decl && ancestor(decl, ['field_declaration']);
         if (fd && /\b(const|static\s+readonly|readonly\s+static)\b/.test(fd.text.split('=')[0])) {
@@ -314,7 +372,9 @@ function lift(model, rel, node, depth = 0, seen = new Set()) {
       .map((inv) => ({ inv, c: callee(inv) })).filter((x) => x.c.name === mname)
       .map((x) => ({ inv: x.inv, last: x.c.recv.split('.').pop(), bare: !x.c.recv, callerCls: typeName(memberOf(x.inv).type) })));
     for (const x of calls) {
-      if (!(x.last === cls || (x.bare && x.callerCls === cls))) continue;
+      /* Type.m(…), a bare call inside the class, or obj.m(…) when the tree declares at most AMBIGUOUS_MAX methods named m */
+      const byName = !x.bare && x.last !== cls && (model.byName.get(mname) || []).length <= AMBIGUOUS_MAX && !model.classes.has(x.last);
+      if (!(x.last === cls || (x.bare && x.callerCls === cls) || byName)) continue;
       out.push(...lift(model, f.rel, x.inv, depth + 1, seen));
     }
   }
@@ -325,7 +385,7 @@ function lift(model, rel, node, depth = 0, seen = new Set()) {
 export async function analyze(root, { guardTokens = [] } = {}) {
   const js = readJs(root);
   await loadParser();
-  const model = buildModel(root, guardTokens);
+  const model = buildModel(root, [...RULE_TOKENS, ...guardTokens], PARSE_EXCEPTIONS);
   const verbs = new Map();
   const V = (v) => { if (!verbs.has(v)) verbs.set(v, { senders: new Set(), emitFiles: new Set(), shapes: new Set(), csShapes: new Set(), handlers: new Map(), marks: new Set(), why: new Map() }); return verbs.get(v); };
   const dynamic = [];
@@ -361,7 +421,7 @@ export async function analyze(root, { guardTokens = [] } = {}) {
       for (const v of targets) {
         const r = V(v);
         const k = h.rel + '\u0000' + h.name;
-        if (!r.handlers.has(k)) r.handlers.set(k, { file: h.rel, member: h.name, cls: h.cls, marks: new Set(), why: new Map() });
+        if (!r.handlers.has(k)) r.handlers.set(k, { file: h.rel, member: h.name, cls: h.cls, line: site.node.startPosition.row + 1, marks: new Set(), why: new Map() });
         const hm = r.handlers.get(k);
         for (const x of got.marks) { hm.marks.add(x); if (!hm.why.has(x)) hm.why.set(x, h.cls + '.' + h.name + ' → ' + got.why.get(x)); }
         for (const x of got.marks) { r.marks.add(x); if (!r.why.has(x)) r.why.set(x, h.cls + '.' + h.name + ' → ' + got.why.get(x)); }
@@ -448,4 +508,5 @@ async function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main(process.argv.slice(2));
+const isMain = () => { try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (isMain()) process.exitCode = await main(process.argv.slice(2));

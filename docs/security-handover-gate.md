@@ -2553,3 +2553,4 @@ check goes green — never an entry in the script.
 | `scripts/quality/gate-diff.mjs` | `git diff` / `show` / `merge-base` on the given range; reads this file at both ends | ours, safe: read only; no skip token |
 | `scripts/quality/a11y-scan.mjs` | starts the runner's Chrome headless with a temp profile on `file://` pages of the built shells; DevTools over a local WebSocket; kills Chrome and deletes the profile at the end | ours, safe: a report; no page reaches the network (the shells fetch nothing, class F) |
 | `package.json`, `package-lock.json`: `fast-check` 4.11.0 (+ `pure-rand` 8.4.2), `axe-core` 4.14.1 | test tools only (`npm ci` in CI); never in the app package | ours, safe: exact versions, integrity hashes in the lock, `npm audit` names neither |
+| `scripts/quality/gate-diff.md`, `scripts/quality/parsers.md` | documents: the calibration of the gate diff; the list of the parsers the property tests cover | ours, safe: text only |

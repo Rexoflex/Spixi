@@ -45,7 +45,10 @@
  *                     where the contract puts it (counted over Spixi/**)
  *   a11 oldBodies   — (★ photo1a re-base 2026-11-18: was noStore, while PO-3 / PO-6 were parked) chatThumbOf / voiceInfoOf equal the base c0a76176 by SHA-256; ThumbJob, VoiceInfoJob and the 3-argument enqueueThumb / enqueueVoiceInfo equal the base ones once the job generation `gen` is taken out
  *   a10 harness     — csh.csproj compiles PhotoOpenRules.cs and PhotoOpenTests holds at least 23 tests (the contract's 19 + the later ones)
- * Deliberate breaks (#802): the builder-pins report of batch photo1a (B4), one per key. */
+ * Deliberate breaks (#802): the builder-pins report of batch photo1a (B4), one per key.
+ * re-based by imgurl: processThumb's one store call became `mediaUrlFor(job.doc) ? mediaThumbValue(…) : chatThumbFor(…, out hit)` and the
+ *   new partial SingleChatPage.MediaOrigin.cs reads SpixiFlags.PhotoThumbStore once — updated a6 thumbHead / countedCall / bodiesWhole (the
+ *   new statement, the new SHA-256), a8 noteCalls (the always-listed file is SingleChatPage.xaml.cs only), a9 consumersThumb (PART_F:1 stated). */
 import { createHash } from 'node:crypto';
 
 const count = (t, s) => (typeof s === 'string' ? t.split(s).length - 1 : (t.match(s) || []).length);
@@ -105,7 +108,7 @@ const regionsAt = (src, pos) => {
   return st;
 };
 
-export const SCP_F = 'Spixi/Pages/Chat/SingleChatPage.xaml.cs', RULES_F = 'Spixi/Utils/PhotoOpenRules.cs', FLAGS_F = 'Spixi/Utils/SpixiFlags.cs',
+export const SCP_F = 'Spixi/Pages/Chat/SingleChatPage.xaml.cs', PART_F = 'Spixi/Pages/Chat/SingleChatPage.MediaOrigin.cs', RULES_F = 'Spixi/Utils/PhotoOpenRules.cs', FLAGS_F = 'Spixi/Utils/SpixiFlags.cs',
   SI_F = 'Spixi/Utils/SharedItems.cs';
 
 /* the old statements of the base (c0a76176), as the masked + whitespace-normalised text; each was read from `git show c0a76176:<file>` when
@@ -339,18 +342,18 @@ export default async function (h) {
     /* review round 3 m-2 · ★ photo1a re-base (2026-11-18, PO-3 is back): `chatThumbOld` is the old chatThumbOfCounted — chatThumbOf + the `hit` probe, whole (a `hit = true`, a changed return or a lost NIT-2 head `if (!P1Perf.enabled) { return chatThumbOf(fi); }` is red) */
     countedWhole: NS.includes("private static string? chatThumbOld(FileInfo fi, out bool hit) " + "{ hit = false; if (!P1Perf.enabled) { return chatThumbOf(fi); } try { string key = fi.FullName + \"|\" + fi.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + \"|\" + fi.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture); lock (chatThumbLock) { hit = chatThumbCache.ContainsKey(key); } } catch (Exception) { hit = false; } return chatThumbOf(fi); }"),
     /* review round 4 m-2 · ★ photo1a re-base (2026-11-18): processThumb from the ONE store call (`chatThumbFor(fi, job.id, job.gen, out bool hit)`; the store / LRU, OFF = chatThumbOld = the base call) to the main-thread post, whole (a changed call, a dropped return or a write of `hit` is red) */
-    thumbHead: (() => { const h = norm(pt); const i = h.indexOf('string? uri = chatThumbFor('); const j = h.indexOf('MainThread.BeginInvokeOnMainThread('); return i > 0 && j > i && h.slice(i, j).trim() === "string? uri = chatThumbFor(fi, job.id, job.gen, out bool hit); if (uri == null) { return; } int doc = job.doc; string id = job.id; string? builtCmd = SpixiFlags.PhotoMediaAfterPaint ? UiCommandText.build(\"setFileThumb\", id, uri) : null; string? plainUri = builtCmd == null ? uri : null;"; })(),
+    thumbHead: (() => { const h = norm(pt); const i = h.indexOf('string? uri = mediaUrlFor('); const j = h.indexOf('MainThread.BeginInvokeOnMainThread('); return i > 0 && j > i && h.slice(i, j).trim() === "string? uri = mediaUrlFor(job.doc) ? mediaThumbValue(fi, job, out bool hit) : chatThumbFor(fi, job.id, job.gen, out hit); if (uri == null) { return; } int doc = job.doc; string id = job.id; string? builtCmd = SpixiFlags.PhotoMediaAfterPaint ? UiCommandText.build(\"setFileThumb\", id, uri) : null; string? plainUri = builtCmd == null ? uri : null;"; })(),
     /* ★ photo1a #46 r7 (2026-11-18) F1: `voiceHead`, the twin of `thumbHead` — processVoiceInfo from `int doc = job.doc;` to the main-thread post, whole (a statement added before the post, e.g. `builtCmd = "voiceInfo('" + id + "','" + info + "');";` or `builtCmd += id;`, is red); `builtCmd` is assigned exactly three times in the method: its declaration (= null) and the two UiCommandText.build lines */
     voiceHead: (() => { const h = norm(pv); const i = h.indexOf('int doc = job.doc;'); const j = h.indexOf('MainThread.BeginInvokeOnMainThread('); return i > 0 && j > i && count(h, 'int doc = job.doc;') === 1 && h.slice(i, j).trim() === `int doc = job.doc; string id = job.id; string? builtCmd = null; if (SpixiFlags.PhotoMediaAfterPaint) { if (info == null) { builtCmd = UiCommandText.build("voiceState", id, "error", "0", "0"); } else { int builtBar = info.IndexOf('|'); if (builtBar >= 0) { builtCmd = UiCommandText.build("voiceInfo", id, info.Substring(0, builtBar), info.Substring(builtBar + 1)); } } }`; })()
       && count(pv, /\bbuiltCmd\s*[-+*\/|&^%?]?=(?!=)/g) === 3 && count(pv, 'builtCmd = UiCommandText.build(') === 2,
-    countedCall: count(NS, 'string? uri = chatThumbFor(fi, job.id, job.gen, out bool hit);') === 1 && count(SCP.m, 'chatThumbFor(') === 4 && count(SCP.m, 'chatThumbOld(') === 3 && !/\bchatThumbOfCounted\b/.test(SCP.m),
+    countedCall: count(NS, 'string? uri = mediaUrlFor(job.doc) ? mediaThumbValue(fi, job, out bool hit) : chatThumbFor(fi, job.id, job.gen, out hit);') === 1 && count(SCP.m, 'chatThumbFor(') === 4 && count(SCP.m, 'chatThumbOld(') === 3 && !/\bchatThumbOfCounted\b/.test(SCP.m),
     nothingBuiltOnMain: !/uiCommandText|UiCommandText|Convert\.|Encoding\.|escapeHtmlParameter|ToBase64String|StringBuilder/.test(ptLam + pvLam),
     sendOnly: sbc === '{ try { sendMessage(text); } catch (Exception e) { Logging.error("Exception occured in sendUiCommand (" + e.GetType().Name + ")"); } }' && count(SCP.m, 'sendBuiltCommand(') === 3,
     /* ★ photo1a #46 r8 (2026-11-18, Opus MAJOR-1 / MAJOR-2): BOTH push methods are held WHOLE (comment-masked, whitespace-
        normalised, SHA-256 — the #1653 pattern): a write of builtCmd / plainUri / hit / info anywhere in the method (before
        or after the post, by any assignment form: =, +=, ??=, Interlocked.Exchange, ref) changes the hash. An edit of either
        method re-bases these two values after a look at its diff (#1596). */
-    bodiesWhole: sha(norm(pt)) === '780905290220bbe209bd0fb2ea6f70c7638966c8dc6f3e8b3cfb9472ea676fae' && sha(norm(pv)) === '265442cfe4b14d146ec1c6ca9c37223e366e344eb0bcd0534fe835f392c66fdc',
+    bodiesWhole: sha(norm(pt)) === '0e17c717ac828e6a7ef1fa3c4e063e813fe05bdce7b072f6f4a3e283c0441a7b'   /* re-based by imgurl: was 780905290220…, the store-call line only */ && sha(norm(pv)) === '265442cfe4b14d146ec1c6ca9c37223e366e344eb0bcd0534fe835f392c66fdc',
     oneSendUiPush: count(SCP.m, '"setFileThumb"') === 2 && count(SCP.m, '"voiceInfo"') === 2 && count(SCP.m, '"voiceState", id, "error", "0", "0"') === 2,
   };
   ok(F(a6).length === 0,
@@ -406,7 +409,7 @@ export default async function (h) {
   const noteBody = body(SCP, 'public static void noteFileDeleted()');
   const DL = load('Spixi/Pages/Downloads/DownloadsPage.xaml.cs'), SET = load('Spixi/Pages/Settings/SettingsPage.xaml.cs');
   const onDelDl = body(SET, 'public void onDeleteDownloads()');
-  const noteCallSites = TREE.map((x) => x.f + ':' + count(x.m, 'noteFileDeleted(')).filter((t) => !/:0$/.test(t) || /SingleChatPage/.test(t))
+  const noteCallSites = TREE.map((x) => x.f + ':' + count(x.m, 'noteFileDeleted(')).filter((t) => !/:0$/.test(t) || /SingleChatPage\.xaml\.cs/.test(t))
     .map((t) => t.replace(/SingleChatPage\.xaml\.cs:\d+/, 'SingleChatPage.xaml.cs:0')).sort().join();
   /* the base body of deleteMessage (c0a7617) without its closing brace — `git show c0a7617:Spixi/Pages/Chat/SingleChatPage.xaml.cs`, masked + normalised */
   const BASE_DELETE_OPEN = '{ voiceRowDeleted(msg_id); if (channel == selectedChannel) { lock (fileRowsShown) { fileRowsShown.Remove(Crypto.hashToString(msg_id)); } Utils.sendUiCommand(this, "deleteMessage", Crypto.hashToString(msg_id)); }';
@@ -453,7 +456,7 @@ export default async function (h) {
     consumersAfterPaint: flagsOf('PhotoMediaAfterPaint').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).join() === SCP_F + ':8',
     consumersFewer: flagsOf('PhotoFewerFileChecks').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).join() === SCP_F + ':2',
     /* the store switches are read in the page only: the load's one generation read, the two live-path enqueues, the two For() gates (3 sites each) */
-    consumersThumb: flagsOf('PhotoThumbStore').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).join() === SCP_F + ':3',
+    consumersThumb: flagsOf('PhotoThumbStore').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).sort().join() === [PART_F + ':1', SCP_F + ':3'].sort().join(),   /* re-based by imgurl: + the partial's ONE read (chatThumbJpeg's store gate) */
     consumersVoice: flagsOf('PhotoVoicePeaksStore').length === 0 && flagsOf('VoicePeaksStore').filter(([f]) => f !== RULES_F).map(([f, c]) => f + ':' + c).join() === SCP_F + ':3',
     notDevControl: !/PhotoMediaAfterPaint|PhotoFewerFileChecks|PhotoThumbStore|VoicePeaksStore|flagPhoto|flagVoicePeaks/.test(mask(raw('Spixi/Pages/Dev/DevPage.xaml.cs'))),
   };

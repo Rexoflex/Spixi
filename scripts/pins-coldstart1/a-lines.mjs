@@ -151,7 +151,7 @@ const BASE_BODIES = {
   wvCreate: 'd20a29ecf194dc3ec3dce6bbc48e0aecb0e61d817d0ec16d6090d3a4f11c53b8',
   wvLoad: '30beb4d966fffe53aebbbd22c9afea3d39b2433c1bc86650445c68f81178fe94',
   wvFinished: '3ca7cff0ddaa36bd9fe2032cc146c39f208fcfad8af34f61a9c0bcb320e6daac',
-  wvClient: '5da68f59dc6c8aaf5db52ce3af1d1c4ebbab7ff2e968e55c26e2bdf10d49069d',
+  wvClient: 'c922b26279592b5f883977bfc716b4bd00f45f52063691d7ab242f79074ae59e',   // re-based by imgurl: the media branch + mediaResponse (pure insertions in this class, `git diff` read; the renderer-death line left by #1972); was 5da68f59dc6c…
 };
 /* the token literals the BASE tree already holds outside ColdStartRules.cs: `"literal"@file×n`, sorted (computed once, scratch/base-constants.mjs) */
 const BASE_LITERALS = '"page"@Spixi/Utils/P1Perf.cs×5';

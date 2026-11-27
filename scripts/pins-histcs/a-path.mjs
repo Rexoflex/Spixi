@@ -281,7 +281,17 @@ const VI = 'Utils.sendUiCommand(this, "messagesDone", show_more); pushPendingJum
 /* every text that sclRest takes out (the rest of the file must be the base): each is followed by one space in the collapsed text */
 const CUTS = [I_INS, I_JUMP, I_DEFER, PPJ_DEFER, II_A, II_B, III_INS, IV_INS, EARLY, DEFER_ON, FB, V_INS1, V_DEFER, V_INS2, VI_INS, VI_INS2, UB_FIELD, AJW, D_LATE, U_LATE];   // ★ histcs #46 r4: + D_LATE (deleteMessage), U_LATE (updateMessage) · ★ histcs #46 r1: + I_JUMP, EARLY, DEFER_ON, V_DEFER, UB_FIELD · r2: + FB (the fallback drop), AJW (applyPendingJumpWindow) · r3: + I_DEFER (loadMessages), PPJ_DEFER (pushPendingJump's first statement)
 /* ★ histcs #46 r1: the two texts that REPLACE base text (new → base): the file branch's wrap (F2) and pushPendingJump's take (F1) */
-const REPLACES = [[FILE_NEW, FILE_BASE], [PPJ_NEW_MID, PPJ_BASE_MID]];
+/* ★ imgurl re-base (after a look at the diff): the media origin's call sites — three inserted statements (cut) and two replaced
+   statements (put back to the base text); every other byte of the rest stays the base's */
+const IMG_CUTS = ['mediaRevoke();', 'mediaBeginDocument();', 'caps += mediaOriginCaps();'];
+const IMG_REPLACES = [
+  ['string? uri = mediaUrlFor(job.doc) ? mediaThumbValue(fi, job, out bool hit) : chatThumbFor(fi, job.id, job.gen, out hit);', 'string? uri = chatThumbFor(fi, job.id, job.gen, out bool hit);'],
+  ['if (mediaUrlFor(doc)) uri = await viewerValueAsync(doc, hexId, file, stillWanted); else uri = await ViewerImage.dataUriOfAsync(file, stillWanted);', 'uri = await ViewerImage.dataUriOfAsync(file, stillWanted);'],
+];
+/* ★ imgurl re-base (the size rule R6, after a look at the diff): convertToBot() moved WHOLE to the partial SingleChatPage.Bot.cs;
+   the rest puts it back before reloadScreen (pins-imgurl/b-page b8 holds the moved text) */
+const IMG_MOVE = ['public void reloadScreen()', 'public void convertToBot() { popToRootAsync(); if (homePage != null) { homePage.removeDetailContent(false); homePage.onChat(friend.walletAddress, null); } else { HomePage.Instance().onChat(friend.walletAddress, null); } } public void reloadScreen()'];
+const REPLACES = [[FILE_NEW, FILE_BASE], [PPJ_NEW_MID, PPJ_BASE_MID], ...IMG_REPLACES, IMG_MOVE];
 
 /* the frozen BASE hashes (338d30f4) — see the header: the lead computes them with baseHashes() over the base texts */
 const BASE = {
@@ -323,7 +333,7 @@ export const sclRest = (text) => {
   if (b2 < om.end || count(t, B2_MARK) !== 1) return '<<NO B2 marker after onLoadMore>>';
   let c = norm(code.slice(0, om.end) + code.slice(b2));
   c = c.replace(BRANCH_NEW, BRANCH_OLD);
-  for (const cut of CUTS) c = c.replace(cut + ' ', '');
+  for (const cut of [...CUTS, ...IMG_CUTS]) c = c.replace(cut + ' ', '');
   for (const [now, was] of REPLACES) c = c.replace(now, was);
   return c;
 };

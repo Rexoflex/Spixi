@@ -280,7 +280,11 @@ export default async function (h) {
     noOtherWrite: slotWrites === fills.length + empties.length,
     mentions: sameMap(mentionMap, MENTIONS),
     keepMentions: sameMap(keepMap, KEEP_MENTIONS),
-    privateSlot: SCP.split(SLOT_DECL).length === 2 && tree.filter(([, x]) => /\bspareChatOp\b/.test(x)).map(([f]) => f).join() === 'Spixi/Utils/SpixiContentPage.cs',
+    /* ★ imgurl re-base: the class became partial; its ONE other part, SpixiContentPage.Life.cs (the trim hook), READS the slot exactly
+       2 times (the kept test, the null test) and the keep slot `spareKeepOp` exactly 2 times (the kept test), and writes neither (#46 r1 C-M2) */
+    privateSlot: SCP.split(SLOT_DECL).length === 2 && tree.filter(([, x]) => /\bspareChatOp\b/.test(x)).map(([f]) => f).sort().join() === 'Spixi/Utils/SpixiContentPage.Life.cs,Spixi/Utils/SpixiContentPage.cs'
+      && (() => { const lf = stripCode((tree.find(([f]) => f === 'Spixi/Utils/SpixiContentPage.Life.cs') || ['', ''])[1]); return (lf.match(/\bspareChatOp\b/g) || []).length === 2 && (lf.match(/\bspareKeepOp\b/g) || []).length === 2
+        && ['spareChatOp', 'spareKeepOp'].every((v) => !new RegExp('\\b' + v + '\\s*(?:=(?!=)|\\?\\?=)').test(lf) && !new RegExp('\\b(?:Interlocked\\.\\w+|Volatile\\.Write)\\(\\s*ref\\s+' + v + '\\b').test(lf)); })(),
   };
   ok(F(ot).length === 0,
     '★ perfb1 P-11 switch 2 ONE TAKER (#46 r1 C-6): the spare slot is private to SpixiContentPage and its sites are NAMED — filled only by warmSpareChat; emptied only by warmSpareChat (its staging failure), dropSpareChat and pushSpareChat; copied out only by dropSpareChat, keepSpareAtSleep, dropSpareIfKeptUnproven and pushSpareChat; and (#46 r2 R2-3 · r3 R3-2) EVERY textual mention of the two statics that hold the op — `spareChatOp` (`mentions`) and `spareKeepOp` (`keepMentions`) — in any shape is counted per enclosing method (both #if arms, the declarations apart; a field or a property is counted under the method above it); an alias made through a local variable or a parameter is out of reach of a text pin — so a new reader or taker of either static goes red and names its method, and pushSpareChat (whose first statement is dropSpareIfKeptUnproven) stays the only counted taker that hands a spare to a chat — failing: ' + JSON.stringify(F(ot)) + ' ' + JSON.stringify({ fills, empties, copies, slotWrites, mentionMap, keepMap }));

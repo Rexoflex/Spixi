@@ -47,7 +47,9 @@
  *   b14 storeGen0        — F-2: ONE generation read at the top of loadMessages (under the switches, before friend.getMessages), passed only by the two batch loops
  *   b15 offNoProbe       — NIT-2: chatThumbOld / voiceInfoOld return the base call at once when !P1Perf.enabled
  *   b16 storeSwitchKeys  — qt reads PhotoThumbStoreKey, qv reads VoicePeaksStoreKey (a swap is red), each store property is computed from its own local
- * Deliberate breaks (#802): the builder-pins report of batch photo1a (B4), one per key. */
+ * Deliberate breaks (#802): the builder-pins report of batch photo1a (B4), one per key.
+ * re-based by imgurl: processThumb's store call is now the chatThumbFor arm of `mediaUrlFor(job.doc) ? mediaThumbValue(fi, job, out bool hit) :
+ *   chatThumbFor(fi, job.id, job.gen, out hit)` — updated b10 jobsPassGen to that statement (the URL arm's job.gen: pins-imgurl/b-page b2). */
 import { createHash } from 'node:crypto';
 
 const count = (t, s) => (typeof s === 'string' ? t.split(s).length - 1 : (t.match(s) || []).length);
@@ -399,7 +401,7 @@ export default async function (h) {
       && enqT.includes('thumbQueue.Enqueue(new ThumbJob(thumbDoc, id, fm, gen));') && count(enqT, 'generationOf(') === 0 && count(SCP.m, 'new ThumbJob(') === 1,
     voiceJobGen: enqV2 === '{ enqueueVoiceInfo(id, fm, SpixiFlags.VoicePeaksStore ? ChatMediaStore.generationOf(friend?.walletAddress) : ChatGenReadHere); }'
       && enqV.includes('voiceInfoQueue.Enqueue(new VoiceInfoJob(thumbDoc, id, fm, gen));') && count(enqV, 'generationOf(') === 0 && count(SCP.m, 'new VoiceInfoJob(') === 1,
-    jobsPassGen: procT.includes('chatThumbFor(fi, job.id, job.gen, out bool hit)') && procV.includes('voiceInfoFor(job.fm, job.id, job.gen, out notYet, out _)')
+    jobsPassGen: procT.includes('mediaUrlFor(job.doc) ? mediaThumbValue(fi, job, out bool hit) : chatThumbFor(fi, job.id, job.gen, out hit)')   /* re-based by imgurl: was `chatThumbFor(fi, job.id, job.gen, out bool hit)` */ && procV.includes('voiceInfoFor(job.fm, job.id, job.gen, out notYet, out _)')
       && count(SCP.m, 'chatThumbFor(fi, job.id, job.gen,') === 1 && count(SCP.m, 'voiceInfoFor(job.fm, job.id, job.gen,') === 1,
     /* the reads of the store's generation in the page: loadMessages' one (storeGen0, b14), the two live-path enqueues, and the "no generation given" fallback of the two For() forms after their switch check */
     onlyHereReads: count(SCP.m, 'ChatMediaStore.generationOf(') === 5 && count(gThumb, 'ChatMediaStore.generationOf(chat)') === 1 && count(gVoice, 'ChatMediaStore.generationOf(chat)') === 1

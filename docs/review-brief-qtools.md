@@ -41,3 +41,10 @@ Not built, and why: #16 fuzzing of C# parsers ("after freeze") · #20 reviewer c
 
 ## 5 · Verdict
 (open)
+
+### Round 1 (readers S Fable 5.2 · A, B, C Opus; tree `8ac57424`) — MAJOR 10 (S 2 · A 6 · B 1 = S-1 · C 2) → fixed in `b3c9d7e2`
+- S-1 = B-M1 the gate diff dropped files git prints as binary (`.gitattributes`, a NUL byte; 15 `src` files are `-diff` today) → `--text`, attributes off, `.gitattributes` a check path, binary = exit 2.
+- S-2 the pull request's own runner chose the copy and the base came from a writable event file after the tree's code ran → the step now runs right after `npm ci`, takes `BASE_SHA` through `env:`, starts the BASE copy of the runner; the limit (code in the same job) is stated.
+- A MA-1…MA-6 → load wrappers resolved, XAML `Source`, HybridWebView and WebView subclasses, `new Transaction` and three more money names (`chat` / `chatreply` now marked money, listed with the reason), the base verbs in the mini-app WebView listed, unparsable C# files fail closed (three listed).
+- C M1 a flaky timing break row → a behaviour check + CPU time; C M2 a property false on other seeds → corrected and swept over 33 seeds.
+- MINORs fixed or stated in the heads (the lists in the builders' returns): check paths wider, qualified type names, the row rule (own section only; an API token alone names nothing), CSS `url(`, the media gate property, two more held defects (N1-upper), Chrome blocked from the network, Chrome death detected, the OK lines required, `workflow_dispatch` wording, the SBOM on pull requests.

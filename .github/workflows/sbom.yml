@@ -1,0 +1,179 @@
+# SBOM (software bill of materials) of the redesign branch, in CycloneDX JSON, as build artifacts. The fork only.
+# It is an INVENTORY, not a check: nothing here fails on a vulnerable or unknown package (npm audit and the CodeQL
+# workflow do that). It lists what the repository declares; it cannot see what MSBuild workloads pull in later, nor any
+# file that is copied into the tree by hand.
+#
+# Two jobs, two artifacts (sbom-npm, sbom-dotnet):
+#   npm    package-lock.json holds the TEST TOOLS only (eslint, jsdom, tree-sitter ...): nothing from npm ships in the
+#          app. `npm sbom` is built into npm (>= 9.5); there is no CycloneDX npm package. --package-lock-only reads the
+#          lockfile alone: no `npm ci`, so no install script of any package runs in this job.
+#   .NET   CycloneDX .NET tool, pinned below, over Spixi/Spixi.csproj after a restore with the MAUI workload (the same
+#          proven steps as the windows-build job of redesign-ci.yml). The restore covers all four target frameworks, so
+#          the BOM lists the Android, iOS, Mac Catalyst and Windows packages together. Ixian-Core is NOT a NuGet or
+#          project reference: Spixi.csproj imports it as a shared project (..\..\Ixian-Core\IXICore.projitems) and it has
+#          no package of its own, so the tool cannot see it; one step adds it as a component at the pinned commit.
+#          Spixi-PushService (iOS only) is a project reference; its packages come in through the restore.
+#
+# Nothing is published or signed; the artifacts are for a person to read or for a later tool to take.
+name: sbom
+
+on:
+  push:
+    branches: [ 'redesign/frontend' ]
+  workflow_dispatch:
+
+concurrency:
+  group: sbom-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IXIAN_CORE_REF: 097341acba9be1855383acf8215d779ca96efa02   # keep equal to IXIAN_CORE_REF in redesign-ci.yml (the first .NET steps fail when they differ)
+  CYCLONEDX_DOTNET_VERSION: 6.3.2                            # CycloneDX .NET tool on nuget.org (latest stable on 2026-11-27, git tag v6.3.2 = e1d3d725); change it here only
+
+jobs:
+  npm:
+    name: SBOM npm (test tools)
+    if: github.repository == 'Rexoflex/Spixi'   # the fork only: a copy of this file in another repository does nothing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - name: Checkout Spixi
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Setup Node
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1   # v7.1.0
+      with:
+        node-version: '22'
+
+    # package.json has no "version", and `npm sbom` refuses a root with none (EINVALIDPURLTYPE). So the command runs in a
+    # copy of the two files in a folder of the runner temp directory, with "version": "0.0.0" added to the COPY; the
+    # repository's package.json is not changed. The folder name becomes the name of the root component.
+    - name: CycloneDX SBOM from package-lock.json (no install)
+      run: |
+        set -eo pipefail
+        work="$RUNNER_TEMP/spixi-redesign-test-tools"
+        mkdir -p "$work" sbom
+        cp package.json package-lock.json "$work/"
+        npm --version
+        node -e '
+          const fs = require("fs");
+          const f = process.argv[1] + "/package.json";
+          const p = JSON.parse(fs.readFileSync(f, "utf8"));
+          if (!p.version) p.version = "0.0.0";
+          fs.writeFileSync(f, JSON.stringify(p, null, 2) + "\n");
+        ' "$work"
+        (cd "$work" && npm sbom --sbom-format=cyclonedx --sbom-type=application --package-lock-only) > sbom/spixi-npm.cdx.json
+        node -e '
+          const bom = JSON.parse(require("fs").readFileSync("sbom/spixi-npm.cdx.json", "utf8"));
+          const n = (bom.components || []).length;
+          if (bom.bomFormat !== "CycloneDX" || n < 1) { console.error("the npm SBOM is empty or not CycloneDX"); process.exit(1); }
+          console.log("npm SBOM: CycloneDX " + bom.specVersion + ", " + n + " components");
+        '
+
+    - name: Upload the npm SBOM
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+      with:
+        name: sbom-npm
+        path: sbom/spixi-npm.cdx.json
+        if-no-files-found: error
+        retention-days: 30
+
+  dotnet:
+    name: SBOM .NET (Spixi.csproj, all target frameworks)
+    if: github.repository == 'Rexoflex/Spixi'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout Spixi
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        path: Spixi
+        persist-credentials: false
+
+    - name: Checkout Ixian-Core (pinned)
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        repository: ixian-platform/Ixian-Core
+        ref: ${{ env.IXIAN_CORE_REF }}
+        path: Ixian-Core
+        persist-credentials: false
+
+    # Spixi.csproj imports ..\..\Ixian-Core\IXICore.projitems, so the sibling folder must be the pinned commit and the
+    # pin must equal the one that redesign-ci builds against.
+    - name: The Ixian-Core pin equals the one of redesign-ci
+      run: |
+        set -eo pipefail
+        grep -q "IXIAN_CORE_REF: $IXIAN_CORE_REF" Spixi/.github/workflows/redesign-ci.yml || { echo "::error::IXIAN_CORE_REF differs from redesign-ci.yml"; exit 1; }
+        git -C Ixian-Core rev-parse HEAD | grep -qx "$IXIAN_CORE_REF" || { echo "::error::Ixian-Core is not at the pinned commit"; exit 1; }
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73   # v6.1.0
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Install MAUI workload
+      run: dotnet workload install maui
+
+    # One restore for every target framework (Windows adds the Android / iOS / Mac Catalyst packs). The repository sits in
+    # the folder Spixi, so the project is Spixi/Spixi/Spixi.csproj. The tool reads obj/project.assets.json, so it must
+    # not restore again (--disable-package-restore).
+    - name: Restore
+      run: dotnet restore Spixi/Spixi/Spixi.csproj
+
+    # Installed outside the repository, from the current directory of the runner temp folder: the repository's
+    # nuget.config (which maps the local feed to RocksDB only) is not read, so the tool comes from nuget.org only.
+    # NuGet verifies the package signature at install (on by default on Windows). The version is exact; no hash is pinned.
+    - name: Install the CycloneDX .NET tool (pinned)
+      run: |
+        set -eo pipefail
+        cd "$RUNNER_TEMP"
+        dotnet tool install CycloneDX --tool-path "$RUNNER_TEMP/cdx" --version "$CYCLONEDX_DOTNET_VERSION"
+
+    - name: CycloneDX SBOM from Spixi.csproj
+      run: |
+        set -eo pipefail
+        mkdir -p sbom
+        "$RUNNER_TEMP/cdx/dotnet-CycloneDX.exe" Spixi/Spixi/Spixi.csproj \
+          --disable-package-restore \
+          --include-project-references \
+          --output-format Json \
+          --output sbom \
+          --filename spixi-dotnet.cdx.json
+
+    # The shared project has no package: add it by hand as ONE component so the BOM names the largest source that is
+    # compiled into the app (purl of the pinned commit). The check after it fails closed on an empty or foreign file.
+    - name: Add Ixian-Core (shared project) and check the BOM
+      env:
+        BOM_FILE: sbom/spixi-dotnet.cdx.json
+      run: |
+        set -eo pipefail
+        node -e '
+          const fs = require("fs");
+          const f = process.env.BOM_FILE, ref = process.env.IXIAN_CORE_REF;
+          const bom = JSON.parse(fs.readFileSync(f, "utf8"));
+          if (bom.bomFormat !== "CycloneDX" || !Array.isArray(bom.components) || bom.components.length < 1) { console.error("the .NET SBOM is empty or not CycloneDX"); process.exit(1); }
+          if (!bom.components.some((c) => /^Newtonsoft\.Json$/i.test(c.name))) { console.error("the .NET SBOM lacks Newtonsoft.Json (declared in Spixi.csproj): the restore did not reach the tool"); process.exit(1); }
+          bom.components.push({
+            type: "library", "bom-ref": "pkg:github/ixian-platform/ixian-core@" + ref, name: "Ixian-Core", version: ref,
+            purl: "pkg:github/ixian-platform/ixian-core@" + ref, scope: "required",
+            description: "Compiled into the app as a shared project (IXICore.projitems), not a package. Pinned commit.",
+          });
+          fs.writeFileSync(f, JSON.stringify(bom, null, 2) + "\n");
+          console.log(".NET SBOM: CycloneDX " + bom.specVersion + ", " + bom.components.length + " components (Ixian-Core included)");
+        '
+
+    - name: Upload the .NET SBOM
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+      with:
+        name: sbom-dotnet
+        path: sbom/spixi-dotnet.cdx.json
+        if-no-files-found: error
+        retention-days: 30

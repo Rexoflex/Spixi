@@ -153,7 +153,7 @@ namespace Spixi
             if (menu.PopoverPresentationController != null)
             {
                 menu.PopoverPresentationController.SourceView = host.View;
-                menu.PopoverPresentationController.SourceRect = new CoreGraphics.CGRect(host.View!.Bounds.GetMidX(), host.View.Bounds.GetMidY(), 0, 0);
+                menu.PopoverPresentationController.SourceRect = new CoreGraphics.CGRect(host.View!.Bounds.X + host.View.Bounds.Width / 2, host.View.Bounds.Y + host.View.Bounds.Height / 2, 0, 0);
             }
             return show(host, menu, done, SPIXI.MacSaveRules.Done);
         }

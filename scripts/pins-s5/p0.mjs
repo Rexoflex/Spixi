@@ -90,11 +90,7 @@ export default async function (h) {
         /* ★ S8 #46 r4 re-base: window 260 → 420 — the re-add heals now clear the heart AND the declined invites (SAppDeclines, pin
            pins-s8/cs-wiring A4) before forgetting the arrivals; three statements cannot fit 260 chars even without comments.
            after the call, or (the two decline sites, whose try/finally shape is pinned by #985) the declined address right before it */
-        /* ★ quotebox2 re-base (2026-11-27, after a look at the diff): window 420 → 500 — the two re-add heals (ContactNewPage.addContactCore,
-           SpixiContentPage.sendContactRequestGuarded) now run quotebox2's ONE sweep statement `if (QuoteBox2Flags.SweepOnForget)
-           SContacts.scheduleSentSweep();` after their SPeerLocalStores.forget and before forgetAddress (pins-quotebox2/a-sweep a1); the
-           forget is still the removal's own, a few statements on (474 / 444 chars of stripped code). */
-        out.push(p + ':' + (/CoreMessageWriter\.arrivals\.forgetAddress\(\w+\.walletAddress\.ToString\(\)\);/.test(t.slice(i, i + 500))
+        out.push(p + ':' + (/CoreMessageWriter\.arrivals\.forgetAddress\(\w+\.walletAddress\.ToString\(\)\);/.test(t.slice(i, i + 420))
           || /CoreMessageWriter\.arrivals\.forgetAddress\(declinedAddr\);\s*bool listed = /.test(t.slice(Math.max(0, i - 400), i))));
       }
       return out;

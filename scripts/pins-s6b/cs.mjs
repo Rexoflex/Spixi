@@ -277,8 +277,21 @@ export default async function (h) {
     const mr = bodyOf(SCP, 'private bool matchReply(FriendMessage message, int channel, ReplyQuote.Index? index, out ReplyQuote.Match? match)');
     const shapeFirst = mr.search(/if\s*\(\s*message\.type\s*!=\s*FriendMessageType\.standard\s*\|\|\s*!ReplyQuote\.looksLikeReply\(message\.message\)\s*\)\s*\{\s*return false;\s*\}/) >= 0
       && mr.indexOf('looksLikeReply') < mr.indexOf('buildReplyIndex');
+    /* ★ quotebox2 size re-base (2026-11-27, after a look at the diff): matchReply's match call moved into ONE partial-class member,
+       tryReplyMatch (Spixi/Pages/Chat/SingleChatPage.ReplyMatch.cs), which passes the SAME arguments to the same ReplyQuote.tryMatch and
+       returns its result (pins-quotebox2/b-matchlog b2 holds its store-build body exactly). The claim (the reply itself is skipped: its
+       own id goes in as `self`) is unchanged: either the base call in matchReply, or matchReply's `tryReplyMatch(message, replyTime, self,
+       idx, preferred, out match, …)` + that member's parameters in that order + its `bool found = ReplyQuote.tryMatch(message.message,
+       replyTime, self, idx, preferred, out match);` … `return found;`. Break: matchReply's call `self, idx, preferred, out match, channel`
+       → `"", idx, preferred, out match, channel` → this key (self=false), red as observed 2026-11-27. */
+    const RMH = stripCode(rd('Spixi/Pages/Chat/SingleChatPage.ReplyMatch.cs'));
+    const trm = bodyOf(RMH, 'bool viaLoad)');
+    const viaHelper = /\btryReplyMatch\(message,\s*replyTime,\s*self,\s*idx,\s*preferred,\s*out match,/.test(mr)
+      && /private bool tryReplyMatch\(FriendMessage message,\s*long replyTime,\s*string self,\s*ReplyQuote\.Index idx,\s*string\? preferred,\s*out ReplyQuote\.Match\? match,/.test(RMH)
+      && /^\{\s*bool found\s*=\s*ReplyQuote\.tryMatch\(message\.message,\s*replyTime,\s*self,\s*idx,\s*preferred,\s*out match\);/.test(trm.trim())
+      && /return found;\s*\}$/.test(trm.trim());
     const self = /string self\s*=\s*message\.id\s*!=\s*null\s*\?\s*Crypto\.hashToString\(message\.id\)\s*:\s*"";/.test(mr)
-      && /ReplyQuote\.tryMatch\(message\.message,\s*replyTime,\s*self,\s*idx,\s*preferred,\s*out match\)/.test(mr)
+      && (/ReplyQuote\.tryMatch\(message\.message,\s*replyTime,\s*self,\s*idx,\s*preferred,\s*out match\)/.test(mr) || viaHelper)
       && /replyTargets\.TryGetValue\(self,\s*out string\?\s*preferred\);/.test(mr)
       && /long replyTime\s*=\s*message\.timestamp;/.test(mr);
     const fallback = /match\s*=\s*ReplyQuote\.fallbackOf\(message\.message\);\s*return match\s*!=\s*null;\s*\}$/.test(mr.trim());

@@ -893,7 +893,7 @@ namespace SPIXI
         public static string flagsLine(int b) => "[FLAGS] fixb5 opusmanaged=" + (b & 1) + " declineclears=" + (b >> 1 & 1);
     }
 
-    /** quotebox2 (#1966 (3)): the Sent sweep after the forget of the undo and of the two pendingDeletion re-adds. Absent = ON;
+    /** The switch of the Sent sweep after the forget of the undo and of the two pendingDeletion re-adds (#1966 (3)). Absent = ON;
      *  a stored 0 acts only in dev mode; read once per process, at the first use. */
     public static class QuoteBox2Flags
     {
@@ -924,8 +924,8 @@ namespace SPIXI
     }
 
 #if SPIXI_DEV_COEXIST
-    /** quotebox2 (dev build only): the words of the [QB2] line of a reply match — a message id and counts, never a text, a name
-     *  or an address (SingleChatPage.matchReply logs it). */
+    /** Developer build only: the words of the [QB2] line of a reply match — a message id and counts, never a text, a name
+     *  or an address (SingleChatPage.tryReplyMatch logs it). */
     public static class ReplyMatchLog
     {
         /** The candidates under the reply line's probe keys (those of ReplyQuote.tryMatch), with no time or self filter. */

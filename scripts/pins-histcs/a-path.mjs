@@ -278,17 +278,20 @@ const U_CTX = 'public void updateMessage(FriendMessage message, int channel) { i
 const VI_INS = 'olderPushed(olderJob);';
 const VI_INS2 = 'olderScope?.Dispose();';   // lead (merge): an OTHER load stops counting as in flight once its pushes are out (mechanisms § 4)
 const VI = 'Utils.sendUiCommand(this, "messagesDone", show_more); pushPendingJump(); } ' + VI_INS + ' ' + VI_INS2 + ' int holdDoc = thumbDoc;';
-/* ★ quotebox2 re-base (2026-11-27, after a look at the diff of SingleChatPage.xaml.cs: 1 + 9 lines added, 0 deleted): the undo's ONE sweep
-   statement (pins-quotebox2/a-sweep) and matchReply's ONE dev-only [QB2] group (pins-quotebox2/b-matchlog) are cut too, so a7 still holds
-   "the rest of the file = the base" — the histcs claim is unchanged, the two quotebox2 texts are named here, exactly. */
-const QB2_SWEEP = 'if (QuoteBox2Flags.SweepOnForget) SContacts.scheduleSentSweep();';
-const QB2_GROUP = '#if SPIXI_DEV_COEXIST try { bool qb2Found = ReplyQuote.tryMatch(message.message, replyTime, self, idx, preferred, out ReplyQuote.Match? qb2Match) && qb2Match != null; '
-  + 'Logging.info("[QB2] " + ReplyMatchLog.body(self, qb2Found, ReplyMatchLog.candidates(message.message, idx), replyDeepCached(channel)?.Count ?? -1, idx.Count, index != null, MainThread.IsMainThread)); '
-  + '} catch (Exception) { } #endif';
+/* ★ quotebox2 re-base (2026-11-27, after a look at the diff of SingleChatPage.xaml.cs): ★ size re-base (2026-11-27, size check R6 — the
+   file has the base's line count again, 0 lines added): quotebox2 now changes only the CALLEE of two base lines — the undo's forget
+   (`SPeerLocalStores.forget(` → `SentSweepOnForget.forget(`, pins-quotebox2/a-sweep) and matchReply's match (`ReplyQuote.tryMatch(…)` →
+   `tryReplyMatch(…)`, whose dev-only [QB2] group lives in SingleChatPage.ReplyMatch.cs, pins-quotebox2/b-matchlog). They are put back
+   (REPLACES), so a7 still holds "the rest of the file = the base" — the histcs claim is unchanged, the two quotebox2 texts are named here,
+   exactly. Was: the two inserted texts QB2_SWEEP (the sweep statement) and QB2_GROUP (the dev group) cut as CUTS. Breaks (red as observed
+   2026-11-27): the call line's `index != null` → `index == null` → a7; the undo's `friend.walletAddress.ToString()` → `…?.ToString()` → a7. */
+const QB2_FORGET_NEW = 'SentSweepOnForget.forget(friend.walletAddress.ToString());', QB2_FORGET_BASE = 'SPeerLocalStores.forget(friend.walletAddress.ToString());';
+const QB2_CALL_NEW = 'if (tryReplyMatch(message, replyTime, self, idx, preferred, out match, channel, index != null) && match != null)';
+const QB2_CALL_BASE = 'if (ReplyQuote.tryMatch(message.message, replyTime, self, idx, preferred, out match) && match != null)';
 /* every text that sclRest takes out (the rest of the file must be the base): each is followed by one space in the collapsed text */
-const CUTS = [I_INS, I_JUMP, I_DEFER, PPJ_DEFER, II_A, II_B, III_INS, IV_INS, EARLY, DEFER_ON, FB, V_INS1, V_DEFER, V_INS2, VI_INS, VI_INS2, UB_FIELD, AJW, D_LATE, U_LATE, QB2_SWEEP, QB2_GROUP];   // ★ histcs #46 r4: + D_LATE (deleteMessage), U_LATE (updateMessage) · ★ histcs #46 r1: + I_JUMP, EARLY, DEFER_ON, V_DEFER, UB_FIELD · r2: + FB (the fallback drop), AJW (applyPendingJumpWindow) · r3: + I_DEFER (loadMessages), PPJ_DEFER (pushPendingJump's first statement)
+const CUTS = [I_INS, I_JUMP, I_DEFER, PPJ_DEFER, II_A, II_B, III_INS, IV_INS, EARLY, DEFER_ON, FB, V_INS1, V_DEFER, V_INS2, VI_INS, VI_INS2, UB_FIELD, AJW, D_LATE, U_LATE];   // ★ histcs #46 r4: + D_LATE (deleteMessage), U_LATE (updateMessage) · ★ histcs #46 r1: + I_JUMP, EARLY, DEFER_ON, V_DEFER, UB_FIELD · r2: + FB (the fallback drop), AJW (applyPendingJumpWindow) · r3: + I_DEFER (loadMessages), PPJ_DEFER (pushPendingJump's first statement)
 /* ★ histcs #46 r1: the two texts that REPLACE base text (new → base): the file branch's wrap (F2) and pushPendingJump's take (F1) */
-const REPLACES = [[FILE_NEW, FILE_BASE], [PPJ_NEW_MID, PPJ_BASE_MID]];
+const REPLACES = [[FILE_NEW, FILE_BASE], [PPJ_NEW_MID, PPJ_BASE_MID], [QB2_FORGET_NEW, QB2_FORGET_BASE], [QB2_CALL_NEW, QB2_CALL_BASE]];   // ★ quotebox2 (size re-base): + the two callee changes
 
 /* the frozen BASE hashes (338d30f4) — see the header: the lead computes them with baseHashes() over the base texts */
 const BASE = {
@@ -625,7 +628,7 @@ export default async function (h) {
     'olderPostMarker(': 3,                                         // the declaration + olderPushed + the task's after step (★ r4: both BEFORE the gate exit)
     'olderDeferBehindPage(': 2,                                    // the declaration + the ONE call in loadMessages
     'olderPostBehind(': 3,                                         // the declaration + olderDeferBehindPage + pushPendingJump
-    'MainThread.IsMainThread': 5,                                  // two others in the file (the sends, base) · r3: + olderDeferBehindPage, pushPendingJump · ★ quotebox2 re-base (2026-11-27): + matchReply's dev-only [QB2] line (ui=), inside its #if SPIXI_DEV_COEXIST group (pins-quotebox2/b-matchlog)
+    'MainThread.IsMainThread': 4,                                  // two others in the file (the sends, base) · r3: + olderDeferBehindPage, pushPendingJump
     'deferredFileRows': 6,                                         // ★ histcs #46 r1 (F2): the field, its set, the keep-point test + add, insertMessage's test + add
     'HistoryOlderRules.usesNewPath(': 1,
     'HistoryOlderRules.nextShow(': 1,

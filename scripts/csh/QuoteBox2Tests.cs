@@ -8,7 +8,7 @@
 // over the seed's own rows, each reply matched by the real tryMatch with its own time and id; the four reply ids of Seed 57 (first 16
 // bytes of messageIdFor(56, j), lowercase hex); and the property "tryMatch true → candidates ≥ 1" over the seed replies × the E1–E5 indexes,
 // "X: "-prefixed lines and the probe-edge shapes (a rest of 64–68 chars, ": " at 61–65). It is a sampled property, not a proof for every text.
-// NOT shown: SingleChatPage (MAUI- and Core-bound, not compiled here): the call of the [QB2] line in matchReply, the window and the
+// NOT shown: SingleChatPage (MAUI- and Core-bound, not compiled here): the call of the [QB2] line in tryReplyMatch, the window and the
 // deeper read of a real open (the index below is built the way buildReplyIndex builds it: the deeper rows not in the window, then
 // the window rows), and the three sweep sites (pins-quotebox2/a-sweep and b-matchlog read those as text).
 // DELIBERATE BREAKS (one mutation each in a copy, then node scripts/run-csh.mjs; the red tests in brackets, observed 2026-11-27):

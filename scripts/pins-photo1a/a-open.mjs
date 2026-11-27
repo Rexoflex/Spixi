@@ -406,7 +406,11 @@ export default async function (h) {
   const noteBody = body(SCP, 'public static void noteFileDeleted()');
   const DL = load('Spixi/Pages/Downloads/DownloadsPage.xaml.cs'), SET = load('Spixi/Pages/Settings/SettingsPage.xaml.cs');
   const onDelDl = body(SET, 'public void onDeleteDownloads()');
-  const noteCallSites = TREE.map((x) => x.f + ':' + count(x.m, 'noteFileDeleted(')).filter((t) => !/:0$/.test(t) || /SingleChatPage/.test(t))
+  /* ★ quotebox2 size re-base (2026-11-27, after a look at the diff): the keep-test names SingleChatPage.xaml.cs exactly (was /SingleChatPage/):
+     the new partial file SingleChatPage.ReplyMatch.cs holds no call (:0) and must drop out like every other file without one; a call
+     there would still show (≠ 0) and turn noteCalls red. Break: one `noteFileDeleted();` added to SingleChatPage.ReplyMatch.cs → noteCalls,
+     red as observed 2026-11-27. */
+  const noteCallSites = TREE.map((x) => x.f + ':' + count(x.m, 'noteFileDeleted(')).filter((t) => !/:0$/.test(t) || /SingleChatPage\.xaml\.cs/.test(t))
     .map((t) => t.replace(/SingleChatPage\.xaml\.cs:\d+/, 'SingleChatPage.xaml.cs:0')).sort().join();
   /* the base body of deleteMessage (c0a7617) without its closing brace — `git show c0a7617:Spixi/Pages/Chat/SingleChatPage.xaml.cs`, masked + normalised */
   const BASE_DELETE_OPEN = '{ voiceRowDeleted(msg_id); if (channel == selectedChannel) { lock (fileRowsShown) { fileRowsShown.Remove(Crypto.hashToString(msg_id)); } Utils.sendUiCommand(this, "deleteMessage", Crypto.hashToString(msg_id)); }';

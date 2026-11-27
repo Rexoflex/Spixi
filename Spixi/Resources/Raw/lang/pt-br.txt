@@ -699,6 +699,8 @@ global-time-minutesago = min
 global-share-choose = Escolha uma ação
 global-share-savefile = Salvar arquivo
 global-share-sharefile = Compartilhar arquivo
+global-share-addphotos = Adicionar ao Fotos
+global-share-addphotos-failed = O Spixi não conseguiu adicionar a foto ao Fotos. Verifique o acesso do Spixi ao Fotos em Ajustes do Sistema > Privacidade e Segurança.
 
 ; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
 notification-new-message = Nova mensagem

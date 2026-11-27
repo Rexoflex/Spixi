@@ -25,6 +25,7 @@
  *   fails. ④ the handleVerb OFF return moved below answerAsync → off fails. ⑤ the v1hints Logging.info removed from
  *   SpixiFlags.init → flags fails. ⑥ the setFlagsDevV1 push removed → dev fails. #46 r1: ⑦ `sessionMoment = true;` added
  *   in the ixihelp case → off fails (sessionOnlyViaRule).
+ * re-based by macfixa (2026-11-27): the expression may name MacfixaFlags.SwipeTouchLock (the cap `swipeTouchLock`, last); the matrix is 32 combinations.
  * re-based by fixb2 item 4 (SpixiFlags.init: the two item-4 switches and their ONE [FLAGS] line follow the fixb1 line) — `lines`: one more OPTIONAL trailing group
  * (pins-fixb2/d-pay-confirm FLAGS holds it in full). */
 // ★ photo1a re-base (2026-11-17): V1A-M (P31) SpixiFlags lines — an OPTIONAL exact photo1a tail (2 computes + the photo1a [FLAGS] line) may follow the fixb1 group at the end of init; the claim (v1ixihelp line then v1hints line right after the S20G line) is unchanged. ★ merge with fixb2 (2026-11-18): the photo1a group follows the fixb2 group.
@@ -49,25 +50,27 @@ export default async function (h) {
   const expr = capCalls.length === 1 ? capCalls[0][1] : '';
   const NAMES = ['S17Bridge', 'S17Moments', 'V1IxiHelp', 'V1Hints'];
   const c = { one: capCalls.length === 1, pushHintsNext: /Utils\.sendUiCommand\(this, "setCaps", "composeSend[^;]*\);\s*pushHints\(\);/.test(ol) };
-  const safe = expr.replace(/"[^"\\]*"/g, '').replace(/SpixiFlags\.(\w+)/g, (m, n) => (NAMES.includes(n) ? '' : '#'));
+  const safe = expr.replace(/"[^"\\]*"/g, '').replace(/SpixiFlags\.(\w+)/g, (m, n) => (NAMES.includes(n) ? '' : '#'))
+    .replace(/MacfixaFlags\.(\w+)/g, (m, n) => (n === 'SwipeTouchLock' ? '' : '#'));   // macfixa re-base: + the swipeTouchLock cap (last)
   c.safe = expr.length > 0 && /^[\s+()?:&]*$/.test(safe);
   const bad = [];
   if (c.safe) {
-    const fn = new Function('SpixiFlags', 'return ' + expr + ';');
-    for (let b = 0; b < 16; b++) {
+    const fn = new Function('SpixiFlags', 'MacfixaFlags', 'return ' + expr + ';');
+    for (let b = 0; b < 32; b++) {
       const F = { S17Bridge: !!(b & 1), S17Moments: !!(b & 2), V1IxiHelp: !!(b & 4), V1Hints: !!(b & 8) };
-      const caps = String(fn(F)).split(',');
+      const caps = String(fn(F, { SwipeTouchLock: !!(b & 16) })).split(',');
       const want = ['composeSend', 'hints', 'updateHelp', 'hintHelp'];
       if (F.S17Bridge) want.push('whatsnew');
       if (F.S17Moments) want.push('moments');
       if (F.S17Moments && F.V1IxiHelp) want.push('ixihelp');
       if (F.V1Hints) want.push('wordtips');
+      if (b & 16) want.push('swipeTouchLock');
       if (caps.join(',') !== want.join(',')) bad.push(JSON.stringify(F) + ' → ' + caps.join(','));
     }
   }
   c.matrix = c.safe && bad.length === 0;
   ok(Object.values(c).every(Boolean),
-    '★ V1A-M (P31): home\'s setCaps — `ixihelp` only with S17Moments AND V1IxiHelp (after `moments`), `wordtips` only with V1Hints (after it), every other cap unchanged in all 16 flag combinations; pushHints() still follows — ' + JSON.stringify(c) + (bad.length ? ' bad=' + bad.join(' | ') : ''));
+    '★ V1A-M (P31): home\'s setCaps — `ixihelp` only with S17Moments AND V1IxiHelp (after `moments`), `wordtips` only with V1Hints (after it), `swipeTouchLock` only with MacfixaFlags.SwipeTouchLock (last), every other cap unchanged in all 32 flag combinations; pushHints() still follows — ' + JSON.stringify(c) + (bad.length ? ' bad=' + bad.join(' | ') : ''));
 
   /* word — the dispatch order and the body */
   const nav = body(HP, 'private void onNavigating(object sender, WebNavigatingEventArgs e)');

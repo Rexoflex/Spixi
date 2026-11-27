@@ -1657,6 +1657,14 @@
   const PANE_SEEN_KEY = 'spixi.pane.seen';
   let paneSeen = false;
   try { paneSeen = sessionStorage.getItem(PANE_SEEN_KEY) === '1'; } catch (e) {}
+  /* The first home document of a WebView (a new process) boots before any Account pane can open, so a pane flag
+     found then was left by a quit or a crash with Account open: clear it. A reload of the same WebView (a re-bake,
+     #589) keeps sessionStorage (this mark or the sighting), so it keeps the flag. */
+  const HOME_BOOT_KEY = 'spixi.home.booted';
+  try {
+    if (!paneSeen && sessionStorage.getItem(HOME_BOOT_KEY) !== '1') clearAccountPaneFlag();
+    sessionStorage.setItem(HOME_BOOT_KEY, '1');
+  } catch (e) {}
   function seePane(on) {
     paneSeen = !!on;
     try { if (on) sessionStorage.setItem(PANE_SEEN_KEY, '1'); else sessionStorage.removeItem(PANE_SEEN_KEY); } catch (e) {}
@@ -1984,7 +1992,7 @@
        item that chats-shell has always been able to render are finally reachable. The
        muted ROW treatment (a toned-down count badge PLUS the bell-off glyph) needs nothing
        new either: createIndicators has rendered both since Damir's review on 2026-07-02. */
-    capabilities: { pin: true, mute: true, favorites: true, delete: true },   // ★ CH4 (Session AD): favorites live
+    capabilities: { pin: true, mute: true, favorites: true, delete: true, swipeTouchLock: () => bridge.cap('swipeTouchLock') },   // ★ CH4 (Session AD): favorites live; swipeTouchLock is read at gesture time
     /* ★ DT-1 A: desktop only — the Pinned / Chats section heads (folded per device) and the row hover actions.
        A phone passes neither, so its list is exactly today's. */
     sections: isDesktop,

@@ -3403,6 +3403,15 @@ button.c-member__id:active { background: var(--surface-interactive-pressed); }
   flex-direction: column;
 }
 :root[data-desktop] .c-addr-sheet { flex: 1 1 auto; min-height: 0; max-height: none; }
+/* Account's card and its safety line are about 574 px. Under the shared cap (608 px, or 76 % of a taller window)
+   the line falls below the fold in every window under about 870 px, cut at the card's edge, and a Mac scroller shows no
+   bar until it moves. So this dialog may use the window minus 16 px on each side, and the code shrinks with the window
+   height, never under the 185 px scan floor (#509) by these rules, before the foot leaves the dialog. The subtracted heights are the rest of the dialog, measured in Chromium
+   with a one-line title, + 8 px for another engine's font metrics: 397 + 8 for the card without a name (Wallet),
+   476 + 8 with the avatar and the name. Below that the region scrolls; with no dvh the code keeps its base size. */
+:root[data-desktop] .c-sheet.c-sheet--addr { max-height: calc(100% - 2 * var(--spacing-16)); }
+:root[data-desktop] .c-addr-sheet__qrcard { max-width: max(185px, 100dvh - 405px); }
+:root[data-desktop] [data-who] .c-addr-sheet__qrcard { max-width: max(185px, 100dvh - 484px); }
 /* ★ F5-5 ② (#556, Damir F5 2026-08-24): the desktop dialog showed NO scrollbar on
    overflow. Two causes: the OUTER dialog (.c-sheet, overflow-y:auto in overlay.css)
    could scroll instead of this element, and the u-scroll thumb is hover-only.

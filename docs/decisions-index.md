@@ -442,3 +442,16 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2020 | R2 / R5 are a guard against mistakes: a deliberate hiding of code is caught by the review of the diff; the open shapes in the limits; `quotebox`, `imgurl` stop-listed. |
 | #2021 | The #46 verdict of the guard commits: CLEAN at s2-r2 (MAJOR 1 → 0); a second reader on the fix (deviation from "ONE reader"). |
 | #2022 | Session "Size rule, part 2" — the record (the patch applied, merged with `c211d7de`, pushed). |
+
+### Session Mac blockers part A (`macfixa`, 2026-11-27, #2080–#2088, L331–L334, packets P121–P122)
+| Row | Rule |
+|---|---|
+| #2080 🟡 | The Mac save: a native "Choose Action" — Save File (the system save panel, a copy), Add to Photos (photos, add-only), Share File, Cancel (switch `MacSaveToFolder`, P121; LAUNCH BLOCKER). |
+| #2081 🟡 | The mini-app icons re-encoded once in C# (≤ 192 px PNG, ≤ 30,000 characters, never decoded inside `loadApps`) under `html/Apps/_icons/` (switch `AppIconReencode`, P122); the pop-in is shortened, not removed (`loading = 'lazy'`, owed). |
+| #2082 | The first tap after a swipe: an invisible fling; a sideways-locked swipe cancels its touchmoves (switch `SwipeTouchLock`, cap `swipeTouchLock`). |
+| #2083 | The rail at start: the first home document of a new WebView clears a pane flag left by a quit (`spixi.home.booted`; no switch). |
+| #2084 🟡 | The desktop address card fits or scrolls with its foot reachable; the new rules never take the QR under 185 px; no Share on the desktop by design (W9). |
+| #2085 ⏳ | The chip overflow: a dial (A fade + scroll, recommended · B wrap · C More chip); nothing built. |
+| #2086 | The `MacfixaFlags` block, the setCaps word and the re-based pins; `INDEX_KB_CEIL` 670 → 672. |
+| #2087 | Owed and recorded: `loading = 'lazy'` of the app icons, the other raw-icon users, the backup's outcome on the Mac, the Mac Store entitlements, two stale texts. |
+| #2088 | Session "Mac blockers part A" — the record. |

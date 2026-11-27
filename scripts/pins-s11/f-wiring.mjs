@@ -13,6 +13,7 @@
  *     ★ R1-m2: loadApps reads the document generation BEFORE clearApps and latches through
  *     S11AppsRules.appsLatchAfterBurst(pageLoaded, genAtBurst, genNow) AFTER the addApp loop, before clearAppsDone
  * Deliberate breaks: see the S11 F / A2 reports. */
+// macfixa re-base (2026-11-27): the reload test may read `AppIconReencode.tookReady() || appsPrePushing` (an icons-only re-push counts like a pre-push: no chat-page reload; pins-macfixa/b-icon b1 holds the line).
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, join } = h;
   const rd = (p) => stripCode(readFileSync(join(root, p), 'utf8'));
@@ -65,7 +66,7 @@ export default async function (h) {
       entry: /enterAppsTab\(\);\s*\}/.test(tab) && !/loadApps\(/.test(tab)
         && /long t0 = P1Perf\.now\(\);\s*lock \(appsPushLock\)\s*\{\s*loadApps\(!appsPushedToShell\);\s*\}\s*probeFirstAppsVisit\(t0\);/.test(entry),
       chatReload: /bool listChanged = UIHelpers\.shouldRefreshApps;\s*UIHelpers\.shouldRefreshApps = false;/.test(la)
-        && /if \(S11AppsRules\.reloadChatPages\(listChanged, appsPrePushing\)\)\s*\{\s*foreach \(var p in Utils\.getChatPages\(\)\)\s*\{\s*p\.reloadScreen\(\);\s*\}\s*\}/.test(la)
+        && /if \(S11AppsRules\.reloadChatPages\(listChanged, (?:AppIconReencode\.tookReady\(\) \|\| )?appsPrePushing\)\)\s*\{\s*foreach \(var p in Utils\.getChatPages\(\)\)\s*\{\s*p\.reloadScreen\(\);\s*\}\s*\}/.test(la)
         && count(la, /reloadScreen\(\)/g) === 1,
       /* ★ S11 A2 (#1263, R1-m2): the generation is read before clearApps and the latch rides appsLatchAfterBurst after the rows */
       latch: before(la, 'int appsGenAtPush = System.Threading.Volatile.Read(ref txDocGen);', 'Utils.sendUiCommand(this, "clearApps");')

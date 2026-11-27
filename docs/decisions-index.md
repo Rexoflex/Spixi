@@ -455,3 +455,12 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2086 | The `MacfixaFlags` block, the setCaps word and the re-based pins; `INDEX_KB_CEIL` 670 → 672. |
 | #2087 | Owed and recorded: `loading = 'lazy'` of the app icons, the other raw-icon users, the backup's outcome on the Mac, the Mac Store entitlements, two stale texts. |
 | #2088 | Session "Mac blockers part A" — the record. |
+
+### Merge train 1 (`train1`, 2026-11-27, #2110–#2114, L339, no packet) — one branch for the batches of the night of 2026-11-26
+| Row | Rule |
+|---|---|
+| #2110 | In: `sizerule`, `applecc`, `macfixa`, one merge commit each, in the prompt's order. |
+| #2111 ⏳ | Out: `quotebox2` (the size check R6 fails on it; options a / b / c for Damir), `qtools`, `imgurl` (by the start line). |
+| #2112 | The resolutions: record files and the smoke registration only; two folds of "Where we are now". |
+| #2113 | The gates: smoke 7412 / the 2 KNOWN (one timing row green alone), CSH 946, size check PASS. |
+| #2114 | Session "Merge train 1" — the record. |

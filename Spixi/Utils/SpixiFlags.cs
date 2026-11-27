@@ -892,4 +892,62 @@ namespace SPIXI
 
         public static string flagsLine(int b) => "[FLAGS] fixb5 opusmanaged=" + (b & 1) + " declineclears=" + (b >> 1 & 1);
     }
+
+    /** quotebox2 (#1966 (3)): the Sent sweep after the forget of the undo and of the two pendingDeletion re-adds. Absent = ON;
+     *  a stored 0 acts only in dev mode; read once per process, at the first use. */
+    public static class QuoteBox2Flags
+    {
+        public const string SweepOnForgetKey = "flagSweepOnForget";
+        public static bool SweepOnForget => bits() != 0;
+        private static int state = -1;   // -1 = not read yet
+
+        private static int bits()
+        {
+            int b = System.Threading.Volatile.Read(ref state);
+            if (b >= 0) return b;
+            b = read();
+            if (System.Threading.Interlocked.CompareExchange(ref state, b, -1) == -1) { try { Logging.info(flagsLine(b)); } catch (Exception) { } }
+            return System.Threading.Volatile.Read(ref state);
+        }
+
+        /** A store that throws keeps it ON. Logs nothing. */
+        internal static int read()
+        {
+            bool dev = false;
+            int s = 1;
+            try { dev = Preferences.Default.Get("devMode", false); s = Preferences.Default.Get(SweepOnForgetKey, 1); }
+            catch (Exception) { dev = false; }
+            return S16PassRules.effectiveFlag(dev, s) ? 1 : 0;
+        }
+
+        public static string flagsLine(int b) => "[FLAGS] quotebox2 sweeponforget=" + (b & 1);
+    }
+
+#if SPIXI_DEV_COEXIST
+    /** quotebox2 (dev build only): the words of the [QB2] line of a reply match — a message id and counts, never a text, a name
+     *  or an address (SingleChatPage.matchReply logs it). */
+    public static class ReplyMatchLog
+    {
+        /** The candidates under the reply line's probe keys (those of ReplyQuote.tryMatch), with no time or self filter. */
+        public static int candidates(string? text, ReplyQuote.Index? index)
+        {
+            if (index == null || !ReplyQuote.splitShape(text, out string line, out _)) return 0;
+            string rest = line.Substring(ReplyQuote.LinePrefix.Length);
+            int n = 0;
+            for (int p = -1; p < Math.Min(rest.Length, ReplyQuote.MaxNameProbeChars); p++)
+            {
+                if (p >= 0 && (p + 1 >= rest.Length || rest[p] != ':' || rest[p + 1] != ' ')) continue;
+                if (index.byExcerpt.TryGetValue(p < 0 ? rest : rest.Substring(p + 2), out var list)) n += list.Count;
+            }
+            return n;
+        }
+
+        public static string body(string? replyIdHex, bool found, int cand, int deep, int idx, bool viaLoad, bool uiThread)
+        {
+            bool hex = replyIdHex != null && System.Text.RegularExpressions.Regex.IsMatch(replyIdHex, "^[0-9a-f]{1,64}\\z");
+            return "reply match reply=" + (hex ? replyIdHex : "-") + " found=" + (found ? 1 : 0) + " cand=" + Math.Max(cand, 0)
+                + " deep=" + Math.Max(deep, -1) + " idx=" + Math.Max(idx, 0) + " via=" + (viaLoad ? "load" : "live") + " ui=" + (uiThread ? 1 : 0);
+        }
+    }
+#endif
 }

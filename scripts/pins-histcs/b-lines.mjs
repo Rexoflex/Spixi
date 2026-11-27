@@ -273,7 +273,7 @@ export default async function (h) {
   const DEFERRED_WARN = '"loadmore: a deferred chat push failed (" + e.GetType().Name + ")"', LATE_WARN = '"loadmore: a late chat push failed (" + e.GetType().Name + ")"';   // ★ histcs #46 r3 / r4: fixed text + the exception TYPE, nothing else
   const b2 = {
     found: regionOk && lm.end > 0,
-    fileLoggingCalls: ctr(code, logRe) === BASE.logging + 5,   // ★ histcs #46 r3: + the deferred-push warn (type only) · r4: + the post's own catch in olderPostBehind (the same text) and olderDrainLate's late-push warn
+    fileLoggingCalls: ctr(code, logRe) === BASE.logging + 5 + 1 && count(code, 'Logging.info("[QB2] " + ReplyMatchLog.body(') === 1,   // ★ quotebox2 re-base (2026-11-27, after a look at the diff): + 1 = matchReply's dev-only [QB2] line, named exactly (pins-quotebox2/b-matchlog holds it inside #if SPIXI_DEV_COEXIST);   // ★ histcs #46 r3: + the deferred-push warn (type only) · r4: + the post's own catch in olderPostBehind (the same text) and olderDrainLate's late-push warn
     fileP1Lines: ctr(code, lineRe) === BASE.p1line + 7,   // ★ histcs #46 r1 (S-1): + the early close · r2: + the fallback drop
     fileSendUi: ctr(code, sendRe) === BASE.sendUi + 1,   // ★ histcs #46 r4 (S4 MINOR-1): + deleteMessage's repeat of its own push (b4 holds that it is the one call, the same name)
     loadMessagesLogging: ctr(lmCode, logRe) === BASE.loadMessages.logging && ctr(lmCode, sendRe) === BASE.loadMessages.sendUi && ctr(lmCode, lineRe) === BASE.loadMessages.p1line + 2,

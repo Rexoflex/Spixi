@@ -38,6 +38,7 @@ export const NEW = {
   dMedia: 'if (SmallFixFlags.DeclineClears) ChatMediaStore.deleteChat(friend.walletAddress);',
   log: 'Logging.warn("sendContactRequest: invalid address payload: " + ex.GetType().Name);',
   logBase: 'Logging.warn("sendContactRequest: invalid address payload: " + ex.Message);',
+  qb2Sweep: 'if (QuoteBox2Flags.SweepOnForget) SContacts.scheduleSentSweep();',   // ★ quotebox2 re-base (2026-11-27): cut by rest() only
 };
 /* SHA-256 of rest(body) at the base 0eda93f5 (git show 0eda93f5:<file>; stripCode; whitespace collapsed) */
 export const BASE = {
@@ -62,8 +63,10 @@ export const blockAt = (t, from) => {
 };
 /** the body of the ONE member with this signature ('' when absent or not unique) */
 export const bodyOf = (t, sig) => (t.split(sig).length - 1 !== 1 ? '' : blockAt(t, t.indexOf(sig) + sig.length).text);
-/** a body with the new lines taken out and the log line given back — compared with the base body */
-export const rest = (body) => norm(body.split(NEW.dSweep).join('').split(NEW.dMedia).join('').split(NEW.log).join(NEW.logBase));
+/** a body with the new lines taken out and the log line given back — compared with the base body.
+ *  ★ quotebox2 re-base (2026-11-27, after a look at the diff): sendContactRequestGuarded's heal now also holds quotebox2's ONE sweep
+ *  statement `NEW.qb2Sweep` (pins-quotebox2/a-sweep holds it); it is cut too, so e5's claim (the rest = the base 0eda93f5 body) is unchanged. */
+export const rest = (body) => norm(body.split(NEW.dSweep).join('').split(NEW.dMedia).join('').split(NEW.qb2Sweep).join('').split(NEW.log).join(NEW.logBase));
 
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, readdirSync, existsSync, join } = h;

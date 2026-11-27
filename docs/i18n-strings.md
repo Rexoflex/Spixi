@@ -7,7 +7,7 @@
 - **Len**: rough budget — short ≤20, medium ≤60, long >60 chars. Keep tight-UI strings (buttons, badges, chips) near the English length.
 - **{…}** placeholders MUST survive translation verbatim (e.g. `{n}`, `{date}`, `{count}`, `{q}`).
 
-Summary: **1121** keys · **158** map to a legacy id · **963** new · legacy dict has **635** ids · **0** fallback conflicts to resolve (see end).
+Summary: **1121** keys · **158** map to a legacy id · **963** new · legacy dict has **637** ids · **0** fallback conflicts to resolve (see end).
 
 ## amount-pad.js (3)
 

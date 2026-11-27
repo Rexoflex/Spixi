@@ -13,7 +13,7 @@ P118–P120 free). Prompt: project doc `claude/session-imgurl-prompt.md`; the pe
   0 MAJOR, 5 MINOR + 5 NIT, all DOC, corrected after the last pass for `docsb3` to check). Earlier saved trees:
   `imgurl-tree.diff` (round 5, items 3 / 4 inside), `imgurl-core-tree.diff` (round 6, before the move), `imgurl-final-tree.diff`
   (after the move) — the branch replaces them.
-- Base: `redesign/frontend` @ `ae7b8303` ("Merge pull request #29 from Rexoflex/work/fixb5"); it did not move.
+- Base: built on `redesign/frontend` @ `ae7b8303`; before the push merged with `redesign/frontend` @ `b3e20d04` (pull request 31, train 1: `macfixa`, `sizerule`, `applecc`) by a merge commit (#2057). Merged tree: expected `BASELINE OK 7474 / the 2 KNOWN` (= 7412 + 62), CSH `pass=997 fail=0` (= 946 + 51).
 - Smoke (cloud twin, `npm ci`, jsdom 29.1.1, `TZ=America/Los_Angeles`, .NET SDK 10.0.115, `../Ixian-Core` @ `097341a`):
   on the final tree (the commits of `work/imgurl`): `BASELINE OK — 7156 pass / the 2 KNOWN (#136 · B3)` (= 7094 + 62: `pins-imgurl/<a-handler 30 · b-page 11 · c-shell 15 · d-life 6>`) · the base read `BASELINE OK 7094` · CSH `pass=970 fail=0` (= 919 + 51: MediaGrantsTests 33, MediaPushTests 9,
   LifeTests 6, ImgurlFlagsTests 3).

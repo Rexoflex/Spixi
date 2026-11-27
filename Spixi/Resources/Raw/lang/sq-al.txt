@@ -703,6 +703,8 @@ global-time-minutesago = min
 global-share-choose = Zgjidh veprimin
 global-share-savefile = Ruaj skedarin
 global-share-sharefile = Ndaj skedarin
+global-share-addphotos = Shto te Photos
+global-share-addphotos-failed = Spixi nuk mundi ta shtonte foton te Photos. Kontrollo qasjen e Spixi te Photos te System Settings > Privacy & Security.
 
 ; Notifications (#334 AND-15) - per-type local notification copy (no message content; a member name only in the *-group keys, only with the sender-name setting on - #1178)
 notification-new-message = Mesazh i ri

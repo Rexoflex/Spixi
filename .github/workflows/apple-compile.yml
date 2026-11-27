@@ -1,0 +1,256 @@
+# Apple compile check (the fork only): compiles the iOS target (for the simulator) and the Mac Catalyst target on a
+# GitHub-hosted macOS runner. COMPILE ONLY: no signing (EnableCodeSigning=false), no package (no .ipa, no .pkg), no
+# test, no app start. The walk on a device stays the proof of behaviour.
+# Same Ixian-Core pin and the same checkout layout as the Windows job of redesign-ci.yml (Spixi/ and Ixian-Core/ as
+# siblings). Each compile error becomes one ::error annotation (one per unique file:line:code; at most 10 per step,
+# the GitHub limit); the FULL list goes to the step log, the job summary holds up to 500 rows, the logs are uploaded.
+# Security: read-only token, no secret, every action pinned by its full commit SHA, no pull_request_target, no
+# expression from the event inside a run: script. A pull request runs its own copy of this file with that token only.
+# This job is NOT a required check (the branch rule is Damir's; DECISIONS 2100-2109, docs/apple-compile-baseline.md).
+# LIMIT: from the first dotnet command inside the checkout on, a pull request's files control the rest of the job, so
+# a pull request run's verdict is evidence only together with the diff of every file that is not C# / XAML / resource
+# source: .github/workflows/**, *.csproj, *.csproj.user, *.props, *.targets, *.projitems, *.rsp, Directory.*,
+# nuget.config, global.json, local-nuget/** (true of every pull_request job that builds the code; review r1-r2, S).
+name: apple-compile
+
+on:
+  pull_request:
+    branches: [ 'redesign/frontend' ]
+  workflow_dispatch:
+
+concurrency:
+  group: apple-compile-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IXIAN_CORE_REF: 097341acba9be1855383acf8215d779ca96efa02   # the same pin as redesign-ci.yml (xcore-0.9.8k); move both together
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  compile:
+    name: ${{ matrix.name }} (compile only)
+    if: github.repository == 'Rexoflex/Spixi'   # the fork only: a copy of this file in another repository does nothing
+    runs-on: macos-26   # Apple Silicon (arm64) image; Xcode is selected by path in the step below
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iOS simulator
+            key: ios
+            tfm: net10.0-ios
+            rid: iossimulator-arm64
+          - name: Mac Catalyst
+            key: maccatalyst
+            tfm: net10.0-maccatalyst
+            rid: maccatalyst-arm64
+    defaults:
+      run:
+        working-directory: Spixi
+        shell: bash
+    steps:
+    - name: Checkout Spixi
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        path: Spixi
+        persist-credentials: false
+
+    - name: Checkout Ixian-Core (pinned)
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        repository: ixian-platform/Ixian-Core
+        ref: ${{ env.IXIAN_CORE_REF }}
+        path: Ixian-Core
+        persist-credentials: false
+
+    # The toolchain of Damir's Mac (docs/ios-push-findings-2026-08-24-office.md:211): .NET SDK 10.0.302 with the maui
+    # workload set 10.0.303.1. Not "the newest": the image also carries SDK 11.0.100 (dotnet takes the newest SDK; its
+    # workload brings the net10 GA packs 26.0) and SDK 10.0.404, whose newest workload brings net10 packs 27.2 that need
+    # an Xcode 27.2 the image does not have (runs 1 and 2 of this workflow, 2026-11-27). The SDK is pinned by a
+    # global.json in the workspace folder ABOVE the checkout (the repository has no global.json; nothing in it changes).
+    - name: Setup .NET
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73   # v6.1.0
+      with:
+        dotnet-version: '10.0.302'
+
+    - name: Pin the .NET SDK (global.json outside the repository)
+      working-directory: .
+      run: |
+        printf '{ "sdk": { "version": "10.0.302", "rollForward": "disable" } }\n' > "$GITHUB_WORKSPACE/global.json"
+        cat "$GITHUB_WORKSPACE/global.json"
+
+    - name: List the .NET SDKs (the pinned one is used)
+      run: |
+        g="$(find . -iname global.json -not -path './.git/*' | head -n 5)"   # -iname: the runner's volume ignores case (r3 S)
+        [ -z "$g" ] || { echo "::error title=SDK::the tree has a global.json (the job pins the SDK itself)"; exit 1; }
+        dotnet --list-sdks
+        v="$(dotnet --version)"; echo "$v"
+        [ "$v" = "10.0.302" ] || { echo "::error title=SDK::dotnet uses $v, not the pinned 10.0.302 (a global.json in the tree?)"; exit 1; }
+
+    - name: Install MAUI workload (the workload set of Damir's Mac)
+      working-directory: .   # outside the checkout: the repository's nuget.config does not apply to the workload install
+      run: dotnet workload install maui --version 10.0.303.1
+
+    - name: Show the workload and the Apple SDK packs
+      run: |
+        dotnet workload list
+        root="$(dirname "$(command -v dotnet)")"
+        ls -d "$root"/packs/Microsoft.iOS.Sdk* "$root"/packs/Microsoft.MacCatalyst.Sdk* 2>/dev/null || true
+        for f in "$root"/packs/Microsoft.iOS.Sdk*/*/tools/buildinfo "$root"/packs/Microsoft.MacCatalyst.Sdk*/*/tools/buildinfo; do
+          [ -f "$f" ] && { echo "== $f"; cat "$f"; }
+        done
+        true
+
+    # Xcode is pinned by its path: the Xcode of Damir's Mac with this workload set (Xcode 26.6, 0 errors,
+    # docs/ios-push-findings-2026-08-24-office.md:211). The workload set installs several net10 Apple packs (26.0, 26.5
+    # and the opt-in 27.0, run 3); the build takes the default one, and its Xcode check stops the build at once when the
+    # pinned Xcode is not the one it needs (that error is annotated like every other).
+    - name: Select Xcode (pinned by its path)
+      env:
+        XCODE_APP: /Applications/Xcode_26.6.app
+      run: |
+        ls -d /Applications/Xcode*.app
+        [ -d "$XCODE_APP" ] || { echo "::error title=Xcode::the image has no $XCODE_APP"; exit 1; }
+        sudo xcode-select -s "$XCODE_APP"
+        xcode-select -p
+        xcodebuild -version
+
+    - name: Restore
+      run: dotnet restore Spixi/Spixi.csproj
+
+    - name: Build (compile only, no signing)
+      id: build
+      env:
+        TFM: ${{ matrix.tfm }}
+        RID: ${{ matrix.rid }}
+        TARGET_KEY: ${{ matrix.key }}
+      run: |
+        set -o pipefail
+        # The build prints text from the tree: no line of it may act as a workflow command (review r1 S, NIT 7).
+        # The C# problem matcher of setup-dotnet is removed too: the next step makes the annotations (review r3 S, NIT 2).
+        echo "::remove-matcher owner=csc::"
+        tok="$(uuidgen)"; echo "::stop-commands::$tok"; trap 'echo "::$tok::"' EXIT
+        dotnet build Spixi/Spixi.csproj --no-restore -c Debug -f "$TFM" -p:RuntimeIdentifier="$RID" \
+          -p:EnableCodeSigning=false -p:BuildIpa=false -p:CreatePackage=false -v:m \
+          "-flp1:errorsonly;logfile=$GITHUB_WORKSPACE/errors-$TARGET_KEY.log" \
+          "-flp2:warningsonly;logfile=$GITHUB_WORKSPACE/warnings-$TARGET_KEY.log" \
+          2>&1 | tee "$GITHUB_WORKSPACE/build-$TARGET_KEY.log"
+
+    # One ::error per unique file:line:code (at most 10: the GitHub limit per step; when there are more, the 10th says
+    # how many more). The full list goes to the step log; the job summary holds up to 500 rows. Paths are made relative to the
+    # Spixi repository root, so the annotation points at the file in the pull request.
+    - name: Publish the compile errors
+      if: ${{ !cancelled() }}
+      working-directory: .
+      env:
+        TARGET_NAME: ${{ matrix.name }}
+        TARGET_KEY: ${{ matrix.key }}
+        BUILD_OUTCOME: ${{ steps.build.outcome }}
+      run: |
+        python3 -I - <<'PY'
+        import os, re, secrets, unicodedata
+        ws = os.environ["GITHUB_WORKSPACE"].rstrip("/")
+        key, name, outcome = os.environ["TARGET_KEY"], os.environ["TARGET_NAME"], os.environ["BUILD_OUTCOME"]
+        def read(p):
+            try:
+                with open(p, encoding="utf-8", errors="replace") as f:
+                    return f.read().splitlines()
+            except FileNotFoundError:
+                return []
+        lines = read(f"{ws}/errors-{key}.log")
+        rx = re.compile(r"^\s*(?:\d+>)?(?P<file>.+?)\((?P<line>\d+)(?:,(?P<col>\d+))?(?:,\d+,\d+)?\)\s*:\s*(?:[\w.-]+\s+)?error\s+(?P<code>[A-Za-z]+[0-9]+)?\s*:\s*(?P<msg>.*?)(?:\s+\[[^\]]*\])?\s*$")
+        rx_nofile = re.compile(r"^\s*(?:\d+>)?(?:(?P<file>.+?)\s*:\s*)?(?:[\w.-]+\s+)?error\s+(?P<code>[A-Za-z]+[0-9]+)?\s*:\s*(?P<msg>.*?)(?:\s+\[[^\]]*\])?\s*$")
+        def rel(p):
+            p = p.strip().replace("\\", "/")
+            for pre in (ws + "/Spixi/", ws + "/"):
+                if p.startswith(pre):
+                    return p[len(pre):]
+            return p
+        seen, errs = set(), []
+        for l in lines:
+            l = l[:4000].lstrip("\ufeff").replace("\t", " ")   # bounds the regular expressions; no byte-order mark, no tab
+            m = rx.match(l)
+            if m:
+                e = (rel(m["file"]), int(m["line"]), int(m["col"] or 0), m["code"] or "error", m["msg"])
+            else:
+                m = rx_nofile.match(l)
+                if not m:
+                    continue
+                f0 = (m["file"] or "").strip()
+                msg0 = m["msg"] if "/" in f0 else (f0 + ": " + m["msg"] if f0 else m["msg"])
+                e = (rel(f0) if "/" in f0 else "", 0, 0, m["code"] or "error", msg0)
+            k = (e[0], e[1], e[3]) if e[0] else ("", 0, e[3], e[4])   # an error with no file: its message is part of the key
+            if k in seen:
+                continue
+            seen.add(k)
+            errs.append(e)
+        errs.sort(key=lambda e: (e[0], e[1], e[3]))
+        def esc_data(s):   # also: no legacy "##[" form, no control or format character (review r2 S)
+            s = "".join(c for c in s if c in "\r\n" or unicodedata.category(c) not in ("Cc", "Cf")).replace("##[", "# #[")
+            return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        def esc_prop(s):
+            return esc_data(s).replace(":", "%3A").replace(",", "%2C")
+        LIMIT = 10
+        shown = errs if len(errs) <= LIMIT else errs[:LIMIT - 1]
+        for f, ln, col, code, msg in shown:
+            props = [f"file={esc_prop(f)}"] if f else []
+            if ln:
+                props.append(f"line={ln}")
+            if col:
+                props.append(f"col={col}")
+            props.append(f"title={esc_prop(code)}")
+            print(f"::error {','.join(props)}::{esc_data(msg[:900])}")
+        if len(errs) > LIMIT:
+            print(f"::error title={esc_prop(name + ': more errors')}::{len(errs) - len(shown)} more unique errors: the full list is in this step's log (the job summary holds up to 500 rows)")
+        if outcome == "failure" and not errs:
+            print(f"::error title={esc_prop(name + ': build failed')}::the build failed with no parsed compile error; read build-{key}.log (artifact)")
+        if outcome == "success" and not errs:
+            verdict = "compiles (0 errors)"
+        elif outcome == "failure" or errs:
+            verdict = f"does NOT compile: {len(errs)} unique errors (build step: {outcome})"
+        else:
+            verdict = f"not built (build step: {outcome}; an earlier step failed)"
+        out = [f"## {name}: {verdict}", ""]
+        def cell(t):   # text from the tree: no markdown, no HTML, no table break (review r1 S, MINOR 2)
+            # one pass, char by char: every character that is not an ASCII letter, digit or space becomes an entity;
+            # control and format characters (bidi included) are dropped (review r1 S MINOR 2, r2 S NIT 4)
+            t = "".join("" if unicodedata.category(c) in ("Cc", "Cf") else (c if (c.isascii() and (c.isalnum() or c == " ")) else f"&#{ord(c)};") for c in t[:300]) + ("…" if len(t) > 300 else "")
+            return "<code>" + t + "</code>"
+        ROWS = 500   # the summary of a step is limited to 1 MiB (review r1 S, NIT 5); the step log keeps the full list
+        if errs:
+            out += ["| # | file:line | code | message |", "|---|---|---|---|"]
+            BUDGET, used, n = 800_000, 0, 0   # bytes: the summary of a step is limited to 1 MiB (review r2 S, NIT 3)
+            for i, (f, ln, col, code, msg) in enumerate(errs[:ROWS], 1):
+                where = cell(f"{f}:{ln}") if f else "(no file)"
+                row = f"| {i} | {where} | {cell(code)} | {cell(msg)} |"
+                if used + len(row.encode()) > BUDGET:
+                    break
+                out.append(row); used += len(row.encode()); n = i
+            if len(errs) > n:
+                out.append(f"| | {len(errs) - n} more | | the full list is in the step log |")
+        # The list is text from the tree: it is printed under stop-commands (no "::" and no legacy "##[" form acts), and
+        # every line starts with a fixed token (review r1 S MINOR 1, r2 S MINOR 1).
+        tok = secrets.token_hex(16)
+        print(f"::stop-commands::{tok}", flush=True)
+        clean = lambda t: "".join(c for c in t if unicodedata.category(c) not in ("Cc", "Cf"))   # no colour code, no bidi (r3 S NIT 3)
+        print("\n".join(["FULL ERROR LIST (" + name + "):"] + [clean(f"| {f}:{ln}:{col} {code} {msg}") for f, ln, col, code, msg in errs]), flush=True)
+        print(f"::{tok}::", flush=True)
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as s:
+            s.write("\n".join(out) + "\n")
+        PY
+
+    - name: Upload the logs
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+      with:
+        name: apple-compile-logs-${{ matrix.key }}
+        path: |
+          build-${{ matrix.key }}.log
+          errors-${{ matrix.key }}.log
+          warnings-${{ matrix.key }}.log
+        if-no-files-found: ignore
+        retention-days: 14

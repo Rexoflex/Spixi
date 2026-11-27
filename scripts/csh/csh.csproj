@@ -108,6 +108,8 @@
     <Compile Include="../../Spixi/Utils/PageDefaultsRules.cs" />   <!-- ★ fixb4 (ruling 1750): the new-account page defaults (P1 Off, A9 Compact on the desktop) — the push arguments, the [DEFAULTS] page line, the [FLAGS] fixb4 line (tests: PageDefaultsTests.cs; SpixiFlags.readFixb4 and LaunchPage call it) -->
     <Compile Include="../../Spixi/Utils/LockShellRules.cs" />   <!-- ★ lockb (#1825 (1)/(2)): the hold push values, the pop, the no-credential alert rule (tests: LockShellTests.cs; LockPage calls it) -->
     <Compile Include="../../Spixi/Utils/LockClockRules.cs" />   <!-- ★ lockb (#1825 (3)): the second clock of the lock delay (tests: LockClockTests.cs; App.OnResume calls it) -->
+    <Compile Include="../../Spixi/Utils/MacSaveRules.cs" />   <!-- ★ macfixa item 1 (P121): the Mac save chooser buttons, the photo test by the leaf of C#'s path (for a received photo the peer's name after SafeFileName), the [MACSAVE] line (tests: MacSaveTests.cs; the Mac SFileOperations.share calls it) -->
+    <Compile Include="../../Spixi/Utils/AppIconRules.cs" />   <!-- macfixa item 2 (P122): the home screen's small mini-app icon copies — the pure rules and the cache (tests: AppIconTests.cs; AppIconReencode.homeIcon calls it) -->
     <Compile Include="../../Spixi/Utils/TrimRules.cs" />   <!-- the trim levels (tests: LifeTests.cs) -->
     <Compile Include="../../Spixi/Utils/MediaPushRules.cs" />   <!-- the chat page's picture-push value and media cap words (tests: MediaPushTests.cs; SingleChatPage.MediaOrigin.cs calls it) -->
     <Compile Include="../../Spixi/Utils/MediaGrants.cs" />   <!-- the media origin's grant table: the URL grammar, the owner binding, the document, the caps (tests: MediaGrantsTests.cs) -->

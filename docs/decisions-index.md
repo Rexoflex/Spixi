@@ -416,6 +416,19 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1955 | The #46 verdict of the batch (readers: Opus only): CLEAN at r4; the compare script's relaxed cell check stays a stated limit (rule 9). |
 | #1956 | Session "Docs batch 2" — the record. |
 
+### Session Size rule (`sizerule`, 2026-11-25 / 26, #1980–#1989, L299–L302, no packet) — STOPPED before delivery (Q-1); shipped as a guard by #1966 (1) (`sizerule2`)
+| Row | Rule |
+|---|---|
+| #1980 | The code counter `scripts/size-count.mjs` (R1, R3): reproduces 63,925 / 20,155 exactly; the delta `--base --head`. |
+| #1981 🟡 | R2 in CI: history markers in ADDED comment lines, at most 5 per pull request; one decision number per line is free; removed markers are credited. |
+| #1982 🟡 | R5 in CI: an added app C# probe line outside the dev fence fails; P1Perf calls count (inventory § 7a step 4). |
+| #1983 | R6 in CI, failing: a file over 1,500 lines must not grow; no file may cross it. |
+| #1984 🟡 | The size step of `redesign-ci` (`fetch-depth: 2`, `--ci`, job summary); `pins-leanfollow/d-ci` re-based. |
+| #1985 🟡 | The self-tests `pins-sizerule/<a-counter\|b-checks\|c-ci>` (+278 rows). |
+| #1986 🟡 | The size rule in the templates and the gate lists; the npm ci sentences. |
+| #1987 🟡 | Fail closed where tree-sitter and the compiler can disagree (suspect shapes → R5 red); the class stays open. |
+| #1988 🟡 | The #46 verdict: NOT CLEAN at r3 (MAJOR 7 → 1 → 3); rule 9: no third fix round; Q-1 for Damir (ship as a guard / Roslyn design / park R2 R5 / stop) → answered by #1966 (1): ship as a guard. |
+| #1989 🟡 | Session "Size rule" — the record (not pushed; the patches on Damir's PC). |
 ### Session Quote box (`quotebox`, 2026-11-25, #2010–#2012, L309, no packet)
 | Row | Rule |
 |---|---|
@@ -423,6 +436,34 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2011 🟡 | No fix built (no proven cause); the walk rows of `docs/walk-quotebox.md` tell the four causes apart; the fix batch follows the walk (the open's deeper read · `onQuoteJump` and the toast wait · the native layer · the full repaint under a pressed mouse). |
 | #2012 | Session "Quote box" — the record. |
 
+### Session Size rule, part 2 (`sizerule2`, 2026-11-26, #2020–#2022, L313, no packet) — R2 / R5 shipped as a guard
+| Row | Rule |
+|---|---|
+| #2020 | R2 / R5 are a guard against mistakes: a deliberate hiding of code is caught by the review of the diff; the open shapes in the limits; `quotebox`, `imgurl` stop-listed. |
+| #2021 | The #46 verdict of the guard commits: CLEAN at s2-r2 (MAJOR 1 → 0); a second reader on the fix (deviation from "ONE reader"). |
+| #2022 | Session "Size rule, part 2" — the record (the patch applied, merged with `c211d7de`, pushed). |
+
+### Session Mac blockers part A (`macfixa`, 2026-11-27, #2080–#2088, L331–L334, packets P121–P122)
+| Row | Rule |
+|---|---|
+| #2080 🟡 | The Mac save: a native "Choose Action" — Save File (the system save panel, a copy), Add to Photos (photos, add-only), Share File, Cancel (switch `MacSaveToFolder`, P121; LAUNCH BLOCKER). |
+| #2081 🟡 | The mini-app icons re-encoded once in C# (≤ 192 px PNG, ≤ 30,000 characters, never decoded inside `loadApps`) under `html/Apps/_icons/` (switch `AppIconReencode`, P122); the pop-in is shortened, not removed (`loading = 'lazy'`, owed). |
+| #2082 | The first tap after a swipe: an invisible fling; a sideways-locked swipe cancels its touchmoves (switch `SwipeTouchLock`, cap `swipeTouchLock`). |
+| #2083 | The rail at start: the first home document of a new WebView clears a pane flag left by a quit (`spixi.home.booted`; no switch). |
+| #2084 🟡 | The desktop address card fits or scrolls with its foot reachable; the new rules never take the QR under 185 px; no Share on the desktop by design (W9). |
+| #2085 ⏳ | The chip overflow: a dial (A fade + scroll, recommended · B wrap · C More chip); nothing built. |
+| #2086 | The `MacfixaFlags` block, the setCaps word and the re-based pins; `INDEX_KB_CEIL` 670 → 672. |
+| #2087 | Owed and recorded: `loading = 'lazy'` of the app icons, the other raw-icon users, the backup's outcome on the Mac, the Mac Store entitlements, two stale texts. |
+| #2088 | Session "Mac blockers part A" — the record. |
+
+### Merge train 1 (`train1`, 2026-11-27, #2110–#2114, L339, no packet) — one branch for the batches of the night of 2026-11-26
+| Row | Rule |
+|---|---|
+| #2110 | In: `sizerule`, `applecc`, `macfixa`, one merge commit each, in the prompt's order. |
+| #2111 ⏳ | Out: `quotebox2` (the size check R6 fails on it; options a / b / c for Damir), `qtools`, `imgurl` (by the start line). |
+| #2112 | The resolutions: record files and the smoke registration only; two folds of "Where we are now". |
+| #2113 | The gates: smoke 7412 / the 2 KNOWN (one timing row green alone), CSH 946, size check PASS. |
+| #2114 | Session "Merge train 1" — the record. |
 ### Session Images by URL (`imgurl`, 2026-11-27, #2035–#2057, L319–L326, P113–P115) — items 1a–1c + 2 (items 3 / 4 out by #1972)
 | Row | Rule |
 |---|---|

@@ -721,6 +721,8 @@ global-time-minutesago = min
 global-share-choose = Izaberite akciju
 global-share-savefile = Sačuvaj datoteku
 global-share-sharefile = Podeli datoteku
+global-share-addphotos = Dodaj u Photos
+global-share-addphotos-failed = Spixi nije mogao da doda fotografiju u Photos. Proverite pristup aplikacije Spixi aplikaciji Photos u System Settings > Privacy & Security.
 
 ; Notifications (#334 AND-15) - per-type local notification copy (no sender names, no message content)
 notification-new-message = Nova poruka

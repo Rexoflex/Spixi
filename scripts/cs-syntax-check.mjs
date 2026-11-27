@@ -40,7 +40,7 @@
  * overload resolution or nullability. A file can pass here and fail to compile. Damir's
  * build stays the compile gate — this one just stops a broken edit from ever reaching it.
  *
- *   npm install --no-save tree-sitter tree-sitter-c-sharp
+ *   npm ci
  *   node scripts/cs-syntax-check.mjs                 # every .cs under Spixi/
  *   node scripts/cs-syntax-check.mjs <file> [...]    # named files
  *
@@ -68,7 +68,7 @@ try {
   CSharp = (await import('tree-sitter-c-sharp')).default;
 } catch {
   console.log('cs-syntax-check: SKIPPED — tree-sitter not installed.');
-  console.log('  npm install --no-save tree-sitter tree-sitter-c-sharp');
+  console.log('  npm ci');
   process.exit(0);
 }
 

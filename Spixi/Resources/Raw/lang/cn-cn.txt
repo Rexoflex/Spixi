@@ -704,6 +704,8 @@ global-time-minutesago = 分钟前
 global-share-choose = 选择操作
 global-share-savefile = 保存文件
 global-share-sharefile = 分享文件
+global-share-addphotos = 添加到照片
+global-share-addphotos-failed = Spixi 无法将照片添加到“照片”。请在 系统设置 > 隐私与安全性 中检查 Spixi 的照片访问权限。
 ; N4 (#379) — 18 ids the redesign added to en + the 7 translated sets; drafted when the FE dictionary shipped (native review pending)
 contact-self-title = 这是您自己的地址
 contact-exists-title = 已在您的联系人中

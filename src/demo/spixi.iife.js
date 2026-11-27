@@ -15456,8 +15456,23 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = getSt
     setX(0, true);
   };
 
+  /* capabilities.swipeTouchLock (a boolean or a getter, read when a gesture starts): a drag that is locked sideways also
+     cancels its touchmoves, so the browser makes no scroll gesture and no fling of it. Under touch-action: pan-y such a
+     fling moves nothing, but it stays active, and the next tap only stops it (no click). No cap = no touch listener. */
+  const lockCap = () => { const c = capabilities.swipeTouchLock; return !!(typeof c === 'function' ? c() : c); };
+  let lockArmed = false;
+  const armTouchLock = () => {
+    if (lockArmed || !lockCap()) return;
+    lockArmed = true;
+    content.addEventListener('touchmove', (e) => {
+      if (dragging && horiz && e.cancelable && lockCap()) e.preventDefault();
+    }, { passive: false });
+  };
+  armTouchLock();
+
   content.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
+    armTouchLock();
     swiped = false;                                         // reset per gesture (#2: never suppress a fresh tap)
     if (currentClose && currentClose !== close) closeCurrent();   // touching another row closes the open one
     startX = e.clientX; startY = e.clientY; startOffset = offset;
@@ -15467,7 +15482,8 @@ function wrapChatRowSwipe(rowEl, { chat = {}, capabilities = {}, strings = getSt
     if (!dragging) return;
     const dx = e.clientX - startX, dy = e.clientY - startY;
     if (!decided) {
-      if (Math.abs(dx) < SWIPE_DIRLOCK_PX && Math.abs(dy) < SWIPE_DIRLOCK_PX) return;
+      // with the lock, decide by distance: Chromium starts its scroll once the straight-line move passes its slop (8 dp)
+      if (Math.abs(dx) < SWIPE_DIRLOCK_PX && Math.abs(dy) < SWIPE_DIRLOCK_PX && !(lockCap() && Math.hypot(dx, dy) >= SWIPE_DIRLOCK_PX)) return;
       decided = true;
       horiz = Math.abs(dx) > Math.abs(dy);
       if (horiz) {

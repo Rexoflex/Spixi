@@ -24,10 +24,12 @@ the next prompt.
 - Checks: `build-shells --check` ✓ · `build-locales --check` ✓ · `cs-syntax-check` 294 files ✓ · `size-check` PASS
   (R2 0, R5 0, R6 0; app C# +296, `src/**` +19; switches 44 → 47; files over 1,500 lines 10 → 10).
 - Review: r1 — Claude Fable 5.2 security-only (CLEAN: 0 MAJOR, 1 MINOR, 2 NIT, record text) + Claude Opus records
-  reader (NOT CLEAN: 1 MAJOR, 2 MINOR; fixed in `064e0e1b` and the record commit) · r2: the verdict line in
-  `claude/session-train1-status.md` · models: lead Claude Opus; readers fresh, read-only.
-- ⚠ C# UNCOMPILED: none written here. The batches' own lists stand: `macfixa` — `SFileOperations.cs` (Mac) and the
-  Android and Apple branches of `AppIconReencode.cs`; Windows compiles in `redesign-ci`.
+  reader (NOT CLEAN: 1 MAJOR, 2 MINOR; fixed in `064e0e1b` and the record commit) · r2 — fresh Fable 5.2 security
+  (CLEAN, 0 / 1 / 2) + fresh Opus break-my-verdict (CLEAN, 0 / 2 / 3) → **CLEAN at r2**; the text fixes after it are
+  mechanical (DECISIONS 2114) · models: lead Claude Opus; readers fresh, read-only.
+- ⚠ C# UNCOMPILED: none written here. The batches' own list stands: `macfixa` — `HomePage.xaml.cs`, `SpixiFlags.cs`,
+  `AppIconRules.cs`, `AppIconReencode.cs` (Windows, Android; Windows compiles in `redesign-ci`) and `SFileOperations.cs`,
+  `MacSaveRules.cs` (Mac; `apple-compile` on the pull request).
 - Still owed: the walk `docs/walk-train1.md` on Windows + Android (the Mac and iPhone rows in the Apple walk) · Damir's
   choice for `quotebox2` (#2111) · the `imgurl` memory A / B (with `imgurl`, in a later train).
 

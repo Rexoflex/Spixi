@@ -422,3 +422,13 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2010 | The Windows quote box of REPLY C (Seed 57): not reproduced off the device; in Chromium the four replies jump with the mouse; three inputs give "no reaction, no toast" (C#'s fallback box · an unanswered jump whose toast a landing older page cancels · a full repaint of the log inside the mouse press); four likely causes (the open's deeper read short · the jump dropped · the click lost on Windows · the repaint race). |
 | #2011 🟡 | No fix built (no proven cause); the walk rows of `docs/walk-quotebox.md` tell the four causes apart; the fix batch follows the walk (the open's deeper read · `onQuoteJump` and the toast wait · the native layer · the full repaint under a pressed mouse). |
 | #2012 | Session "Quote box" — the record. |
+
+### Session Quote box 2 (`quotebox2`, 2026-11-27, #2025–#2030, L315–L318, packets P111–P112)
+| Row | Rule |
+|---|---|
+| #2025 | The Windows REPLY C miss: not proven off the device and not narrowed (neither the other replies nor the walk's cut log exclude a read fault); open: a read fault · a throwing match · (a) row 515 not stored as seeded · (c) C pushed with no read in its index; no fix (item 2 not built). |
+| #2026 | One developer-build line `[QB2] reply match …` at every reply match (`#if SPIXI_DEV_COEXIST`, P112); its fields defined, and what each way is expected to leave (reasoning, not a decision rule); the walk with an evidence copy, the row-515 look and a fresh seed. |
+| #2027 🟡 | The Sent sweep after the forget at the chat-page Decline (`ixian:undorequest`) and the two `pendingDeletion` re-adds (switch `SweepOnForget`, P111); gate 18's fixed entry removed. |
+| #2028 | The re-bases of other batches' pins (histcs a6 / a7 / b2, fixb5 e5, fixb1 FLAGSFILE, lockb b7, s5 p0 (4)). |
+| #2029 | The #46 verdict of the batch. |
+| #2030 | Session "Quote box 2" — the record. |

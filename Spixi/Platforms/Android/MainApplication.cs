@@ -137,5 +137,16 @@ public class MainApplication : MauiApplication
 		SPIXI.P1Perf.cold(SPIXI.ColdMark.AppOut);   // ★ coldstart1 (#1680)
 	}
 
+	/* ImgurlFlags.TrimHook: Android 14+ no longer delivers RUNNING_LOW / RUNNING_CRITICAL, so MauiProgram's lambda (kept as it
+	 * is) never fires there; the hidden WebViews are freed on the levels it still delivers (TrimRules decides). base first:
+	 * the MAUI lifecycle lambda runs as before. Main thread (ComponentCallbacks2). */
+	public override void OnTrimMemory([GeneratedEnum] Android.Content.TrimMemory level)
+	{
+		base.OnTrimMemory(level);
+		bool on = SPIXI.ImgurlFlags.TrimHook;
+		if (!on) return;
+		try { SPIXI.SpixiContentPage.lifeTrim((int)level, on); } catch (Exception) { }   // a failed drop keeps the views: the next trim or Node.onLowMemory tries again
+	}
+
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
 }

@@ -38,7 +38,7 @@ using Microsoft.Maui.Platform;
 
 namespace SPIXI
 {
-    public class SpixiContentPage : ContentPage, IDisposable
+    public partial class SpixiContentPage : ContentPage, IDisposable
     {
         public bool CancelsTouchesInView = true;
         // #903 r2: `volatile` — sendMessage reads it from POOL threads (the 2 s tick, and since

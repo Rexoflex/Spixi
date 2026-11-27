@@ -1,19 +1,24 @@
-# Handoff 2026-11-27 qtools — quality tooling (STOPPED: #46 not CLEAN at round 5; nothing pushed)
+# Handoff 2026-11-27 qtools — quality tooling (delivered after round 6; CLEAN; no walk)
 
 Read this FIRST, then DECISIONS #2070–#2079. Number block: #2070–#2079 (all used) · lessons L329–L330 (both used) · no packet.
-Prompt: project doc `claude/session-qtools-prompt.md` (Ready by Damir, 2026-11-26 17:05–17:08, #1970). Contract:
-`docs/contract-qtools.md`. Review: `docs/review-brief-qtools.md` (§ 5 holds every round).
+Prompt: project doc `claude/session-qtools-prompt.md` (Ready by Damir, 2026-11-26 17:05–17:08, #1970); round 6 by ruling #1972
+(project doc `claude/session-qtools-round6.md`). Contract: `docs/contract-qtools.md`. Review: `docs/review-brief-qtools.md` (§ 5).
 
 ## 0 · State
-- Branch `work/qtools` from `redesign/frontend` @ `ae7b8303` (did not move; read again at the end). Commits by Damir's identity,
-  unsigned. **NOT pushed** (#2078): the #46 loop is not CLEAN at round 5 (one MAJOR: row r10 of `pins-qtools/f-runner` is flaky
-  when two runs share the temp folder). The tree lives in the cloud clone and in the transfer patch named in the status doc.
-- Smoke: base derived `7094 / the 2 KNOWN` (7096 rows; L329) · the final tree `1ce20cb7` (the one round 5 read), ONCE, cloud twin,
-  `npm ci`, `TZ=America/Los_Angeles`: **7324 pass, 5 red** = the 2 KNOWN + 3 owed rows of other batches (GATE 44 (b): the guard
-  spelling of `bridge-contract.mjs`, `gate-diff.mjs`, `isolation-check.mjs`; `pins-walktools2/d-lockfile` k1 + k9: the frozen
-  devDependency list and lock hash) · 7329 rows = 7096 + 233 · CSH `pass=919 fail=0` · `build-shells --check` ✓ · `build-locales --check` ✓.
-- No app file: app C# +0, `src/**` +0 (size counter of `work/sizerule`: PASS).
-- CI: not run (no push).
+- Branch `work/qtools` from `redesign/frontend` @ `ae7b8303` (it did not move during the session; read again before the push).
+  Commits by Damir's identity, unsigned; ONE push after round 6 (#2078). Damir opens the pull request with the compare link of
+  the status doc.
+- #46: NOT CLEAN at round 5, CLEAN at round 6 (MAJOR 10 · 5 · 2 · 3 · 1 · 0), #2078.
+- Smoke on the final tree, ONCE, cloud twin (`npm ci`: jsdom 29.1.1; Ixian-Core @ `097341a`; .NET SDK 10.0.115;
+  `TZ=America/Los_Angeles`): **`BASELINE OK — 7329 pass / the 2 KNOWN`** = 7094 + 235 (the base's count, derived, L329) ·
+  CSH `pass=919 fail=0` (+0) · `build-shells --check` ✓ · `build-locales --check` ✓. The 7 `QTOOLS-KNOWN` rows PASS (they hold
+  the defects: L1-parse, B2-64, H1-case-fold, M3-zeros, N1-upper, S1-inf, M1-mangle).
+- No app file: app C# +0, `src/**` +0 (the size counter of `work/sizerule`: PASS).
+- CI: first run owed on the pull request (redesign-ci with the new quality step; CodeQL and the SBOM on the pull request;
+  Scorecard only on `master`).
+- ⚠ A merge with the train is owed: `work/sizerule` (in `work/train1`) also changes `.github/workflows/redesign-ci.yml` and
+  `scripts/pins-leanfollow/d-ci.mjs`. The second of the two to merge keeps both steps and re-bases d-ci (rows 12, 13, 17, 18
+  and the frozen lists).
 
 ## 1 · What this session did
 | Item | Result | Where | MC |
@@ -28,22 +33,15 @@ Prompt: project doc `claude/session-qtools-prompt.md` (Ready by Damir, 2026-11-2
 | CI step | ONE step after `npm ci`; the runner + its pin | `redesign-ci.yml`, `scripts/quality/run-ci-checks.mjs`, `pins-qtools/f-runner`, re-based `pins-leanfollow/d-ci` (#2077) | — |
 Planned, not built: #16 fuzzing (after freeze), #20 reviewer calibration (once per milestone).
 
-## 2 · To continue (needs Damir's word for a round 6 in the main chat)
-1. Apply the transfer patch on `ae7b8303` (or use the cloud clone), fix r10 (a private `TMPDIR` per case in `f-runner.mjs`),
-   r5 F m1 (`silent` cases for `gate-diff` and `bridge-contract`), the three owed smoke rows (the main-module guard of the three
-   scanners in GATE 44's spelling `realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])`; re-base
-   `pins-walktools2/d-lockfile` k1 / k9 for `axe-core` and `fast-check` + `pure-rand` after a look at the lock diff), optionally the r5 NITs (#2078).
-2. Round 6: one Fable 5.2 security reader + one Opus reader over that delta only.
-3. The full smoke ONCE + CSH; merge the newest base if it moved (`sizerule` changes `redesign-ci.yml` and `pins-leanfollow/d-ci`:
-   keep both steps; re-base row 17 / 18 / the frozen lists of d-ci for the merged file); push; read back; the compare link.
-4. Damir's ruling #2077 (scanners: reports / enforce / drop).
+## 2 · To continue
+1. Damir: open the pull request with the compare link; merge when CI is green (no walk).
+2. The merge with the train (above), and read the first CI run (the quality step's log: `quality checks: ran (gate-diff,
+   isolation, bridge-contract) · enforced: none`; the a11y report in the step summary).
+3. Before a ruling fills `ENFORCED`: the open rows of `docs/contract-qtools.md` § 8 (the Roslyn rebuild is a later batch).
 
 ## 3 · Open questions
-| For | Question | Blocks |
-|---|---|---|
-| Damir | Q-1 (#2078) permit a round 6 for the r10 fix? (a) yes (recommended): a short follow-up session, then the push · (b) no: the work stays as the patch | the delivery |
-| Damir | Q-2 (#2077) the three scanners: (a) recommended — reports now; a follow-up batch on Roslyn for the C# reader + the gate diff's rename class, then `ENFORCED` · (b) enforce now with the recorded gaps · (c) drop | `ENFORCED` |
-| Damir | Q-3 the 7 held parser defects and the a11y serious ones: fix batches or record only (Mission Control items "Check") | nothing |
+None open for this batch: ruling #1972 answered Q-1 (round 6, done), Q-2 (the scanners stay reports; the Roslyn rebuild is a
+later batch) and Q-3 (the 8 Mission Control items stay "Check": record only).
 
 ## 4 · Recorded, not changed
 - `docs/contract-qtools.md` § 8: every round-2 / round-4 finding on the scanners and the step, with directions.

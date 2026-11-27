@@ -13,7 +13,7 @@ closes (#660). Contract: `docs/contract-qtools.md`. Prompt: project doc `claude/
 | 5 property tests | fast-check over the JS parsers of untrusted input, in the smoke | `scripts/pins-qtools/e-props.mjs`, `scripts/quality/parsers.md` |
 | 6 gate diff | the changes of a commit range that need a row in `docs/security-handover-gate.md`; calibrated on 30 merges; a REPORT in CI since round 2 (§ 5) | `scripts/quality/gate-diff.mjs`, `scripts/quality/gate-diff.md`, `scripts/pins-qtools/d-gatediff.mjs` |
 | 7 a11y scan | axe-core over the built shells (light / dark × phone / desktop) through Chrome's DevTools protocol, a REPORT | `scripts/quality/a11y-scan.mjs`, `docs/a11y-baseline.md` |
-| CI | ONE step in `redesign-ci.yml` that runs 6, 3, 4 (each fails the step only when `ENFORCED` names it: none since round 2, § 5) and 7 (always a report) | `.github/workflows/redesign-ci.yml`, `scripts/quality/run-ci-checks.mjs`; re-based pin `scripts/pins-leanfollow/d-ci.mjs` (rows 13, 18) |
+| CI | ONE step in `redesign-ci.yml` that runs 6, 3, 4 (each fails the step only when `ENFORCED` names it: none since round 2, § 5; the runner's own input errors still fail it) and 7 (always a report) | `.github/workflows/redesign-ci.yml`, `scripts/quality/run-ci-checks.mjs`; re-based pin `scripts/pins-leanfollow/d-ci.mjs` (rows 13, 18) |
 | deps | `fast-check` 4.11.0, `axe-core` 4.14.1 (exact; `npm audit`: no finding for them) | `package.json`, `package-lock.json` |
 
 Not built, and why: #16 fuzzing of C# parsers ("after freeze") · #20 reviewer calibration ("once per milestone").
@@ -58,3 +58,9 @@ Not built, and why: #16 fuzzing of C# parsers ("after freeze") · #20 reviewer c
 - D MAJOR-1 four docs still said the three scanners fail CI (quality plan rows 13 / 14 / 19, brief § 1) → "a REPORT in CI until Damir rules"; the held count 5 → 7.
 - D MAJOR-2 the rename blind spot was tied to `git mv`; git pairs renames by content (a delete + add ≥ 50 % similar) → the text of `gate-diff.md` § 2 and contract § 8 corrected (the code is unchanged, by rule 9).
 - MINORs fixed: `ENFORCED` names checked against `KNOWN` and a list without `gate-diff` refused (exit 2, S3-m2, S3-m3, D MINOR-1); the gate diff now runs FIRST, before any script of the tree under test (S3-n2); a new behaviour pin of the runner `pins-qtools/f-runner` (8 rows + 5 breaks); the `c-isolation` time row (a SMOKE row) loosened to 180 s; the child limits now sum below the step limit; the MISSING annotation no longer repeats the count line.
+
+### Round 4 (readers S Fable 5.2 · E Opus; delta `c80b284f..f452f198`) — MAJOR 3 (S 1 · E 2), all in the new runner pin → fixed
+- S4-M1 the pin's git fixture inherited the caller's `GIT_*` (a hook in a linked worktree could commit into another repository; #1777's rule) → every `GIT_*` but `GIT_EXEC_PATH` removed, no global / system config, no template, no hooks, every git call checked, the top level checked; a row r0 proves it with `GIT_DIR` / `GIT_INDEX_FILE` / `GIT_WORK_TREE` aimed at another repository (its break by hand). The runner's own git also drops the caller's `GIT_*`.
+- E MAJOR-1 the gate-diff branch of the runner had no pin row → r9 (an enforced red gate diff), r10 (the BASE copy runs and its temp folder goes), with breaks.
+- E MAJOR-2 r8 could not go red → a 12-hex base that git resolves, and the "not 40 hex" text required; its break.
+- MINORs: r11 (OK line + exit 1), r12 (partial enforcement), the ENFORCED line matched by pattern, a non-array ENFORCED → exit 2, the "takes effect" sentence corrected, "2 min" in the gate row, "a NON-EMPTY list", runner input errors named; recorded in contract § 8: the `base.sha` freeze question, `npm ci` lifecycle scripts and `.npmrc`.

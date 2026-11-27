@@ -7,10 +7,12 @@
  * ENFORCED (below) names the checks whose failure fails the step (an ::error annotation); every other check is a REPORT
  * (a ::warning annotation, the step stays green). In this batch ENFORCED is EMPTY: the #46 review of the three
  * hand-written scanners did not converge (docs/review-brief-qtools.md § 5; DECISIONS #2077), so they run as reports
- * until Damir rules; putting a name into ENFORCED is the whole change that makes that check fail the step (in CI the
- * BASE commit's copy of this file decides, so the change takes effect from the first run after its merge). A name
- * outside KNOWN, or a list that names 'isolation' or 'bridge-contract' without 'gate-diff', is a runner input error
- * (exit 2): those two run from the tree under test, and only the base's gate diff sees an edit of them.
+ * until Damir rules; putting a name into ENFORCED (and nothing else: the pin pins-qtools/f-runner matches the line by
+ * pattern) makes that check fail the step. In CI the BASE commit's copy of this file decides, so the change takes effect
+ * from the first run whose base commit holds it (not the push run of its own merge); a pull request opened before it may
+ * keep the older copy if GitHub keeps that pull request's base sha (not checked on the fork; docs/contract-qtools.md § 8).
+ * An ENFORCED that is not an array of names from KNOWN, or a non-empty list without 'gate-diff', is a runner input error
+ * (exit 2): 'isolation' and 'bridge-contract' run from the tree under test, and only the base's gate diff sees an edit of them.
  *      The copy of gate-diff.mjs that runs is the BASE commit's copy of scripts/quality/*.mjs when the base has one
  *      (extracted with `git show` into a temp folder); that copy lists every change to the checks (scripts/quality/**,
  *      .github/**, docs/bridge-contract.json and the other paths it names) as a `check-changed` item that needs a row in
@@ -54,7 +56,8 @@ const A11Y_LIMIT_MS = 9 * 60 * 1000;
 const esc = (s) => String(s).replace(/%/g, '%25').replace(/\r/g, '').replace(/\n/g, '%0A');
 const annotate = (title, text) => console.log('::error title=' + esc(title) + '::' + esc(String(text).slice(0, 900)));
 const note = (check, title, text) => console.log('::' + (ENFORCED.includes(check) ? 'error' : 'warning') + ' title=' + esc(title + (ENFORCED.includes(check) ? '' : ' (REPORT)')) + '::' + esc(String(text).slice(0, 900)));
-const git = (args, timeout = 60 * 1000) => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout });
+const GIT_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/.test(k) || k === 'GIT_EXEC_PATH'));   // the caller's GIT_DIR / GIT_INDEX_FILE never steer the runner's git
+const git = (args, timeout = 60 * 1000) => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout, env: GIT_ENV });
 const run = (title, script, args, limit = CHECK_LIMIT_MS) => {
   console.log('\n== ' + title);
   const r = spawnSync(process.execPath, [script, ...args], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: limit });
@@ -69,6 +72,7 @@ let tmp = null;
 const cleanup = () => { if (tmp) { rmSync(tmp, { recursive: true, force: true }); tmp = null; } };
 const stop = (code) => { cleanup(); process.exit(code); };
 
+if (!Array.isArray(ENFORCED)) { annotate('quality: ENFORCED', 'not an array'); stop(2); }
 if (ENFORCED.some((n) => !KNOWN.includes(n))) { annotate('quality: ENFORCED', 'a name outside ' + KNOWN.join(', ') + ': ' + JSON.stringify(ENFORCED)); stop(2); }
 if (ENFORCED.length && !ENFORCED.includes('gate-diff')) { annotate('quality: ENFORCED', 'isolation / bridge-contract enforced without gate-diff: ' + JSON.stringify(ENFORCED)); stop(2); }
 

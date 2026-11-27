@@ -84,6 +84,7 @@ export default async function (h) {
         if (top && prop === 'max-height' && (r.sel === BASE || r.sel === NEW)) continue;
         if (top && f === 'chat.html' && r.sel === PICKER && prop === 'height') { picker.push(v); continue; }
         if (top && f === 'call.html' && r.sel === DECLINE && prop === 'max-height' && v === 'calc(100% - 48px)') continue;
+        if (top && r.sel === ':root[data-desktop] .c-sheet.c-sheet--addr' && prop === 'max-height' && v === 'calc(100% - 2 * var(--spacing-16))') continue;   // macfixa item 5 re-base: the address dialog may use the window minus 16 px (H − 32 is never under the shared cap for H ≥ 134); held exactly (pins-macfixa/e-addr-fit e1)
         strays.push(f + ' → ' + (r.at.length ? r.at.join(' ') + ' { ' : '') + r.sel + ' { ' + prop + ': ' + v);
       }
     }

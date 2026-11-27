@@ -1,6 +1,6 @@
 # Handoff 2026-11-27 quotebox2 — the reply match on Windows (no fix: not proven) + three Sent-sweep lines (WALK-READY)
 
-Read this FIRST, then DECISIONS #2025–#2030. Number block of this session: #2025–#2034 (used: #2025–#2030; #2031–#2034 stay
+Read this FIRST, then DECISIONS #2025–#2030. Number block of this session: #2025–#2034 (used: #2025–#2031 — #2031 is the size fix of ruling #1975; #2032–#2034 stay
 empty) · lessons L315–L318 (all used) · packets P111–P112 (both used). Prompt: project doc `claude/session-quotebox2-prompt.md`
 (Ready by Damir, 2026-11-26 15:33 "quotebox2 after PR 30"). Contract: `docs/contract-quotebox2.md`. Review:
 `docs/review-brief-quotebox2.md`. The main chat gives the next block and writes the next prompt.
@@ -20,18 +20,17 @@ empty) · lessons L315–L318 (all used) · packets P111–P112 (both used). Pro
 - Review: **CLEAN at round 5** (the last permitted round; MAJOR 1 · 1 · 0 · 0 · 0, both MAJORs in the mechanism doc; #2029; brief § 5). The code
   files are committed exactly as the readers of r2–r5 read them (SHA-256, first 12: `SingleChatPage.xaml.cs` 5d20e24f551b ·
   `ContactNewPage.xaml.cs` ccae1519ccfa · `SpixiContentPage.cs` 50c510a4a1b3 · `SpixiFlags.cs` 3a2343cef473).
-- ⚠ C# UNCOMPILED: `Spixi/Pages/Chat/SingleChatPage.xaml.cs`, `Spixi/Pages/Contacts/ContactNewPage.xaml.cs`,
-  `Spixi/Utils/SpixiContentPage.cs`, `Spixi/Utils/SpixiFlags.cs` (the Windows job of `redesign-ci` compiles them first;
+- ⚠ C# UNCOMPILED: `Spixi/Pages/Chat/SingleChatPage.xaml.cs`, `Spixi/Pages/Chat/SingleChatPage.ReplyMatch.cs`,
+  `Spixi/Pages/Contacts/ContactNewPage.xaml.cs`, `Spixi/Utils/SpixiContentPage.cs`, `Spixi/Utils/SentSweepOnForget.cs`, `Spixi/Utils/SpixiFlags.cs` (the Windows job of `redesign-ci` compiles them first;
   `SpixiFlags.cs` also compiles in CSH with `SPIXI_DEV_COEXIST`).
 - Definition of done: `docs/release-readiness.md` WK-QUOTEBOX2 (new, OPEN: the walk is owed).
-- Size (R1, R3; Pygments 2.21 `CSharpLexer`, a line with a non-comment token; `#if` / `#endif` counted; `scripts/size-count.mjs`
-  is not on the base): app C# code lines **+58** (budget +60): `SingleChatPage.xaml.cs` 7,754 → 7,764 (+10) · `ContactNewPage.xaml.cs`
-  +1 · `SpixiContentPage.cs` +1 · `SpixiFlags.cs` 631 → 677 (+46); comment lines +7 · hand-written `src/**` +0 (budget +40) ·
-  switches +1 (`SweepOnForget`) · files over 1,500 lines that grew: `SingleChatPage.xaml.cs` (10,694 → 10,704 lines: the sweep line
-  at its site, and the 9-line dev group of `matchReply`, which needs the method's own locals `self`, `idx`, `preferred`, `index`
-  and `replyDeepCached` — R6, #46 r1 O1 NIT-2; a helper taking them as arguments could cut it to 3 lines) and
-  `SpixiContentPage.cs` (+1, the call site). R2: no history comments. R4: stage 2 deletes the `ReplyMatchLog` class and the dev
-  group with the rest of the `SPIXI_DEV_COEXIST` code (nothing else of this batch). R5: every probe inside `#if SPIXI_DEV_COEXIST`.
+- Size (#2031, the size fix of ruling #1975; `scripts/size-check.mjs` of `work/train1` on `ae7b8303..HEAD`): R2 pass · R5 pass ·
+  **R6 pass** — `SingleChatPage.xaml.cs` 10,694 and `SpixiContentPage.cs` 7,732 lines = the base (the sweep calls and the dev line
+  moved into `Spixi/Utils/SentSweepOnForget.cs` and `Spixi/Pages/Chat/SingleChatPage.ReplyMatch.cs`; each site and `matchReply`
+  change one line in place) · **R1: app C# code lines +83 (+56 in a store build), over the prompt's +60** (the two new files'
+  usings, namespace and class shells; +58 before the move) — for the main chat · `src/**` +0 · switches +1. R2: no history
+  comments. R4: stage 2 deletes `ReplyMatchLog` and the dev group with the `SPIXI_DEV_COEXIST` code. R5: every probe inside
+  `#if SPIXI_DEV_COEXIST`. (The first delivery, `34e481c1`, failed R6: the two large files grew by 10 and 1 lines.)
 
 ## 1 · What this session did
 | Item | Result | Evidence | MC |

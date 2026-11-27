@@ -107,7 +107,7 @@ line prints, so the walk tells E2 (cand=0) from E5 (cand=1).
 ## 4 · The developer-build line (inside `#if SPIXI_DEV_COEXIST`, R5; packet P112)
 
 `[QB2] reply match reply=<id hex> found=<0|1> cand=<n> deep=<n|-1> idx=<n> via=<load|live> ui=<0|1>` — once per match of
-a reply-shaped row (`SingleChatPage.matchReply`), both outcomes, also for every `updateMessage` of such a row. What each
+a reply-shaped row (`SingleChatPage.tryReplyMatch` in `SingleChatPage.ReplyMatch.cs`, called by `matchReply`), both outcomes, also for every `updateMessage` of such a row. What each
 field is (#46 r1 O1 MINOR-1, r3 MINOR-1 / -2):
 - `found` — the match found a target (`ReplyQuote.tryMatch`, the same call as the base's).
 - `cand` — the candidates under the reply line's excerpt, no time filter.

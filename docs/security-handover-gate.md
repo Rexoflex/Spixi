@@ -2501,7 +2501,7 @@ Surface counts (items 1–8): verbs **+0** · pushes **+0** · push values **+0*
 
 ## Session Quote box 2 (`quotebox2`, #2025–#2034) — the dev line of the reply match; the Sent sweep at three more removal sites (2026-11-27)
 
-Packets: [P111](be-review-pack/P111-sweep-on-forget.md) (item 3) · [P112](be-review-pack/P112-reply-match-dev-line.md) (item 1). C# files: `Spixi/Pages/Chat/SingleChatPage.xaml.cs` (`matchReply`, the `ixian:undorequest` branch), `Spixi/Pages/Contacts/ContactNewPage.xaml.cs` (one line), `Spixi/Utils/SpixiContentPage.cs` (one line), `Spixi/Utils/SpixiFlags.cs` (the `QuoteBox2Flags` + `ReplyMatchLog` block); test code otherwise. No fix of the quote box (no proven cause).
+Packets: [P111](be-review-pack/P111-sweep-on-forget.md) (item 3) · [P112](be-review-pack/P112-reply-match-dev-line.md) (item 1). C# files: `Spixi/Pages/Chat/SingleChatPage.xaml.cs` (one line each in `matchReply` and the `ixian:undorequest` branch), `Spixi/Pages/Chat/SingleChatPage.ReplyMatch.cs` (new: `tryReplyMatch`), `Spixi/Utils/SentSweepOnForget.cs` (new), `Spixi/Pages/Contacts/ContactNewPage.xaml.cs` (one line), `Spixi/Utils/SpixiContentPage.cs` (one line), `Spixi/Utils/SpixiFlags.cs` (the `QuoteBox2Flags` + `ReplyMatchLog` block); test code otherwise (the size move: #2031). No fix of the quote box (no proven cause).
 
 | item | verb / key / sink / fetch / log? | verdict |
 |---|---|---|

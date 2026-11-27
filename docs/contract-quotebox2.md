@@ -3,6 +3,9 @@
 File name: `docs/contract-quotebox2.md`. The lead wrote it BEFORE any agent started (`docs/orchestration.md` § 4).
 Prompt: project doc `claude/session-quotebox2-prompt.md` (Ready by Damir, 2026-11-26 15:33 "quotebox2 after PR 30").
 Number block: DECISIONS #2025–#2034 · lessons L315–L318 · packets P111–P112.
+**Superseded in part by #2031 (the size fix, 2026-11-27):** the sweep statement and the dev group moved out of the large files —
+`Spixi/Utils/SentSweepOnForget.cs` and `tryReplyMatch` in `Spixi/Pages/Chat/SingleChatPage.ReplyMatch.cs`; § 2's owner row, § 3b, § 3c and
+§ 4's pin text below are the first shape, kept as written.
 
 ## 1 · Base
 - Tree: `work/quotebox2` @ `ae7b8303` "Merge pull request #29 from Rexoflex/work/fixb5" (it holds the merge of pull

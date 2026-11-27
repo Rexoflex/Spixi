@@ -17,8 +17,6 @@ on:
   pull_request:
     branches: [ 'redesign/frontend' ]
   workflow_dispatch:
-  push:
-    branches: [ 'work/applecc' ]   # the session's own iterations only; removed in the session's last commit
 
 concurrency:
   group: apple-compile-${{ github.ref }}

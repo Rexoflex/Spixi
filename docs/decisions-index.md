@@ -422,3 +422,30 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2010 | The Windows quote box of REPLY C (Seed 57): not reproduced off the device; in Chromium the four replies jump with the mouse; three inputs give "no reaction, no toast" (C#'s fallback box · an unanswered jump whose toast a landing older page cancels · a full repaint of the log inside the mouse press); four likely causes (the open's deeper read short · the jump dropped · the click lost on Windows · the repaint race). |
 | #2011 🟡 | No fix built (no proven cause); the walk rows of `docs/walk-quotebox.md` tell the four causes apart; the fix batch follows the walk (the open's deeper read · `onQuoteJump` and the toast wait · the native layer · the full repaint under a pressed mouse). |
 | #2012 | Session "Quote box" — the record. |
+
+### Session Images by URL (`imgurl`, 2026-11-27, #2035–#2057, L319–L326, P113–P115) — items 1a–1c + 2 (items 3 / 4 out by #1972)
+| Row | Rule |
+|---|---|
+| #2035 🟡 | Item 1a: the grant table and the three request handlers (pictures by a local link C# serves; per WebView, 404 never network, no mini app). |
+| #2036 🟡 | New values on `setFileThumb` / `viewerImage` + the cap words `mediaOrigin`, `mediaKeep` (BE ask B-35). |
+| #2037 🟡 | Item 1b: the chat page's five call sites; the viewer first. |
+| #2038 🟡 | Item 1c: one grammar, one predicate, `<img src>` only; the keeper (≤ 64 per document). |
+| #2039 🟡 | Item 2: the Android 14+ trim hook drops the spare and the parked page at 40 / ≥ 60. |
+| #2040 ⇢ | Item 3: the renderer-death handler — STOPPED by rule 9, then REMOVED by #1972 (a new design later). |
+| #2041 ⇢ | Item 4: the Windows page store — REMOVED by #1972; batch `winstore` (the id follows the account). |
+| #2042 | The switches: three after #1972 (`MediaOrigin`, `MediaKeep`, `TrimHook`). |
+| #2043 🟡 | A granted picture outlives a delete until its document ends (recorded). |
+| #2044 | Scope readings; the size after #1972: +493 (under +700). |
+| #2045 ⏸ | The #46 verdict at r5: CLEAN not claimed (superseded by #2053). |
+| #2046 | The round-5 record (superseded by #2053). |
+| #2047 | The re-bases of other batches' pins. |
+| #2048 | The lab numbers (Chromium only; the keeper's re-fetch claim not reproduced). |
+| #2049 ⇢ | "Delete all data" misses an older Windows store; the `<id>` by path (r4, r5 M1) — moved to `winstore`. |
+| #2050 ⇢ | An app launched by activation may inherit the store variable — moved to `winstore`. |
+| #2051 | #1972 applied: items 3 and 4 removed whole; the re-bases after the removal; size +493. |
+| #2052 | The before-number on the base build (no door sets the switches OFF). |
+| #2053 | The #46 verdict at r6 and the session record. |
+| #2054 🟡 | The remote-media gate lives in the page store (an empty store loads remote media): later, before `winstore`. |
+| #2055 | The size check before the push; the R6 move of `convertToBot()` to `SingleChatPage.Bot.cs`. |
+| #2056 ⏸ | The permitted pass after round 6: not CLEAN (1 doc MAJOR; the move 0); not pushed. |
+| #2057 | The final doc-only pass (0 MAJOR) and the delivery of `work/imgurl`. |

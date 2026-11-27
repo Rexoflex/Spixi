@@ -84,6 +84,27 @@ namespace SPIXI
             }
         }
 
+        /* The BYTES form of dataUriOfAsync, for a caller that hands the JPEG to MediaGrants instead of the bridge: the same
+         * sniff and cap (sourceOf), the same process-wide gate awaited, stillWanted asked before and after it is held, the same
+         * decode (jpegHeld). The JPEG (≤ MaxJpegBytes) or null. Never throws. */
+        public static async System.Threading.Tasks.Task<byte[]?> jpegOfAsync(string path, Func<bool> stillWanted)
+        {
+            try
+            {
+                string? full = sourceOf(path);
+                if (full == null || stillWanted == null || !stillWanted() || !await decodeGate.WaitAsync(GateWaitMs).ConfigureAwait(false)) return null;
+                if (!wantedHeld(stillWanted)) { decodeGate.Release(); return null; }
+                return jpegHeld(full);
+            }
+            catch (Exception) { return null; }
+        }
+
+        /** stillWanted asked with the gate held: a throwing callback answers false, so the caller releases the slot. */
+        private static bool wantedHeld(Func<bool> stillWanted)
+        {
+            try { return stillWanted(); } catch (Exception) { return false; }
+        }
+
         /** The checked full path (exists, ≤ SourceMax, the first bytes sniff as an image), else null. */
         private static string? sourceOf(string path)
         {
@@ -102,6 +123,14 @@ namespace SPIXI
         /** Decode with the gate HELD by the caller; releases it. */
         private static string? decodeHeld(string full)
         {
+            byte[]? jpeg = jpegHeld(full);
+            if (jpeg == null) return null;
+            return "data:image/jpeg;base64," + Convert.ToBase64String(jpeg);
+        }
+
+        /** The decode both forms share: the gate HELD by the caller and released here; the JPEG within MaxJpegBytes, else null. */
+        private static byte[]? jpegHeld(string full)
+        {
             byte[]? jpeg;
             try
             {
@@ -115,7 +144,7 @@ namespace SPIXI
             {
                 return null;
             }
-            return "data:image/jpeg;base64," + Convert.ToBase64String(jpeg);
+            return jpeg;
         }
     }
 }

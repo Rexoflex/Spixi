@@ -473,6 +473,7 @@ namespace SPIXI
             if (isDisposed)
             {
                 dropMediaBatch();   // ★ S9 #46 r1 m-2: the page is torn down (base.OnDisappearing disposed it) — its prepared photos go
+                mediaRevoke();   // …and every media grant of its WebView
             }
         }
 
@@ -1803,6 +1804,7 @@ namespace SPIXI
              * only at the spare attach) — nothing is held, the media go at once. Either way an older document's held items go.
              * Switch OFF: nothing (PhotoOpenRules.MediaGate.load). */
             mediaGate.load(SpixiFlags.PhotoMediaAfterPaint, paintedSeen, thumbDoc);
+            mediaBeginDocument();   // the media origin: every grant of this WebView for an older document goes (thumbDoc was bumped above)
             readReceiptsPushed = null;   // ★ #46 r1 (X5): a new document — told before the first history push
             pushReadReceipts();
             typingShownKnown = SPrivacyPrefs.typingIndicators;
@@ -2046,6 +2048,7 @@ namespace SPIXI
             }
 #endif
             caps += SpixiFlags.Photo1bChatCaps;   // ★ photo1b (#1641 / #1742): the shell switches (contract-photo1b § 4)
+            caps += mediaOriginCaps();   // mediaOrigin / mediaKeep (MediaOrigin partial); "" with the switch OFF or no handler serving
             Utils.sendUiCommand(this, "setCaps", caps);
             SMoments.pushTo(this);   // ★ S17 F (#1340): the moment state (no-op with the flag OFF)
 
@@ -8025,7 +8028,7 @@ namespace SPIXI
                     return;   // this message's file, this version, already went to this document
                 }
             }
-            string? uri = chatThumbFor(fi, job.id, job.gen, out bool hit);   // ★ photo1a: the store / LRU (switch OFF = chatThumbOf); hit = no decode
+            string? uri = mediaUrlFor(job.doc) ? mediaThumbValue(fi, job, out bool hit) : chatThumbFor(fi, job.id, job.gen, out hit);   // ★ photo1a: the store / LRU (switch OFF = chatThumbOf); hit = no decode. The URL path: a grant of the same bytes (MediaOrigin partial)
             if (uri == null)
             {
                 return;
@@ -8618,7 +8621,8 @@ namespace SPIXI
                 string? uri = null;
                 try
                 {
-                    uri = await ViewerImage.dataUriOfAsync(file, stillWanted);   // awaits ViewerImage's gate — OFF the UI thread
+                    if (mediaUrlFor(doc)) uri = await viewerValueAsync(doc, hexId, file, stillWanted);   // the URL path: a grant of the same decode (MediaOrigin partial)
+                    else uri = await ViewerImage.dataUriOfAsync(file, stillWanted);   // awaits ViewerImage's gate — OFF the UI thread
                 }
                 catch (Exception e)
                 {
@@ -10449,19 +10453,6 @@ namespace SPIXI
             catch (Exception)
             {
                 return false;
-            }
-        }
-
-        public void convertToBot()
-        {
-            popToRootAsync();
-            if (homePage != null)
-            {
-                homePage.removeDetailContent(false);
-                homePage.onChat(friend.walletAddress, null);
-            } else
-            {
-                HomePage.Instance().onChat(friend.walletAddress, null);
             }
         }
 

@@ -3,7 +3,7 @@
 # test, no app start. The walk on a device stays the proof of behaviour.
 # Same Ixian-Core pin and the same checkout layout as the Windows job of redesign-ci.yml (Spixi/ and Ixian-Core/ as
 # siblings). Each compile error becomes one ::error annotation (one per unique file:line:code; at most 10 per step,
-# the GitHub limit); the FULL list always goes to the job summary and to the step log, and the logs are uploaded.
+# the GitHub limit); the FULL list goes to the step log, the job summary holds up to 500 rows, the logs are uploaded.
 # Security: read-only token, no secret, every action pinned by its full commit SHA, no pull_request_target, no
 # expression from the event inside a run: script. A pull request runs its own copy of this file with that token only.
 # This job is NOT a required check (the branch rule is Damir's; DECISIONS 2100-2109, docs/apple-compile-baseline.md).
@@ -87,7 +87,7 @@ jobs:
 
     - name: List the .NET SDKs (the pinned one is used)
       run: |
-        g="$(find . -name global.json -not -path './.git/*' | head -n 5)"
+        g="$(find . -iname global.json -not -path './.git/*' | head -n 5)"   # -iname: the runner's volume ignores case (r3 S)
         [ -z "$g" ] || { echo "::error title=SDK::the tree has a global.json (the job pins the SDK itself)"; exit 1; }
         dotnet --list-sdks
         v="$(dotnet --version)"; echo "$v"
@@ -133,6 +133,8 @@ jobs:
       run: |
         set -o pipefail
         # The build prints text from the tree: no line of it may act as a workflow command (review r1 S, NIT 7).
+        # The C# problem matcher of setup-dotnet is removed too: the next step makes the annotations (review r3 S, NIT 2).
+        echo "::remove-matcher owner=csc::"
         tok="$(uuidgen)"; echo "::stop-commands::$tok"; trap 'echo "::$tok::"' EXIT
         dotnet build Spixi/Spixi.csproj --no-restore -c Debug -f "$TFM" -p:RuntimeIdentifier="$RID" \
           -p:EnableCodeSigning=false -p:BuildIpa=false -p:CreatePackage=false -v:m \
@@ -141,7 +143,7 @@ jobs:
           2>&1 | tee "$GITHUB_WORKSPACE/build-$TARGET_KEY.log"
 
     # One ::error per unique file:line:code (at most 10: the GitHub limit per step; when there are more, the 10th says
-    # how many more). The full list ALWAYS goes to the step log and to the job summary. Paths are made relative to the
+    # how many more). The full list goes to the step log; the job summary holds up to 500 rows. Paths are made relative to the
     # Spixi repository root, so the annotation points at the file in the pull request.
     - name: Publish the compile errors
       if: ${{ !cancelled() }}
@@ -162,8 +164,8 @@ jobs:
             except FileNotFoundError:
                 return []
         lines = read(f"{ws}/errors-{key}.log")
-        rx = re.compile(r"^\s*(?:\d+>)?(?P<file>.+?)\((?P<line>\d+)(?:,(?P<col>\d+))?(?:,\d+,\d+)?\)\s*:\s*error\s+(?P<code>[A-Za-z]+[0-9]+)?\s*:\s*(?P<msg>.*?)(?:\s+\[[^\]]*\])?\s*$")
-        rx_nofile = re.compile(r"^\s*(?:\d+>)?(?:(?P<file>.+?)\s*:\s*)?error\s+(?P<code>[A-Za-z]+[0-9]+)?\s*:\s*(?P<msg>.*?)(?:\s+\[[^\]]*\])?\s*$")
+        rx = re.compile(r"^\s*(?:\d+>)?(?P<file>.+?)\((?P<line>\d+)(?:,(?P<col>\d+))?(?:,\d+,\d+)?\)\s*:\s*(?:[\w.-]+\s+)?error\s+(?P<code>[A-Za-z]+[0-9]+)?\s*:\s*(?P<msg>.*?)(?:\s+\[[^\]]*\])?\s*$")
+        rx_nofile = re.compile(r"^\s*(?:\d+>)?(?:(?P<file>.+?)\s*:\s*)?(?:[\w.-]+\s+)?error\s+(?P<code>[A-Za-z]+[0-9]+)?\s*:\s*(?P<msg>.*?)(?:\s+\[[^\]]*\])?\s*$")
         def rel(p):
             p = p.strip().replace("\\", "/")
             for pre in (ws + "/Spixi/", ws + "/"):
@@ -172,7 +174,7 @@ jobs:
             return p
         seen, errs = set(), []
         for l in lines:
-            l = l[:4000]   # bounds the regular expressions on a very long line
+            l = l[:4000].lstrip("\ufeff").replace("\t", " ")   # bounds the regular expressions; no byte-order mark, no tab
             m = rx.match(l)
             if m:
                 e = (rel(m["file"]), int(m["line"]), int(m["col"] or 0), m["code"] or "error", m["msg"])
@@ -205,15 +207,20 @@ jobs:
             props.append(f"title={esc_prop(code)}")
             print(f"::error {','.join(props)}::{esc_data(msg[:900])}")
         if len(errs) > LIMIT:
-            print(f"::error title={esc_prop(name + ': more errors')}::{len(errs) - len(shown)} more unique errors: the full list is in the job summary and in this step's log")
+            print(f"::error title={esc_prop(name + ': more errors')}::{len(errs) - len(shown)} more unique errors: the full list is in this step's log (the job summary holds up to 500 rows)")
         if outcome == "failure" and not errs:
             print(f"::error title={esc_prop(name + ': build failed')}::the build failed with no parsed compile error; read build-{key}.log (artifact)")
-        verdict = "compiles (0 errors)" if outcome == "success" and not errs else f"does NOT compile: {len(errs)} unique errors (build step: {outcome})"
+        if outcome == "success" and not errs:
+            verdict = "compiles (0 errors)"
+        elif outcome == "failure" or errs:
+            verdict = f"does NOT compile: {len(errs)} unique errors (build step: {outcome})"
+        else:
+            verdict = f"not built (build step: {outcome}; an earlier step failed)"
         out = [f"## {name}: {verdict}", ""]
         def cell(t):   # text from the tree: no markdown, no HTML, no table break (review r1 S, MINOR 2)
             # one pass, char by char: every character that is not an ASCII letter, digit or space becomes an entity;
             # control and format characters (bidi included) are dropped (review r1 S MINOR 2, r2 S NIT 4)
-            t = "".join("" if unicodedata.category(c) in ("Cc", "Cf") else (c if (c.isascii() and (c.isalnum() or c == " ")) else f"&#{ord(c)};") for c in t[:300])
+            t = "".join("" if unicodedata.category(c) in ("Cc", "Cf") else (c if (c.isascii() and (c.isalnum() or c == " ")) else f"&#{ord(c)};") for c in t[:300]) + ("…" if len(t) > 300 else "")
             return "<code>" + t + "</code>"
         ROWS = 500   # the summary of a step is limited to 1 MiB (review r1 S, NIT 5); the step log keeps the full list
         if errs:
@@ -231,7 +238,8 @@ jobs:
         # every line starts with a fixed token (review r1 S MINOR 1, r2 S MINOR 1).
         tok = secrets.token_hex(16)
         print(f"::stop-commands::{tok}", flush=True)
-        print("\n".join(["FULL ERROR LIST (" + name + "):"] + [f"| {f}:{ln}:{col} {code} {msg}" for f, ln, col, code, msg in errs]), flush=True)
+        clean = lambda t: "".join(c for c in t if unicodedata.category(c) not in ("Cc", "Cf"))   # no colour code, no bidi (r3 S NIT 3)
+        print("\n".join(["FULL ERROR LIST (" + name + "):"] + [clean(f"| {f}:{ln}:{col} {code} {msg}") for f, ln, col, code, msg in errs]), flush=True)
         print(f"::{tok}::", flush=True)
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as s:
             s.write("\n".join(out) + "\n")

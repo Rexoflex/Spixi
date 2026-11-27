@@ -71,6 +71,25 @@ A change to this table goes through the lead; both sides get the new text.
 - #16 fuzzing of the C# parsers (SharpFuzz): "after freeze, parsers stable".
 - #20 reviewer calibration: "once per milestone, from the refactor".
 
-## 8 · Escalation log
+## 8 · The three scanners are REPORTS until Damir rules (#46 rule 9; DECISIONS #2077)
+The isolation check (with `lib-csharp.mjs`), the bridge contract check and the gate diff are hand-written scanners. Round 1
+and round 2 of the review each found a NEW class of silent fault in them, so no third fix round ran on their code (the
+lead-work-session rule 9: the choice goes to Damir). They run in CI as REPORTS (`ENFORCED = []` in `run-ci-checks.mjs`;
+a `::warning`, the step stays green) and their pins run in the smoke. The code is as round 2 read it. Recorded, not fixed
+(the direction of a fix in brackets):
+| Check | Round-2 finding | Direction |
+|---|---|---|
+| isolation | MA-r2-1 a constructor wrapper (`: this("chat.html")`, a default parameter) or a wrapper with no resolved call site drops its load: ISO-1 / ISO-2 / ISO-3 fail open (a new class made by the round-1 wrapper fix; the head's "fails closed as ISO-3" is false for these shapes) | a wrapper with no resolved literal call → ISO-3 at the `loadPage` site; resolve `this(…)` / `base(…)` / `new`; or no constructor wrappers |
+| isolation | MA-r2-2 ISO-8 allows a money verb by (verb, class, mark), not by its sink: a new `addTransaction` in `SingleChatPage.onSend` passes, because `chat` is listed for its balance-compare `new Transaction` | each entry names its allowed sinks; `reach` collects every sink |
+| isolation, contract | MA-r2-3 a target-typed `new(…)` is not read (`Transaction t = new(…)`, `WebView w = new()`; 42 uses in the tree) | read `implicit_object_creation_expression` with the declared type |
+| isolation | the XAML reader reads only double-quoted attributes and a plain `TargetType` (not `{x:Type WebView}`) | accept `'…'`, unwrap `{x:Type}` |
+| contract | code in a bridge handler outside every verb branch is not marked | read the handler minus its branches as "every verb" |
+| isolation | the wall-clock row of `c-isolation.mjs` (< 60 s) can go red under load (61 s with three parallel runs) | CPU time, or a looser bound |
+| gate diff | B2-M1 a file moved with `git mv` from an unscanned path (`src/demo/`, a test, `*.iife.js`, `scripts/`) into a scanned or packaged one is read as unchanged (a new class: a rename across the scan boundary); `gate-diff.md` § 2 "a moved call is listed again" is false | read every head line of such a rename as added, or `--no-renames` |
+| gate diff | the string form `@import "https://…";` is not held by the pin; static ESM `import … from 'https://…'`, `@import` in an HTML `<style>`, `xlink:href`, a meta refresh, `image-set(`, XAML `Source="https://…"`, `ContentResolver.OpenOutputStream`, `NSFileManager` are not kinds | add the patterns and pin rows (before `macfix` for the two file APIs) |
+| gate diff | a scanned file whose name has a space reads as "no diff section" → exit 2 (fail closed: such a pull request cannot pass) | cut the header path at its tab |
+| gate diff | `scripts/build-shells.mjs` (the SHELLS table) and `scripts/build-demo-bundle.mjs` (the FILES list) are inputs of the checks but not check paths; a second pull request that appends rows to the batch's own earlier section gets MISSING (a new sub-heading is needed) | add the two paths; say "add a new sub-heading" in the output |
+
+## 9 · Escalation log
 | Item | Attempt | Model | Result | Next |
 |---|---|---|---|---|

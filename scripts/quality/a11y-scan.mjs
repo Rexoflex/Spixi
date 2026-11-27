@@ -29,7 +29,7 @@
  *   --shots          also write one PNG per page run to this folder
  *   --page-timeout   seconds per page run (load + feed + axe, every DevTools call inside it included), default 30
  *   --total-timeout  seconds for the whole scan, default 480: the limit is checked before each page run, so the scan
- *                    ends within 480 + --page-timeout s, below the 600 s the CI runner gives a child step
+ *                    ends within 480 + --page-timeout s, below the 540 s (9 minutes) the CI runner gives this child (worst case about 518 s)
  * Markdown summary on stdout; appended to $GITHUB_STEP_SUMMARY when that is set.
  * Exit 0 = the scan ran (violations or not), 2 = it could not run (no Chrome, no axe-core, no WebSocket, no shell,
  * Chrome did not start, or no page could be scanned). */

@@ -68,11 +68,12 @@ jobs:
       run: npm ci
 
     # The quality checks of docs/contract-qtools.md: the isolation check, the bridge contract check and the security-gate
-    # diff fail the step; the accessibility scan is a report only. The step runs before any step that runs this tree's own
-    # code (only `npm ci` comes before it). BASE_SHA is the event's base commit (a pull request) or the previous tip (a
-    # push), checked as 40 hex here and in the script; the runner that starts is the BASE commit's copy of
-    # scripts/quality/run-ci-checks.mjs when the base has one, and it runs the base's copy of the gate diff. A failure
-    # here skips the steps after it (the smoke too); the script writes its own ::error annotations.
+    # diff fail the step only when ENFORCED in scripts/quality/run-ci-checks.mjs names them (none yet: they are reports);
+    # the accessibility scan is always a report. The step runs before any step that runs this tree's own code (only
+    # `npm ci` comes before it). BASE_SHA is the event's base commit (a pull request) or the previous tip (a push), checked
+    # as 40 hex here and in the script; the runner that starts is the BASE commit's copy of run-ci-checks.mjs when the
+    # base has one, and it runs the base's copy of the gate diff. A failure here skips the two --check gates and the smoke
+    # (the steps with `if: !cancelled()` still run); the script writes its own annotations into the log of this step.
     - name: Quality checks (isolation, bridge contract, gate diff; a11y report)
       id: quality
       timeout-minutes: 20

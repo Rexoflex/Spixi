@@ -161,8 +161,8 @@ export const MINIAPP_VERBS = [
 /** ISO-9: the verbs the SHARED BASE answers — SpixiContentPage.onNavigatingGlobal / webViewNavigating run for every page, and
  *  MiniAppPage.handleBridgeUrl calls onNavigatingGlobal first, so each of these is reachable from the mini-app WebView too */
 export const BASE_VERBS = [
-  { verb: 'appAccept', reason: 'accept an incoming mini-app session invite; onAppAccept refuses a surface that receives no call / app state' },
-  { verb: 'appReject', reason: 'reject that invite (the same refusal)' },
+  { verb: 'appAccept', reason: 'accept an incoming call or mini-app session invite; onAppAccept refuses only the VoIP branch on a surface that does not accept call pushes; the mini-app invite branch (MiniAppManager.acceptAppRequest) runs for any surface, the mini-app WebView too (legacy, 0e85a4b8)' },
+  { verb: 'appReject', reason: 'reject that call or invite (the same split: the VoIP branch refused off call surfaces, MiniAppManager.rejectAppRequest for any surface; legacy)' },
   { verb: 'cdping', reason: 'gated on hasGeneratedContent (false for the mini-app WebView): a digit token is echoed as cdpong' },
   { verb: 'copytext', reason: 'gated on hasGeneratedContent: the native clipboard write of the shells (#1037)' },
   { verb: 'hangUp', reason: 'gated on acceptsCallPushes: a surface that receives no call state cannot end a call' },

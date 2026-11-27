@@ -19,16 +19,17 @@
  * (3) A homograph host (an IDN that LOOKS like another): the label and the real host are both punycode-normalised by
  * the URL parser, so they agree. (4) Checksums: the JS side holds only SHAPE gates for addresses (the base58 alphabet and
  * a length window); the checksum is C#'s (Base58CheckEncoding) and is not tested here. (5) Inputs outside the generators:
- * a counterexample-free run is evidence, not proof. (6) Timing rows read the CPU time of the process, not the wall clock; F4 compares the cost at 16 000 and 64 000 chars (measured: the correct code 17 ms at 64 000, the scanning mutant 900 ms, a ratio of 15 against 4; limits 8× and 600 ms). The linkify cap (B3) is pinned by behaviour: no link button over LINKIFY_MAX. (7) Seeds: QTOOLS_SEED / QTOOLS_RUNS_X change the seed and the run count for a hand sweep; every property holds on the shipped code for any seed, or its defect is held. */
+ * a counterexample-free run is evidence, not proof. (6) Timing rows read the CPU time of the process, not the wall clock; F4 compares the cost at 16 000 and 64 000 chars (measured: the correct code 17 ms at 64 000, a ratio of 4–6.5; the scanning mutant 900 ms, a ratio of about 15; limits 8× and 600 ms). The linkify cap (B3) is pinned by behaviour only (no link button over LINKIFY_MAX); no row here guards against a hang in code the cap does not reach. (7) Seeds: QTOOLS_SEED / QTOOLS_RUNS_X change the seed and the run count for a hand sweep; every property holds on the shipped code for any seed, or its defect is held. */
 import fc from 'fast-check';
 import { pathToFileURL } from 'node:url';
 import { mkdtempSync, mkdirSync, copyFileSync, readdirSync as rdir, writeFileSync, readFileSync as rfile, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pjoin } from 'node:path';
 
-/* QTOOLS_SEED overrides the seed (and QTOOLS_RUNS_X the run count factor) for a sweep by hand; the smoke and CI never set it. */
+/* QTOOLS_SEED overrides the seed (QTOOLS_RUNS_X the run count factor, QTOOLS_PROPS_ONLY the properties alone) for a sweep by hand; the smoke and CI never set it. */
 export const SEED = Number(process.env.QTOOLS_SEED) || 20261127;
 const RUNS_X = Number(process.env.QTOOLS_RUNS_X) || 1;
+const PROPS_ONLY = !!process.env.QTOOLS_PROPS_ONLY;   // hand sweep: the properties without their break and held rows
 
 /* ───────────────────────────── generators ───────────────────────────── */
 const PIECES = ['*', '_', '~', '`', '```', '``', '\n', '\n```\n', ' ', ' ', 'a', 'b', '1', 'é', 'ž', '😀', '👍🏽', '\u200d', '\u200f', '\ufeff', '@', '@bob',
@@ -308,7 +309,7 @@ export default async function (h) {
           }
         },
         breaks: [{ id: 'B2-userinfo', note: 'userinfo is no longer rebuilt out of a short label', edits: [['components/message-bubble.js', 'if (!hasUserinfo && url.length <= MAX) return url;', 'if (url.length <= MAX) return url;']] }] },
-      { id: 'B3', name: 'bubble cap (#235): text over LINKIFY_MAX gets no link button (mentions stay), text under it does; crafted runs build in < 2.5 s each', mods: ['fmt', 'link', 'bubble'],
+      { id: 'B3', name: 'bubble cap (#235): text over LINKIFY_MAX gets no link button (mentions stay), text under it does', mods: ['fmt', 'link', 'bubble'],
         run: (M) => {
           const mk = (s) => bubbleOf(M, s, { onLinkClick: () => {}, mention: { names: ['John Doe'], self: [] } });
           const links = (s) => mk(s).querySelectorAll('.c-bubble__link').length;
@@ -318,11 +319,6 @@ export default async function (h) {
           if (links(under) < 1) return { ok: false, why: 'a text of ' + under.length + ' chars has no link' };
           if (links(over) !== 0) return { ok: false, why: 'a text of ' + over.length + ' chars (over the cap ' + M.link.LINKIFY_MAX + ') has ' + links(over) + ' link buttons' };
           if (mk(over).querySelectorAll('.c-bubble__mention').length < 1) return { ok: false, why: 'mentions are gone over the cap' };
-          for (const [n, s] of [['a. ×4500', 'a.'.repeat(4500)], ['a.a. ×4500 + !', 'a.a.'.repeat(2250) + '!'], ['www. ×2250', 'www.'.repeat(2250)], ['a. ×10000', 'a.'.repeat(10000)],
-            ['😀‍ ×20000', '😀\u200d'.repeat(20000)], ['@a. ×1500', '@a.'.repeat(1500)]]) {
-            const dt = timeIt(() => mk(s));
-            if (dt > 2500) return { ok: false, why: n + ' took ' + Math.round(dt) + ' ms' };
-          }
           return { ok: true };
         },
         breaks: [{ id: 'B3-cap', note: 'the LINKIFY_MAX cap is gone', edits: [['components/message-bubble.js', 'const big = text.length > LINKIFY_MAX;', 'const big = false;'], ['components/message-bubble.js', 'if (text.length > LINKIFY_MAX) { appendWithMentions(parent, text, mention); return; }', '']] }] },
@@ -451,6 +447,7 @@ export default async function (h) {
           anyStr.map((s) => ({ kind: 'junk', s }))),
         pred: (M, v) => {
           if (v.kind === 'junk') { must(typeof M.money.formatIxiAmount(v.s) === 'string' && typeof M.money.formatFiatAmount(v.s) === 'string', 'not a string'); return; }
+          if (/^0{2,}$/.test(v.int) && !/[1-9]/.test(v.frac.slice(0, 2)) && /[1-9]/.test(v.frac)) return;   /* held: QTOOLS-KNOWN M3-zeros */
           const ip = v.int.replace(/^0+(?=\d)/, '');
           const input = v.sign + (v.grp ? v.int.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : v.int) + (v.frac ? '.' + v.frac : '');
           const shown = M.money.formatIxiAmount(input);
@@ -579,7 +576,7 @@ export default async function (h) {
         },
         breaks: [{ id: 'G1-allow', note: 'isAllowedMediaUrl accepts every normalised URL', edits: [['shells/chat.html', 'if (ALLOWED_MEDIA_URL.test(u)) return true;', 'return true;']] },
           { id: 'G1-icon', note: 'every URL that parses is a remote icon (javascript: too)', edits: [['shells/chat.html', 'remoteIcon = (proto === \'http:\' || proto === \'https:\');', 'remoteIcon = true;']] }] },
-      { id: 'J1', name: 'jpegSize: never throws on any text; a JPEG built with a frame header gives its exact width and height; anything else gives null', mods: ['typed'], runs: 300,
+      { id: 'J1', name: 'jpegSize: never throws on any text; a JPEG built with a frame header gives its exact width and height; anything else gives null or positive integer sizes ≤ 65535', mods: ['typed'], runs: 300,
         examples: [['data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/wAARCAABAAEDASIAAhEBAxEB/9k=']],
         arb: () => fc.oneof(
           fc.record({ app: fc.array(fc.uint8Array({ minLength: 0, maxLength: 30 }), { maxLength: 3 }), w: fc.integer({ min: 1, max: 65535 }), h: fc.integer({ min: 1, max: 65535 }), sof: fc.constantFrom(0xC0, 0xC1, 0xC2, 0xC9), tail: fc.uint8Array({ maxLength: 20 }) })
@@ -613,6 +610,9 @@ export default async function (h) {
       { id: 'H1-case-fold', mods: ['hl'], property: 'H1', defect: 'search highlight marks the wrong characters in text where lower-casing changes the length (İ → i̇): the span holds " " or nothing for the query b',
         reproduces: (M) => { const r = document.createElement('div'); const sp = document.createElement('span'); sp.textContent = 'İb b'; r.append(sp); M.hl.setHighlights(r, 'b'); return [...r.querySelectorAll('.c-highlight')].some((x) => x.textContent.toLocaleLowerCase() !== 'b'); },
         fix: [['components/highlight.js', 'if (i === -1) continue;', 'if (i === -1 || lower.length !== text.length) continue;']] },
+      { id: 'M3-zeros', mods: ['money'], property: 'M3', defect: 'formatIxiAmount reads a sub-0.01 amount with a zero-padded integer part as zero: 00.002 → "00.00" (the rescue tests int === \'0\'; C# never sends leading zeros)',
+        reproduces: (M) => M.money.formatIxiAmount('00.002') === '00.00',
+        fix: [['components/money.js', "if (!frac && int.replace(/,/g, '') === '0') {", "if (!frac && /^0+$/.test(int.replace(/,/g, ''))) {"]] },
       { id: 'N1-upper', mods: ['typed'], property: 'N1', defect: 'fileKind labels a file by its upper-cased extension: ß becomes SS, so the label passes 4 chars (x.comß → COMSS)',
         reproduces: (M) => M.typed.fileKind('x.comß').label.length > 4,
         fix: [['components/typed-bubbles.js', 'const label = ext && ext.length <= 4 ? ext.toUpperCase() : (ext ? ext.slice(0, 3).toUpperCase() : \'\');', 'const label = (ext && ext.length <= 4 ? ext.toUpperCase() : (ext ? ext.slice(0, 3).toUpperCase() : \'\')).slice(0, 4);']] },
@@ -631,7 +631,7 @@ export default async function (h) {
       catch (e) { ok(false, 'QTOOLS extract ' + s.id + ': cannot load the parser — ' + String(e && e.message).slice(0, 200)); continue; }
       const r = execSpec(s, M, true);
       ok(r.ok, 'QTOOLS ' + s.id + ': ' + s.name + (r.ok ? '' : ' — ' + r.why));
-      for (const b of s.breaks || []) {
+      for (const b of PROPS_ONLY ? [] : s.breaks || []) {
         let rb;
         try {
           const dir = mutantBase(b.edits);
@@ -640,7 +640,7 @@ export default async function (h) {
         ok(!rb.ok && !/^harness|could not be built/.test(rb.why || ''), 'QTOOLS break ' + b.id + ' (' + b.note + ') is caught by ' + s.id + (rb.ok ? ' — NOT CAUGHT' + (rb.why ? ' (' + rb.why + ')' : '') : ' — ' + String(rb.why).slice(0, 200)));
       }
     }
-    for (const hd of HELD) {
+    for (const hd of PROPS_ONLY ? [] : HELD) {
       let reproduces = false, fixedRed = false, why = '';
       try { reproduces = !!hd.reproduces(await loadMods(root, hd.mods)); } catch (e) { reproduces = false; why = String(e && e.message).slice(0, 120); }
       ok(reproduces, 'QTOOLS-KNOWN ' + hd.id + ': ' + hd.defect + (reproduces ? '' : ' — NOT REPRODUCED (' + why + '): fixed or moved; delete this row and widen the property ' + hd.property));

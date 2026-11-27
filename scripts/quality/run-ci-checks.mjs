@@ -1,13 +1,17 @@
 /* run-ci-checks — the ONE quality step of redesign-ci (docs/contract-qtools.md, interface I6).
- * Runs, in this order, and prints one ::error annotation per failed check:
- *   1. the isolation check (scripts/quality/isolation-check.mjs) on the tree at --root      → fails on exit ≠ 0 or no OK line
- *   2. the bridge contract check (scripts/quality/bridge-contract.mjs --check)              → fails on exit ≠ 0 or no OK line
- *   3. the security-gate diff (scripts/quality/gate-diff.mjs) for base..head               → fails on exit ≠ 0 or no OK line
+ * Runs, in this order; a check PASSES only with exit 0 AND its own OK line:
+ *   1. the isolation check (scripts/quality/isolation-check.mjs) on the tree at --root
+ *   2. the bridge contract check (scripts/quality/bridge-contract.mjs --check)
+ *   3. the security-gate diff (scripts/quality/gate-diff.mjs) for base..head
+ * ENFORCED (below) names the checks whose failure fails the step (an ::error annotation); every other check is a REPORT
+ * (a ::warning annotation, the step stays green). In this batch ENFORCED is EMPTY: the #46 review of the three
+ * hand-written scanners did not converge (docs/review-brief-qtools.md § 5; DECISIONS #2077), so they run as reports
+ * until Damir rules; putting a name into ENFORCED is the whole change that makes that check fail the step.
  *      The copy of gate-diff.mjs that runs is the BASE commit's copy of scripts/quality/*.mjs when the base has one
  *      (extracted with `git show` into a temp folder); that copy lists every change to the checks (scripts/quality/**,
  *      .github/**, docs/bridge-contract.json and the other paths it names) as a `check-changed` item that needs a row in
  *      docs/security-handover-gate.md. Only when the base has no gate-diff.mjs does the tree's own copy run; the log says so.
- *   4. the accessibility scan (scripts/quality/a11y-scan.mjs) as a REPORT: its exit code never fails the step.
+ *   4. the accessibility scan (scripts/quality/a11y-scan.mjs), always a REPORT: its exit code never fails the step.
  * In CI the workflow step starts the BASE commit's copy of THIS file when the base has one, so a pull request that edits
  * this file does not change which copies judge it; a pull request that edits the workflow step itself is seen only in
  * review of the `.github/` diff and by the required checks of the branch rule (repo settings are Damir's). Against an
@@ -23,7 +27,7 @@
  * In a shallow checkout the base and the head are fetched (`git fetch --no-tags --depth=50 origin <base> <head>`, 2-minute
  * limit) so that their merge base can be read; no merge base → exit 2.
  * usage: node scripts/quality/run-ci-checks.mjs [--root <dir>] [--no-a11y]
- * exit: 0 all checks passed · 1 a check failed · 2 an input could not be read (fail closed). */
+ * exit: 0 every ENFORCED check passed · 1 an ENFORCED check failed · 2 an input of the runner could not be read (fail closed). */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -37,12 +41,14 @@ if (ri >= 0) root = argv[ri + 1];
 const noA11y = argv.includes('--no-a11y');
 try { root = realpathSync(resolve(root)); } catch (e) { console.log('::error title=quality: root::cannot read ' + root); process.exit(2); }
 
+const ENFORCED = [];   // of 'isolation', 'bridge-contract', 'gate-diff'
 const HEX40 = /^[0-9a-f]{40}$/;
 const ZERO = '0'.repeat(40);
 const CHECK_LIMIT_MS = 3 * 60 * 1000;
 const A11Y_LIMIT_MS = 9 * 60 * 1000;
 const esc = (s) => String(s).replace(/%/g, '%25').replace(/\r/g, '').replace(/\n/g, '%0A');
 const annotate = (title, text) => console.log('::error title=' + esc(title) + '::' + esc(String(text).slice(0, 900)));
+const note = (check, title, text) => console.log('::' + (ENFORCED.includes(check) ? 'error' : 'warning') + ' title=' + esc(title + (ENFORCED.includes(check) ? '' : ' (REPORT)')) + '::' + esc(String(text).slice(0, 900)));
 const git = (args, timeout = 60 * 1000) => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout });
 const run = (title, script, args, limit = CHECK_LIMIT_MS) => {
   console.log('\n== ' + title);
@@ -76,11 +82,11 @@ const notRun = [];
 
 /* 1 · isolation */
 const iso = run('isolation check', join(root, 'scripts/quality/isolation-check.mjs'), ['--root', root]);
-if (!passed(iso, /^isolation-check: OK\b/m)) { fail.push('isolation'); annotate('quality: isolation check (exit ' + iso.code + ')', iso.out.split('\n').filter((l) => /ISO-\d|error|cannot/i.test(l)).slice(0, 5).join(' | ') || 'no OK line; see the log'); }
+if (!passed(iso, /^isolation-check: OK\b/m)) { fail.push('isolation'); note('isolation', 'quality: isolation check (exit ' + iso.code + ')', iso.out.split('\n').filter((l) => /ISO-\d|error|cannot/i.test(l)).slice(0, 5).join(' | ') || 'no OK line; see the log'); }
 
 /* 2 · bridge contract */
 const bc = run('bridge contract --check', join(root, 'scripts/quality/bridge-contract.mjs'), ['--root', root, '--check']);
-if (!passed(bc, /^bridge-contract: OK\b/m)) { fail.push('bridge-contract'); annotate('quality: bridge contract (exit ' + bc.code + ')', bc.out.split('\n').filter((l) => l.trim()).slice(-5).join(' | ') || 'no OK line'); }
+if (!passed(bc, /^bridge-contract: OK\b/m)) { fail.push('bridge-contract'); note('bridge-contract', 'quality: bridge contract (exit ' + bc.code + ')', bc.out.split('\n').filter((l) => l.trim()).slice(-5).join(' | ') || 'no OK line'); }
 
 /* 3 · gate diff */
 if (!base || base === ZERO) {
@@ -117,8 +123,8 @@ if (!base || base === ZERO) {
   if (!passed(gd, /^GATE-DIFF OK\b/m)) {
     fail.push('gate-diff');
     const miss = gd.out.split('\n').filter((l) => /MISSING/.test(l));
-    for (const l of miss.slice(0, 8)) annotate('quality: gate diff — a change with no gate row', l.trim());
-    if (!miss.length) annotate('quality: gate diff (exit ' + gd.code + ')', gd.out.split('\n').filter((l) => l.trim()).slice(-3).join(' | ') || 'no OK line');
+    for (const l of miss.slice(0, 8)) note('gate-diff', 'quality: gate diff — a change with no gate row', l.trim());
+    if (!miss.length) note('gate-diff', 'quality: gate diff (exit ' + gd.code + ')', gd.out.split('\n').filter((l) => l.trim()).slice(-3).join(' | ') || 'no OK line');
   }
 }
 
@@ -133,5 +139,9 @@ if (!noA11y) {
 }
 
 const ran = ['isolation', 'bridge contract'].concat(notRun.length ? [] : ['gate diff']).join(', ');
-console.log('\nquality checks: ' + (fail.length ? 'FAILED — ' + fail.join(', ') : 'passed (' + ran + ')') + (notRun.length ? ' · NOT RUN: ' + notRun.join(', ') : ''));
-stop(fail.length ? 1 : 0);
+const enforcedFail = fail.filter((f) => ENFORCED.includes(f));
+const reportFail = fail.filter((f) => !ENFORCED.includes(f));
+console.log('\nquality checks: ' + (enforcedFail.length ? 'FAILED — ' + enforcedFail.join(', ') : 'ran (' + ran + ')')
+  + (reportFail.length ? ' · REPORT, red: ' + reportFail.join(', ') : '') + (notRun.length ? ' · NOT RUN: ' + notRun.join(', ') : '')
+  + ' · enforced: ' + (ENFORCED.length ? ENFORCED.join(', ') : 'none'));
+stop(enforcedFail.length ? 1 : 0);

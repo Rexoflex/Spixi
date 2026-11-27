@@ -97,11 +97,12 @@ const FROZEN_STEP_IF = ['      if: ${{ !cancelled() }}', '      if: ${{ !cancell
  * the block's place (after "Install test tools", before "Gate - build-shells --check") and the names of the smoke job's steps
  * as a frozen multiset. Not seen: a step whose `- name:` line is not at indent 4 (row 17 sees it). ---- */
 const QTOOLS_STEP = ["    # The quality checks of docs/contract-qtools.md: the isolation check, the bridge contract check and the security-gate",
-  "    # diff fail the step; the accessibility scan is a report only. The step runs before any step that runs this tree's own",
-  "    # code (only `npm ci` comes before it). BASE_SHA is the event's base commit (a pull request) or the previous tip (a",
-  "    # push), checked as 40 hex here and in the script; the runner that starts is the BASE commit's copy of",
-  "    # scripts/quality/run-ci-checks.mjs when the base has one, and it runs the base's copy of the gate diff. A failure",
-  "    # here skips the steps after it (the smoke too); the script writes its own ::error annotations.",
+  "    # diff fail the step only when ENFORCED in scripts/quality/run-ci-checks.mjs names them (none yet: they are reports);",
+  "    # the accessibility scan is always a report. The step runs before any step that runs this tree's own code (only",
+  "    # `npm ci` comes before it). BASE_SHA is the event's base commit (a pull request) or the previous tip (a push), checked",
+  "    # as 40 hex here and in the script; the runner that starts is the BASE commit's copy of run-ci-checks.mjs when the",
+  "    # base has one, and it runs the base's copy of the gate diff. A failure here skips the two --check gates and the smoke",
+  "    # (the steps with `if: !cancelled()` still run); the script writes its own annotations into the log of this step.",
   "    - name: Quality checks (isolation, bridge contract, gate diff; a11y report)",
   "      id: quality",
   "      timeout-minutes: 20",
@@ -199,7 +200,7 @@ function rows(t) {
   R['11 no curl / wget / npm i / npx / pip / dotnet tool / git clone in a new step; no curl / wget in the file; exactly one live npm line in the file (npm ci)'] =
     newText.length > 0 && !/\b(curl|wget)\b/.test(newText) && !/\bnpm\s+(i|install|ci)\b/.test(newText) && !/\b(npx|pip3?)\b/.test(newText) && !/\bdotnet\s+tool\b/.test(newText) && !/\bgit\s+clone\b/.test(newText) && !/\b(curl|wget)\b/.test(live) &&
     lines(t).filter((l) => /\bnpm\s+(i|install|ci)\b/.test(noComment(l))).length === 1;   // ★ walktools2: the one npm line of the file is `npm ci` now (row 17 holds its exact text)
-  R['12 every env: line of the file equals the frozen list (the base set + the two new O_* names)'] = same(envLines(t), FROZEN_ENV);
+  R['12 every env: line of the file equals the frozen list (the base set + the two new O_* names + the qtools BASE_SHA)'] = same(envLines(t), FROZEN_ENV);
   R['13 the step-level if: lines equal the frozen list (the new steps, the annotation and upload steps)'] = same(lines(t).filter((l) => /^      if: /.test(l)), FROZEN_STEP_IF);
   const dl = lines(t); const dflt = [];
   dl.forEach((l, i) => { if (/^    defaults:\s*$/.test(l)) { dflt.push('defaults:'); for (let j = i + 1; j < dl.length && /^      /.test(dl[j]); j++) dflt.push(dl[j].slice(6)); } });

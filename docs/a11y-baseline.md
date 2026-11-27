@@ -9,7 +9,7 @@ First run of `scripts/quality/a11y-scan.mjs` (quality item 7, session `qtools`).
 | Chrome | Chrome for Testing 153.0.8010.12 (`/usr/bin/google-chrome`, headless, DevTools protocol, no Playwright) |
 | Node | 22.23.5 (global `WebSocket`) |
 | Tree | `work/qtools` built shells, `Spixi/Resources/Raw/html/*.html` (18 files, none skipped) |
-| Run | `node scripts/quality/a11y-scan.mjs --out <report.json>` · 72 page runs · 182 s on 2 cores (cloud twin) · default total limit 480 s (below the 600 s the CI runner gives a child), 30 s per page run |
+| Run | `node scripts/quality/a11y-scan.mjs --out <report.json>` · 72 page runs · 182 s on 2 cores (cloud twin) · default total limit 480 s (below the 540 s (9 minutes) the CI runner gives a child), 30 s per page run |
 | Rules | axe default set (WCAG 2.0/2.1 A and AA + best-practice), `resultTypes: violations, incomplete` |
 
 ## What is scanned

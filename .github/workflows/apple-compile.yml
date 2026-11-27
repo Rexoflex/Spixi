@@ -7,9 +7,10 @@
 # Security: read-only token, no secret, every action pinned by its full commit SHA, no pull_request_target, no
 # expression from the event inside a run: script. A pull request runs its own copy of this file with that token only.
 # This job is NOT a required check (the branch rule is Damir's; DECISIONS 2100-2109, docs/apple-compile-baseline.md).
-# LIMIT: once the Build step runs a pull request's code, that code controls the rest of the job, so a pull request run's
-# verdict is evidence only together with the diff of .github/workflows/**, *.csproj, Directory.Build.*, nuget.config,
-# global.json and the package references (true of every pull_request job that builds the code; review r1, reader S).
+# LIMIT: from the first dotnet command inside the checkout on, a pull request's files control the rest of the job, so
+# a pull request run's verdict is evidence only together with the diff of every file that is not C# / XAML / resource
+# source: .github/workflows/**, *.csproj, *.csproj.user, *.props, *.targets, *.projitems, *.rsp, Directory.*,
+# nuget.config, global.json, local-nuget/** (true of every pull_request job that builds the code; review r1-r2, S).
 name: apple-compile
 
 on:
@@ -86,6 +87,8 @@ jobs:
 
     - name: List the .NET SDKs (the pinned one is used)
       run: |
+        g="$(find . -name global.json -not -path './.git/*' | head -n 5)"
+        [ -z "$g" ] || { echo "::error title=SDK::the tree has a global.json (the job pins the SDK itself)"; exit 1; }
         dotnet --list-sdks
         v="$(dotnet --version)"; echo "$v"
         [ "$v" = "10.0.302" ] || { echo "::error title=SDK::dotnet uses $v, not the pinned 10.0.302 (a global.json in the tree?)"; exit 1; }
@@ -149,7 +152,7 @@ jobs:
         BUILD_OUTCOME: ${{ steps.build.outcome }}
       run: |
         python3 -I - <<'PY'
-        import os, re
+        import os, re, secrets, unicodedata
         ws = os.environ["GITHUB_WORKSPACE"].rstrip("/")
         key, name, outcome = os.environ["TARGET_KEY"], os.environ["TARGET_NAME"], os.environ["BUILD_OUTCOME"]
         def read(p):
@@ -186,7 +189,8 @@ jobs:
             seen.add(k)
             errs.append(e)
         errs.sort(key=lambda e: (e[0], e[1], e[3]))
-        def esc_data(s):
+        def esc_data(s):   # also: no legacy "##[" form, no control or format character (review r2 S)
+            s = "".join(c for c in s if c in "\r\n" or unicodedata.category(c) not in ("Cc", "Cf")).replace("##[", "# #[")
             return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
         def esc_prop(s):
             return esc_data(s).replace(":", "%3A").replace(",", "%2C")
@@ -207,19 +211,28 @@ jobs:
         verdict = "compiles (0 errors)" if outcome == "success" and not errs else f"does NOT compile: {len(errs)} unique errors (build step: {outcome})"
         out = [f"## {name}: {verdict}", ""]
         def cell(t):   # text from the tree: no markdown, no HTML, no table break (review r1 S, MINOR 2)
-            # one pass, char by char: HTML specials, markdown punctuation and the ':' of a bare link become entities
-            t = "".join(f"&#{ord(c)};" if c in "&<>\"'|`[]()!:*_~\\#" else c for c in t[:900])
+            # one pass, char by char: every character that is not an ASCII letter, digit or space becomes an entity;
+            # control and format characters (bidi included) are dropped (review r1 S MINOR 2, r2 S NIT 4)
+            t = "".join("" if unicodedata.category(c) in ("Cc", "Cf") else (c if (c.isascii() and (c.isalnum() or c == " ")) else f"&#{ord(c)};") for c in t[:300])
             return "<code>" + t + "</code>"
         ROWS = 500   # the summary of a step is limited to 1 MiB (review r1 S, NIT 5); the step log keeps the full list
         if errs:
             out += ["| # | file:line | code | message |", "|---|---|---|---|"]
+            BUDGET, used, n = 800_000, 0, 0   # bytes: the summary of a step is limited to 1 MiB (review r2 S, NIT 3)
             for i, (f, ln, col, code, msg) in enumerate(errs[:ROWS], 1):
                 where = cell(f"{f}:{ln}") if f else "(no file)"
-                out.append(f"| {i} | {where} | {cell(code)} | {cell(msg)} |")
-            if len(errs) > ROWS:
-                out.append(f"| | {len(errs) - ROWS} more | | the full list is in the step log |")
-        # every line starts with a fixed token, so no line of the list can act as a workflow command (review r1 S, MINOR 1)
-        print("\n".join(["FULL ERROR LIST (" + name + "):"] + [f"| {f}:{ln}:{col} {code} {msg}" for f, ln, col, code, msg in errs]))
+                row = f"| {i} | {where} | {cell(code)} | {cell(msg)} |"
+                if used + len(row.encode()) > BUDGET:
+                    break
+                out.append(row); used += len(row.encode()); n = i
+            if len(errs) > n:
+                out.append(f"| | {len(errs) - n} more | | the full list is in the step log |")
+        # The list is text from the tree: it is printed under stop-commands (no "::" and no legacy "##[" form acts), and
+        # every line starts with a fixed token (review r1 S MINOR 1, r2 S MINOR 1).
+        tok = secrets.token_hex(16)
+        print(f"::stop-commands::{tok}", flush=True)
+        print("\n".join(["FULL ERROR LIST (" + name + "):"] + [f"| {f}:{ln}:{col} {code} {msg}" for f, ln, col, code, msg in errs]), flush=True)
+        print(f"::{tok}::", flush=True)
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as s:
             s.write("\n".join(out) + "\n")
         PY

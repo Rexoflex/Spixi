@@ -1,0 +1,3770 @@
+{
+  "schema": 1,
+  "generator": "scripts/quality/bridge-contract.mjs",
+  "verbs": {
+    "about": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:about",
+      "marks": []
+    },
+    "aboutLink": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:aboutLink:*",
+      "marks": []
+    },
+    "accept": {
+      "senders": [
+        "chat.html",
+        "intro.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/launch.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:accept",
+      "marks": []
+    },
+    "acceptRequest": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:acceptRequest:*",
+      "marks": []
+    },
+    "acceptfile": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:acceptfile:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "action": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs",
+          "member": "handleBridgeUrl"
+        }
+      ],
+      "payload": "ixian:action*",
+      "marks": [
+        "keys",
+        "money",
+        "path"
+      ]
+    },
+    "activity": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:activity",
+      "marks": []
+    },
+    "app": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:app:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "appAccept": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "onNavigatingGlobal"
+        }
+      ],
+      "payload": "ixian:appAccept:*:*",
+      "marks": []
+    },
+    "appDecline": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:appDecline:*",
+      "marks": []
+    },
+    "appDetails": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:appDetails:*",
+      "marks": []
+    },
+    "appReject": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "onNavigatingGlobal"
+        }
+      ],
+      "payload": "ixian:appReject:*:*",
+      "marks": []
+    },
+    "appdetailsoverlay": {
+      "senders": [
+        "app_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/app_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:appdetailsoverlay:*",
+      "marks": []
+    },
+    "appearance": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:appearance:*",
+      "marks": []
+    },
+    "apply": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:apply:*",
+      "marks": []
+    },
+    "appscan": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:appscan",
+      "marks": []
+    },
+    "avatar": {
+      "senders": [
+        "intro.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:avatar",
+      "marks": []
+    },
+    "back": {
+      "senders": [
+        "app_details.html",
+        "app_new.html",
+        "chat.html",
+        "contact_details.html",
+        "contact_new.html",
+        "contributors.html",
+        "dev.html",
+        "downloads.html",
+        "lock.html",
+        "scan.html",
+        "settings.html",
+        "settings_backup.html",
+        "settings_encryption.html"
+      ],
+      "emitFiles": [
+        "src/bridge/lock-page.js",
+        "src/bridge/scan-page.js",
+        "src/shells/app_details.html",
+        "src/shells/app_new.html",
+        "src/shells/chat.html",
+        "src/shells/contact_details.html",
+        "src/shells/contact_new.html",
+        "src/shells/contributors.html",
+        "src/shells/dev.html",
+        "src/shells/downloads.html",
+        "src/shells/scan.html",
+        "src/shells/settings.html",
+        "src/shells/settings_backup.html",
+        "src/shells/settings_encryption.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contributors/ContributorsPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Dev/DevPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Downloads/DownloadsPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/EmptyDetail.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Launch/LockPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs",
+          "member": "handleBridgeUrl"
+        },
+        {
+          "file": "Spixi/Pages/Scan/ScanPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/BackupPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/EncryptionPassword.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:back",
+      "marks": []
+    },
+    "backup": {
+      "senders": [
+        "index.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:backup",
+      "marks": []
+    },
+    "backupAccount": {
+      "senders": [
+        "settings.html",
+        "settings_backup.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html",
+        "src/shells/settings_backup.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/BackupPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:backupAccount",
+      "marks": [
+        "keys"
+      ]
+    },
+    "backupWallet": {
+      "senders": [
+        "settings.html",
+        "settings_backup.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html",
+        "src/shells/settings_backup.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/BackupPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:backupWallet",
+      "marks": [
+        "keys"
+      ]
+    },
+    "balance": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:balance:*",
+      "marks": []
+    },
+    "ban": {
+      "senders": [
+        "chat.html",
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:ban:*",
+      "marks": []
+    },
+    "bootDropped": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:bootDropped",
+      "marks": []
+    },
+    "call": {
+      "senders": [
+        "chat.html",
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:call",
+      "marks": []
+    },
+    "callCardH": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callCardH:*",
+      "marks": []
+    },
+    "callDeclineMsg": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callDeclineMsg:*:*",
+      "marks": []
+    },
+    "callExpand": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onCallControl"
+        },
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callExpand",
+      "marks": []
+    },
+    "callMinimise": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onCallControl"
+        },
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callMinimise",
+      "marks": []
+    },
+    "callMute": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callMute:*:*",
+      "marks": []
+    },
+    "callPainted": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callPainted:*",
+      "marks": []
+    },
+    "callRingtone": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callRingtone:",
+      "marks": []
+    },
+    "callSilence": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callSilence:*",
+      "marks": []
+    },
+    "callSpeaker": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callSpeaker:*:*",
+      "marks": []
+    },
+    "callback": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:callback",
+      "marks": []
+    },
+    "camera": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:camera",
+      "marks": []
+    },
+    "cdoverlay": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:cdoverlay:*",
+      "marks": []
+    },
+    "cdping": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "onNavigatingGlobal"
+        }
+      ],
+      "payload": "ixian:cdping:*",
+      "marks": []
+    },
+    "change": {
+      "senders": [
+        "lock.html",
+        "settings_encryption.html"
+      ],
+      "emitFiles": [
+        "src/bridge/lock-page.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LockPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:change",
+      "marks": []
+    },
+    "changepass": {
+      "senders": [
+        "lock.html",
+        "settings.html",
+        "settings_encryption.html"
+      ],
+      "emitFiles": [
+        "src/bridge/lock-page.js",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/EncryptionPassword.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:changepass:*",
+      "marks": [
+        "keys"
+      ]
+    },
+    "chat": {
+      "senders": [
+        "chat.html",
+        "contact_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js",
+        "src/shells/chat.html",
+        "src/shells/contact_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:chat | ixian:chat:*",
+      "marks": [
+        "money"
+      ]
+    },
+    "chatedit": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:chatedit:*:*",
+      "marks": []
+    },
+    "chatinfo": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:chatinfo:*",
+      "marks": []
+    },
+    "chatoverlay": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:chatoverlay:*",
+      "marks": []
+    },
+    "chatreply": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:chatreply:*:*",
+      "marks": [
+        "money"
+      ]
+    },
+    "checkAddress": {
+      "senders": [
+        "contact_new.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js",
+        "src/shells/contact_new.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:checkAddress:*",
+      "marks": []
+    },
+    "cleardetail": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:cleardetail",
+      "marks": []
+    },
+    "contactscan": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:contactscan",
+      "marks": []
+    },
+    "contextAction": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:contextAction:cancelInvite:* | ixian:contextAction:deleteMessage:* | ixian:contextAction:react:*:* | ixian:contextAction:report:* | ixian:contextAction:resend:* | ixian:contextAction:tip:*:*",
+      "marks": [
+        "money",
+        "path"
+      ]
+    },
+    "contributors": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:contributors",
+      "marks": []
+    },
+    "copytext": {
+      "senders": [
+        "app_details.html",
+        "app_new.html",
+        "call.html",
+        "chat.html",
+        "contact_details.html",
+        "contact_new.html",
+        "contributors.html",
+        "dev.html",
+        "downloads.html",
+        "index.html",
+        "intro.html",
+        "lock.html",
+        "scan.html",
+        "settings.html",
+        "settings_backup.html",
+        "settings_encryption.html",
+        "wallet_sent.html"
+      ],
+      "emitFiles": [
+        "src/bridge/native.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "onNavigatingGlobal"
+        }
+      ],
+      "payload": "ixian:copytext:*:*",
+      "marks": []
+    },
+    "coverpainted": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:coverpainted",
+      "marks": []
+    },
+    "create": {
+      "senders": [
+        "intro.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:create:*:*",
+      "marks": [
+        "keys",
+        "path"
+      ]
+    },
+    "creategroup": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:creategroup:*:|*",
+      "marks": []
+    },
+    "data": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs",
+          "member": "handleBridgeUrl"
+        }
+      ],
+      "payload": "ixian:data*",
+      "marks": []
+    },
+    "declineRequest": {
+      "senders": [
+        "chat.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:declineRequest:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "delete": {
+      "senders": [
+        "downloads.html"
+      ],
+      "emitFiles": [
+        "src/shells/downloads.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Downloads/DownloadsPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:delete:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "deleteDownload": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:deleteDownload:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "deletea": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:deletea",
+      "marks": []
+    },
+    "deleted": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:deleted",
+      "marks": []
+    },
+    "deleteh": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:deleteh",
+      "marks": []
+    },
+    "details": {
+      "senders": [
+        "chat.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js",
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:details | ixian:details:*",
+      "marks": []
+    },
+    "dev": {
+      "senders": [
+        "index.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:dev",
+      "marks": []
+    },
+    "devflash": {
+      "senders": [
+        "dev.html"
+      ],
+      "emitFiles": [
+        "src/shells/dev.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Dev/DevPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:devflash:*:* | ixian:devflash:container:*",
+      "marks": []
+    },
+    "devmoments": {
+      "senders": [
+        "dev.html"
+      ],
+      "emitFiles": [
+        "src/shells/dev.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Dev/DevPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:devmoments:reset",
+      "marks": []
+    },
+    "devseed": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "handleDevSeedVerb"
+        }
+      ],
+      "payload": "ixian:devseed | ixian:devseed:heavy",
+      "marks": []
+    },
+    "devunseed": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "handleDevSeedVerb"
+        }
+      ],
+      "payload": "ixian:devunseed",
+      "marks": []
+    },
+    "disableDevMode": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:disableDevMode",
+      "marks": []
+    },
+    "disableNotifications": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:disableNotifications",
+      "marks": []
+    },
+    "dismiss": {
+      "senders": [
+        "wallet_sent.html"
+      ],
+      "emitFiles": [
+        "src/shells/wallet_sent.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Wallet/WalletSentPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:dismiss",
+      "marks": []
+    },
+    "downloads": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:downloads",
+      "marks": []
+    },
+    "downloadsoverlay": {
+      "senders": [
+        "downloads.html"
+      ],
+      "emitFiles": [
+        "src/shells/downloads.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Downloads/DownloadsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:downloadsoverlay:*",
+      "marks": []
+    },
+    "enableDevMode": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:enableDevMode",
+      "marks": []
+    },
+    "enableNotifications": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:enableNotifications",
+      "marks": []
+    },
+    "encpass": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:encpass",
+      "marks": []
+    },
+    "error": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Scan/ScanPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/BackupPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/EncryptionPassword.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:error",
+      "marks": []
+    },
+    "explorer": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:explorer",
+      "marks": []
+    },
+    "favchat": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:favchat:*:*",
+      "marks": []
+    },
+    "feeQuery": {
+      "senders": [
+        "chat.html",
+        "contact_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/contact_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:feeQuery:*:*",
+      "marks": [
+        "money"
+      ]
+    },
+    "fetch": {
+      "senders": [
+        "app_new.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/app_new.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppNewPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:fetch:*",
+      "marks": []
+    },
+    "filter": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:filter:*",
+      "marks": []
+    },
+    "getStorageData": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs",
+          "member": "handleBridgeUrl"
+        }
+      ],
+      "payload": "ixian:getStorageData*",
+      "marks": []
+    },
+    "groupPhoto": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:groupPhoto",
+      "marks": []
+    },
+    "groupavatar": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:groupavatar",
+      "marks": []
+    },
+    "groupreset": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:groupreset",
+      "marks": []
+    },
+    "guide": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:guide",
+      "marks": []
+    },
+    "handoff": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:handoff",
+      "marks": [
+        "keys",
+        "path"
+      ]
+    },
+    "hangUp": {
+      "senders": [
+        "call.html"
+      ],
+      "emitFiles": [
+        "src/shells/call.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "onNavigatingGlobal"
+        }
+      ],
+      "payload": "ixian:hangUp:*",
+      "marks": []
+    },
+    "haptic": {
+      "senders": [
+        "chat.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "onNavigatingGlobal"
+        }
+      ],
+      "payload": "ixian:haptic:click | ixian:haptic:long | ixian:haptic:success",
+      "marks": []
+    },
+    "hideOnline": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:hideOnline:",
+      "marks": []
+    },
+    "hint": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:hint:done:* | ixian:hint:shown:*",
+      "marks": []
+    },
+    "hintHelp": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:hintHelp:*",
+      "marks": []
+    },
+    "hintsoff": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:hintsoff:*",
+      "marks": []
+    },
+    "homeoverlay": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:homeoverlay:*",
+      "marks": []
+    },
+    "install": {
+      "senders": [
+        "app_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/app_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:install",
+      "marks": []
+    },
+    "installApp": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:installApp:*",
+      "marks": []
+    },
+    "introload": {
+      "senders": [
+        "intro.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:introload",
+      "marks": [
+        "keys"
+      ]
+    },
+    "joinApp": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:joinApp:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "joinBot": {
+      "senders": [
+        "index.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:joinBot",
+      "marks": []
+    },
+    "kick": {
+      "senders": [
+        "chat.html",
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:kick:*",
+      "marks": []
+    },
+    "landtab": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:landtab:*",
+      "marks": []
+    },
+    "language": {
+      "senders": [
+        "intro.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:language:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "launchoverlay": {
+      "senders": [
+        "intro.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:launchoverlay:*",
+      "marks": []
+    },
+    "leave": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:leave",
+      "marks": []
+    },
+    "leavegroup": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:leavegroup:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "loadContacts": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:loadContacts",
+      "marks": []
+    },
+    "loadDownloads": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:loadDownloads",
+      "marks": []
+    },
+    "loadmore": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:loadmore",
+      "marks": []
+    },
+    "lock": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:lock:*",
+      "marks": []
+    },
+    "mediaCancel": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:mediaCancel:*",
+      "marks": []
+    },
+    "mediaDrop": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:mediaDrop:*:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "mediaSend": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:mediaSend:*:*:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "miniAppsStartNoteHidden": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:miniAppsStartNoteHidden*",
+      "marks": []
+    },
+    "moment": {
+      "senders": [
+        "app_details.html",
+        "chat.html",
+        "contact_details.html",
+        "index.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/components/moment-sheet.js",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "onNavigatingGlobal"
+        }
+      ],
+      "payload": "ixian:moment:* | ixian:moment:card",
+      "marks": []
+    },
+    "mutechat": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:mutechat:*:*",
+      "marks": []
+    },
+    "newapp": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:newapp",
+      "marks": []
+    },
+    "newcontact": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:newcontact",
+      "marks": []
+    },
+    "notifEnabled": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:notifEnabled:",
+      "marks": []
+    },
+    "notifPushProvider": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:notifPushProvider:",
+      "marks": []
+    },
+    "notifSenderName": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:notifSenderName:",
+      "marks": []
+    },
+    "notifSounds": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:notifSounds:",
+      "marks": []
+    },
+    "onload": {
+      "senders": [
+        "app_details.html",
+        "app_new.html",
+        "call.html",
+        "chat.html",
+        "contact_details.html",
+        "contact_new.html",
+        "contributors.html",
+        "dev.html",
+        "downloads.html",
+        "empty_detail.html",
+        "index.html",
+        "intro.html",
+        "lock.html",
+        "scan.html",
+        "settings.html",
+        "settings_backup.html",
+        "settings_encryption.html",
+        "wallet_sent.html"
+      ],
+      "emitFiles": [
+        "src/bridge/lock-page.js",
+        "src/bridge/native.js",
+        "src/shells/empty_detail.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Call/CallPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contributors/ContributorsPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Dev/DevPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Downloads/DownloadsPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/EmptyDetail.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Launch/LockPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs",
+          "member": "handleBridgeUrl"
+        },
+        {
+          "file": "Spixi/Pages/Scan/ScanPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/BackupPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/EncryptionPassword.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Wallet/WalletSentPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "webViewNavigating"
+        }
+      ],
+      "payload": "ixian:onload",
+      "marks": []
+    },
+    "open": {
+      "senders": [
+        "downloads.html"
+      ],
+      "emitFiles": [
+        "src/shells/downloads.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Downloads/DownloadsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:open:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "openChat": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:openChat:*",
+      "marks": []
+    },
+    "openDownload": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:openDownload:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "openLink": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:openLink:*",
+      "marks": []
+    },
+    "openPrivacy": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:openPrivacy",
+      "marks": []
+    },
+    "openfile": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:openfile:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "painted": {
+      "senders": [
+        "app_details.html",
+        "app_new.html",
+        "call.html",
+        "chat.html",
+        "contact_details.html",
+        "contact_new.html",
+        "contributors.html",
+        "dev.html",
+        "downloads.html",
+        "index.html",
+        "intro.html",
+        "lock.html",
+        "scan.html",
+        "settings.html",
+        "settings_backup.html",
+        "settings_encryption.html",
+        "wallet_sent.html"
+      ],
+      "emitFiles": [
+        "src/bridge/native.js",
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Utils/SpixiContentPage.cs",
+          "member": "onNavigatingGlobal"
+        }
+      ],
+      "payload": "ixian:painted",
+      "marks": []
+    },
+    "pasteImage": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:pasteImage",
+      "marks": []
+    },
+    "payRequest": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:payRequest:*",
+      "marks": [
+        "money"
+      ]
+    },
+    "paymentAuth": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:paymentAuth:*",
+      "marks": []
+    },
+    "photoAutoDl": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:photoAutoDl:*:*",
+      "marks": []
+    },
+    "photoPreviews": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:photoPreviews:",
+      "marks": []
+    },
+    "populateChannelSelector": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:populateChannelSelector",
+      "marks": []
+    },
+    "proceed": {
+      "senders": [
+        "intro.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:proceed:*",
+      "marks": [
+        "keys"
+      ]
+    },
+    "protocolData": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs",
+          "member": "handleBridgeUrl"
+        }
+      ],
+      "payload": "ixian:protocolData*",
+      "marks": []
+    },
+    "qrresult": {
+      "senders": [
+        "scan.html"
+      ],
+      "emitFiles": [
+        "src/bridge/scan-page.js",
+        "src/components/scan-shell.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Scan/ScanPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:qrresult: | ixian:qrresult:*",
+      "marks": []
+    },
+    "quickscan": {
+      "senders": [
+        "app_new.html",
+        "contact_new.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/app_new.html",
+        "src/shells/contact_new.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppNewPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:quickscan",
+      "marks": []
+    },
+    "quotejump": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:quotejump:*",
+      "marks": []
+    },
+    "rating": {
+      "senders": [
+        "index.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:rating:* | ixian:rating:yes",
+      "marks": []
+    },
+    "readReceipts": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:readReceipts:",
+      "marks": []
+    },
+    "remove": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:remove",
+      "marks": []
+    },
+    "removecontact": {
+      "senders": [
+        "contact_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:removecontact:* | ixian:removecontact:*:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "removehistory": {
+      "senders": [
+        "contact_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:removehistory | ixian:removehistory:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "reportTranslation": {
+      "senders": [
+        "intro.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:reportTranslation:*",
+      "marks": []
+    },
+    "request": {
+      "senders": [
+        "contact_new.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js",
+        "src/shells/contact_new.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactNewPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:request:*",
+      "marks": []
+    },
+    "restore": {
+      "senders": [
+        "intro.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:restore:*",
+      "marks": [
+        "keys",
+        "path"
+      ]
+    },
+    "save": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:save:*",
+      "marks": []
+    },
+    "savePhoto": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:savePhoto:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "selectAppFile": {
+      "senders": [
+        "app_new.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/app_new.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppNewPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:selectAppFile",
+      "marks": []
+    },
+    "selectChannel": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:selectChannel:*",
+      "marks": []
+    },
+    "selectfile": {
+      "senders": [
+        "intro.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:selectfile",
+      "marks": [
+        "keys"
+      ]
+    },
+    "sendContactRequest": {
+      "senders": [
+        "chat.html",
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sendContactRequest:*",
+      "marks": []
+    },
+    "sendLog": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sendLog*",
+      "marks": []
+    },
+    "sendScan": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sendScan",
+      "marks": []
+    },
+    "sendfile": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sendfile",
+      "marks": []
+    },
+    "sendlog": {
+      "senders": [
+        "dev.html"
+      ],
+      "emitFiles": [
+        "src/shells/dev.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Dev/DevPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sendlog",
+      "marks": []
+    },
+    "sendmedia": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sendmedia",
+      "marks": []
+    },
+    "sendrequest": {
+      "senders": [
+        "chat.html",
+        "contact_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/contact_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sendrequest:*:*",
+      "marks": []
+    },
+    "setStorageData": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/MiniApps/MiniAppPage.xaml.cs",
+          "member": "handleBridgeUrl"
+        }
+      ],
+      "payload": "ixian:setStorageData*",
+      "marks": []
+    },
+    "settings": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:settings",
+      "marks": []
+    },
+    "share": {
+      "senders": [
+        "index.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:share",
+      "marks": []
+    },
+    "sharedDeleteLocal": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sharedDeleteLocal:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "sharedGroups": {
+      "senders": [
+        "contact_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sharedGroups | ixian:sharedGroups:*",
+      "marks": []
+    },
+    "sharedItems": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sharedItems",
+      "marks": []
+    },
+    "sharedOpen": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sharedOpen:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "sharedShow": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sharedShow:*",
+      "marks": []
+    },
+    "sharedShowInDownloads": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sharedShowInDownloads:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "sharedView": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:sharedView:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "showDownloadInChat": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:showDownloadInChat:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "signSend": {
+      "senders": [
+        "chat.html",
+        "contact_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/contact_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:signSend:*:*",
+      "marks": [
+        "money"
+      ]
+    },
+    "spixiAppsLink": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:spixiAppsLink",
+      "marks": []
+    },
+    "startApp": {
+      "senders": [
+        "app_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/app_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:startApp:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "startAppMulti": {
+      "senders": [
+        "app_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/app_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:startAppMulti:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "startappwith": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/bridge/contacts-page.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:startappwith:*:|*",
+      "marks": [
+        "path"
+      ]
+    },
+    "tab": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:tab:* | ixian:tab:tab1",
+      "marks": []
+    },
+    "topsurface": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:topsurface:*",
+      "marks": []
+    },
+    "txdetails": {
+      "senders": [
+        "contact_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:txdetails:*",
+      "marks": []
+    },
+    "txexplorer": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:txexplorer:*",
+      "marks": []
+    },
+    "typing": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:typing",
+      "marks": []
+    },
+    "typingIndicators": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:typingIndicators:",
+      "marks": []
+    },
+    "undorequest": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:undorequest",
+      "marks": []
+    },
+    "unignore": {
+      "senders": [
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:unignore:*",
+      "marks": []
+    },
+    "uninstall": {
+      "senders": [
+        "app_details.html",
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/app_details.html",
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/MiniApps/AppDetailsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:uninstall | ixian:uninstall:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "unlock": {
+      "senders": [
+        "lock.html",
+        "settings_encryption.html"
+      ],
+      "emitFiles": [
+        "src/bridge/lock-page.js"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LockPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:unlock:*",
+      "marks": [
+        "keys"
+      ]
+    },
+    "updateHelp": {
+      "senders": [
+        "index.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:updateHelp",
+      "marks": []
+    },
+    "userdefinednick": {
+      "senders": [
+        "contact_details.html"
+      ],
+      "emitFiles": [
+        "src/shells/contact_details.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Contacts/ContactDetails.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:userdefinednick:*",
+      "marks": []
+    },
+    "view": {
+      "senders": [
+        "intro.html"
+      ],
+      "emitFiles": [
+        "src/shells/launch.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Launch/LaunchPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:view:*",
+      "marks": []
+    },
+    "viewImage": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:viewImage:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "viewPayment": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:viewPayment:*",
+      "marks": []
+    },
+    "viewcontact": {
+      "senders": [
+        "chat.html",
+        "contact_new.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html",
+        "src/shells/contact_new.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Contacts/ContactNewPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:viewcontact:*",
+      "marks": []
+    },
+    "viewexplorer": {
+      "senders": [
+        "wallet_sent.html"
+      ],
+      "emitFiles": [
+        "src/shells/wallet_sent.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Wallet/WalletSentPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:viewexplorer",
+      "marks": []
+    },
+    "voiceplay": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:voiceplay:*",
+      "marks": [
+        "path"
+      ]
+    },
+    "voicerec": {
+      "senders": [
+        "chat.html"
+      ],
+      "emitFiles": [
+        "src/shells/chat.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Chat/SingleChatPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:voicerec:cancel | ixian:voicerec:send | ixian:voicerec:start",
+      "marks": []
+    },
+    "wallet": {
+      "senders": [],
+      "emitFiles": [],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:wallet",
+      "marks": []
+    },
+    "whatsnew": {
+      "senders": [
+        "index.html",
+        "settings.html"
+      ],
+      "emitFiles": [
+        "src/shells/home.html",
+        "src/shells/settings.html"
+      ],
+      "handlers": [
+        {
+          "file": "Spixi/Pages/Home/HomePage.xaml.cs",
+          "member": "onNavigating"
+        },
+        {
+          "file": "Spixi/Pages/Settings/SettingsPage.xaml.cs",
+          "member": "onNavigating"
+        }
+      ],
+      "payload": "ixian:whatsnew:done",
+      "marks": []
+    }
+  },
+  "parsers": []
+}

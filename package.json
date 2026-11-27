@@ -3,7 +3,9 @@
   "private": true,
   "description": "Pinned test tools of the Spixi redesign (smoke, CSH, gates); installed with npm ci, ruling 1831.",
   "devDependencies": {
+    "axe-core": "4.14.1",
     "eslint": "10.14.0",
+    "fast-check": "4.11.0",
     "globals": "17.14.0",
     "jsdom": "29.1.1",
     "tree-sitter": "0.25.1",

@@ -95,6 +95,7 @@ function baseShaOk(t) {
   s = s.slice(0, a) + s.slice(b);
   for (const p of CUT_PIECES) { if (s.split(p).length !== 2) return false; s = s.replace(p, ''); }
   if (s.split(NEW_INSTALL).length !== 2) return false; s = s.replace(NEW_INSTALL, () => BASE_INSTALL);   // ★ walktools2 re-base: the new install block, found once, back to the base block
+  if (s.split(QTOOLS_STEP).length !== 2) return false; s = s.replace(QTOOLS_STEP, () => '');   // the qtools step block (row 18), found once, cut
   return createHash('sha256').update(s).digest('hex') === BASE_WORKFLOW_SHA256;
 }
 
@@ -109,11 +110,44 @@ const NEW_STEPS = [
 const FROZEN_DEFAULTS = ['defaults:', 'run:', '  working-directory: Spixi', '  shell: bash', 'defaults:', 'run:', '  working-directory: Spixi'];
 const IF_LINE = '      if: ${{ !cancelled() }}';
 const TIMEOUT_LINE = '      timeout-minutes: 10';
-const FROZEN_ENV = ['IXIAN_CORE_REF: 097341acba9be1855383acf8215d779ca96efa02', 'O_GATE_SHELLS: ${{ steps.gate_shells.outcome }}', 'O_GATE_LOCALES: ${{ steps.gate_locales.outcome }}',
+const FROZEN_ENV = ['IXIAN_CORE_REF: 097341acba9be1855383acf8215d779ca96efa02', 'BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}', 'O_GATE_SHELLS: ${{ steps.gate_shells.outcome }}', 'O_GATE_LOCALES: ${{ steps.gate_locales.outcome }}',
   'O_SMOKE: ${{ steps.smoke.outcome }}', 'O_CSH: ${{ steps.csh.outcome }}', 'O_XPARSER: ${{ steps.xparser.outcome }}', 'O_MSBUILDH: ${{ steps.msbuildh.outcome }}',
-  'O_SIZE: ${{ steps.size.outcome }}'];   // the size step re-base (row 12): the annotation step's env gets the size outcome, last, as in the file
+  'O_SIZE: ${{ steps.size.outcome }}'];   // the size step re-base (row 12): the annotation step's env gets the size outcome, last, as in the file · train2: the qtools BASE_SHA second, as in the file
 const FROZEN_STEP_IF = ['      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ failure() || cancelled() }}', '      if: ${{ failure() || cancelled() }}'];   // the size step re-base (row 13): the size step adds a fourth `!cancelled()` line, between the harness step and the annotation step
 const SIZE_LOG = { id: 'size', log: 'size', env: 'O_SIZE' };   // the size step re-base (row 4): the annotation step also names the size log
+/* ---- row 18: the qtools quality step (docs/contract-qtools.md, I6), right after the install step. Row 17 removes this block
+ * (found exactly once, byte for byte) before it hashes the file, so any other change of the file stays red there; row 18 holds
+ * the block's place (after "Install test tools", before "Gate - build-shells --check") and the names of the smoke job's steps
+ * as a frozen multiset. Not seen: a step whose `- name:` line is not at indent 4 (row 17 sees it). ---- */
+const QTOOLS_STEP = ["    # The quality checks of docs/contract-qtools.md: the isolation check, the bridge contract check and the security-gate",
+  "    # diff fail the step only when ENFORCED in scripts/quality/run-ci-checks.mjs names them (none yet: they are reports);",
+  "    # the accessibility scan is always a report. The step runs before any step that runs this tree's own code (only",
+  "    # `npm ci` comes before it). BASE_SHA is the event's base commit (a pull request) or the previous tip (a push), checked",
+  "    # as 40 hex here and in the script; the runner that starts is the BASE commit's copy of run-ci-checks.mjs when the",
+  "    # base has one, and it runs the base's copy of the gate diff. A failure here skips the two --check gates and the smoke",
+  "    # (the steps with `if: !cancelled()` still run); the script writes its own annotations into the log of this step.",
+  "    - name: Quality checks (isolation, bridge contract, gate diff; a11y report)",
+  "      id: quality",
+  "      timeout-minutes: 20",
+  "      env:",
+  "        BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}",
+  "      run: |",
+  "        set -eo pipefail",
+  "        runner=scripts/quality/run-ci-checks.mjs",
+  "        if printf '%s' \"$BASE_SHA\" | grep -qxE '[0-9a-f]{40}' && [ \"$BASE_SHA\" != 0000000000000000000000000000000000000000 ]; then",
+  "          git fetch --no-tags --depth=50 origin \"$BASE_SHA\" \"$GITHUB_SHA\"",
+  "          if git cat-file -e \"$BASE_SHA:scripts/quality/run-ci-checks.mjs\" 2>/dev/null; then",
+  "            git show \"$BASE_SHA:scripts/quality/run-ci-checks.mjs\" > ../run-ci-checks.base.mjs",
+  "            runner=../run-ci-checks.base.mjs",
+  "          fi",
+  "        fi",
+  "        echo \"quality: runner = $runner\"",
+  "        node \"$runner\" --root \"$PWD\" 2>&1 | tee ../quality.log",
+  "", ''].join('\n');
+const FROZEN_SMOKE_NAMES = ['Checkout Spixi', 'Checkout Ixian-Core (pinned)', 'Setup Node', 'Setup .NET', 'List the .NET SDKs (CSH uses the newest one)',
+  'Install test tools (the lockfile pins every tool)', 'Gate - build-shells --check', 'Gate - build-locales --check', 'Smoke', 'CSH (C# harness)',
+  'Parser cross-check (lean strips against acorn and jsdom)', 'MSBuild harness (the lean packaging targets)',
+  'Quality checks (isolation, bridge contract, gate diff; a11y report)', 'Size (the counter and the R2 / R5 / R6 checks)', 'Publish failure details as annotations', 'Upload the logs (on failure)'];   // train2: the size step's name in the multiset
 
 const lines = (t) => t.replace(/\r\n/g, '\n').split('\n');
 const noComment = (l) => {  // a full-line comment is empty; a ` #` tail is cut only OUTSIDE single / double quotes
@@ -189,7 +223,7 @@ function rows(t) {
   R['11 no curl / wget / npm i / npx / pip / dotnet tool / git clone in a new step; no curl / wget in the file; exactly one live npm line in the file (npm ci)'] =
     newText.length > 0 && !/\b(curl|wget)\b/.test(newText) && !/\bnpm\s+(i|install|ci)\b/.test(newText) && !/\b(npx|pip3?)\b/.test(newText) && !/\bdotnet\s+tool\b/.test(newText) && !/\bgit\s+clone\b/.test(newText) && !/\b(curl|wget)\b/.test(live) &&
     lines(t).filter((l) => /\bnpm\s+(i|install|ci)\b/.test(noComment(l))).length === 1;   // ★ walktools2: the one npm line of the file is `npm ci` now (row 17 holds its exact text)
-  R['12 every env: line of the file equals the frozen list (the base set + the three new O_* names)'] = same(envLines(t), FROZEN_ENV);
+  R['12 every env: line of the file equals the frozen list (the base set + the three new O_* names + the qtools BASE_SHA)'] = same(envLines(t), FROZEN_ENV);
   R['13 the step-level if: lines equal the frozen list (the new steps, the annotation and upload steps)'] = same(lines(t).filter((l) => /^      if: /.test(l)), FROZEN_STEP_IF);
   const dl = lines(t); const dflt = [];
   dl.forEach((l, i) => { if (/^    defaults:\s*$/.test(l)) { dflt.push('defaults:'); for (let j = i + 1; j < dl.length && /^      /.test(dl[j]); j++) dflt.push(dl[j].slice(6)); } });
@@ -201,6 +235,10 @@ function rows(t) {
     same(jobKeys, ['  smoke:', '  windows-build:']) && same(jl.filter((l) => /^\s*runs-on:/.test(l)), ['    runs-on: ubuntu-latest', '    runs-on: windows-latest']) &&
     jl.filter((l) => /^\s*persist-credentials:\s*false\s*$/.test(l)).length === 4 && jl.filter((l) => /persist-credentials/.test(l)).length === 4;
   R['17 the whole file minus the batch\'s own pieces equals the base file 55feaddc (SHA-256)'] = baseShaOk(t);
+  const qi = names.indexOf('Quality checks (isolation, bridge contract, gate diff; a11y report)');
+  R['18 the qtools step literally, once, right after the install step and before the first gate; the smoke job step names equal the frozen multiset'] =
+    t.split(QTOOLS_STEP).length === 2 && qi > 0 && names[qi - 1] === 'Install test tools (the lockfile pins every tool)' && names[qi + 1] === 'Gate - build-shells --check' &&
+    same([...names].sort(), [...FROZEN_SMOKE_NAMES].sort());
   return R;
 }
 
@@ -260,6 +298,15 @@ export default async function ({ ok, root }) {
   ];
   const k17 = keys[16];
   brk.push(
+    [keys[17], 'a line after the qtools step that makes it unable to fail', rep('        node "$runner" --root "$PWD" 2>&1 | tee ../quality.log\n', '        node "$runner" --root "$PWD" 2>&1 | tee ../quality.log\n        true\n')],
+    [keys[17], 'the qtools step gets one more argument', rep('node "$runner" --root "$PWD" 2>&1', 'node "$runner" --root "$PWD" --no-a11y 2>&1')],
+    [keys[17], 'the qtools step moved after the first gate', (() => {
+      const a = text.indexOf('    # The quality checks of docs/contract-qtools.md'); const b = text.indexOf('    - name: Gate - build-shells --check'); const c = text.indexOf('    - name: Gate - build-locales --check');
+      return text.slice(0, a) + text.slice(b, c) + text.slice(a, b) + text.slice(c);
+    })()],
+    [keys[17], 'one more step in the stretch row 17 does not hash', rep('    - name: Publish failure details as annotations\n', '    - name: Extra\n      run: echo hi\n\n    - name: Publish failure details as annotations\n')],
+  );
+  brk.push(
     [k17, 'a quoted job-level "permissions": write-all', rep('    runs-on: ubuntu-latest\n', '    runs-on: ubuntu-latest\n    "permissions": write-all\n')],
     [k17, 'a flow-style third job', text + '  extra: { runs-on: ubuntu-latest, permissions: write-all, steps: [ { run: echo hi } ] }\n'],
     [k17, 'a container: image on the smoke job', rep('    runs-on: ubuntu-latest\n', '    runs-on: ubuntu-latest\n    container: ghcr.io/someone/image:latest\n')],
@@ -277,7 +324,7 @@ export default async function ({ ok, root }) {
     [k17, 'the upload list loses size.log', rep('          size.log\n', '')],
     [k17, 'the fetch depth moved to the Windows checkout', rep('        fetch-depth: 2\n', '').replace('    runs-on: windows-latest\n    timeout-minutes: 45\n    defaults:\n      run:\n        working-directory: Spixi\n    steps:\n    - name: Checkout Spixi\n      uses: actions/checkout@v7\n      with:\n        path: Spixi\n        persist-credentials: false\n', '    runs-on: windows-latest\n    timeout-minutes: 45\n    defaults:\n      run:\n        working-directory: Spixi\n    steps:\n    - name: Checkout Spixi\n      uses: actions/checkout@v7\n      with:\n        path: Spixi\n        persist-credentials: false\n        fetch-depth: 2\n')],
     [k17, 'a deeper fetch (fetch-depth: 0) on the smoke checkout', rep('        fetch-depth: 2\n', '        fetch-depth: 0\n')],
-    [k17, 'a further step between the size step and the annotation step', rep('    # Only for a step that itself failed', '    - name: Extra\n      run: echo hi\n\n    # Only for a step that itself failed')],
+    [k17, 'a further step between the size step and the annotation step', rep('    # Only for a step that itself failed', '    - run: echo hi\n\n    # Only for a step that itself failed')],   // train2 re-base: an unnamed step, since row 18's name multiset sees a named one
   );
   for (const [key, what, mut] of brk) {
     // row 17 holds the whole file, so every other break turns it red too: it is left out of the "only this row" test of the

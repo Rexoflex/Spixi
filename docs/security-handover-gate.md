@@ -2513,3 +2513,60 @@ Packets: [P121](be-review-pack/P121-mac-save.md) (item 1) · [P122](be-review-pa
 | 🟡 3 int prefs `flagMacSaveToFolder`, `flagAppIconReencode`, `flagSwipeTouchLock` (`MacfixaFlags`, read lazily once per process) and the line `[FLAGS] macfixa macsave=<0\|1> iconreencode=<0\|1> swipelock=<0\|1>` | local preferences, read only; no writer; `ixian.log` (fixed words and 0/1) | baseline: **no**. Ours, safe: absent = ON; a stored 0 acts only in dev mode; OFF = the base |
 
 Surface counts: verbs **+0** · pushes **+0** · push values **+1** (the cap word) · carrier keys **+0** · `spixi.*` keys **+1** (sessionStorage `spixi.home.booted`) · prefs **+3** (read only) · log lines **+5** (fixed: 2 `[MACSAVE]` forms, 2 icon forms, 1 `[FLAGS]` line) · WebView settings **+0** · HTML sinks **+0** · fetches **+0** · files written on a new path **+2** (the Mac save panel's copy where the user chose; the icon copies under `html/Apps/_icons`) · native decodes of untrusted bytes **+1** (the icon copy, capped and sampled) and **−1** WebView decode of the same bytes. Pin limits: stated in each module (#1735).
+
+## Session Quality tooling (`qtools`, #2070–#2079) — CI checks and scripts, no app file (2026-11-27)
+
+No app file changed (`Spixi/**`, `src/**`: +0). No verb, push, `spixi.*` key, pref, WebView setting, HTML sink, fetch or log
+line is added to the app. The batch adds CHECKS; their own rows are below (the gate diff, `scripts/quality/gate-diff.mjs`,
+lists every change to a check as `check-changed`).
+
+### WebView settings census (read by scripts/quality/isolation-check.mjs)
+
+Every WebView setting the C# and the XAML set, one row per setting · file · value. `scripts/quality/isolation-check.mjs`
+reads this table: a setting site with no row is ISO-10, a row with no site is ISO-11. The value is the C# right-hand side
+(or the argument list), whitespace collapsed. A new or changed setting gets its row HERE (and, for `scripts/quality/gate-diff.mjs`, a row that names it in the batch's own section), with its verdict, before the
+check goes green — never an entry in the script.
+
+| setting | file | value | verdict |
+|---|---|---|---|
+| `SetSupportMultipleWindows` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `true` | INHERITED — class D: one of the 12 Android settings byte-identical at `0e85a4b8` (row O-33); no chrome-client window handler exists |
+| `JavaScriptEnabled` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `true` | INHERITED — class D (row O-33) |
+| `AllowFileAccess` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `true` | INHERITED — class D (row O-33); with the next row it is legacy MAJOR #8 (a mini-app XHR can read app files) |
+| `AllowFileAccessFromFileURLs` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `true` | INHERITED — class D (row O-33); legacy MAJOR #8 |
+| `MediaPlaybackRequiresUserGesture` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `false` | INHERITED — class D (row O-33) |
+| `SetAppCacheEnabled` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `false` | INHERITED — class D (row O-33) |
+| `CacheMode` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `CacheModes.NoCache` | INHERITED — class D (row O-33) |
+| `DatabaseEnabled` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `false` | INHERITED — class D (row O-33) |
+| `DomStorageEnabled` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `(e.NewElement ?? Element)?.ClassId != "miniapp"` | INTRODUCED — row O-33 (OPEN by design: the shells need `localStorage`; the mini-app WebView keeps it OFF) |
+| `MixedContentMode` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `(MixedContentHandling)Element.OnThisPlatform().MixedContentMode()` | INHERITED — class D (row O-33) |
+| `SetSupportZoom` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `value` | INHERITED — class D (row O-33) |
+| `BuiltInZoomControls` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `value` | INHERITED — class D (row O-33) |
+| `DisplayZoomControls` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `Element.OnThisPlatform().ZoomControlsDisplayed()` | INHERITED — class D (row O-33) |
+| `SetAcceptCookie` | `Spixi/Platforms/Android/WebViewRenderer.cs` | `true` | INHERITED — `git show 0e85a4b8:Spixi/Platforms/Android/WebViewRenderer.cs` holds `cookieManager.SetAcceptCookie(true)` (line 542); not one of class D's 13 |
+| `SetWebContentsDebuggingEnabled` | `Spixi/Platforms/Android/MainActivity.cs` | `true` | INTRODUCED — row O-34 (`#if DEBUG` only; process-wide, the mini-app WebView too) |
+| `Inspectable` | `Spixi/Platforms/iOS/iOSWebViewHandler.cs` | `true` | INTRODUCED — row O-34 (`#if DEBUG` only) |
+| `WebsiteDataStore` | `Spixi/Platforms/iOS/iOSWebViewHandler.cs` | `WKWebsiteDataStore.NonPersistentDataStore` | INTRODUCED, a narrowing — row F-23 (the mini-app WebView only) |
+| `AddWebResourceRequestedFilter` | `Spixi/Platforms/Windows/WindowsWebViewHandler.cs` | `"*", CoreWebView2WebResourceContext.All, CoreWebView2WebResourceRequestSourceKinds.All` | INHERITED — the same call at `0e85a4b8` (`WindowsWebViewHandler.cs:18`): every request of every WebView goes to `CoreWebView2_WebResourceRequested` |
+| `AreDevToolsEnabled` | `Spixi/Platforms/Windows/WindowsWebViewHandler.cs` | `false` | INTRODUCED, a drop — row O-02 (P37: the mini-app WebView only) |
+| `AreHostObjectsAllowed` | `Spixi/Platforms/Windows/WindowsWebViewHandler.cs` | `false` | INTRODUCED, a drop — row O-02 (P37: the mini-app WebView only) |
+| `IsStatusBarEnabled` | `Spixi/Utils/SpixiContentPage.cs` | `false` | INHERITED — `0e85a4b8:Spixi/Utils/SpixiContentPage.cs:60` (Windows, every WebView) |
+| `AreDevToolsEnabled` | `Spixi/Utils/SpixiContentPage.cs` | `!winMiniApp` | INHERITED for every shell (the gate's legacy list: "Windows `AreDevToolsEnabled` for every WebView"); OFF for the mini app since O-02 |
+| `AddContentRuleList` | `Spixi/Platforms/iOS/iOSWebViewHandler.cs` | `compiledRuleList` | INHERITED — the same call at `0e85a4b8` (`iOSWebViewHandler.cs:92`, read with `git show`); the content-blocking rule list is the only subresource gate iOS has |
+
+### The checks this batch adds (each a `check-changed` item of `scripts/quality/gate-diff.mjs`)
+
+| item | what it can reach | verdict |
+|---|---|---|
+| `.github/workflows/codeql.yml` (workflow `codeql`) | `contents: read` at the top; the analyze job `security-events: write` to upload its SARIF; actions pinned by full SHA; `persist-credentials: false`; no `run:` step, no secret, no `pull_request_target` | ours, safe: it reads the tree and writes only code-scanning results |
+| `.github/codeql/codeql-config.yml` | the query suite (`security-extended`) and the scanned / ignored paths | ours, safe: a config file, no code |
+| `.github/workflows/sbom.yml` (workflow `sbom`) | push and pull request to `redesign/frontend`; `contents: read`; `npm sbom` from the lockfile (no install, no install scripts); the CycloneDX .NET tool at an exact version into the runner's temp folder; two build artifacts | ours, safe: the SBOM lists names and versions only; it ships nothing |
+| `.github/workflows/scorecard.yml` (workflow `scorecard`) | `contents: read` at the top; the analysis job `security-events: write`, `actions: read`; `publish_results: false` (no `id-token`); runs only on the default branch `master` | ours, safe: nothing leaves the runner except the SARIF upload to the repo's own code scanning |
+| `.github/workflows/redesign-ci.yml` (workflow `redesign-ci`), ONE new step "Quality checks (isolation, bridge contract, gate diff; a11y report)", right after `npm ci` and before any step that runs the tree's own code | one `env:` value from the event (`BASE_SHA`: the pull request's base or the push's previous tip; an expression in `env:`, never in `run:`), checked as 40 hex in the step and in the script; fetches the base and head commits from the public origin (`git fetch --depth=50`, no credential); starts the BASE commit's copy of `run-ci-checks.mjs` when the base has one | ours, safe: the job keeps `contents: read`; the step writes its log, its annotations, the a11y report in the runner's temp folder and a step summary. LIMIT: a pull request that edits this step, or code that runs in the same job before it (`npm ci` install scripts of the lockfile's packages), is not stopped by it: that rests on review of the `.github/` diff and the branch rule's required checks |
+| `scripts/quality/run-ci-checks.mjs` | spawns the checks with `node` (time limits 2 min, the a11y report 9 min); `git cat-file` / `show` / `ls-tree` / `fetch` / `merge-base`; writes the base's copy of `scripts/quality/*.mjs` into a temp folder (real path) and runs `gate-diff.mjs` from there; a check passes only with exit 0 AND its own OK line; only the checks named in its `ENFORCED` list fail the step (empty in this batch: all three are reports, #2077) | ours, safe: shas are checked as 40 hex before any git call; no shell string is built from input; a pull request or push run with no base exits 2 |
+| `scripts/quality/isolation-check.mjs`, `scripts/quality/lib-csharp.mjs` (a REPORT in CI until Damir rules, #2077) | read `Spixi/**/*.cs`, `*.xaml`, the shells and this file's census table | ours, safe: read only |
+| `scripts/quality/bridge-contract.mjs`, `docs/bridge-contract.json` (`--check` a REPORT in CI until Damir rules, #2077) | read the C# and the shells; `--write` writes `docs/bridge-contract.json` only | ours, safe |
+| `scripts/quality/gate-diff.mjs` (a REPORT in CI until Damir rules, #2077) | `git diff` / `show` / `merge-base` on the given range; reads this file at the head and `docs/bridge-contract.json` at both ends | ours, safe: read only; no skip token |
+| `scripts/quality/a11y-scan.mjs` | starts the runner's Chrome headless with a temp profile on `file://` pages of the built shells; DevTools over a local WebSocket; kills Chrome and deletes the profile at the end | ours, safe: a report; no page reaches the network (the shells fetch nothing, class F) |
+| `package.json`, `package-lock.json`: `fast-check` 4.11.0 (+ `pure-rand` 8.4.2), `axe-core` 4.14.1 | test tools only (`npm ci` in CI); never in the app package | ours, safe: exact versions, integrity hashes in the lock, `npm audit` names neither |
+| `scripts/quality/gate-diff.md`, `scripts/quality/parsers.md` | documents: the calibration of the gate diff; the list of the parsers the property tests cover | ours, safe: text only |
+| `scripts/pins-qtools/c-isolation.mjs`, `scripts/pins-qtools/c-contract.mjs`, `scripts/pins-qtools/d-gatediff.mjs`, `scripts/pins-qtools/e-props.mjs`, `scripts/pins-qtools/f-runner.mjs` | the pins of the checks (in the smoke): temp copies of the files a check reads, a temp git fixture, fast-check over the shipped parsers | ours, safe: they write only into temp folders they remove (`f-runner.mjs` and `d-gatediff.mjs` run their fixture's git with every caller `GIT_*` name removed but `GIT_EXEC_PATH`, no global or system config, #1777) |

@@ -2939,7 +2939,7 @@ namespace SPIXI
             // ★ S17 F (#1340, P28): + moments — setMoments / momentAnswer and the ixian:moment:* verbs (flag SpixiFlags.S17Moments).
             // ★ V1A-M M1 (P31): + ixihelp — the "What is IXI?" moment (an S17 moment: both flags). M2: + wordtips — the word tips'
             //   ixian:hint:done:<word id> (flag SpixiFlags.V1Hints).
-            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp,hintHelp" + (SpixiFlags.S17Bridge ? ",whatsnew" : "") + (SpixiFlags.S17Moments ? ",moments" : "") + (SpixiFlags.S17Moments && SpixiFlags.V1IxiHelp ? ",ixihelp" : "") + (SpixiFlags.V1Hints ? ",wordtips" : ""));
+            Utils.sendUiCommand(this, "setCaps", "composeSend,hints,updateHelp,hintHelp" + (SpixiFlags.S17Bridge ? ",whatsnew" : "") + (SpixiFlags.S17Moments ? ",moments" : "") + (SpixiFlags.S17Moments && SpixiFlags.V1IxiHelp ? ",ixihelp" : "") + (SpixiFlags.V1Hints ? ",wordtips" : "") + (MacfixaFlags.SwipeTouchLock ? ",swipeTouchLock" : ""));
             pushHints();
             pushWhatsNew();
             SMoments.pushTo(this);   // ★ S17 F (#1340): the moment state (no-op with the flag OFF)
@@ -6441,7 +6441,7 @@ namespace SPIXI
             // Dedicated lock (not refreshLock) to stay out of the chats/contacts lock order.
             lock (appsPushLock)
             {
-                if (!forceRefresh && !UIHelpers.shouldRefreshApps)
+                if (!forceRefresh && !UIHelpers.shouldRefreshApps && !AppIconReencode.takeReady())
                 {
                     return;
                 }
@@ -6467,7 +6467,7 @@ namespace SPIXI
                         {
                             icon = "";
                         }
-                        icon = Utils.imageToDataUri(icon);   // X1
+                        icon = MacfixaFlags.AppIconReencode ? AppIconReencode.homeIcon(app.id, icon) : Utils.imageToDataUri(icon);   // X1
                         Utils.sendUiCommand(this, "addApp", app.id, app.name, icon, app.publisher, app.hasCapability(MiniAppCapabilities.SingleUser).ToString(), app.hasCapability(MiniAppCapabilities.MultiUser).ToString());
                     }
                 }
@@ -6489,7 +6489,7 @@ namespace SPIXI
                 /* ★ S11 F (#1262): the pre-push feeds a fresh HOME document an UNCHANGED list — the chat pages hold nothing
                  * stale, and reloadScreen() (loadApps + loadMessages) ~2 s after boot would re-flush a chat the user may
                  * already be reading. A changed list (an install / uninstall raised shouldRefreshApps) still reloads them. */
-                if (S11AppsRules.reloadChatPages(listChanged, appsPrePushing))
+                if (S11AppsRules.reloadChatPages(listChanged, AppIconReencode.tookReady() || appsPrePushing))
                 {
                     foreach (var p in Utils.getChatPages())
                     {

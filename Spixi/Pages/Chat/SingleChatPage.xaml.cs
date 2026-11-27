@@ -1073,7 +1073,7 @@ namespace SPIXI
                     SSightingStore.forget(friend.walletAddress.ToString());   // ★ G-2: the kept sighting leaves with the contact
                     SReactionFlags.clear(friend.walletAddress.ToString());    // ★ #1148 (4): the reaction heart too
                     SAppDeclines.clear(friend.walletAddress.ToString());    // ★ S8 #46 r4 (MINOR-3): the declined invite rows leave with it too
-                    SPeerLocalStores.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+                    SentSweepOnForget.forget(friend.walletAddress.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                     SNotificationPrefs.forgetContact(friend.walletAddress.ToString());   // ★ S15 (O-06, #1293): the per-contact mute key leaves with the record
                     ChatMediaStore.deleteChat(friend.walletAddress);   // ★ photo1a review round 1 (F2): the kept thumbnails and peaks of the declined / undone request go with the record (never throws)
                 }
@@ -2517,7 +2517,7 @@ namespace SPIXI
                 ReplyQuote.Index idx = index ?? buildReplyIndex(channel, channelSnapshot(channel));
                 replyTargets.TryGetValue(self, out string? preferred);
                 long replyTime = message.timestamp;   // #46 r2 MAJOR-1: Core's own time — an edit keeps it
-                if (ReplyQuote.tryMatch(message.message, replyTime, self, idx, preferred, out match) && match != null)
+                if (tryReplyMatch(message, replyTime, self, idx, preferred, out match, channel, index != null) && match != null)
                 {
                     return true;
                 }

@@ -7699,7 +7699,7 @@ namespace SPIXI
                 FriendList.removeFriend(existing);
                 SReactionFlags.clear(existing.walletAddress?.ToString());    // #46 r1 A-M3 (#1148 (4)): the re-added contact starts without the old heart
                 SAppDeclines.clear(existing.walletAddress?.ToString());   // ★ S8 r4
-                SPeerLocalStores.forget(existing.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
+                SentSweepOnForget.forget(existing.walletAddress?.ToString());   // ★ S9: the joined rows, played clips and photo groups leave with it too
                 CoreMessageWriter.arrivals.forgetAddress(existing.walletAddress.ToString());   // ★ P0 #1155: the re-added contact starts with no kept arrival
                 SNotificationPrefs.forgetContact(existing.walletAddress?.ToString());   // ★ S15 (O-06, #1293): the re-added contact starts unmuted
                 UIHelpers.shouldRefreshContacts = true;

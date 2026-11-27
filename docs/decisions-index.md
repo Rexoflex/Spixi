@@ -443,6 +443,16 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2021 | The #46 verdict of the guard commits: CLEAN at s2-r2 (MAJOR 1 → 0); a second reader on the fix (deviation from "ONE reader"). |
 | #2022 | Session "Size rule, part 2" — the record (the patch applied, merged with `c211d7de`, pushed). |
 
+### Session Quote box 2 (`quotebox2`, 2026-11-27, #2025–#2030, L315–L318, packets P111–P112)
+| Row | Rule |
+|---|---|
+| #2025 | The Windows REPLY C miss: not proven off the device and not narrowed (neither the other replies nor the walk's cut log exclude a read fault); open: a read fault · a throwing match · (a) row 515 not stored as seeded · (c) C pushed with no read in its index; no fix (item 2 not built). |
+| #2026 | One developer-build line `[QB2] reply match …` at every reply match (`#if SPIXI_DEV_COEXIST`, P112); its fields defined, and what each way is expected to leave (reasoning, not a decision rule); the walk with an evidence copy, the row-515 look and a fresh seed. |
+| #2027 🟡 | The Sent sweep after the forget at the chat-page Decline (`ixian:undorequest`) and the two `pendingDeletion` re-adds (switch `SweepOnForget`, P111); gate 18's fixed entry removed. |
+| #2028 | The re-bases of other batches' pins (histcs a6 / a7 / b2, fixb5 e5, fixb1 FLAGSFILE, lockb b7, s5 p0 (4)). |
+| #2029 | The #46 verdict of the batch. |
+| #2030 | Session "Quote box 2" — the record. |
+
 ### Session Mac blockers part A (`macfixa`, 2026-11-27, #2080–#2088, L331–L334, packets P121–P122)
 | Row | Rule |
 |---|---|

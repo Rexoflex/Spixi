@@ -212,8 +212,13 @@ export default async function (h) {
         decl++;
         const next = t.slice(m.index + m[0].length, m.index + m[0].length + 200);
         const a = m[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        /* ★ A3 fix r1: the three S9 per-peer stores are forgotten in ONE call (SPeerLocalStores.forget) — keeps the P0 #1155 removal window */
-        if (new RegExp('^\\s*SPeerLocalStores\\.forget\\(' + a + '\\);').test(next)) paired++;
+        /* ★ A3 fix r1: the three S9 per-peer stores are forgotten in ONE call (SPeerLocalStores.forget) — keeps the P0 #1155 removal window.
+           ★ quotebox2 size re-base (2026-11-27, after a look at the diff): three sites (the undo, the two pendingDeletion re-adds) now
+           call SentSweepOnForget.forget(<the same argument>) in place of it — that helper's FIRST statement is SPeerLocalStores.forget(peer)
+           (held below, `sweepFirst`; pins-quotebox2/a-sweep a1 holds its whole body), so the claim "the stores are forgotten beside every
+           SAppDeclines.clear site" is unchanged. Break: SentSweepOnForget.cs `SPeerLocalStores.forget(peer);` → `SPhotoGroups.clear(peer);`
+           → this key (sweepFirst=false), red as observed 2026-11-27. */
+        if (new RegExp('^\\s*(SPeerLocalStores|SentSweepOnForget)\\.forget\\(' + a + '\\);').test(next)) paired++;
       }
       for (const m of t.matchAll(/SAppDeclines\.clearAll\(\);/g)) {
         all++;
@@ -225,8 +230,10 @@ export default async function (h) {
     }
     const fg = bodyOf(stripCode(rd('Spixi/Meta/SPeerLocalStores.cs')), 'public static void forget(string? peer)');
     const fgOk = /^\{\s*SAppJoins\.clear\(peer\);\s*SVoicePlayed\.clear\(peer\);\s*SPhotoGroups\.clear\(peer\);\s*\}$/.test(fg);
-    ok(decl >= 7 && paired === decl && all >= 3 && allPaired === all && fgOk,
-      'S9 A3 stores: every SAppDeclines.clear site also forgets that peer in SAppJoins + SVoicePlayed + SPhotoGroups through SPeerLocalStores.forget (' + paired + '/' + decl + ', forget=' + fgOk + '), every clearAll site wipes them (' + allPaired + '/' + all + ')');
+    const sw = bodyOf(stripCode(rd('Spixi/Utils/SentSweepOnForget.cs')), 'public static void forget(string? peer)');
+    const sweepFirst = /^\{\s*SPeerLocalStores\.forget\(peer\);/.test(sw);   // ★ quotebox2 size re-base: the helper forgets the stores first
+    ok(decl >= 7 && paired === decl && all >= 3 && allPaired === all && fgOk && sweepFirst,
+      'S9 A3 stores: every SAppDeclines.clear site also forgets that peer in SAppJoins + SVoicePlayed + SPhotoGroups through SPeerLocalStores.forget (directly, or as the first statement of SentSweepOnForget.forget) (' + paired + '/' + decl + ', forget=' + fgOk + ', sweepFirst=' + sweepFirst + '), every clearAll site wipes them (' + allPaired + '/' + all + ')');
   });
 
   /* ———— r1 SILENT REACTIONS (Damir): every reaction we send goes out with the push flag OFF ———— */

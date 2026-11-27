@@ -38,6 +38,7 @@ export const NEW = {
   dMedia: 'if (SmallFixFlags.DeclineClears) ChatMediaStore.deleteChat(friend.walletAddress);',
   log: 'Logging.warn("sendContactRequest: invalid address payload: " + ex.GetType().Name);',
   logBase: 'Logging.warn("sendContactRequest: invalid address payload: " + ex.Message);',
+  qb2Call: 'SentSweepOnForget.forget(', qb2Base: 'SPeerLocalStores.forget(',   // ★ quotebox2 re-base (2026-11-27; size re-base): given back by rest() only
 };
 /* SHA-256 of rest(body) at the base 0eda93f5 (git show 0eda93f5:<file>; stripCode; whitespace collapsed) */
 export const BASE = {
@@ -62,8 +63,13 @@ export const blockAt = (t, from) => {
 };
 /** the body of the ONE member with this signature ('' when absent or not unique) */
 export const bodyOf = (t, sig) => (t.split(sig).length - 1 !== 1 ? '' : blockAt(t, t.indexOf(sig) + sig.length).text);
-/** a body with the new lines taken out and the log line given back — compared with the base body */
-export const rest = (body) => norm(body.split(NEW.dSweep).join('').split(NEW.dMedia).join('').split(NEW.log).join(NEW.logBase));
+/** a body with the new lines taken out and the log line given back — compared with the base body.
+ *  ★ quotebox2 re-base (2026-11-27, after a look at the diff): sendContactRequestGuarded's heal now calls quotebox2's ONE helper
+ *  `SentSweepOnForget.forget(` in place of its base `SPeerLocalStores.forget(` (the same argument; pins-quotebox2/a-sweep holds it); the
+ *  base callee is given back too, so e5's claim (the rest = the base 0eda93f5 body) is unchanged. ★ size re-base: was "the sweep
+ *  statement `if (QuoteBox2Flags.SweepOnForget) SContacts.scheduleSentSweep();` cut". Break: SpixiContentPage `SentSweepOnForget.forget(existing`
+ *  → `SentSweepOnForget.forget(old` → e5 (guarded), red as observed 2026-11-27. */
+export const rest = (body) => norm(body.split(NEW.dSweep).join('').split(NEW.dMedia).join('').split(NEW.qb2Call).join(NEW.qb2Base).split(NEW.log).join(NEW.logBase));
 
 export default async function (h) {
   const { ok, root, stripCode, readFileSync, readdirSync, existsSync, join } = h;

@@ -90,7 +90,21 @@ const IF_LINE = '      if: ${{ !cancelled() }}';
 const TIMEOUT_LINE = '      timeout-minutes: 10';
 const FROZEN_ENV = ['IXIAN_CORE_REF: 097341acba9be1855383acf8215d779ca96efa02', 'O_GATE_SHELLS: ${{ steps.gate_shells.outcome }}', 'O_GATE_LOCALES: ${{ steps.gate_locales.outcome }}',
   'O_SMOKE: ${{ steps.smoke.outcome }}', 'O_CSH: ${{ steps.csh.outcome }}', 'O_XPARSER: ${{ steps.xparser.outcome }}', 'O_MSBUILDH: ${{ steps.msbuildh.outcome }}'];
-const FROZEN_STEP_IF = ['      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ failure() || cancelled() }}', '      if: ${{ failure() || cancelled() }}'];
+const FROZEN_STEP_IF = ['      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ !cancelled() }}', '      if: ${{ failure() || cancelled() }}', '      if: ${{ failure() || cancelled() }}'];
+/* ---- row 18: the qtools quality step (docs/contract-qtools.md, I6). Row 17 cuts the text from the parser cross-check comment to the
+ * annotation comment, so a step placed in that stretch is not hashed there; row 18 holds the qtools step literally (its comment and
+ * body found exactly once, between CSH and the annotation step) and the names of the smoke job's steps as a frozen multiset, so no
+ * other step can sit in the cut stretch unseen. Not seen: a step whose `- name:` line is not at indent 4. ---- */
+const QTOOLS_STEP = ['    # The quality checks of docs/contract-qtools.md: the isolation check, the bridge contract check and the security-gate',
+  '    # diff fail the step; the accessibility scan is a report only. The script reads the base and head commits from the',
+  "    # runner's event file (no expression here; it checks both as 40 hex and the head against the checked-out commit); the",
+  "    # gate diff that runs is the BASE commit's copy. It writes its own ::error annotations.",
+  '    - name: Quality checks (isolation, bridge contract, gate diff; a11y report)', '      id: quality', '      if: ${{ !cancelled() }}',
+  '      timeout-minutes: 15', '      run: |', '        set -o pipefail', '        node scripts/quality/run-ci-checks.mjs 2>&1 | tee ../quality.log', ''].join('\n');
+const FROZEN_SMOKE_NAMES = ['Checkout Spixi', 'Checkout Ixian-Core (pinned)', 'Setup Node', 'Setup .NET', 'List the .NET SDKs (CSH uses the newest one)',
+  'Install test tools (the lockfile pins every tool)', 'Gate - build-shells --check', 'Gate - build-locales --check', 'Smoke', 'CSH (C# harness)',
+  'Parser cross-check (lean strips against acorn and jsdom)', 'MSBuild harness (the lean packaging targets)',
+  'Quality checks (isolation, bridge contract, gate diff; a11y report)', 'Publish failure details as annotations', 'Upload the logs (on failure)'];
 
 const lines = (t) => t.replace(/\r\n/g, '\n').split('\n');
 const noComment = (l) => {  // a full-line comment is empty; a ` #` tail is cut only OUTSIDE single / double quotes
@@ -178,6 +192,9 @@ function rows(t) {
     same(jobKeys, ['  smoke:', '  windows-build:']) && same(jl.filter((l) => /^\s*runs-on:/.test(l)), ['    runs-on: ubuntu-latest', '    runs-on: windows-latest']) &&
     jl.filter((l) => /^\s*persist-credentials:\s*false\s*$/.test(l)).length === 4 && jl.filter((l) => /persist-credentials/.test(l)).length === 4;
   R['17 the whole file minus the batch\'s own pieces equals the base file 55feaddc (SHA-256)'] = baseShaOk(t);
+  const qi = names.indexOf('Quality checks (isolation, bridge contract, gate diff; a11y report)');
+  R['18 the qtools step literally, once, between CSH and the annotation step; the smoke job step names equal the frozen multiset'] =
+    t.split(QTOOLS_STEP).length === 2 && qi > csh && csh >= 0 && qi < ann && same([...names].sort(), [...FROZEN_SMOKE_NAMES].sort());
   return R;
 }
 
@@ -234,6 +251,10 @@ export default async function ({ ok, root }) {
     [keys[9], 'github["token"] in the annotation run', rep('        publish csh "$O_CSH"\n', `        publish csh "$O_CSH"\n        echo \${{ github["token"] }}\n`)],
   ];
   const k17 = keys[16];
+  brk.push(
+    [keys[17], 'the qtools step gets one more argument', rep('run-ci-checks.mjs 2>&1', 'run-ci-checks.mjs --no-a11y 2>&1')],
+    [keys[17], 'one more step in the stretch row 17 does not hash', rep('    - name: Publish failure details as annotations\n', '    - name: Extra\n      run: echo hi\n\n    - name: Publish failure details as annotations\n')],
+  );
   brk.push(
     [k17, 'a quoted job-level "permissions": write-all', rep('    runs-on: ubuntu-latest\n', '    runs-on: ubuntu-latest\n    "permissions": write-all\n')],
     [k17, 'a flow-style third job', text + '  extra: { runs-on: ubuntu-latest, permissions: write-all, steps: [ { run: echo hi } ] }\n'],

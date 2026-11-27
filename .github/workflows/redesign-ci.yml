@@ -116,6 +116,18 @@ jobs:
         node scripts/pins-perflean/msbuild-harness/run.mjs --fake 2>&1 | tee ../msbuild-harness.log
         node scripts/pins-perflean/msbuild-harness/run.mjs --real 2>&1 | tee -a ../msbuild-harness.log
 
+    # The quality checks of docs/contract-qtools.md: the isolation check, the bridge contract check and the security-gate
+    # diff fail the step; the accessibility scan is a report only. The script reads the base and head commits from the
+    # runner's event file (no expression here; it checks both as 40 hex and the head against the checked-out commit); the
+    # gate diff that runs is the BASE commit's copy. It writes its own ::error annotations.
+    - name: Quality checks (isolation, bridge contract, gate diff; a11y report)
+      id: quality
+      if: ${{ !cancelled() }}
+      timeout-minutes: 15
+      run: |
+        set -o pipefail
+        node scripts/quality/run-ci-checks.mjs 2>&1 | tee ../quality.log
+
     # Only for a step that itself failed (or was cut by a time limit): the smoke's own FAILED: / ABSENT block and the
     # last 5 lines of that step's log (passing rows left out), at most 10 annotations per step. Nothing is published for
     # a passing step. The 2 KNOWN rows are not in the FAILED: block; after a log that was CUT, the last 5 lines can be

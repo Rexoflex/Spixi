@@ -1,6 +1,6 @@
 /**
  * jsdom smoke test for the demo pages (#46 audit-loop step).
- * Run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5 && node scripts/smoke-test.mjs   (eslint + globals: the undeclared-identifier gate, Session X)
+ * Run: npm ci && node scripts/smoke-test.mjs   (eslint + globals: the undeclared-identifier gate, Session X)
  * Optional arg: repo root (default = script's parent dir) — lets the script run
  * from a location where jsdom resolves, e.g. `node /x/smoke-test.mjs /repo`.
  * Asserts against COMPUTED styles where it matters ([hidden] vs author display).
@@ -27,7 +27,7 @@ const readFileSync = (p, enc) => {
 const root = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)), '..');
 let JSDOM, VirtualConsole;
 try { ({ JSDOM, VirtualConsole } = await import('jsdom')); }
-catch { console.error('jsdom not installed — run: npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5   (jsdom 31 fails 6 rows, docs/lessons.md L160)'); process.exit(2); }
+catch { console.error('jsdom not installed — run: npm ci   (jsdom 31 fails 6 rows, docs/lessons.md L160)'); process.exit(2); }
 
 const failures = [];
 let passes = 0;
@@ -13853,12 +13853,12 @@ console.log('#383 — N12 restore-nudge + N40 connectivity/update');
      * chatCanvasEl at its line; on the other 17 shells it reports nothing (zero noise). A
      * <script> inside an HTML comment is prose, not a script.
      * ⚠ The gate REFUSES to pass without its parser (#798): the header's install line is
-     * `npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5`. A missing parser is one honest red line. */
+     * `npm ci`. A missing parser is one honest red line. */
     {
       let ESLintX = null, globalsX = null, loadErr = null;
       try { ESLintX = (await import('eslint')).ESLint; globalsX = (await import('globals')).default; } catch (e) { loadErr = e; }
       if (!ESLintX || !globalsX) {
-        ok(false, '★★ UNDECLARED-IDENTIFIER GATE: parser missing — run `npm i --no-save jsdom@29.1.1 eslint@10.14.0 globals@17.14.0 tree-sitter@0.25.1 tree-sitter-c-sharp@0.23.5` (' + (loadErr && loadErr.message) + ')');
+        ok(false, '★★ UNDECLARED-IDENTIFIER GATE: parser missing — run `npm ci` (' + (loadErr && loadErr.message) + ')');
       } else {
         /* ★ Session Y (#46 loop on Session X, MAJOR-1 / MINOR-3/4/6/7): the gate is a FUNCTION of a
          * directory so a FIXTURE can prove it, and four holes the review proved are closed:
@@ -42676,6 +42676,7 @@ for (const mod of ['a-path', 'b-lines']) await (await import(new URL('./pins-his
 for (const mod of ['a-shell', 'b-csharp']) await (await import(new URL('./pins-lockb/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Batch lockb (the lock batch, #1825 (1)–(3)) — a = the BUILT lock shell holds its password form while C# says a deferred prompt is pending (S1–S7, jsdom with a modelled clock; the Chromium render a-shell-render.mjs runs by hand) · b = the C# sites that the cloud cannot compile (a SOURCE pin, its limits are its first lines): App.OnResume's second clock after the unchanged grace statement, the twin stamps, the one `held.promptWindowOpens();`, LockPage's hold pushes / un-animated pop / no-alert rule, the push grammar (no new verb, no new push name), the exact name table, App.xaml.cs and LockPage.xaml.cs minus the lockb lines = the base by SHA-256, the rule files and the LockbFlags block; its breaks: b-csharp-breaks.mjs by hand
 for (const mod of ['a-quote-seed', 'b-coldwatch', 'c-home-sets', 'd-lockfile']) await (await import(new URL('./pins-walktools2/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // ★ Walk tools 2 (walktools2, ruling #1838; DECISIONS #1935–#1949) — a = the dev seed's quote chat Seed 57 (1000 rows, 16-byte ids, reply rows in the app's own ReplyQuote shape whose targets sit ≥ 3 older pages up; the behaviour runs in csh WalkTools2SeedTests) · b = the walk step coldstart-watch (N cold starts; a start that is not proven keeps its events and its app log; one new whole-string allowlist entry) + home in the sets form (by-hand executing twin: b-coldwatch-run.mjs, needs pwsh) · c = screens.home of the device map in the sets form (light as before + a dark set; by hand: c-home-render.mjs, Chromium) · d = the committed lockfile of the test tools and npm ci in redesign-ci (ruling #1831: jsdom stays 29.1.1)
 for (const mod of ['a-chooser', 'b-lock', 'b-lock-keys', 'c-slide4', 'd-protect-keyboard', 'e-small-fixes', 'f-opus-managed']) await (await import(new URL('./pins-fixb5/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // the page batch: a = an older add-contact chooser's removal never clears the newer handle · b = an early lock reveal never leaves the form hidden; b-lock-keys = every *SL token of the built lock page is a key C# resolves there · c = the slide-4 title key in every locale · d = the password step's keyboard state (layout by hand: d-protect-keyboard-render.mjs, Chromium) · e = the Home decline's two calls and the type-only log line (a source pin) · f = the Opus factory gets the managed-only setting before each Create (a source pin; the behaviour runs in csh OpusManagedTests)
+for (const mod of ['a-counter', 'b-checks', 'c-ci']) await (await import(new URL('./pins-sizerule/' + mod + '.mjs', import.meta.url))).default({ ok, root, load, stripCode, stripCssComments, readFileSync, readdirSync, existsSync, join, JSDOM, VirtualConsole, sleep });   // size rule: a = the line counter and the store fence on fixtures · b = R2 / R5 / R6 and the exit codes on temp git repos (incl. --ci on a merge commit) · c = the size step, fetch-depth and the annotation / upload lines of redesign-ci.yml
 
 /* #334 — baseline-honest summary (handoff-2026-08-11 QoL rider). The 4 known
  * pre-existers rendered as a red FAILED block and read as a broken run twice.

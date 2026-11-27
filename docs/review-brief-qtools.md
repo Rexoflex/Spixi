@@ -40,7 +40,12 @@ Not built, and why: #16 fuzzing of C# parsers ("after freeze") · #20 reviewer c
 - Accepted (do not re-open): #1970 (no walk), the timing of `docs/quality-plan.md` (fuzzing and calibration planned only).
 
 ## 5 · Verdict
-(open)
+**CLEAN NOT CLAIMED at round 5 (the last permitted round) — the batch is NOT delivered (#2078).** MAJOR per round: r1 10 · r2 5 · r3 2 ·
+r4 3 · r5 1 (the security reader S: 2 · 0 · 0 · 1 · 0). The r5 MAJOR (F): row r10 of `pins-qtools/f-runner` goes red when another
+process makes a `qtools-gatediff-*` folder in the shared temp folder during it (two parallel runs: red 2 / 2; the CI smoke runs alone);
+direction: a private `TMPDIR` per case. Recorded from r5, not fixed (no reader would read a fix): F m1 (r7 holds only the isolation
+OK line); the NITs of S and F (#2078). The final smoke after r5 found three more rows of other batches (GATE 44 (b), `d-lockfile`
+k1 / k9), owed with them. The code files are as round 5 read them (`1ce20cb7`); only Damir permits a round 6.
 
 ### Round 1 (readers S Fable 5.2 · A, B, C Opus; tree `8ac57424`) — MAJOR 10 (S 2 · A 6 · B 1 = S-1 · C 2) → fixed in `b3c9d7e2`
 - S-1 = B-M1 the gate diff dropped files git prints as binary (`.gitattributes`, a NUL byte; 15 `src` files are `-diff` today) → `--text`, attributes off, `.gitattributes` a check path, binary = exit 2.
@@ -64,3 +69,6 @@ Not built, and why: #16 fuzzing of C# parsers ("after freeze") · #20 reviewer c
 - E MAJOR-1 the gate-diff branch of the runner had no pin row → r9 (an enforced red gate diff), r10 (the BASE copy runs and its temp folder goes), with breaks.
 - E MAJOR-2 r8 could not go red → a 12-hex base that git resolves, and the "not 40 hex" text required; its break.
 - MINORs: r11 (OK line + exit 1), r12 (partial enforcement), the ENFORCED line matched by pattern, a non-array ENFORCED → exit 2, the "takes effect" sentence corrected, "2 min" in the gate row, "a NON-EMPTY list", runner input errors named; recorded in contract § 8: the `base.sha` freeze question, `npm ci` lifecycle scripts and `.npmrc`.
+
+### Round 5 (readers S Fable 5.2 · F Opus; delta `f452f198..1ce20cb7`) — MAJOR 1 (S 0 · F 1) → NOT fixed (the last round)
+- F MAJOR-1 r10 flaky with a shared temp folder (above). F m1 (r7 only for isolation). NITs: the top-level belt does not see a `GIT_DIR`-only leak; the runner under test reads the caller's global config; "but `GIT_EXEC_PATH`" is loose for `d-gatediff`; `GIT_TERMINAL_PROMPT=0`; `/^GIT_/i`; no row for the runner's `GIT_ENV` filter or the non-array check.

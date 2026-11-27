@@ -37,13 +37,13 @@ No tool replaces the device walk: WebView engines differ per platform (WKWebView
 ## 3 · Status of #13–#21 (2026-11-27, session `qtools`, DECISIONS #2070–#2079)
 | # | Item | Status | Where |
 |---|---|---|---|
-| 13 | Isolation fitness check | BUILT — fails CI (rules ISO-1 … ISO-15, C# + shells; WebView settings read against the census table of the gate doc) | `scripts/quality/isolation-check.mjs`, pin `pins-qtools/c-isolation` |
-| 14 | Bridge contract file | BUILT — generated, `--check` fails CI on a verb added, removed or moved | `docs/bridge-contract.json`, `scripts/quality/bridge-contract.mjs`, pin `pins-qtools/c-contract` |
-| 15 | Property tests (fast-check, JS) | BUILT — in the smoke, fixed seed; 5 defects held as QTOOLS-KNOWN rows. FsCheck (C#) planned with #16 | `scripts/pins-qtools/e-props.mjs`, `scripts/quality/parsers.md` |
+| 13 | Isolation fitness check | BUILT — a REPORT in CI until Damir rules (#2077; `ENFORCED` in `scripts/quality/run-ci-checks.mjs`) (rules ISO-1 … ISO-15, C# + shells; WebView settings read against the census table of the gate doc) | `scripts/quality/isolation-check.mjs`, pin `pins-qtools/c-isolation` |
+| 14 | Bridge contract file | BUILT — generated; `--check` names a verb added, removed or moved; a REPORT in CI until Damir rules (#2077) | `docs/bridge-contract.json`, `scripts/quality/bridge-contract.mjs`, pin `pins-qtools/c-contract` |
+| 15 | Property tests (fast-check, JS) | BUILT — in the smoke, fixed seed; 7 defects held as QTOOLS-KNOWN rows. FsCheck (C#) planned with #16 | `scripts/pins-qtools/e-props.mjs`, `scripts/quality/parsers.md` |
 | 16 | SharpFuzz on the new C# parsers | PLANNED — "after freeze, parsers stable" (§ 1) | — |
 | 17 | CodeQL (C# without a build + JS) | BUILT — workflow; local baseline 0 C# · 134 JS (all read false) | `.github/workflows/codeql.yml`, `docs/codeql-baseline.md` |
 | 18 | axe-core | BUILT IN PART — a REPORT step over the built shells (no Playwright suite yet); does not fail CI | `scripts/quality/a11y-scan.mjs`, `docs/a11y-baseline.md` |
-| 19 | Security-gate script | BUILT — fails a pull request with a gate-trigger change and no gate row; calibrated on 30 merges | `scripts/quality/gate-diff.mjs`, `scripts/quality/gate-diff.md`, pin `pins-qtools/d-gatediff` |
+| 19 | Security-gate script | BUILT — lists a gate-trigger change with no gate row; a REPORT in CI until Damir rules (#2077); calibrated on 30 merges | `scripts/quality/gate-diff.mjs`, `scripts/quality/gate-diff.md`, pin `pins-qtools/d-gatediff` |
 | 20 | Reviewer calibration | PLANNED — "once per milestone, from the refactor" (§ 1) | — |
 | 21 | SBOM + OpenSSF Scorecard | BUILT — SBOM artifacts on every push to `redesign/frontend`; Scorecard runs only on the default branch `master` (the action's rule), so it is inert until the file reaches `master` | `.github/workflows/sbom.yml`, `.github/workflows/scorecard.yml`, `docs/scorecard-baseline.md` |
 | 21b | Reproducible Android build | v1.1 (unchanged) | — |

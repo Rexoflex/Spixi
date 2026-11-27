@@ -150,5 +150,5 @@ export default async function (h) {
   } finally {
     if (dir) rmSync(dir, { recursive: true, force: true });
   }
-  ok(Date.now() - t0 < 60000, 'QTOOLS c-isolation: the module ran in ' + (Date.now() - t0) + ' ms');
+  ok(Date.now() - t0 < 180000,   /* 180 s: 26–35 s measured alone on 2 cores, 61 s with three parallel runs; the CI smoke runs alone */ 'QTOOLS c-isolation: the module ran in ' + (Date.now() - t0) + ' ms');
 }

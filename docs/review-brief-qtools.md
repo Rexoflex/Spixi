@@ -11,9 +11,9 @@ closes (#660). Contract: `docs/contract-qtools.md`. Prompt: project doc `claude/
 | 3 isolation check | a static check of the PARAMOUNT invariant (SECURITY.md § 1, #220) | `scripts/quality/isolation-check.mjs`, `scripts/pins-qtools/c-isolation.mjs` |
 | 4 bridge contract | every `ixian:` verb (senders, handler file, payload, marks) generated from the code + a `--check` gate | `scripts/quality/bridge-contract.mjs`, `docs/bridge-contract.json`, `scripts/pins-qtools/c-contract.mjs` |
 | 5 property tests | fast-check over the JS parsers of untrusted input, in the smoke | `scripts/pins-qtools/e-props.mjs`, `scripts/quality/parsers.md` |
-| 6 gate diff | the changes of a commit range that need a row in `docs/security-handover-gate.md`; fails a pull request without the row; calibrated on 30 merges | `scripts/quality/gate-diff.mjs`, `scripts/quality/gate-diff.md`, `scripts/pins-qtools/d-gatediff.mjs` |
+| 6 gate diff | the changes of a commit range that need a row in `docs/security-handover-gate.md`; calibrated on 30 merges; a REPORT in CI since round 2 (§ 5) | `scripts/quality/gate-diff.mjs`, `scripts/quality/gate-diff.md`, `scripts/pins-qtools/d-gatediff.mjs` |
 | 7 a11y scan | axe-core over the built shells (light / dark × phone / desktop) through Chrome's DevTools protocol, a REPORT | `scripts/quality/a11y-scan.mjs`, `docs/a11y-baseline.md` |
-| CI | ONE step in `redesign-ci.yml` that runs 3, 4, 6 (fail) and 7 (report) | `.github/workflows/redesign-ci.yml`, `scripts/quality/run-ci-checks.mjs`; re-based pin `scripts/pins-leanfollow/d-ci.mjs` (rows 13, 18) |
+| CI | ONE step in `redesign-ci.yml` that runs 6, 3, 4 (each fails the step only when `ENFORCED` names it: none since round 2, § 5) and 7 (always a report) | `.github/workflows/redesign-ci.yml`, `scripts/quality/run-ci-checks.mjs`; re-based pin `scripts/pins-leanfollow/d-ci.mjs` (rows 13, 18) |
 | deps | `fast-check` 4.11.0, `axe-core` 4.14.1 (exact; `npm audit`: no finding for them) | `package.json`, `package-lock.json` |
 
 Not built, and why: #16 fuzzing of C# parsers ("after freeze") · #20 reviewer calibration ("once per milestone").

@@ -1,12 +1,16 @@
 /* run-ci-checks — the ONE quality step of redesign-ci (docs/contract-qtools.md, interface I6).
  * Runs, in this order; a check PASSES only with exit 0 AND its own OK line:
- *   1. the isolation check (scripts/quality/isolation-check.mjs) on the tree at --root
- *   2. the bridge contract check (scripts/quality/bridge-contract.mjs --check)
- *   3. the security-gate diff (scripts/quality/gate-diff.mjs) for base..head
+ *   1. the security-gate diff (scripts/quality/gate-diff.mjs) for base..head — FIRST, so that its verdict is in this
+ *      process before any script of the tree under test starts
+ *   2. the isolation check (scripts/quality/isolation-check.mjs) on the tree at --root (the tree's own copy)
+ *   3. the bridge contract check (scripts/quality/bridge-contract.mjs --check) (the tree's own copy)
  * ENFORCED (below) names the checks whose failure fails the step (an ::error annotation); every other check is a REPORT
  * (a ::warning annotation, the step stays green). In this batch ENFORCED is EMPTY: the #46 review of the three
  * hand-written scanners did not converge (docs/review-brief-qtools.md § 5; DECISIONS #2077), so they run as reports
- * until Damir rules; putting a name into ENFORCED is the whole change that makes that check fail the step.
+ * until Damir rules; putting a name into ENFORCED is the whole change that makes that check fail the step (in CI the
+ * BASE commit's copy of this file decides, so the change takes effect from the first run after its merge). A name
+ * outside KNOWN, or a list that names 'isolation' or 'bridge-contract' without 'gate-diff', is a runner input error
+ * (exit 2): those two run from the tree under test, and only the base's gate diff sees an edit of them.
  *      The copy of gate-diff.mjs that runs is the BASE commit's copy of scripts/quality/*.mjs when the base has one
  *      (extracted with `git show` into a temp folder); that copy lists every change to the checks (scripts/quality/**,
  *      .github/**, docs/bridge-contract.json and the other paths it names) as a `check-changed` item that needs a row in
@@ -41,10 +45,11 @@ if (ri >= 0) root = argv[ri + 1];
 const noA11y = argv.includes('--no-a11y');
 try { root = realpathSync(resolve(root)); } catch (e) { console.log('::error title=quality: root::cannot read ' + root); process.exit(2); }
 
-const ENFORCED = [];   // of 'isolation', 'bridge-contract', 'gate-diff'
+const KNOWN = ['isolation', 'bridge-contract', 'gate-diff'];
+const ENFORCED = [];   // a subset of KNOWN; 'gate-diff' must be in it whenever it is not empty
 const HEX40 = /^[0-9a-f]{40}$/;
 const ZERO = '0'.repeat(40);
-const CHECK_LIMIT_MS = 3 * 60 * 1000;
+const CHECK_LIMIT_MS = 2 * 60 * 1000;
 const A11Y_LIMIT_MS = 9 * 60 * 1000;
 const esc = (s) => String(s).replace(/%/g, '%25').replace(/\r/g, '').replace(/\n/g, '%0A');
 const annotate = (title, text) => console.log('::error title=' + esc(title) + '::' + esc(String(text).slice(0, 900)));
@@ -64,6 +69,9 @@ let tmp = null;
 const cleanup = () => { if (tmp) { rmSync(tmp, { recursive: true, force: true }); tmp = null; } };
 const stop = (code) => { cleanup(); process.exit(code); };
 
+if (ENFORCED.some((n) => !KNOWN.includes(n))) { annotate('quality: ENFORCED', 'a name outside ' + KNOWN.join(', ') + ': ' + JSON.stringify(ENFORCED)); stop(2); }
+if (ENFORCED.length && !ENFORCED.includes('gate-diff')) { annotate('quality: ENFORCED', 'isolation / bridge-contract enforced without gate-diff: ' + JSON.stringify(ENFORCED)); stop(2); }
+
 /* the inputs */
 const inActions = process.env.GITHUB_ACTIONS === 'true';
 const event = inActions ? (process.env.GITHUB_EVENT_NAME || '') : '';
@@ -80,18 +88,10 @@ if (base && base !== ZERO && base === (head || actualHead)) { annotate('quality:
 const fail = [];
 const notRun = [];
 
-/* 1 · isolation */
-const iso = run('isolation check', join(root, 'scripts/quality/isolation-check.mjs'), ['--root', root]);
-if (!passed(iso, /^isolation-check: OK\b/m)) { fail.push('isolation'); note('isolation', 'quality: isolation check (exit ' + iso.code + ')', iso.out.split('\n').filter((l) => /ISO-\d|error|cannot/i.test(l)).slice(0, 5).join(' | ') || 'no OK line; see the log'); }
-
-/* 2 · bridge contract */
-const bc = run('bridge contract --check', join(root, 'scripts/quality/bridge-contract.mjs'), ['--root', root, '--check']);
-if (!passed(bc, /^bridge-contract: OK\b/m)) { fail.push('bridge-contract'); note('bridge-contract', 'quality: bridge contract (exit ' + bc.code + ')', bc.out.split('\n').filter((l) => l.trim()).slice(-5).join(' | ') || 'no OK line'); }
-
-/* 3 · gate diff */
+/* 1 · gate diff */
 if (!base || base === ZERO) {
   notRun.push('gate diff');
-  console.log('\n== gate diff: NOT RUN — no base commit (' + (event || 'a local run') + '); the pull request run holds it');
+  console.log('\n== gate diff: NOT RUN — no base commit (' + (event || 'a local run') + '); the pull request run covers it');
 } else {
   const tip = head || actualHead;
   const shallow = (git(['rev-parse', '--is-shallow-repository']).stdout || '').trim() === 'true';
@@ -122,11 +122,19 @@ if (!base || base === ZERO) {
   cleanup();
   if (!passed(gd, /^GATE-DIFF OK\b/m)) {
     fail.push('gate-diff');
-    const miss = gd.out.split('\n').filter((l) => /MISSING/.test(l));
+    const miss = gd.out.split('\n').filter((l) => /→ row: MISSING/.test(l));
     for (const l of miss.slice(0, 8)) note('gate-diff', 'quality: gate diff — a change with no gate row', l.trim());
     if (!miss.length) note('gate-diff', 'quality: gate diff (exit ' + gd.code + ')', gd.out.split('\n').filter((l) => l.trim()).slice(-3).join(' | ') || 'no OK line');
   }
 }
+
+/* 2 · isolation */
+const iso = run('isolation check', join(root, 'scripts/quality/isolation-check.mjs'), ['--root', root]);
+if (!passed(iso, /^isolation-check: OK\b/m)) { fail.push('isolation'); note('isolation', 'quality: isolation check (exit ' + iso.code + ')', iso.out.split('\n').filter((l) => /ISO-\d|error|cannot/i.test(l)).slice(0, 5).join(' | ') || 'no OK line; see the log'); }
+
+/* 3 · bridge contract */
+const bc = run('bridge contract --check', join(root, 'scripts/quality/bridge-contract.mjs'), ['--root', root, '--check']);
+if (!passed(bc, /^bridge-contract: OK\b/m)) { fail.push('bridge-contract'); note('bridge-contract', 'quality: bridge contract (exit ' + bc.code + ')', bc.out.split('\n').filter((l) => l.trim()).slice(-5).join(' | ') || 'no OK line'); }
 
 /* 4 · accessibility (report only) */
 if (!noA11y) {
@@ -138,7 +146,7 @@ if (!noA11y) {
   }
 }
 
-const ran = ['isolation', 'bridge contract'].concat(notRun.length ? [] : ['gate diff']).join(', ');
+const ran = (notRun.length ? [] : ['gate-diff']).concat(['isolation', 'bridge-contract']).join(', ');
 const enforcedFail = fail.filter((f) => ENFORCED.includes(f));
 const reportFail = fail.filter((f) => !ENFORCED.includes(f));
 console.log('\nquality checks: ' + (enforcedFail.length ? 'FAILED — ' + enforcedFail.join(', ') : 'ran (' + ran + ')')

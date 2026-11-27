@@ -881,6 +881,7 @@
 	<Target Name="SpixiMacUsesAppleWebViewHandler" AfterTargets="_MauiRemovePlatformCompileItems" Condition="$(TargetFramework.Contains('-maccatalyst'))">
 		<ItemGroup>
 			<Compile Include="Platforms\iOS\iOSWebViewHandler.cs" />
+			<Compile Include="Platforms\iOS\MediaSchemeHandler.cs" />
 		</ItemGroup>
 	</Target>
 </Project>

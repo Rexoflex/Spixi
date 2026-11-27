@@ -892,4 +892,54 @@ namespace SPIXI
 
         public static string flagsLine(int b) => "[FLAGS] fixb5 opusmanaged=" + (b & 1) + " declineclears=" + (b >> 1 & 1);
     }
+
+    /* Three switches, one per change; OFF = the old path. MediaOrigin: chat pictures by a local link from C#'s own handler
+     * (else the data: pushes). MediaKeep: the chat page keeps decoded pictures across re-renders. TrimHook: the Android trim
+     * levels that still fire drop the hidden views. Absent = ON; a stored 0 acts only in dev mode (S16PassRules.effectiveFlag).
+     * Read lazily, once per process; the one [FLAGS] line holds fixed words and 0|1 only. */
+    public static class ImgurlFlags
+    {
+        public const string MediaOriginKey = "flagMediaOrigin";
+        public const string MediaKeepKey = "flagMediaKeep";
+        public const string TrimHookKey = "flagTrimHook";
+        public static bool MediaOrigin => (bits() & 1) != 0;
+        public static bool MediaKeep => (bits() & 2) != 0;
+        public static bool TrimHook => (bits() & 4) != 0;
+        private static int state = -1;   // -1 = not read yet, else the three switches as bits 1, 2, 4
+
+        private static int bits()
+        {
+            int b = System.Threading.Volatile.Read(ref state);
+            if (b >= 0) return b;
+            b = read();
+            if (System.Threading.Interlocked.CompareExchange(ref state, b, -1) == -1)
+            {
+                try { Logging.info(flagsLine(b)); } catch (Exception) { }
+            }
+            return System.Threading.Volatile.Read(ref state);
+        }
+
+        /** A store that throws keeps all three ON. Logs nothing. */
+        internal static int read()
+        {
+            bool dev = false;
+            int m = 1, k = 1, t = 1;
+            try
+            {
+                dev = Preferences.Default.Get("devMode", false);
+                m = Preferences.Default.Get(MediaOriginKey, 1);
+                k = Preferences.Default.Get(MediaKeepKey, 1);
+                t = Preferences.Default.Get(TrimHookKey, 1);
+            }
+            catch (Exception)
+            {
+                dev = false;
+            }
+            return (S16PassRules.effectiveFlag(dev, m) ? 1 : 0) | (S16PassRules.effectiveFlag(dev, k) ? 2 : 0)
+                | (S16PassRules.effectiveFlag(dev, t) ? 4 : 0);
+        }
+
+        public static string flagsLine(int b) => "[FLAGS] imgurl mediaorigin=" + (b & 1) + " mediakeep=" + (b >> 1 & 1)
+            + " trimhook=" + (b >> 2 & 1);
+    }
 }

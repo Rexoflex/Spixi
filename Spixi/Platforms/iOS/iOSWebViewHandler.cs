@@ -537,9 +537,22 @@ namespace Spixi.Platforms.iOS
             }
         }
 
+        /* The media origin: set only while the scheme handler is installed on THIS handler's WebView and the WebView's
+         * content rules let its URLs through. Null = this WebView has no media server (the chat pushes data: values). */
+        MediaSchemeHandler? _mediaScheme;
+
+        /** The MAUI WebView that MediaGrants knows as the owner, or null once the handler is disconnected. Never throws. */
+        internal object? mediaOwner() => ((global::Microsoft.Maui.IElementHandler)this).VirtualView;
+
         protected override void ConnectHandler(WKWebView platformView)
         {
             base.ConnectHandler(platformView);
+
+            // The media origin serves only when its scheme handler is really in this WebView (never for a mini app, never with the switch OFF).
+            if (_mediaScheme != null && mediaOwner() is global::Microsoft.Maui.Controls.WebView mediaElement && SPIXI.MediaGrants.hostOk(mediaElement.ClassId))
+            {
+                SPIXI.MediaGrants.serverUp(mediaElement);
+            }
 
             //var previousDelegate = platformView.NavigationDelegate;
             _navigationDelegate = new SecureNavigationDelegate(this);
@@ -598,6 +611,7 @@ namespace Spixi.Platforms.iOS
             // #309: release the strong delegate roots with the WebView they served.
             _navigationDelegate = null;
             _uiDelegate = null;
+            if (mediaOwner() is object mediaElement) SPIXI.MediaGrants.serverDown(mediaElement);   // the handler is gone: its WebView serves no picture any more
             base.DisconnectHandler(platformView);
         }
 
@@ -705,9 +719,60 @@ namespace Spixi.Platforms.iOS
          * falls back to MAUI's own WebView. This change cannot delete a shell's storage. */
         protected override WKWebView CreatePlatformView()
         {
+            WKWebView? mediaView = createMediaView();   // null for a mini app, with the switch OFF and on any failure: the path below, unchanged
+            if (mediaView != null)
+            {
+                compileContentRules(mediaView, "ContentBlockingRulesMedia", withMediaRule(anchoredContentRules), false, mediaRuleLost);
+                return mediaView;
+            }
             WKWebView platformView = createIsolatedMiniAppView() ?? base.CreatePlatformView();
             compileContentRules(platformView, "ContentBlockingRules", anchoredContentRules, false);
             return platformView;
+        }
+
+        /* THE MEDIA ORIGIN (#1642): one of OUR shells' WebViews gets the handler of the scheme "spixi-media". A scheme handler
+         * can only be set on the configuration BEFORE the WKWebView exists (the same reason as the mini-app store above), so
+         * the view is built here from MAUI's own configuration plus the handler. Only for a host that is PROVEN not a mini
+         * app (isTrustedHost fails closed) and with the switch ON. Any failure returns null: the caller builds the view as
+         * before (the mini-app view or MAUI's own), _mediaScheme stays null (it is set last), no server is announced and the
+         * chat keeps the data: path. No log line. */
+        WKWebView? createMediaView()
+        {
+            if (!SPIXI.ImgurlFlags.MediaOrigin || !isTrustedHost()) return null;
+            try
+            {
+                var configuration = MauiWKWebView.CreateConfiguration();
+                var scheme = new MediaSchemeHandler(this);
+                configuration.SetUrlSchemeHandler(scheme, SPIXI.MediaGrants.Scheme);
+                var view = new MauiWKWebView(CoreGraphics.CGRect.Empty, this, configuration);
+                _mediaScheme = scheme;
+                return view;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /* The block-everything rule list would also block the media scheme, so a WebView with the scheme handler compiles the
+         * anchored list plus ONE more exception: the media URL shape, anchored at both ends and case-sensitive. WebKit's
+         * filter syntax has no counted repetition, so the 32-character length is checked by MediaGrants.tryServe, not here.
+         * The scheme has no network behind it: this rule cannot let a request leave the device. The unanchored fallback list
+         * does NOT get the exception (an unanchored one would widen the substring bypass that list already carries).
+         * If the list with the exception does not compile, the media server of this WebView is taken down (mediaRuleLost)
+         * and the plain anchored list is compiled under its own name, with its own fallback ladder. */
+        const string mediaContentRule = ",{\"trigger\":{\"url-filter\":\"^spixi-media://m/[0-9a-f]+$\",\"url-filter-is-case-sensitive\":true},\"action\":{\"type\":\"ignore-previous-rules\"}}";
+
+        static string withMediaRule(string rules)
+        {
+            int end = rules.LastIndexOf(']');   // the end of the JSON array: the exception goes last, after the block rule
+            return end < 0 ? rules : rules.Insert(end, mediaContentRule);
+        }
+
+        void mediaRuleLost()
+        {
+            _mediaScheme = null;
+            if (mediaOwner() is object element) SPIXI.MediaGrants.serverDown(element);
         }
 
         /* Builds the mini-app WebView with its own in-memory website data store. Returns null
@@ -748,7 +813,7 @@ namespace Spixi.Platforms.iOS
          *      and a silent failure is what made this ladder worth writing.
          * The log carries the rule-list identifier and WebKit's own message; both are our own
          * constants, so no user data reaches it. */
-        static void compileContentRules(WKWebView platformView, string identifier, string rules, bool isFallback)
+        static void compileContentRules(WKWebView platformView, string identifier, string rules, bool isFallback, Action? anchoredFailed = null)
         {
             WKContentRuleListStore.DefaultStore.CompileContentRuleList(identifier, rules,
                 (compiledRuleList, error) =>
@@ -763,6 +828,14 @@ namespace Spixi.Platforms.iOS
                         return;
                     }
                     string reason = error?.LocalizedDescription ?? "the compiler returned no rule list";
+                    if (anchoredFailed != null)
+                    {
+                        // The list with the media exception did not compile: the media server goes, and the WebView gets the plain anchored list with its own ladder.
+                        try { anchoredFailed(); } catch (Exception) { }
+                        IXICore.Meta.Logging.error("Content blocking: the rule list with the media exception did not compile ({0}). This WebView serves no media link; compiling the anchored list.", reason);
+                        compileContentRules(platformView, "ContentBlockingRules", anchoredContentRules, false);
+                        return;
+                    }
                     if (!isFallback)
                     {
                         IXICore.Meta.Logging.error("Content blocking: the anchored rule list did not compile ({0}). Trying the unanchored fallback.", reason);

@@ -129,8 +129,11 @@ public class SpixiWebChromeClient : WebChromeClient
                 // marker, so the line still says when it was truncated.
                 string msg = SPIXI.Utils.logSafe(consoleMessage.Message() ?? "", 0);
                 if (msg.Length > 400) msg = msg.Substring(0, 400) + "…";
+                // A media URL carries its grant token: the source of such a line is logged as one fixed word.
+                string source = consoleMessage.SourceId() ?? "";
+                if (source.StartsWith(MediaGrants.Host, StringComparison.OrdinalIgnoreCase)) source = "media";
                 IXICore.Meta.Logging.info("[WEBVIEW] " + consoleMessage.InvokeMessageLevel() + " " + msg
-                    + " (" + consoleMessage.SourceId() + ":" + consoleMessage.LineNumber() + ")");
+                    + " (" + source + ":" + consoleMessage.LineNumber() + ")");
             }
         }
         catch (Exception) { }
@@ -159,12 +162,34 @@ public class SpixiWebViewClient : WebViewClient
     public override WebResourceResponse? ShouldInterceptRequest(AWebView? view, IWebResourceRequest? request)
     {
         var url = request.Url?.ToString() ?? "";
+        if (ImgurlFlags.MediaOrigin && url.StartsWith(MediaGrants.Host, StringComparison.OrdinalIgnoreCase))
+        {
+            return mediaResponse(request, url);
+        }
         if (!Utils.IsAllowedURL(url))
         {
             // Block by returning an empty response
             return new WebResourceResponse("text/plain", "utf-8", null);
         }
         return base.ShouldInterceptRequest(view, request);
+    }
+
+    /* THE MEDIA ORIGIN (#1642). With ImgurlFlags.MediaOrigin ON every request for the media host ends here (OFF: the URL gate blocks it as before), before the URL gate above and for every WebView:
+     * the bytes that MediaGrants holds for THIS client's own MAUI WebView under exactly this URL, else a 404 with an empty body.
+     * It never calls the base and never reaches the network; it reads no file (the bytes are C#'s own JPEG, held by the
+     * grant). A mini app's WebView and a client with no renderer have no server, so they get the 404. Runs on a WebView IO
+     * thread: a throw here would end the app, so any failure is the 404 too. No log line. */
+    WebResourceResponse mediaResponse(IWebResourceRequest? request, string url)
+    {
+        var headers = new Dictionary<string, string>(MediaGrants.Headers);
+        try
+        {
+            object? owner = _renderer?.Element;
+            if (owner != null && request?.Method == "GET" && MediaGrants.tryServe(owner, url, out byte[] bytes))
+                return new WebResourceResponse(MediaGrants.ContentType, null, 200, "OK", headers, new System.IO.MemoryStream(bytes, false));
+        }
+        catch (Exception) { }
+        return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", headers, new System.IO.MemoryStream(Array.Empty<byte>(), false));
     }
 
     // Hackish solution to the Xamarin ERR_UNKNOWN_URL_SCHEME issue plaguing the latest releases
@@ -398,6 +423,8 @@ public class SpixiWebviewRenderer2 : ViewRenderer<Microsoft.Maui.Controls.WebVie
         {
             try
             {
+                if (Element != null)
+                    MediaGrants.serverDown(Element);   // the renderer is gone: its WebView serves no picture any more
                 if (Control != null)
                 {
                     Control.StopLoading();
@@ -543,6 +570,7 @@ public class SpixiWebviewRenderer2 : ViewRenderer<Microsoft.Maui.Controls.WebVie
 
         if (e.OldElement != null)
         {
+            MediaGrants.serverDown(e.OldElement);
             var oldElementController = e.OldElement as IWebViewController;
             oldElementController.EvalRequested -= OnEvalRequested;
             oldElementController.EvaluateJavaScriptRequested -= OnEvaluateJavaScriptRequested;
@@ -563,6 +591,11 @@ public class SpixiWebviewRenderer2 : ViewRenderer<Microsoft.Maui.Controls.WebVie
             UpdateMixedContentMode();
             UpdateEnableZoomControls();
             UpdateDisplayZoomControls();
+
+            /* The media origin: this renderer's client answers the media URLs for this element from here on (the client is
+             * set above, before the first load). Never for a mini app, never with the switch OFF (MediaGrants.hostOk). */
+            if (MediaGrants.hostOk(e.NewElement.ClassId))
+                MediaGrants.serverUp(e.NewElement);
         }
 
         Load();

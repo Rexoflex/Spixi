@@ -2,6 +2,8 @@ using Microsoft.Maui.Handlers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using SPIXI;
+using System;
+using System.IO;
 using System.Text.RegularExpressions;
 
 namespace Spixi.Platforms.Windows
@@ -22,6 +24,11 @@ namespace Spixi.Platforms.Windows
                 core.WebResourceRequested += CoreWebView2_WebResourceRequested;
 
                 dropMiniAppPrivileges(core);   // ★ Session Safety (O-02, P37)
+
+                /* The media origin: the handler above answers the media URLs for this WebView from here on. Never for a mini
+                 * app, never with the switch OFF (MediaGrants.hostOk), never for a host this code cannot name. */
+                if (((global::Microsoft.Maui.IElementHandler)this).VirtualView is global::Microsoft.Maui.Controls.WebView element && MediaGrants.hostOk(element.ClassId))
+                    MediaGrants.serverUp(element);
             }
 
             if (platformView.CoreWebView2 != null)
@@ -36,6 +43,13 @@ namespace Spixi.Platforms.Windows
                         AttachWebResourceRequested(platformView.CoreWebView2);
                 };
             }
+        }
+
+        protected override void DisconnectHandler(WebView2 platformView)
+        {
+            if (((global::Microsoft.Maui.IElementHandler)this).VirtualView is object element)
+                MediaGrants.serverDown(element);   // the handler is gone: its WebView serves no picture any more
+            base.DisconnectHandler(platformView);
         }
 
         /* ★ Session Safety (O-02, P37): the ClassId="miniapp" marker (Pages/MiniApps/MiniAppPage.xaml — third-party
@@ -93,6 +107,11 @@ namespace Spixi.Platforms.Windows
         private void CoreWebView2_WebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs args)
         {
             var uri = args.Request.Uri;
+            if (ImgurlFlags.MediaOrigin && uri.StartsWith(MediaGrants.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                answerMedia(sender as CoreWebView2, args);
+                return;
+            }
             if (!Utils.IsAllowedURL(uri))
             {
                 // Block by providing an empty response
@@ -100,6 +119,27 @@ namespace Spixi.Platforms.Windows
                 if (env != null)
                     args.Response = env.CreateWebResourceResponse(null, 403, "Blocked", "");
             }
+        }
+
+        /* THE MEDIA ORIGIN (#1642). With ImgurlFlags.MediaOrigin ON every request for the media host ends here (OFF: the URL gate blocks it as before), before the URL gate above and for every WebView.
+         * The answer is set at once, on the event's own thread (no deferral): FIRST a 404 with no body, then — only when
+         * MediaGrants holds bytes for THIS handler's own MAUI WebView under exactly this URL — the bytes. A response set on the
+         * event is the whole answer, so the request never reaches the network; no file is read (the bytes are C#'s own JPEG,
+         * held by the grant). A mini app's WebView and a disconnected handler have no server: they keep the 404. No log line.
+         * The environment is the event sender's, else the platform view's; with neither, or when the 404 itself cannot be
+         * made, no response is set and the request meets the network (the host name resolves nowhere). */
+        private void answerMedia(CoreWebView2? core, CoreWebView2WebResourceRequestedEventArgs args)
+        {
+            try
+            {
+                var env = core?.Environment ?? PlatformView?.CoreWebView2?.Environment;
+                if (env == null) return;
+                args.Response = env.CreateWebResourceResponse(null, 404, "Not Found", MediaGrants.HeaderLines);
+                object? owner = ((global::Microsoft.Maui.IElementHandler)this).VirtualView;
+                if (owner != null && args.Request.Method == "GET" && MediaGrants.tryServe(owner, args.Request.Uri, out byte[] bytes))
+                    args.Response = env.CreateWebResourceResponse(new MemoryStream(bytes, false).AsRandomAccessStream(), 200, "OK", "Content-Type: " + MediaGrants.ContentType + "\r\n" + MediaGrants.HeaderLines);
+            }
+            catch (Exception) { }
         }
     }
 }

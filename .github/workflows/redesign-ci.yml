@@ -68,6 +68,31 @@ jobs:
     - name: Install test tools (the lockfile pins every tool)
       run: npm ci
 
+    # The quality checks of docs/contract-qtools.md: the isolation check, the bridge contract check and the security-gate
+    # diff fail the step only when ENFORCED in scripts/quality/run-ci-checks.mjs names them (none yet: they are reports);
+    # the accessibility scan is always a report. The step runs before any step that runs this tree's own code (only
+    # `npm ci` comes before it). BASE_SHA is the event's base commit (a pull request) or the previous tip (a push), checked
+    # as 40 hex here and in the script; the runner that starts is the BASE commit's copy of run-ci-checks.mjs when the
+    # base has one, and it runs the base's copy of the gate diff. A failure here skips the two --check gates and the smoke
+    # (the steps with `if: !cancelled()` still run); the script writes its own annotations into the log of this step.
+    - name: Quality checks (isolation, bridge contract, gate diff; a11y report)
+      id: quality
+      timeout-minutes: 20
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+      run: |
+        set -eo pipefail
+        runner=scripts/quality/run-ci-checks.mjs
+        if printf '%s' "$BASE_SHA" | grep -qxE '[0-9a-f]{40}' && [ "$BASE_SHA" != 0000000000000000000000000000000000000000 ]; then
+          git fetch --no-tags --depth=50 origin "$BASE_SHA" "$GITHUB_SHA"
+          if git cat-file -e "$BASE_SHA:scripts/quality/run-ci-checks.mjs" 2>/dev/null; then
+            git show "$BASE_SHA:scripts/quality/run-ci-checks.mjs" > ../run-ci-checks.base.mjs
+            runner=../run-ci-checks.base.mjs
+          fi
+        fi
+        echo "quality: runner = $runner"
+        node "$runner" --root "$PWD" 2>&1 | tee ../quality.log
+
     - name: Gate - build-shells --check
       id: gate_shells
       run: node scripts/build-shells.mjs --check 2>&1 | tee ../gate-shells.log

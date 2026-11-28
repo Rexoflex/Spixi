@@ -511,7 +511,13 @@ export default async function (h) {
      pins-fixb1/g-sparekeep FLAGSFILE holds the whole file; pins-fixb5/f-opus-managed and the csh OpusManagedTests hold the new block. */
   const FX_OPEN = '\n\n    /* Two switches, one per change; OFF = the old path.';
   const flagsFull = text(FLAGS_F), fxAt = flagsFull.indexOf(FX_OPEN);
-  const flagsRaw = fxAt >= 0 && /public static class SmallFixFlags/.test(flagsFull.slice(fxAt)) && flagsFull.endsWith('    }\n}\n') ? flagsFull.slice(0, fxAt + 1) + '}\n' : flagsFull;
+  /* ★ quotebox2 re-base (2026-11-27, after a look at the diff: 58 lines appended after SmallFixFlags, 0 deleted): the file may now end with
+     quotebox2's two blocks after SmallFixFlags — QuoteBox2Flags and the dev-only ReplyMatchLog, whose `#endif` is then the last line before
+     the namespace's brace. They are cut with SmallFixFlags (everything from FX_OPEN on), so b7 reads the lockb part exactly as before;
+     pins-quotebox2/b-matchlog and csh QuoteBox2Tests hold the new blocks, pins-fixb1/g-sparekeep FLAGSFILE the whole file. */
+  const fxTail = fxAt >= 0 ? flagsFull.slice(fxAt) : '';
+  const fxEnds = flagsFull.endsWith('    }\n}\n') || (/public static class QuoteBox2Flags/.test(fxTail) && flagsFull.endsWith('\n#endif\n}\n'));
+  const flagsRaw = fxAt >= 0 && /public static class SmallFixFlags/.test(fxTail) && fxEnds ? flagsFull.slice(0, fxAt + 1) + '}\n' : flagsFull;
   const flagsCode = mask(flagsRaw), flagsBare = mask(flagsRaw, true);
   const lf = flagsRaw.split('\n');
   const startLine = lf.map((l, i) => [l, i]).filter(([l]) => l.trim().startsWith('/* ★ lockb (Lock batch')).map(([, i]) => i);

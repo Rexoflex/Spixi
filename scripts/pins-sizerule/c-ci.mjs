@@ -15,7 +15,7 @@
  * Rows: 1 one step of this name, in the smoke job only · 2 right after the MSBuild harness step and right before the annotation step ·
  * 3 id · 4 if · 5 timeout · 6 run block (pipefail, one command line) · 7 the command line (--ci, --summary "$GITHUB_STEP_SUMMARY", the tee
  * target, nothing else) · 8 no other key in the step (no env, with, shell, working-directory) · 9 the only environment value ·
- * 10 no `github.event` text in the file · 11 the annotation step publishes size · 12 the upload step lists size.log · 13 fetch-depth 2, once,
+ * 10 no `github.event` text in the file, except the ONE BASE_SHA env line of the qtools step (train2 re-base) · 11 the annotation step publishes size · 12 the upload step lists size.log · 13 fetch-depth 2, once,
  * in the smoke checkout · 14 the comment block above the step · 15 no network tool or secret word in the step.
  * Each row has its deliberate break below: a mutated text in memory that makes exactly that row fail. */
 import { readFileSync } from 'node:fs';
@@ -23,6 +23,7 @@ import { join } from 'node:path';
 
 const NAME = 'Size (the counter and the R2 / R5 / R6 checks)';
 const CMD = 'node scripts/size-check.mjs --ci --summary "$GITHUB_STEP_SUMMARY" 2>&1 | tee ../size.log';
+const QTOOLS_EVENT_LINE = '      timeout-minutes: 20\n      env:\n        BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}\n';   // train2 re-base: the one github.event line of the qtools step with the two step lines above it, so the allowance holds only in that step (row 10)
 
 const lines = (t) => t.replace(/\r\n/g, '\n').split('\n');
 function smokeJob(t) {
@@ -64,7 +65,12 @@ function rows(t) {
   const names9 = [...body.join('\n').matchAll(/\$\{?([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]); const exprs = [...body.join('\n').matchAll(/\$\{\{[\s\S]*?\}\}/g)].map((m) => m[0]);
   R['9 the only environment value in the step is GITHUB_STEP_SUMMARY: no other $NAME, and no `${{ }}` that reads a context value (a # line of the run block included)'] =
     S.at >= 0 && names9.every((n) => n === 'GITHUB_STEP_SUMMARY') && !exprs.some((e) => /\b(github|env|secrets|vars|inputs|matrix|steps|needs|runner|job|strategy)\s*[.[]/.test(e));
-  R['10 no github.event text anywhere in the file (comments included)'] = !/github\s*\.\s*event|github\s*\[\s*['"]event/i.test(t);
+  /* train2 re-base (the merge of work/qtools): the qtools quality step brings ONE env line that reads the event's base commit (it is
+   * checked as 40 hex before use; pins-leanfollow/d-ci rows 17 and 18 hold that step literally, once). Row 10 admits exactly that
+   * line with its two step lines above it (timeout-minutes 20, env:), byte for byte, when found exactly once; any other github.event
+   * text, that line in another place, or that block twice, stays red. */
+  const tEv = t.split(QTOOLS_EVENT_LINE).length === 2 ? t.replace(QTOOLS_EVENT_LINE, '') : t;
+  R['10 no github.event text anywhere in the file (comments included), except the ONE qtools BASE_SHA line'] = !/github\s*\.\s*event|github\s*\[\s*['"]event/i.test(tEv);
   const annL = ann ? ann.lines : []; const uplL = upl ? upl.lines : [];
   R['11 the annotation step publishes size: `O_SIZE: ${{ steps.size.outcome }}` and `publish size "$O_SIZE"`'] =
     annL.filter((l) => l === '        O_SIZE: ${{ steps.size.outcome }}').length === 1 && annL.filter((l) => l === '        publish size "$O_SIZE"').length === 1;
@@ -115,6 +121,7 @@ export default async function ({ ok, root }) {
     [8, 'a second $NAME in a # line of the run block', rep('        set -eo pipefail\n' + RUN, '        set -eo pipefail\n        # $HOME\n' + RUN)],
     [9, 'github.event text in the annotation step', rep('        publish csh "$O_CSH"\n', '        publish csh "$O_CSH"\n        echo "${{ github.event.head_commit.message }}"\n')],
     [9, 'github.event named in a comment', rep('    # Only for a step that itself failed', '    # not ${{ github.event.pull_request.title }}\n    # Only for a step that itself failed')],
+    [9, 'the qtools BASE_SHA block twice (train2 re-base: it is admitted once only)', rep(QTOOLS_EVENT_LINE, QTOOLS_EVENT_LINE + QTOOLS_EVENT_LINE)],
     [10, 'the publish size line removed', rep('        publish size "$O_SIZE"\n', '')],
     [10, 'the O_SIZE env line points at the wrong step', rep('        O_SIZE: ${{ steps.size.outcome }}\n', '        O_SIZE: ${{ steps.smoke.outcome }}\n')],
     [11, 'the upload list loses size.log', rep('          size.log\n', '')],

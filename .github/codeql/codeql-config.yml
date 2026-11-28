@@ -1,0 +1,42 @@
+# CodeQL configuration for .github/workflows/codeql.yml (both languages read this one file).
+# The local baseline run uses the same file: `codeql database create --codescanning-config=.github/codeql/codeql-config.yml`
+# (docs/codeql-baseline.md). Paths are relative to the repository root.
+#
+# paths / paths-ignore are honoured for javascript-typescript (an interpreted language) AND for csharp because the
+# workflow uses build-mode none: GitHub's "workflow configuration options" page says the filters apply "when you analyze
+# a compiled language without building the code (currently supported for C/C++, C#, Java and Rust)". With a real build
+# (autobuild / manual) they would NOT limit C#; the build itself would have to.
+#
+# What this scan cannot see: Ixian-Core (not in this repository; Spixi.csproj imports it as a shared project from
+# ../../Ixian-Core, so its types are unresolved in build-mode none and taint through it is lost), code that only exists
+# after a MAUI build (generated XAML partials, resource designers), and any path named under paths-ignore below.
+# The filter characters ? + [ ] ! are matched literally; ** only as a whole path segment.
+name: spixi-redesign-codeql
+
+queries:
+  - uses: security-extended
+
+paths:
+  - Spixi     # the MAUI app (C#) and the packaged web assets (filtered below)
+  - src       # the hand-written front end: shells, components, bridge, strings (the source of the built html)
+  - scripts   # the build generators, gates and pins (Node), which read and write repo files
+
+paths-ignore:
+  # GENERATED: scripts/build-shells.mjs builds every file here from src/ (shells, spixi.bundle.js, spixi.icons.js,
+  # spixi.strings.js, the CSS, fonts/TwemojiCountryFlags.js, images/). src/ is scanned instead, so a finding is
+  # reported once, at the line a person edits.
+  - Spixi/Resources/Raw/html
+  # GENERATED: the file:// demo bundles (scripts/build-demo-bundle.mjs from src/components, scripts/build-strings-iife.mjs
+  # from src/strings), headed "GENERATED … DO NOT EDIT". Scanned, they repeat every src/components finding a second time.
+  - src/demo/spixi.iife.js
+  - src/demo/strings.iife.js
+  # VENDORED: the QR scanner, byte-identical to npm html5-qrcode@2.3.8 (minified, with zxing-js inside;
+  # docs/legal/third-party-notices.md). Named on its own so it stays out even if the line above is ever removed.
+  - Spixi/Resources/Raw/html/js/html5-qrcode.min.js
+  # VENDORED: RocksDbSharp from curiosity-ai/rocksdb-sharp @ f1cf0ba0 (BSD-2-Clause), compiled for maccatalyst only.
+  # Blind spot: AutoNativeImport.cs in it carries the local Catalyst patch (#920) and is not scanned either.
+  - Spixi/Platforms/MacCatalyst/RocksDbSharp
+  # CAPTURED DATA: device logs and walk records (.txt / .json) the walk-tool pins replay; no code.
+  - scripts/**/fixtures
+  # THIRD-PARTY packages, if a step ever installs them below a scanned folder (this workflow runs no npm ci).
+  - '**/node_modules'

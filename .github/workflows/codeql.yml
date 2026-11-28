@@ -1,0 +1,70 @@
+# CodeQL code scanning for the redesign branch (the fork only). Two languages, csharp and javascript-typescript, both
+# with build-mode none: no MAUI workload, no restore of Ixian-Core, no build. The query suite (security-extended) and
+# the scanned / ignored paths live in .github/codeql/codeql-config.yml, so the local baseline run reads the same file.
+# Results go to the repository's Security tab (code scanning alerts), one category per language. The first local twin
+# of this run, with every finding read, is docs/codeql-baseline.md.
+#
+# What it cannot see: Ixian-Core (not in this repository; its types are unresolved without a build), code that exists
+# only after a MAUI build, and the paths the config file ignores (named there, each with its reason).
+#
+# The weekly schedule is INERT for now: GitHub runs a `schedule:` trigger only from the copy of the workflow on the
+# repository's DEFAULT branch, and the default branch of Rexoflex/Spixi is `master`, not `redesign/frontend`. The
+# schedule starts to run when this file reaches `master`; until then the push and pull_request triggers are the ones
+# that run (a manual `workflow_dispatch` run also needs the file on the default branch).
+name: codeql
+
+on:
+  push:
+    branches: [ 'redesign/frontend' ]
+  pull_request:
+    branches: [ 'redesign/frontend' ]
+  schedule:
+    - cron: '17 3 * * 1'   # Mondays 03:17 UTC; runs only from the default branch's copy of this file (see above)
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    if: github.repository == 'Rexoflex/Spixi'   # the fork only: a copy of this file in another repository does nothing
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The codeql-action README: every advanced-setup workflow needs security-events: write; a PRIVATE repository also
+    # needs contents: read. actions: read is left out: the action uses it only to read this run's workflow path through
+    # the Actions API, which a token reads without it on a PUBLIC repository (Rexoflex/Spixi is public). If the
+    # repository is ever made private, add `actions: read` here.
+    permissions:
+      security-events: write   # upload the SARIF results to code scanning
+      contents: read           # check out the repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    # The action's default CLI for this pin is CodeQL 2.27.6 (src/defaults.json at the pinned commit).
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+        config-file: ./.github/codeql/codeql-config.yml
+
+    - name: Perform CodeQL analysis
+      uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+      with:
+        category: /language:${{ matrix.language }}

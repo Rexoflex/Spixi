@@ -16,6 +16,9 @@ By § 5 of `docs/quotebox-mechanism.md` C's look is cause 1: C# pushed C as its 
 
 ## 0 · Verdict
 
+*This § 0 is the state before the device run, kept as history. The device answer of 2026-11-28 (way (a), the data) is
+§ 6 at the end of this file.*
+
 **Not proven off the device. No fix is built** (the prompt: a fix only with a proven cause). What holds:
 
 1. The match is pure and right: over the whole chat each of the four replies finds exactly its target (CSH
@@ -143,3 +146,28 @@ beside B's lines of the same open):
 - The same-second hazard of (a) is Core's (★ Ixian-Core stays BE-only); a fix of it, if the line points there, is a
   question for the main chat, not this batch.
 - The line costs one log line per reply-shaped row per push in a developer build; store builds compile none of it.
+
+## 6 · The device answer (2026-11-28)
+
+Walk of train 2 on Windows (build `work/train2` @ `d0d09012`, Debug, Ctrl+F5 after a wipe), read by the main chat:
+#1976 (`claude/talk-rulings-2026-11-28.md`), #1977 (`claude/talk-rulings-2026-11-28-b.md`). The fields of the `[QB2]`
+lines only; no raw log line is copied here.
+
+- **Way (a), the data.** The old stored chat Seed 57 held **951 rows, not 1000** (`deep=951` in every line of that
+  process). **Rows 509–557 are missing** (49 rows; the screen shows row 508 and then row 558, Q2-W6), and row 515, the
+  target of REPLY C, is one of them. REPLY C's lines read **`found=0 cand=0`** with that full read (`deep=951`,
+  `idx=951`): case E2 of § 3. A, B and D read `found=1 cand=1`.
+- No read fault and no throwing match: the log file holds no `Cannot open chat file`, `Cannot read from chat file`,
+  `Cannot write to chat file`, `reply match: the deeper read failed` or `reply match failed` line.
+- **The fresh seed** (Q2-S1): `deep=1000`; REPLY C reads **`found=1`** (`cand=1`, `idx=1000`) and jumps (Q2-S2). On
+  Android it jumps too (A-1, #1977 (0)).
+- So the quote box code is right, and a fallback box for a reply whose target is not stored is the right behaviour: no
+  quote box fix is owed; the quote box item closes with the merge of train 2 (#1977 (3)).
+- **Open: which write dropped the 49 rows** (item `n-20261128-seed57-stored-rows-lost`). The kept logs start
+  2026-11-27 18:26 and hold no Core write error, so the loss is older than that.
+- **A lead, a hypothesis and not proven (#1976 (4)):** in the 11:26 process the seed tool ran **three times at once**
+  (its "1000 messages written" and "Seeded heavy" lines three times, from three threads, in the same minute; about 80
+  "image message … skipped" warnings in the image chats). Three writers on the same chat files in the same seconds fit
+  the Core same-second write boundary of § 0.3 (a). Damir pressed "Seed 50 · heavy" twice (#1977 (2)); why two presses
+  gave three runs is not known. The fix line of #1977 (2): one seed run at a time and a "seeding…" text (the next
+  small-fix batch); the Core boundary (`LocalStorage.cs:696`) goes into the BE ask as one line.

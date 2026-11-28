@@ -14,7 +14,11 @@ approves no mini-app action. ★ L149: copy the data folder first (rows W-1, W-2
   cd "C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi"; tar.exe -a -cf "$env:USERPROFILE\Desktop\fixb3-walk-app.zip" -C "$env:TEMP\fixb3walk" appinfo.spixi icon.png app
   ```
   For Android: copy `fixb3-walk-app.zip` to the phone's Download folder.
-- Windows: close Visual Studio, delete `Spixi\bin` and `Spixi\obj`, then F5 (never `dotnet build`, #663). Android: the Release
+  ⚠ **A re-walk after 2026-11-22:** the `app` folder of `docs/walk-safety-app` now sends `ixian:onload`, so the block
+  above makes an app that sends it. Build the zip with set-up (5b) of `docs/walk-safety.md` instead (the same file name;
+  it sets the kit switch `window.SAFETY_WALK_NO_ONLOAD = true` in `config.js`). The switch stays in the kit for this
+  sheet (#1965 (4), `docsb` Q-4 (c)).
+- Windows: close Visual Studio, delete `Spixi\bin` and `Spixi\obj`, then build and start with Ctrl+F5 (#1844 (1); never `dotnet build`, #663). Android: the Release
   dev build (no html changed in this batch; a plain build is enough).
 
 ## Part 1 · Windows

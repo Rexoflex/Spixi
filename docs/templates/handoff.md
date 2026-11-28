@@ -52,7 +52,7 @@ cd "C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Spixi"; git pull --f
 ```
 - `git pull --ff-only` matters when the local branch exists already (a re-walk after a fix round must build the new commit).
 - iPhone / Mac legs: the same git lines in the Mac clone (zsh). ★ MAC RE-SYNC REMINDER of `CLAUDE.md` comes first there.
-- Windows: wipe `Spixi\obj` + `Spixi\bin` when C# changed, then **F5 in Visual Studio, never `dotnet build`** (#663).
+- Windows: wipe `Spixi\obj` + `Spixi\bin` when C# changed, then build in Visual Studio and start with **Ctrl+F5** (#1844 (1); F5 only when a row needs the debugger), **never `dotnet build`** (#663).
 - Android / iPhone / Mac: wipe `Spixi/obj` + `Spixi/bin` when the html or C# changed, then a plain build, then Run (#320, #449).
 - The BUILD row of the walk sheet names something only this build shows.
 

@@ -1,6 +1,6 @@
 # Walk sheet — template (spec)
 
-A walk sheet is ONE self-contained HTML file, `docs/walk-artifact-<batch>[-<platforms>].html`. **Copy the newest
+**The older form (an HTML sheet; Markdown sheets replaced it from 2026-10, the card page from 2026-11-27; the next section wins):** a walk sheet is ONE self-contained HTML file, `docs/walk-artifact-<batch>[-<platforms>].html`. **Copy the newest
 sheet as the model** — today `docs/walk-artifact-1094-win-android.html` (Windows + Android) or
 `docs/walk-artifact-1086.html` (Mac + iPhone, the office). Change the header, the `ROWS` array AND every hard-coded
 batch value outside them: the `<title>`, the `Walk #…` label in the Copy-results text, the `localStorage` key (a new
@@ -8,12 +8,30 @@ key per sheet, or old marks leak in), and the expected smoke count in "Before yo
 old batch number — 0 hits.
 Publish it as an Artifact when Damir walks away from the PC.
 
+## The page and the walk rules up to 2026-11-28 (they win over the older spec of this file where they differ)
+Today a walk sheet is a Markdown file `docs/walk-<batch>.md` with the same rows as its page (an Artifact); the HTML spec
+below is the older form. The model: `docs/walk-train2.md` and its page "Spixi walk — train 2" (the card format Damir
+asked for on 2026-11-27, `claude/talk-rulings-2026-11-27-c.md`; Ctrl+F5 of 2026-11-24, item `n-20261124-walk-ctrlf5-rule` and three walk lessons of 2026-11-28, #1976, #1977).
+- **One card per row, no tables.** Each card has numbered steps, a line "You should see: …" under EACH step, a Copy
+  button for each command, Pass / Fail / N/A, a note, and the page has "Copy results".
+- **Windows rows start Spixi with Ctrl+F5** (Start Without Debugging; Visual Studio still builds, never `dotnet build`,
+  #663). F5 only when a row needs the debugger. An F5 end with `0xC000001D` or `ExecutionEngineException` is run again
+  with Ctrl+F5 before it is logged as an app fault (#1844 (1), #1904).
+- **`adb install` does not start the app.** The card after an install says "Open Spixi on the phone" (#1977 (0), T-4).
+- **A log extract that a walk needs goes to a FILE**, never the clipboard: the command writes it under
+  `C:\Users\Damir\Claude\Projects\Spixi Rework Of Frontend\Claude outputs\_transfer\` and prints its line count, and
+  the card asks for that count (#1976: two notes held terminal text in place of the lines).
+- **The dev seed button is pressed ONCE.** A seed run is slow and shows no progress; the card says "press it once and
+  wait" and what shows when the run is done (#1977 (2): two presses gave three runs at once).
+- ⚠ The model sheet predates three of these rules: its T-4 says "Spixi starts" after `adb install`, Q2-0 / Q2-W7 /
+  Q2-S3 copy the log extract to the clipboard, and Q2-S1 does not say "press it once". Fix them in your copy.
+
 ## Structure (keep it)
 - Title `Walk #<batch> — <platforms>`, one-line sub: what this walk checks.
 - **Before you start** (ordered list): pull / apply → FULL pipeline (bundle BEFORE shells) → smoke, expect
   `BASELINE OK — <n> / the 2 KNOWN (#136 · B3)` = "your last count + this round's new checks" → wipe `Spixi\obj` +
   `Spixi\bin` if C# changed — and on iPhone / Mac / Android also when the html changed (incremental builds do not repackage
-  Raw html, #320/#449) → the build commands per platform (Windows = **F5, never `dotnet build`** #663; Android
+  Raw html, #320/#449) → the build commands per platform (Windows = Visual Studio builds and the walk starts Spixi with **Ctrl+F5** (#1844 (1)), **never `dotnet build`** #663; Android
   `dotnet build Spixi\Spixi.csproj -f net10.0-android -c Debug` then `-t:Run`; iPhone `devicectl`; Mac
   `-f net10.0-maccatalyst`) → "this is the first compile of this C#; a build error is this batch's bug" →
   "Mark each row, then tap Copy results and paste them in the chat". **The page shows every set-up command of its sheet
@@ -42,7 +60,7 @@ Publish it as an Artifact when Damir walks away from the PC.
     `Spixi\bin\x64\Debug\net10.0-windows10.0.19041.0\win-x64`: the page store is `…\win-x64\Spixi.exe.WebView2\EBWebView`,
     the file is `…\win-x64\ixian.cfg`; `ixian.cfg` is read from the app's working folder, `Spixi/Meta/Config.cs:112`,
     `:150-152`, `:258`). So a wipe of `Spixi\bin` EMPTIES the page store and DELETES `ixian.cfg`; a search of `%LOCALAPPDATA%`
-    finds nothing. A sheet therefore (1) copies the page store AFTER the first start of the new build (after the wipe and F5),
+    finds nothing. A sheet therefore (1) copies the page store AFTER the first start of the new build (after the wipe and the Ctrl+F5 start),
     from that fixed full path — it does not search for it; (2) makes every `ixian.cfg` step a full PowerShell line with the
     full path and no placeholder (no `<…>`, no "open or create the file"): one line each for setting the folder, the restore
     folder and removing the line; the put-back of the store is one line with the same fixed path; (3) does not ask for "the

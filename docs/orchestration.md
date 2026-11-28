@@ -5,9 +5,9 @@ can act (a ruling, a look, a walk, a merge). Rulings: DECISIONS #1488 (one talk 
 #1490 (commit and push) · #1491 (Mission Control) · #1492 ("go" = Ready) · #1493 (pull requests stay in the fork) ·
 #1494 (number blocks). Written 2026-11-12 by Session ORCH from the generic project kit; where Spixi's own rules are
 stricter, they win. Changed since by the rulings #1500–#1511, #1546 (the delivery mode), #1606 / #1612 / #1640 (the
-leads and the readers) — each changed sentence names its row. Until a docs batch changes `docs/process.md`, the texts of this file and of `CLAUDE.md` that
-follow #1503, #1507, #1546, #1606 and #1735 (and the templates that follow them) win over the older lines there (the smoke between rounds, "No push access", "opens a
-pull request", every reviewer on Fable 5.2). The ★ rules are in `CLAUDE.md`; the gates are in `docs/process.md`.
+leads and the readers) — each changed sentence names its row. `docs/process.md` follows #1503, #1507, #1546, #1606 and
+#1735 since the docs batches `docsb2` (#1952) and `docsb3` (#1839 (2), #2062); where a line of it still differs from this file
+or `CLAUDE.md`, this file and `CLAUDE.md` win. The ★ rules are in `CLAUDE.md`; the gates are in `docs/process.md`.
 
 Words: **main chat** = the talk session · **tracker** = Mission Control (`claude/mission-control-howto.md`) ·
 **review loop** = the #46 loop (`docs/process.md`) · **base branch** = `redesign/frontend` (this repo has no `main`
@@ -183,14 +183,16 @@ someone" when they have no walk). A session that stopped wholly sets its session
   request at once, report it in the status doc, stop. **No push to `upstream`, ever.**
 - Damir merges with "Create a merge commit" (#1505): the commits stay as they are and GitHub adds no `Co-authored-by:`
   trailer. By #1507 `redesign/frontend` gets protection on GitHub: a pull request and the two green `redesign-ci` jobs
-  before every merge — owed by the row: Damir sets the rule in the settings of `Rexoflex/Spixi`.
+  before every merge — set by Damir (read back by the main chat on the GitHub API 2026-11-23: no deletion, no force
+  push, a pull request with the merge method "merge" only, the two jobs as required checks; #1839 (2)).
 - When `redesign/frontend` moved under an open pull request (shared files collide: `CLAUDE.md` "Where we are now",
   `DECISIONS.md`, the status log, lessons, the index): bringing the base into the work branch is allowed (a normal
   merge commit; never a rebase of a pushed branch) and is done by a follow-up work session or by the main chat —
   the stopped session does not wake up. A pull request with conflicts gets no CI run.
 - The main chat writes docs-only commits by the same rules, in its own number block: on the batch's work branch
   while its pull request is open (no app file changes, so the walked build stays valid); after the merge on a new
-  branch `work/docs-<date>` with its own pull request. A row that records Damir's ruling or a walk needs no #46
+  branch `work/docs-<date>`, pushed and handed over as #1546 says for a work session: the compare link and the title
+  and description to paste; Damir opens the pull request (#1965 (4), `docsb` Q-3 (a)). A row that records Damir's ruling or a walk needs no #46
   loop; a change of rule text (`CLAUDE.md`, `docs/process.md`, this file) is a docs batch and gets its #46 loop
   before the push.
 - **The fallback (a push fails, #1546; before the push proof it was the normal path, § 7), only when the prompt says

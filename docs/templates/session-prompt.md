@@ -131,7 +131,9 @@ the last fix (#1503); not CLEAN at round 5 → stop; verdict into the brief.
 ## Export (E), the delivery by #1546, then stop
 Into the tree, before the push: DECISIONS rows (own block) · the docs/release-readiness.md rows this session changed
 · walk sheet (docs/templates/walk-sheet.md), also published as an Artifact — its page shows every set-up command of
-the sheet in full, and a row that needs a new account says how: a second data folder (WALK #1828; the Defaults walk)
+the sheet in full, and a row that needs a new account says how: a second data folder (WALK #1828; the Defaults walk);
+the page format and the walk rules up to 2026-11-28 (cards, Ctrl+F5, "Open Spixi" after `adb install`, a log extract to
+a file, the seed button once): `docs/templates/walk-sheet.md`
 · handoff (docs/templates/handoff.md,
 with the PowerShell repo commands for Damir) · one status-log entry · CLAUDE.md "Where we are now" replaced (in this
 branch) · lessons (own block).

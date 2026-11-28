@@ -10,7 +10,7 @@ No feature, no app line written here: only merge resolutions, three re-based pin
   `79acfa0` resolution fix of review round 2 · the record commit (this file).
 - In: `work/qtools` @ `0e5b5184`, `work/quotebox2` @ `b3e4b6cb`. Out: `work/imgurl` @ `86eb39d6` (#2118, § 2).
 - Gates (cloud twin: Ixian-Core @ `097341a`, `npm ci` jsdom 29.1.1, .NET SDK 10.0.115, Node 22.23.5,
-  `TZ=America/Los_Angeles`): smoke `BASELINE OK 7657 / the 2 KNOWN` on the final head · CSH `pass=967 fail=0` · both `--check` gates ✓ ·
+  `TZ=America/Los_Angeles`): smoke `BASELINE OK 7657 / the 2 KNOWN` (the full run on `2bf5af8`: 7656 pass + one timing row of `pins-s7b/swipe` red, "7b (#1219) NO JUMP"; that module alone: 9 / 9, #1827 (4)) on the final head · CSH `pass=967 fail=0` · both `--check` gates ✓ ·
   cs-syntax-check 296 files ✓ · `node scripts/size-check.mjs --base origin/redesign/frontend --head HEAD`: PASS
   (R1 app C# +83 — quotebox2's, accepted by the main chat; R2 0, R5 0, R6 0).
 - ⚠ C# UNCOMPILED (quotebox2's list): `SingleChatPage.xaml.cs`, `SingleChatPage.ReplyMatch.cs`, `ContactNewPage.xaml.cs`,

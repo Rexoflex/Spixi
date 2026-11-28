@@ -481,5 +481,5 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2117 | In: `qtools`, `quotebox2`, one merge commit each, in the prompt's order; two resolution fixes of the review. |
 | #2118 ⏳ | Out: `imgurl` (qtools' isolation check: ISO-10, ISO-6 on its iOS media view; the fix is a security allow-list entry; options a / b / c for Damir). |
 | #2119 🟡 | The resolutions; the re-based pins `d-ci`, `g-sparekeep` and (provisional, Damir confirms) `c-ci` row 10's one allowed qtools line. |
-| #2120 | The gates: smoke `BASELINE OK 7657 / the 2 KNOWN`, CSH 967, size check PASS (app C# +83). |
+| #2120 | The gates: smoke `BASELINE OK 7657 / the 2 KNOWN` (the full run on `2bf5af8`: 7656 pass + one timing row of `pins-s7b/swipe` red, "7b (#1219) NO JUMP"; that module alone: 9 / 9, #1827 (4)), CSH 967, size check PASS (app C# +83). |
 | #2121 | Session "Merge train 2" — the record. |

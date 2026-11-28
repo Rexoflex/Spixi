@@ -40,7 +40,7 @@ Doubled numbers (#1839 (1)): **S20G** (2026-10-14 / 15, the Session 20G fix roun
 | Platform: iOS | #1086 · #1084 · #1028 · #976 · #975 · #974 · #972 · #932 · #919 · #915 · #809 · #807 · #706 · #488 · #487 · #486 · #312 · #309 · #293 · #282 · #281 | Edge-to-edge with env() insets. Delegates are re-asserted on every navigation. The push extension has an App Group gate. Native copy. Walks happen at the office, which is the first compile of iOS C#. |
 | Platform: Android | #1249 · #1095 · #924 · #923 · #922 · #883 · #830 · #824 · #734 · #732 · #679 · #665 · #577 · #548 · #409 · #408 · #407 · #401 · #331 · #330 · #329 | Full-bleed system bars with per-tab glyphs, and a transparent nav bar under the composer. A dev-coexist build beside legacy. The ring uses the application context. The memory kill is unreproduced. |
 | Platform: Mac Catalyst | #1245 · #1098 · #1086 · #1026 · #981 · #980 · #979 · #973 · #920 · #916 | The Mac ships in v1 (#1098; needs the D25 WebView handler). Route B: vendored RocksDbSharp, which boots. A local notification lane (Dock badge and bounce). Mic and camera usage strings. The divider affordance is cross-platform. |
-| Platform: Windows | #1069 · #938 · #888 · #768 · #753 · #698 · #666 · #663 · #576 · #516 · #507 · #228 | Build with F5, never plain `dotnet build`. A missing asset folder must fail loud. Flags are drawn in the picker. The restore picker has a Win32 fallback. The app has its own icon. |
+| Platform: Windows | #1069 · #938 · #888 · #768 · #753 · #698 · #666 · #663 · #576 · #516 · #507 · #228 | Build in Visual Studio, never plain `dotnet build`; a walk starts Spixi with Ctrl+F5 (#1844 (1)). A missing asset folder must fail loud. Flags are drawn in the picker. The restore picker has a Win32 fallback. The app has its own icon. |
 | Build pipeline & generators | #1069 · #882 · #868 · #862 · #854 · #792 · #790 · #789 · #693 · #663 · #593 · #283 · #176 (#3→#176) · #35 · #32 | Custom node scripts, not Vite. Build the bundle before the shells. A release strip step. A reachability gate for the legacy purge. The full smoke suite runs in the container. Compile C# for real. |
 | Smoke / pins rules | #953 · #892 · #861 · #859 · #828 · #810 · #798 · #772 · #771 · #694 · #682 · #659 · #646 · #627 · #395 | A pin declares `stripCode` or raw, executes behaviour, and is mutation-proven. A gate must prove it runs. Sweep the touched files when you retire a token. A visual property is gated by the walk. |
 | Walks & verdict process | #1243 · #1069 · #953 · #905 · #843 · #749 · #742 · #660 · #511 · #459 | Render on the built shell (both themes) before the pin. A walk sheet takes notes on PASS rows. A verdict file names its batch. A findings row closes only when walked. |
@@ -216,7 +216,7 @@ Doubled numbers (#1839 (1)): **S20G** (2026-10-14 / 15, the Session 20G fix roun
 | #1795 | The Android lock flash: the shell's 3 s belt fires during the absence + an animated pop; the fix needs `lock.html` → answered by #1825 (1) (A, a lock batch). |
 | #1796 | Review round 1: 0 MAJOR; R1-1 (the wall-clock measure, inherited): answered by #1825 (3); R1-2 fixed; R1-3 Mac plugin unproven. → the clock placed in `lockb` by #1838 (2). |
 | #1797 | The walk: a new Windows account through `ixian.cfg`; no safe new account on the test phone (emulator / spare phone / launch walk); the pin re-bases of other batches. |
-| #1798 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1): a Moment sheet by #1825 (4) → placed by #1838 (2): the next page batch. |
+| #1798 | Side effects of the new defaults (recents, the spare keep, the Mac shield, the Settings field write) and the first-notice proposal (none for v1): a Moment sheet by #1825 (4) → placed by #1838 (2): the next page batch. → dropped by #1966 (2): no first notice. |
 | #1799 | The #46 verdict of the batch. |
 | #1800 | Session "Defaults batch" — the record (numbers, models, owed). |
 
@@ -273,7 +273,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1752 | "Fix batch 3" is cut in two by file area; `fixb3` Ready, `fixb4` Planned. |
 | #1753 | `leanfollow`: one more fix round (L-1, r5C-1), then the gates on the final tree, then one Opus reader. |
 | #1754 | Q-2 of Fix batch 3: received downloads stay after chat info › Delete history (v1). |
-| #1825 | The four questions of the Defaults batch: (A) a lock batch with the shell; (A) no alert; (A) a clock the user cannot set; a Moment sheet as the first notice. |
+| #1825 | The four questions of the Defaults batch: (A) a lock batch with the shell; (A) no alert; (A) a clock the user cannot set; a Moment sheet as the first notice → dropped by #1966 (2) (no first notice; the change is in the cell of #1798). |
 | #1826 | The goal and the pace until v0.9.30: work that is easy for the BE to review; 3–4 sessions and 1–2 walks a day; ★ #1472 stays. |
 | #1827 | Two merges (`c9d6bf64`, `1ad3a44e`); one combined walk; Q-3 (a); `GATE 54 (a4)` is a timing flake — re-run first; the handoff count. |
 | #1828 | WALK Fix batch 3: 5 P · 0 F · 1 N/A (W-2 owed to the launch walk). |
@@ -311,6 +311,26 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1963 | The size rulings: stage-1 order of D6 (X about 57,710); our own full-code review is the audit of record; three small fixes into `fixb5`; the batch size rule R1–R6 from `fixb5` on. |
 | #1964 | The page-batch round: the Windows quote box is its own small batch; the password ask after a permission dialog stays; session `sizerule` (CI checks for R2, R5) is Ready. |
 
+### The main chat's rows of 2026-11-25 → 28 (#1965–#1978; written word for word by session `docsb3`, #2060)
+These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #NNNN ' DECISIONS.md`).
+
+| Row | Rule |
+|---|---|
+| #1965 | The triage of the handoff count (three items Done, two to v1.0.x, the lean rewrites stay); the eight `docsb` questions take the recommended or least-change option (Q-1 a · Q-2 a · Q-3 a · Q-4 c · Q-5 a · Q-6 a · Q-7 b · Q-8 b). |
+| #1966 | Four answers: `sizerule` ships as a guard; no first notice of App lock and payment confirmation (#1825 (4) dropped); the three sites of #1963 (5) a follow-up after `quotebox`; the quote-box rows walk with `fixb5`. |
+| #1967 | WALK `fixb5`: 12 P · 0 F · 1 N/A (Windows + Android; I-1 owed to the Apple phase). |
+| #1968 | WALK `quotebox`: 7 P · 2 F; REPLY C on Windows shows the fallback box (cause 1); the why is open; a small fix batch on the match at the open. |
+| #1969 | The Windows page store: option B, a store folder per data folder, in the next Windows C# batch (its own switch). |
+| #1970 | Walk debt waived until Saturday 2026-11-28 evening; `qtools` now, `macfix` after the Apple walk; Opus leads, Fable 5.2 security readers. |
+| #1971 | Apple compile first, one merge train for the batches of the night, no new scope after this week's batches, the schedule (a target). |
+| #1972 | `imgurl`: core only, round 6; `qtools`: round 6 with the three scanners as reports; one risky thing per batch. |
+| #1973 | The exact recount: 70 firm; six umbrella items parked; the QR amount before the launch; the next small-fix batch. |
+| #1974 | WALK train 1 (`macfixa` rows): 13 P · 0 F on Windows + Android; the Mac compile error found by `apple-compile` (fixed by #2115). |
+| #1975 | `quotebox2`: a small fix for the size check, no exception; R1 +83 accepted by the main chat. |
+| #1976 | WALK train 2, Windows: 14 P · 3 F; the cause of WALK #1968 proven — the data (rows 509–557 not in the stored chat, `deep=951`); the quote box is right; the seed ran three times at once (a hypothesis). |
+| #1977 | WALK train 2, Android (17 P · 3 F in all); `c-ci` row 10 confirmed; a guard for the dev seed button; the quote box item closes with the merge. |
+| #1978 | No Monero (XMR) support in Spixi; a third party may build a mini app. |
+
 ### Session Fix batch 4 (`fixb4`, 2026-11-22 / 23, #1845–#1855, L265–L268, packets P87–P88)
 | Row | Rule |
 |---|---|
@@ -337,7 +357,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1865 | The re-bases of other batches' rows (named). |
 | #1866 | The #46 verdict; the rule: the push gate must order the DELIVERIES (a main-thread send runs inline, a pool-thread send posts). |
 | #1867 | Session "History C#" — the record. |
-| #1868 🟡 | Proposed follow-up "History C# 2": the peer updates of a row while a background page is in flight (the round-5 records). |
+| #1868 | Proposed follow-up "History C# 2": the peer updates of a row while a background page is in flight (the round-5 records). → moved to v1.0.x by #1965 (2). |
 
 ### Session Walk tools (`walktools`, 2026-11-22 / 23, #1875–#1887, L273–L276, packet P93)
 | Row | Rule |
@@ -360,9 +380,9 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | Row | Rule |
 |---|---|
 | #1890 | The main chat's rows are in `DECISIONS.md` word for word as heading blocks (one empty line around each run); the insert and compare scripts in `scripts/docs/`. |
-| #1891 🟡 | The status cells extended (26); three already said it; Q-1 (#82 against #190 / #206) and Q-2 (#1642 on #1513) for the main chat. |
-| #1892 🟡 | The rule texts follow #1546, #1606, #1612, #1735, #1500–#1511 and four walk lessons; `docs/process.md`, two project docs and four skills owed; Q-3 (#1546 for the main chat's own pull requests). |
-| #1893 🟡 | The walk kit (icon, the load signal), the #1542 rows of the Safety sheet, the new launch walk sheet, the readiness section S12w; the two Artifacts and the `fixb3` sheet pointer owed. |
+| #1891 | The status cells extended (26); three already said it; Q-1 (#82 against #190 / #206) and Q-2 (#1642 on #1513) for the main chat. → answered by #1965 (4): Q-1 (a) #190 and #206; Q-2 (a) as done. |
+| #1892 | The rule texts follow #1546, #1606, #1612, #1735, #1500–#1511 and four walk lessons; `docs/process.md`, two project docs and four skills owed; Q-3 (#1546 for the main chat's own pull requests). → Q-3 answered by #1965 (4): (a) the compare link. |
+| #1893 | The walk kit (icon, the load signal), the #1542 rows of the Safety sheet, the new launch walk sheet, the readiness section S12w; the two Artifacts and the `fixb3` sheet pointer owed. → Q-4 … Q-8 answered by #1965 (4); the `fixb3` pointer written by `docsb3`. |
 | #1894 | The #46 verdict of the batch (readers: Opus only). |
 | #1895 | Session "Docs batch" — the record. |
 
@@ -373,7 +393,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #1901 🟡 | No app change: the fix, the guard pin and the csh decode test lapse with their premise. |
 | #1902 | `DOTNET_EnableHWIntrinsic=0` is not a fix; it is out of Damir's launch profile. |
 | #1903 | The developer probe `scripts/voicefix/` (prints counts only; not in the app, not in CI). |
-| #1904 🟡 | Proposal: a Windows walk leg starts with Ctrl+F5 unless a row needs the debugger. |
+| #1904 | Proposal: a Windows walk leg starts with Ctrl+F5 unless a row needs the debugger. → ruled by #1844 (1); in the walk-sheet template by `docsb3`. |
 | #1905 | The security record: the peer-voice exposure is withdrawn; the inherited Concentus native-library probe goes to BE, its trigger widened by ours (Q-3 open; on Android API 23 possibly the system libopus, not verified). |
 | #1906 | The record of the session (export, review verdict). |
 
@@ -410,9 +430,9 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 |---|---|
 | #1950 | The main chat's rows #1831–#1838 in `DECISIONS.md` word for word, right after #1830; the scripts take `--manifest` and a heading row as a run's predecessor. |
 | #1951 | 13 status cells extended (#1886, #1852, #1853, #1849, #1848, #1850, #1846, #1847, #1845, #1860, #1877, #1796, #1798); the rest listed as not changed. |
-| #1952 🟡 | `docs/process.md` follows #1503, #1606, #1735, #1546, #1507 (13 proposals of `docsb` + three contradicting sentences); Q-2: is branch protection set? |
+| #1952 | `docs/process.md` follows #1503, #1606, #1735, #1546, #1507 (13 proposals of `docsb` + three contradicting sentences); Q-2: is branch protection set? → Q-2 answered by #1839 (2): set. |
 | #1953 | The readiness rows of 2026-11-23; the Windows walk set-up: the page store and `ixian.cfg` beside `Spixi.exe`, the store copied after the first start, full PowerShell lines. |
-| #1954 🟡 | The doubled numbers #1420–#1423 are two sets (ON-1 and S20G), not a copy; Q-1: keep both and cite with the session (recommended) / renumber / mark. |
+| #1954 | The doubled numbers #1420–#1423 are two sets (ON-1 and S20G), not a copy; Q-1: keep both and cite with the session (recommended) / renumber / mark. → Q-1 answered by #1839 (1): keep both. |
 | #1955 | The #46 verdict of the batch (readers: Opus only): CLEAN at r4; the compare script's relaxed cell check stays a stated limit (rule 9). |
 | #1956 | Session "Docs batch 2" — the record. |
 
@@ -433,7 +453,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | Row | Rule |
 |---|---|
 | #2010 | The Windows quote box of REPLY C (Seed 57): not reproduced off the device; in Chromium the four replies jump with the mouse; three inputs give "no reaction, no toast" (C#'s fallback box · an unanswered jump whose toast a landing older page cancels · a full repaint of the log inside the mouse press); four likely causes (the open's deeper read short · the jump dropped · the click lost on Windows · the repaint race). |
-| #2011 🟡 | No fix built (no proven cause); the walk rows of `docs/walk-quotebox.md` tell the four causes apart; the fix batch follows the walk (the open's deeper read · `onQuoteJump` and the toast wait · the native layer · the full repaint under a pressed mouse). |
+| #2011 | No fix built (no proven cause); the walk rows of `docs/walk-quotebox.md` tell the four causes apart; the fix batch follows the walk (the open's deeper read · `onQuoteJump` and the toast wait · the native layer · the full repaint under a pressed mouse). → walked: WALK #1968; the mechanism batch `quotebox2`; the cause proven by #1976. |
 | #2012 | Session "Quote box" — the record. |
 
 ### Session Size rule, part 2 (`sizerule2`, 2026-11-26, #2020–#2022, L313, no packet) — R2 / R5 shipped as a guard
@@ -446,7 +466,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 ### Session Quote box 2 (`quotebox2`, 2026-11-27, #2025–#2030, L315–L318, packets P111–P112)
 | Row | Rule |
 |---|---|
-| #2025 | The Windows REPLY C miss: not proven off the device and not narrowed (neither the other replies nor the walk's cut log exclude a read fault); open: a read fault · a throwing match · (a) row 515 not stored as seeded · (c) C pushed with no read in its index; no fix (item 2 not built). |
+| #2025 | The Windows REPLY C miss: not proven off the device and not narrowed (neither the other replies nor the walk's cut log exclude a read fault); open: a read fault · a throwing match · (a) row 515 not stored as seeded · (c) C pushed with no read in its index; no fix (item 2 not built). → the cause proven on the device: row 515 is not in the stored chat (#1976); no fix owed (#1977 (3)). |
 | #2026 | One developer-build line `[QB2] reply match …` at every reply match (`#if SPIXI_DEV_COEXIST`, P112); its fields defined, and what each way is expected to leave (reasoning, not a decision rule); the walk with an evidence copy, the row-515 look and a fresh seed. |
 | #2027 🟡 | The Sent sweep after the forget at the chat-page Decline (`ixian:undorequest`) and the two `pendingDeletion` re-adds (switch `SweepOnForget`, P111); gate 18's fixed entry removed. |
 | #2028 | The re-bases of other batches' pins (histcs a6 / a7 / b2, fixb5 e5, fixb1 FLAGSFILE, lockb b7, s5 p0 (4)). |
@@ -470,7 +490,7 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | Row | Rule |
 |---|---|
 | #2110 | In: `sizerule`, `applecc`, `macfixa`, one merge commit each, in the prompt's order. |
-| #2111 ⏳ | Out: `quotebox2` (the size check R6 fails on it; options a / b / c for Damir), `qtools`, `imgurl` (by the start line). |
+| #2111 | Out: `quotebox2` (the size check R6 fails on it; options a / b / c for Damir), `qtools`, `imgurl` (by the start line). → #1975: the small fix; rides train 2. |
 | #2112 | The resolutions: record files and the smoke registration only; two folds of "Where we are now". |
 | #2113 | The gates: smoke 7412 / the 2 KNOWN (one timing row green alone), CSH 946, size check PASS. |
 | #2114 | Session "Merge train 1" — the record. |
@@ -479,7 +499,21 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | Row | Rule |
 |---|---|
 | #2117 | In: `qtools`, `quotebox2`, one merge commit each, in the prompt's order; two resolution fixes of the review. |
-| #2118 ⏳ | Out: `imgurl` (qtools' isolation check: ISO-10, ISO-6 on its iOS media view; the fix is a security allow-list entry; options a / b / c for Damir). |
-| #2119 🟡 | The resolutions; the re-based pins `d-ci`, `g-sparekeep` and (provisional, Damir confirms) `c-ci` row 10's one allowed qtools line. |
+| #2118 | Out: `imgurl` (qtools' isolation check: ISO-10, ISO-6 on its iOS media view; the fix is a security allow-list entry; options a / b / c for Damir). → option (a), session `imgurlfix` (Damir 2026-11-28). |
+| #2119 | The resolutions; the re-based pins `d-ci`, `g-sparekeep` and (provisional, Damir confirms) `c-ci` row 10's one allowed qtools line. → confirmed by Damir, #1977 (1). |
 | #2120 | The gates: smoke `BASELINE OK 7657 / the 2 KNOWN` (the full run on `2bf5af8`: 7656 pass + one timing row of `pins-s7b/swipe` red, "7b (#1219) NO JUMP"; that module alone: 9 / 9, #1827 (4)), CSH 967, size check PASS (app C# +83). |
 | #2121 | Session "Merge train 2" — the record. |
+
+### Session Docs batch 3 (`docsb3`, 2026-11-28, #2060–#2069, L327–L328, no packet) — documents only, no walk
+| Row | Rule |
+|---|---|
+| #2060 | The main chat's rows #1965–#1978 word for word after #1964 (manifest `main-chat-rows-2026-11-28.json`; the checker's one table entry; the proof). |
+| #2061 | The 19 status cells the rows change; #1825 (4) goes into the cell of #1798 (a byte-held heading row takes no suffix). |
+| #2062 | #1839 (2) branch protection "set" in `docs/process.md` and `docs/orchestration.md`; #1839 (3) the head of `docs/orchestration.md`; `docsb` Q-3 (the main chat's docs branch: the compare link). |
+| #2063 | The eight `docsb` answers in their files (Q-4 the pointer to set-up (5b), Q-5 Blitz Chess, Q-7 S12w); the S12w States of the walks up to 2026-11-28. |
+| #2064 | `docs/process.md` a)–m): a)–l) already done by `docsb2`, m)'s status applied; three stale sentences fixed. |
+| #2065 | The Voice fix addendum: the Opus line is ours (#1995); the code leftovers are `fixb6`'s; gate 18's fixed entry is gone (checked). |
+| #2066 | `docs/quotebox2-mechanism.md` § 6 (the device answer, way (a)); the walk rules up to 2026-11-28 in the templates (Ctrl+F5, cards, `adb install`, a log extract to a file, the seed button once). |
+| #2067 | `CLAUDE.md` "Where we are now" of 2026-11-28 (the size rule, the walk debt, the merges up to train 2). |
+| #2068 | The #46 verdict of the batch. |
+| #2069 | Session "Docs batch 3" — the record. |

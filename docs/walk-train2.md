@@ -4,7 +4,7 @@ Session `train2` (DECISIONS #2117–#2121, rulings #1971 (2), #1975). ONE build 
 
 In the train: `qtools` (CI and scripts, no walk rows) · `quotebox2` (the rows below, from `docs/walk-quotebox2.md`). NOT in the train: `imgurl` (#2118: qtools' isolation check does not know its iOS media view) — its rows, its seed check and its memory before / after are not on this sheet.
 
-The rows are copied whole from `docs/walk-quotebox2.md`; each keeps its id and names its batch and its switch. The only changes: the branch `work/quotebox2` → `work/train2` (T-0, W-BUILD); the sheet's shared lines (the log line L, the data copy) are written into the cards that use them. New rows: the set-up T-0 … T-4 only. The wipe of T-2 is the train's (the quotebox2 sheet alone needs none: only C# changed); T-1 copies the data folder before it.
+The rows are copied whole from `docs/walk-quotebox2.md` (each Do text split into numbered steps, each Pass text kept); each keeps its id and names its batch and its switch. The changes: the branch `work/quotebox2` → `work/train2` (T-0, W-BUILD, A-BUILD: the build is the train's T-4, a dev Release build); the sheet's shared lines (the log line L, the data copy) are written into the cards that use them; its "Before you start" item 1 (the branch, written as `git -C "$HOME\…"`) and item 2 (Debug, no wipe) are replaced by the train's set-up, which uses `cd "C:\Users\Damir\…"` and `$env:USERPROFILE\Documents` as train 1 did (the quotebox2 commands keep `GetFolderPath('MyDocuments')`). New rows: the set-up T-0 … T-4 only. The wipe of T-2 is the train's (the quotebox2 sheet alone needs none: only C# changed); T-1 copies the data folder before it.
 
 ★ L149 — your test account and its data stay. Copy the data folder first. **Never** Delete account, never `adb uninstall`, never `pm clear`. The walk sends no IXI. ★ Windows = Ctrl+F5 (#1844 (1)), never `dotnet build` (#663).
 
@@ -97,7 +97,7 @@ The stored Seed 57 as it is before any open of this walk. Information only.
    Copy-Item -Recurse (Join-Path ([Environment]::GetFolderPath('MyDocuments')) "Spixi") (Join-Path ([Environment]::GetFolderPath('MyDocuments')) ("Spixi-copy-quotebox2-" + (Get-Date -Format yyyyMMdd-HHmm)))
    ```
    You should see: A folder Spixi-copy-quotebox2-… is in Documents. Its name goes in the note.
-2. Run the log line L. It puts its output on the clipboard. Paste it into the note with Ctrl+V. An empty clipboard = "no lines".
+2. Run the log line L (if the logs of the walk of 2026-11-26 are still kept, it copies them too). It puts its output on the clipboard. Paste it into the note with Ctrl+V. An empty clipboard = "no lines".
    ```
    Get-ChildItem -Path (Join-Path ([Environment]::GetFolderPath('MyDocuments')) "Spixi") -Filter "ixian*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-String -Pattern "reply match","Cannot open chat file","Cannot read from chat file","Cannot write to chat file","Cannot create chat file","ixian:quotejump:","shell older insert","\[FLAGS\] photo1b","\[FLAGS\] histcs","\[DEVSEED\]" | ForEach-Object { $_.Filename + ": " + ($_.Line -replace "'.*'", "'<path>'") } | Set-Clipboard
    ```
@@ -111,7 +111,7 @@ The build is the pushed head of work/train2 (T-0). Start with Ctrl+F5 (#1844 (1)
 
 1. T-0's last line printed two hashes. Check them.
    You should see: The two hashes are equal.
-2. Configuration Debug; start Spixi with Ctrl+F5. If Visual Studio asks whether to run the last successful build: answer No and note it.
+2. Configuration Debug; start Spixi with Ctrl+F5. If Visual Studio asks whether to run the last successful build: answer No and note it (a build error — the C# files of this batch are compiled here first).
    You should see: Visual Studio's Output window shows the build with 0 errors (no "run the last successful build" question). The title bar does NOT say "(Debugging)".
 3. Open the chats list.
    You should see: Seed 57 Mojca Vrabec is in the list. (Row Q2-W7 also finds the [QB2] lines, which only this build writes.)
@@ -120,7 +120,7 @@ Result: Pass / Fail / N/A · note:
 
 ### Q2-W1 — REPLY A jumps  (`quotebox2` · switch: none (dev line))
 
-Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
+Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Write the clock time of each open of Seed 57. Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
 
 1. Open Seed 57 (note the time). Do not scroll. The newest message is from Seed 57: "REPLY A — yes, I will be at the boat by noon."
    You should see: The chat shows REPLY A at the bottom.
@@ -131,7 +131,7 @@ Result: Pass / Fail / N/A · note:
 
 ### Q2-W2 — REPLY B jumps  (`quotebox2` · switch: none (dev line))
 
-Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
+Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Write the clock time of each open of Seed 57. Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
 
 1. Close the chat (open another chat, then Seed 57 again; note the time). The second message from the bottom is mine: "REPLY B — found the key, thanks.".
    You should see: REPLY B is the second message from the bottom.
@@ -142,7 +142,7 @@ Result: Pass / Fail / N/A · note:
 
 ### Q2-W3 — REPLY C jumps (the miss of WALK #1968)  (`quotebox2` · switch: none (dev line))
 
-Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
+Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Write the clock time of each open of Seed 57. Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
 
 1. Close the chat and open Seed 57 again (note the time). Before you scroll: mouse onto the quote box of "REPLY B — …" and note its name and hand (do not click).
    You should see: Name and hand of B are in the note.
@@ -155,7 +155,7 @@ Result: Pass / Fail / N/A · note:
 
 ### Q2-W4 — REPLY D jumps  (`quotebox2` · switch: none (dev line))
 
-Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
+Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Write the clock time of each open of Seed 57. Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
 
 1. Do NOT close the chat. Go to "REPLY D — I will buy the chain tomorrow." (between rows 769 and 771): DOWN if Q2-W3 jumped, else further UP. Wait 5 s.
    You should see: REPLY D shows.
@@ -166,7 +166,7 @@ Result: Pass / Fail / N/A · note:
 
 ### Q2-W5 — REPLY C again  (`quotebox2` · switch: none (dev line))
 
-Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
+Before you click: name = does the box show "Seed 57 Mojca Vrabec" (or "You") above the quote text, yes / no; hand = is the pointer a hand over the box, yes / no. Then click = what happened, with the clock time (hh:mm:ss). Write the clock time of each open of Seed 57. Wait 5 s after your last scroll before a click; keep the mouse and the wheel still for 3 s after it.
 
 1. Close the chat and open Seed 57 again (note the time). Before you scroll: REPLY B's name and hand (no click).
    You should see: B's name / hand are in the note.
@@ -256,7 +256,7 @@ Result: Pass / Fail / N/A · note:
 
 ### A-BUILD — Is Seed 57 there?  (`quotebox2` · switch: none)
 
-The dev build of work/train2 (T-4).
+The dev build of work/train2 (T-4, the dev Release build; the quotebox2 sheet: "the dev build of work/quotebox2 if you build one; else the dev build that is installed").
 
 1. Open the chats list. Note which build (T-4).
    You should see: Seed 57 Mojca Vrabec is in the list.

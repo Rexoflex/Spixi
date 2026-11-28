@@ -47,7 +47,7 @@ The merge of `work/imgurl` @ `86eb39d6` onto `79acfa0` was made and kept in the 
   go, as imgurl removed them — both are word for word in imgurl's status-log entry), `SpixiFlags.cs` (the base + 58
   quotebox2 lines + 50 imgurl lines; FLAGS_FROZEN `38df62a2…`), the gate doc (the imgurl section after quotebox2's),
   `release-readiness.md` (WK-IMGURL after WK-QUOTEBOX2), `status-log.md`, the smoke registration (pins-imgurl after
-  pins-quotebox2), `pins-histcs/a-path` (REPLACES = quotebox2's two pairs, then `...IMG_REPLACES, IMG_MOVE`),
+  pins-quotebox2), `pins-histcs/a-path` (REPLACES = the two histcs pairs FILE and PPJ, quotebox2's two pairs, then `...IMG_REPLACES, IMG_MOVE`),
   `pins-photo1a/a-open` (the same keep-test line on both sides; quotebox2's comment kept).
 - One more re-base: `pins-imgurl/b-page` `revertPage` also puts quotebox2's two in-place lines of the page back
   (`SentSweepOnForget.forget(…)` → `SPeerLocalStores.forget(…)`, the `tryReplyMatch(…)` call → `ReplyQuote.tryMatch(…)`),

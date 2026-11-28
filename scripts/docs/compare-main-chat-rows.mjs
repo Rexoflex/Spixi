@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Use: node scripts/docs/compare-main-chat-rows.mjs [<folder with the project docs claude/talk-rulings-*.md>] [--manifest <path>] [--base <git rev>] [--own <a>-<b>]
 //      (default manifest: scripts/docs/main-chat-rows-2026-11-22.json; the 2026-11-23 batch:
-//       --manifest scripts/docs/main-chat-rows-2026-11-23.json --base 462ba3e4 --own 1950-1959)
+//       --manifest scripts/docs/main-chat-rows-2026-11-23.json --base 462ba3e4 --own 1950-1959; the 2026-11-28 batch
+//       (session docsb3, DECISIONS 2060): --manifest scripts/docs/main-chat-rows-2026-11-28.json --base e3d69266)
 //
 // Session docsb (DECISIONS 1890), extended by session docsb2 (DECISIONS 1950): proves what insert-main-chat-rows.mjs
 // did, with its own reading (no code shared).
@@ -20,7 +21,8 @@
 // a number up to the manifest's highest row is either in the manifest, or a table row of the file, or a heading row
 // of the file (a row that the main chat writes later than the manifest is not this batch's).
 // The expected totals are fixed per manifest, by its file name: main-chat-rows-2026-11-22.json = 30 rows, 26 cells,
-// 1 status line; main-chat-rows-2026-11-23.json = 8 rows, 13 cells, 0 status lines; any other name: exit 2.
+// 1 status line; main-chat-rows-2026-11-23.json = 8 rows, 13 cells, 0 status lines; main-chat-rows-2026-11-28.json =
+// 14 rows, 19 cells, 0 status lines (docsb3: this table entry is its only code change); any other name: exit 2.
 // The own rows of --own must be one block at the end of the file, each number once. Exit 1 on any miss; exit 2 on a
 // wrong argument.
 // LIMITS (stated in the first version that a reader can attack, #1735): it proves the bytes of the manifest's rows,
@@ -59,7 +61,7 @@ for (let i = 0; i < args.length; i++) {
   else { console.error('one folder only'); process.exit(2); }
 }
 const manifestPath = manifestArg ? resolve(manifestArg) : join(root, 'scripts', 'docs', 'main-chat-rows-2026-11-22.json');
-const EXPECTED = { 'main-chat-rows-2026-11-22.json': { rows: 30, cells: 26, statusLines: 1 }, 'main-chat-rows-2026-11-23.json': { rows: 8, cells: 13, statusLines: 0 } };
+const EXPECTED = { 'main-chat-rows-2026-11-22.json': { rows: 30, cells: 26, statusLines: 1 }, 'main-chat-rows-2026-11-23.json': { rows: 8, cells: 13, statusLines: 0 }, 'main-chat-rows-2026-11-28.json': { rows: 14, cells: 19, statusLines: 0 } };
 const EXPECT = EXPECTED[basename(manifestPath)];
 if (!EXPECT) { console.error('unknown manifest ' + basename(manifestPath) + ': the expected totals are fixed per manifest name (' + Object.keys(EXPECTED).join(', ') + ')'); process.exit(2); }
 const m = JSON.parse(readFileSync(manifestPath, 'utf8'));

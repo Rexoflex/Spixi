@@ -474,3 +474,12 @@ These rows are heading blocks in `DECISIONS.md`, not table rows (`grep -n '^## #
 | #2112 | The resolutions: record files and the smoke registration only; two folds of "Where we are now". |
 | #2113 | The gates: smoke 7412 / the 2 KNOWN (one timing row green alone), CSH 946, size check PASS. |
 | #2114 | Session "Merge train 1" — the record. |
+
+### Merge train 2 (`train2`, 2026-11-28, #2117–#2121, L340, no packet) — `qtools` and `quotebox2` in one branch; `imgurl` out
+| Row | Rule |
+|---|---|
+| #2117 | In: `qtools`, `quotebox2`, one merge commit each, in the prompt's order; two resolution fixes of the review. |
+| #2118 ⏳ | Out: `imgurl` (qtools' isolation check: ISO-10, ISO-6 on its iOS media view; the fix is a security allow-list entry; options a / b / c for Damir). |
+| #2119 🟡 | The resolutions; the re-based pins `d-ci`, `g-sparekeep` and (provisional, Damir confirms) `c-ci` row 10's one allowed qtools line. |
+| #2120 | The gates: smoke `BASELINE OK 7657 / the 2 KNOWN`, CSH 967, size check PASS (app C# +83). |
+| #2121 | Session "Merge train 2" — the record. |
